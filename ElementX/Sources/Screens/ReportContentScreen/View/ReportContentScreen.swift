@@ -31,6 +31,7 @@ struct ReportContentScreen: View {
             ListRow(label: .plain(title: L10n.screenReportContentHint),
                     kind: .textField(text: $context.reasonText, axis: .vertical))
                 .lineLimit(4, reservesSpace: true)
+                .accessibilityIdentifier(A11yIdentifiers.reportContent.reason) // AGENT-PLATFORM (decision 146)
         } footer: {
             Text(L10n.screenReportContentExplanation)
                 .compoundListSectionFooter()
@@ -54,12 +55,14 @@ struct ReportContentScreen: View {
             Button(L10n.actionCancel) {
                 context.send(viewAction: .cancel)
             }
+            .accessibilityIdentifier(A11yIdentifiers.reportContent.cancel) // AGENT-PLATFORM (decision 146)
         }
         
         ToolbarItem(placement: .confirmationAction) {
             Button(L10n.actionSend) {
                 context.send(viewAction: .submit)
             }
+            .accessibilityIdentifier(A11yIdentifiers.reportContent.send) // AGENT-PLATFORM (decision 146)
         }
     }
 }

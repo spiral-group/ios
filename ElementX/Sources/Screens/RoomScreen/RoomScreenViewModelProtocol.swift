@@ -16,5 +16,8 @@ protocol RoomScreenViewModelProtocol {
     
     func timelineHasScrolled(direction: ScrollDirection)
     func setSelectedPinnedEventID(_ eventID: String)
+    /// AGENT-PLATFORM: re-pull the room's active tools so the in-chat banner
+    /// reflects an arm / edit / disable done from the agent-tools sheet (Brief 0036 F2).
+    func refreshAgentToolsBanner()
     func displayMediaPreview(_ mediaPreviewViewModel: TimelineMediaPreviewViewModel)
 }

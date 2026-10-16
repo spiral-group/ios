@@ -42,19 +42,43 @@ nonisolated class NotificationHandler {
     func processEvent(_ eventID: String, roomID: String) async {
         MXLog.info("\(tag) Processing event: \(eventID) in room: \(roomID)")
         
-        // Copy over the unread information to the notification badge
-        notificationContent.badge = notificationContent.unreadCount as NSNumber?
-        MXLog.info("\(tag) New badge value: \(notificationContent.badge?.stringValue ?? "nil")")
+        // AGENT-PLATFORM (Brief 0066, § 5.83): the badge is NOT the server's
+        // `unread_count`. That number is how many rooms the server holds an
+        // unanswered notification for — and in an encrypted room it counts
+        // every hidden action, in buckets no receipt clears (a thread's,
+        // a room's whose last notifying event is hidden). One push arrived
+        // with `unread_count = 4` while the notification centre held one
+        // notification and the room list nothing unread. The badge is the
+        // rooms this phone has a notification for, this one included; the
+        // app recomputes it from the room list on every open
+        // (`NotificationManager.updateBadgeCount`).
+        let delivered = await UNUserNotificationCenter.current().deliveredNotifications()
+        notificationContent.badge = Self.badge(roomsWithDeliveredNotifications: Set(delivered.compactMap(\.request.content.roomID)),
+                                               roomID: roomID) as NSNumber
+        MXLog.info("\(tag) New badge value: \(notificationContent.badge?.stringValue ?? "nil") (server said \(notificationContent.unreadCount.map(String.init) ?? "nil"))")
         
         guard let notificationItemProxy = await userSession.notificationItemProxy(roomID: roomID, eventID: eventID) else {
-            MXLog.error("\(tag) Failed retrieving notification item")
-            discardNotification()
+            // AGENT-PLATFORM (§ 5.83): nothing could be shown — the fetch failed
+            // (network, token). Upstream showed the app's name over the word
+            // «Notification»; that tells nobody anything.
+            MXLog.error("\(tag) Failed retrieving notification item, discarding")
+            discardNotification(updatingBadge: false)
+            return
+        }
+        
+        if Self.hasNothingToShow(notificationItemProxy) {
+            // AGENT-PLATFORM (§ 5.83): the event could not be decrypted (no room
+            // key yet). Most often one of our hidden actions after a reinstall;
+            // a real message that cannot be decrypted is as unreadable in the
+            // app as here. Upstream showed «Notification».
+            MXLog.warning("\(tag) Undecryptable event, discarding")
+            discardNotification(updatingBadge: false)
             return
         }
         
         switch await preprocessNotification(notificationItemProxy) {
         case .processedShouldDiscard, .unsupportedShouldDiscard:
-            discardNotification()
+            discardNotification(updatingBadge: false)
         case .shouldDisplay:
             if settings.hideQuietNotificationAlerts, !notificationItemProxy.isNoisy {
                 discardNotification()
@@ -66,7 +90,28 @@ nonisolated class NotificationHandler {
                                                      mediaProvider: userSession.mediaProvider)
             
             deliverNotification()
+        case .shouldDisplayMissedCall:
+            await notificationContentBuilder.process(notificationContent: &notificationContent,
+                                                     notificationItem: notificationItemProxy,
+                                                     mediaProvider: userSession.mediaProvider)
+            notificationContent.body = UntranslatedL10n.notificationMissedCall
+            deliverNotification()
         }
+    }
+    
+    /// The badge once this notification is delivered: the rooms that have one
+    /// on this phone, this room counted whether or not it already had one.
+    static func badge(roomsWithDeliveredNotifications rooms: Set<String>, roomID: String) -> Int {
+        rooms.union([roomID]).count
+    }
+    
+    /// An event with no words to put in a notification: one the SDK could
+    /// not decrypt. Everything else — a message, a custom event the builder
+    /// knows, an invite (no timeline event at all) — has something to say.
+    static func hasNothingToShow(_ item: NotificationItemProxyProtocol) -> Bool {
+        guard case let .timeline(event) = item.event else { return false }
+        if case .messageLike(.roomEncrypted) = try? event.content() { return true }
+        return false
     }
     
     func handleTimeExpiration() {
@@ -83,12 +128,27 @@ nonisolated class NotificationHandler {
         contentHandler(notificationContent)
     }
     
-    private func discardNotification() {
+    /// Drop the alert.
+    ///
+    /// `updatingBadge` separates two very different reasons for discarding.
+    /// When the USER asked for quiet alerts the badge is the whole point of
+    /// the notification, so it must still be carried. When the CLIENT filtered
+    /// the event out — a type it never renders, a redaction, a call handed to
+    /// CallKit — importing the server's count is precisely the mismatch the
+    /// user reported: in an encrypted room the homeserver can only match the
+    /// blanket "encrypted event" rule, so it counted an event we are in the
+    /// middle of deciding not to show. Leaving the badge alone lets the app's
+    /// own recompute (`NotificationManager.updateBadgeCount`) own the number.
+    private func discardNotification(updatingBadge: Bool = true) {
         MXLog.info("\(tag) Discarding notification")
         
         let content = UNMutableNotificationContent()
-        content.badge = notificationContent.unreadCount as NSNumber?
-        MXLog.info("\(tag) New badge value: \(content.badge?.stringValue ?? "nil")")
+        if updatingBadge {
+            // AGENT-PLATFORM (§ 5.83): the badge computed above, from this
+            // phone's notifications — never the server's `unread_count`.
+            content.badge = notificationContent.badge
+            MXLog.info("\(tag) New badge value: \(content.badge?.stringValue ?? "nil")")
+        }
         
         contentHandler(content)
     }
@@ -102,12 +162,20 @@ nonisolated class NotificationHandler {
         case .messageLike(let messageContent):
             switch messageContent {
             case .poll,
-                 .roomEncrypted,
                  .sticker:
                 return .shouldDisplay
+            case .roomEncrypted:
+                // AGENT-PLATFORM (§ 5.83): caught earlier (`hasNothingToShow`);
+                // kept here so the switch stays exhaustive and the answer is one.
+                return .unsupportedShouldDiscard
             case .roomMessage(let messageType, _):
                 switch messageType {
-                case .emote, .image, .audio, .video, .file, .notice, .text, .location, .gallery:
+                // AGENT-PLATFORM (Brief 0066): an Interactive Post announces
+                // itself like any other message. It is listed beside the rest
+                // rather than special-cased earlier, which is the whole point
+                // of it being a message type: no push rule to install, and no
+                // branch ahead of this switch to keep in step with it.
+                case .emote, .image, .audio, .video, .file, .notice, .text, .location, .gallery, .interactivePost, .interactiveDraft:
                     return .shouldDisplay
                 case .other:
                     return .unsupportedShouldDiscard
@@ -130,8 +198,12 @@ nonisolated class NotificationHandler {
                                                     rtcNotifyEventID: event.eventId(),
                                                     timestamp: event.timestamp(),
                                                     expirationTimestamp: expirationTimestamp,
-                                                    roomID: itemProxy.roomID,
-                                                    roomDisplayName: itemProxy.roomDisplayName,
+                                                    ringingRoom: .init(roomID: itemProxy.roomID,
+                                                                       displayName: itemProxy.roomDisplayName,
+                                                                       isDM: itemProxy.isDM),
+                                                    callerID: itemProxy.senderID,
+                                                    callerDisplayName: itemProxy.senderDisplayName,
+                                                    callerAvatarMediaSource: itemProxy.isDM ? itemProxy.senderAvatarMediaSource : itemProxy.roomAvatarMediaSource,
                                                     callIntent: callIntent)
             case .callAnswer,
                  .callInvite,
@@ -156,8 +228,19 @@ nonisolated class NotificationHandler {
                 return .unsupportedShouldDiscard
             }
         case .none:
-            return .unsupportedShouldDiscard
+            // AGENT-PLATFORM (§ 5.73): a game's move that names this user —
+            // the one custom event this extension shows.
+            return itemProxy.spiralAction == nil ? .unsupportedShouldDiscard : .shouldDisplay
         }
+    }
+    
+    /// The ringing room as the VoIP payload needs it — one value instead of
+    /// three loose parameters (SwiftLint caps the count, and these travel
+    /// together anyway).
+    private struct RingingRoom {
+        let roomID: String
+        let displayName: String
+        let isDM: Bool
     }
     
     /// Handle incoming call notifications.
@@ -166,8 +249,13 @@ nonisolated class NotificationHandler {
                                         rtcNotifyEventID: String,
                                         timestamp: Timestamp,
                                         expirationTimestamp: Timestamp,
-                                        roomID: String,
-                                        roomDisplayName: String, callIntent: RtcCallIntent?) async -> NotificationProcessingResult {
+                                        ringingRoom: RingingRoom,
+                                        callerID: String,
+                                        callerDisplayName: String?,
+                                        callerAvatarMediaSource: MediaSourceProxy?,
+                                        callIntent: RtcCallIntent?) async -> NotificationProcessingResult {
+        let roomID = ringingRoom.roomID
+        let roomDisplayName = ringingRoom.displayName
         // Handle incoming VoIP calls, show the native OS call screen
         // https://developer.apple.com/documentation/callkit/sending-end-to-end-encrypted-voip-calls
         //
@@ -211,25 +299,64 @@ nonisolated class NotificationHandler {
                 observationToken.withLock { $0 = nil }
                 
                 guard room.hasActiveRoomCall() else {
-                    MXLog.info("The room no longer has an ongoing call, handling as push notification")
-                    return .shouldDisplay
+                    // The ring is already over: showing "Incoming call" for a
+                    // call nobody can answer is a lie the user acts on. This
+                    // is also the ONLY notification the callee gets when the
+                    // app was dead while the caller gave up — CallKit's
+                    // `.unanswered` writes to Recents, never the lock screen.
+                    MXLog.info("The room no longer has an ongoing call, displaying it as a missed call")
+                    return .shouldDisplayMissedCall
                 }
             }
-        } else { // Otherwise fallback to the old timeout mechanism
-            let timestamp = Date(timeIntervalSince1970: TimeInterval(timestamp / 1000))
-            
-            guard abs(timestamp.timeIntervalSinceNow) < ElementCallServiceNotificationDiscardDelta else {
-                MXLog.info("Call notification is too old, handling as push notification")
-                return .shouldDisplay
-            }
+        } else {
+            // Audit wave 8 — this branch used to gate the ring on
+            // `abs(timestamp.timeIntervalSinceNow) < 15`, the same
+            // server-time-versus-device-clock comparison W6-5-3 removed from
+            // the payload and from the app. It survived one function above
+            // the fix. A device more than 15 seconds out in EITHER direction
+            // — no NTP after a cold boot, a hand-set clock, a bad carrier
+            // time zone — downgraded every call on this path to a silent
+            // banner, invisibly, forever.
+            //
+            // There is no server-derived replacement: measuring delivery
+            // delay needs a local `now`, which is the thing being removed. So
+            // the gate goes. What is left is stronger anyway — the ring
+            // carries the server's own lifetime, the app caps it at 90 s, and
+            // the room-info observer and decline listener retire it the
+            // moment the call is actually over. Ringing a little late is
+            // recoverable; never ringing is not.
+            MXLog.info("No room to corroborate the call with; ringing on the notification's own lifetime")
         }
         
-        let expirationDate = Date(timeIntervalSince1970: TimeInterval(expirationTimestamp / 1000))
-        let payload = [ElementCallServiceNotificationKey.roomID.rawValue: roomID,
-                       ElementCallServiceNotificationKey.roomDisplayName.rawValue: roomDisplayName,
-                       ElementCallServiceNotificationKey.expirationDate.rawValue: expirationDate,
-                       ElementCallServiceNotificationKey.rtcNotifyEventID.rawValue: rtcNotifyEventID,
-                       ElementCallServiceNotificationKey.isVoiceCall.rawValue: callIntent == RtcCallIntent.audio] as [String: Any]
+        var callerAvatarData: Data?
+        if let callerAvatarMediaSource,
+           case let .success(data) = await userSession.mediaProvider.loadThumbnailForSource(source: callerAvatarMediaSource,
+                                                                                            size: .init(width: 100, height: 100)) {
+            callerAvatarData = data
+        }
+
+        // Audit W6-5-3 — a duration derived from two SERVER timestamps, so
+        // the device's own clock never enters the arithmetic. Sending the
+        // absolute expiry instead made the main app compare a server
+        // deadline against its local wall clock, and a device running ahead
+        // of the homeserver reported every ring as already missed.
+        //
+        // Transit time is deliberately not subtracted: doing so would need
+        // a local `now`, which is the thing we are getting rid of. The cost
+        // is a ring that may last a second or two past the server's intent,
+        // against a 90 s cap, which is nothing next to losing the ring
+        // entirely.
+        let remainingRingSeconds = max(0,
+                                       (Int(expirationTimestamp) - Int(timestamp)) / 1000)
+        var payload = [CallKitNotificationKey.isDM.rawValue: ringingRoom.isDM,
+                       CallKitNotificationKey.roomID.rawValue: roomID,
+                       CallKitNotificationKey.roomDisplayName.rawValue: roomDisplayName,
+                       CallKitNotificationKey.callerID.rawValue: callerID,
+                       CallKitNotificationKey.callerDisplayName.rawValue: callerDisplayName ?? roomDisplayName,
+                       CallKitNotificationKey.remainingRingSeconds.rawValue: remainingRingSeconds,
+                       CallKitNotificationKey.rtcNotifyEventID.rawValue: rtcNotifyEventID,
+                       CallKitNotificationKey.isVoiceCall.rawValue: callIntent == RtcCallIntent.audio] as [String: Any]
+        payload[CallKitNotificationKey.callerAvatarData.rawValue] = callerAvatarData
         
         do {
             try await CXProvider.reportNewIncomingVoIPPushPayload(payload)
@@ -244,6 +371,9 @@ nonisolated class NotificationHandler {
     
     private enum NotificationProcessingResult {
         case shouldDisplay
+        /// A ring that is already over — display it, but as the missed call
+        /// it is, not as the incoming call it no longer is.
+        case shouldDisplayMissedCall
         case processedShouldDiscard
         case unsupportedShouldDiscard
     }

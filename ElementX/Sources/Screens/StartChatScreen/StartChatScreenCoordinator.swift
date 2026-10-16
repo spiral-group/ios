@@ -21,6 +21,7 @@ enum StartChatScreenCoordinatorAction {
     case createRoom
     case openRoom(roomID: String)
     case openRoomDirectorySearch
+    case invitePeople // AGENT-PLATFORM (Brief 0073).
 }
 
 final class StartChatScreenCoordinator: CoordinatorProtocol {
@@ -51,6 +52,8 @@ final class StartChatScreenCoordinator: CoordinatorProtocol {
                 actionsSubject.send(.openRoom(roomID: roomID))
             case .openRoomDirectorySearch:
                 actionsSubject.send(.openRoomDirectorySearch)
+            case .invitePeople: // AGENT-PLATFORM (Brief 0073).
+                actionsSubject.send(.invitePeople)
             }
         }
         .store(in: &cancellables)

@@ -43,7 +43,8 @@ class LiveLocationManager: NSObject, LiveLocationManagerProtocol, CLLocationMana
     
     init(clientProxy: ClientProxyProtocol,
          appSettings: AppSettings,
-         locationManager: @autoclosure @MainActor () -> CLLocationManagerProtocol = CLLocationManager()) {
+         locationManager: @autoclosure @MainActor () -> CLLocationManagerProtocol = CLLocationManager(),
+         backgroundModes: [String] = InfoPlistReader.main.backgroundModes) { // AGENT-PLATFORM (Brief 0078)
         self.clientProxy = clientProxy
         self.appSettings = appSettings
         // Very important, the CLLocationManager needs to be initialised on the main thread
@@ -56,7 +57,9 @@ class LiveLocationManager: NSObject, LiveLocationManagerProtocol, CLLocationMana
         
         // Configure CLLocationManager for continuous background tracking.
         self.locationManager.delegate = self
-        self.locationManager.allowsBackgroundLocationUpdates = true
+        // AGENT-PLATFORM (Brief 0078): CoreLocation throws when this is set without the
+        // `location` background mode, which Spiral leaves out while location sharing is off.
+        self.locationManager.allowsBackgroundLocationUpdates = backgroundModes.contains("location")
         self.locationManager.showsBackgroundLocationIndicator = true
         
         // Since unpausing location updates is not trivial, let's always keep the location updates running

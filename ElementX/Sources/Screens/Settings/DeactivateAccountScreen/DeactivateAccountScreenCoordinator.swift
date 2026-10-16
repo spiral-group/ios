@@ -12,6 +12,7 @@ import SwiftUI
 struct DeactivateAccountScreenCoordinatorParameters {
     let clientProxy: ClientProxyProtocol
     let userIndicatorController: UserIndicatorControllerProtocol
+    var spiralDeletion: SpiralAccountDeletion? // AGENT-PLATFORM (Brief 0078)
 }
 
 enum DeactivateAccountScreenCoordinatorAction {
@@ -30,7 +31,8 @@ final class DeactivateAccountScreenCoordinator: CoordinatorProtocol {
     
     init(parameters: DeactivateAccountScreenCoordinatorParameters) {
         viewModel = DeactivateAccountScreenViewModel(clientProxy: parameters.clientProxy,
-                                                     userIndicatorController: parameters.userIndicatorController)
+                                                     userIndicatorController: parameters.userIndicatorController,
+                                                     spiralDeletion: parameters.spiralDeletion)
     }
     
     func start() {

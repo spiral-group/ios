@@ -53,7 +53,7 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "C0FAEB81CFD9776CD78CE489"
-            BuildableName = "ElementX.app"
+            BuildableName = "Spiral.app"
             BlueprintName = "ElementX"
             ReferencedContainer = "container:ElementX.xcodeproj">
          </BuildableReference>

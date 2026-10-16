@@ -59,7 +59,7 @@ protocol DeveloperOptionsProtocol: AnyObject {
     var automaticBackPaginationEnabled: Bool { get set }
     
     var roomListActivityVisibility: RoomListActivityVisibility { get set }
-    var elementCallBaseURLOverride: URL? { get set }
+    // AGENT-PLATFORM (Brief 0067): `elementCallBaseURLOverride` removed with the widget (ADR-0079).
     
     var fuzzyRoomListSearchEnabled: Bool { get set }
     var lowPriorityFilterEnabled: Bool { get set }
@@ -74,7 +74,12 @@ protocol DeveloperOptionsProtocol: AnyObject {
     var linkNewDeviceEnabled: Bool { get set }
     var userStatusEnabled: Bool { get set }
     
+    // AGENT-PLATFORM (ADR-0008).
+    var registrationRequiresInvite: Bool { get set }
+    var qrCodeLoginEnabled: Bool { get set }
+    
     var roomThreadListEnabled: Bool { get set }
+    var viewSourceEnabled: Bool { get set } // AGENT-PLATFORM (decision 188): moved here from Advanced settings.
     
     var globalSearchEnabled: Bool { get set }
 }

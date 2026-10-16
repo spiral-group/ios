@@ -32,6 +32,7 @@ enum UITestsScreenIdentifier: String {
     case roomLayoutTop
     case roomLayoutHighlight
     case roomMembersListScreenPendingInvites
+    case roomMembersFlowWithAssistant // AGENT-PLATFORM (Brief 0078): a profile that can erase what the assistants know.
     case roomPlainNoAvatar
     case roomRolesAndPermissionsFlow
     case roomSmallTimeline
@@ -43,6 +44,7 @@ enum UITestsScreenIdentifier: String {
     case roomWithOutgoingPolls
     case roomWithUndisclosedPolls
     case serverSelection
+    case spiralTabBarBadge // AGENT-PLATFORM (coverage walk F3)
     case sessionVerification
     case startChatFlow
     case userSessionScreen

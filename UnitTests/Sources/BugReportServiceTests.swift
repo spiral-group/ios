@@ -101,7 +101,7 @@ final class BugReportServiceTests {
         #expect(response.reportURL == "https://example.com/123")
     }
     
-    @Test
+    @Test(.requiresRageshakeSecret) // AGENT-PLATFORM (Brief 0067)
     @MainActor
     func configurations() async throws {
         guard case let .url(initialURL) = appSettings.bugReportRageshakeURL.publisher.value else {

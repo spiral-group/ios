@@ -13,20 +13,25 @@ import SwiftUI
 struct FormActionButtonStyle: ButtonStyle {
     let title: String
     
+    // AGENT-PLATFORM: Apple contact-card style (ADR-0005) — accent icon +
+    // single-line small label (long RU labels used to hyphen-wrap and
+    // misalign the icons across sibling buttons).
     func makeBody(configuration: Configuration) -> some View {
-        VStack(spacing: 4) {
+        VStack(spacing: 6) {
             configuration.label
                 .buttonStyle(.plain)
-                .foregroundColor(.compound.iconSecondary)
+                .foregroundColor(.compound.iconAccentPrimary)
                 .scaledFrame(size: 24)
             
             Text(title)
                 .foregroundColor(.compound.textPrimary)
-                .font(.compound.bodyLG)
+                .font(.compound.bodySM)
                 .textCase(.none)
+                .lineLimit(1)
+                .minimumScaleFactor(0.75)
         }
         .padding(.horizontal, 4)
-        .padding(.vertical, 8)
+        .padding(.vertical, 10)
         .frame(maxWidth: .infinity)
         .background {
             RoundedRectangle(cornerRadius: 14)

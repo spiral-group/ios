@@ -23,7 +23,18 @@ final class DeveloperOptionsScreenCoordinator: CoordinatorProtocol {
         actionsSubject.eraseToAnyPublisher()
     }
     
+    #if DEBUG
+    // AGENT-PLATFORM (Brief 0066): the Interactive Post slice harness needs a
+    // real room to post into and read back from. Held here rather than put in
+    // the view state, which is for values a view renders, not for services.
+    private let clientProxy: ClientProxyProtocol?
+    #endif
+    
     init(appSettings: AppSettings, appHooks: AppHooks, clientProxy: ClientProxyProtocol?) {
+        #if DEBUG
+        self.clientProxy = clientProxy
+        #endif
+        
         viewModel = DeveloperOptionsScreenViewModel(developerOptions: appSettings,
                                                     appHooks: appHooks,
                                                     clientProxy: clientProxy)
@@ -41,6 +52,10 @@ final class DeveloperOptionsScreenCoordinator: CoordinatorProtocol {
     }
     
     func toPresentable() -> AnyView {
+        #if DEBUG
+        AnyView(DeveloperOptionsScreen(context: viewModel.context, clientProxy: clientProxy))
+        #else
         AnyView(DeveloperOptionsScreen(context: viewModel.context))
+        #endif
     }
 }

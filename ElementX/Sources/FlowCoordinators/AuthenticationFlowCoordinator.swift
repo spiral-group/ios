@@ -141,6 +141,13 @@ class AuthenticationFlowCoordinator: FlowCoordinatorProtocol {
             }
             
             stateMachine.tryEvent(.applyProvisioningParameters, userInfo: provisioningParameters)
+        case .inviteLink:
+            // AGENT-PLATFORM (Brief 0073 / ADR-0008): the invitation is
+            // already in `appSettings.pendingInvite`; the start screen
+            // observes it. Only make sure the start screen is what shows.
+            if stateMachine.state != .startScreen {
+                clearRoute(animated: animated)
+            }
         default:
             fatalError()
         }

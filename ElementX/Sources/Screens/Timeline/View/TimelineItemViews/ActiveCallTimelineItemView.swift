@@ -41,6 +41,18 @@ struct ActiveCallTimelineItemView: View {
         }
     }
     
+    // AGENT-PLATFORM (Brief 0063): an agent in the room must not relabel a 1:1 call.
+    /// The tile describes the CALL, not the room: a DM whose assistant has
+    /// actually connected is truthfully a 3-party group call, while an idle
+    /// assistant in the room must not turn a 1:1 call into a "group call".
+    static func isGroupPresentation(isDM: Bool, activeMemberCount: Int) -> Bool {
+        !isDM || activeMemberCount > 2
+    }
+    
+    private var isGroupPresentation: Bool {
+        Self.isGroupPresentation(isDM: isDM, activeMemberCount: activeMembers.count)
+    }
+    
     var body: some View {
         HStack(spacing: 8) {
             CompoundIcon(isVoiceCall ? \.voiceCallSolid : \.videoCallSolid, size: .medium,
@@ -50,7 +62,7 @@ struct ActiveCallTimelineItemView: View {
                 .foregroundStyle(.compound.iconPrimary)
                 .accessibilityHidden(true)
             
-            if isDM {
+            if !isGroupPresentation { // AGENT-PLATFORM (Brief 0063): was `if isDM`.
                 HStack(alignment: .center, spacing: 4) {
                     StackedAvatarsView(overlap: 6,
                                        lineWidth: 1,

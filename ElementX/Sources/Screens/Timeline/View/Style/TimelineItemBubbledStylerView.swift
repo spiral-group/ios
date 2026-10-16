@@ -124,6 +124,10 @@ struct TimelineItemBubbledStylerView<Content: View>: View {
         }
     }
     
+    // AGENT-PLATFORM (Brief 0066 step 6): a row may hang its own chips
+    // under the bubble, where reactions go — a draft's Code / Publish.
+    @Environment(\.timelineItemAccessory) private var accessory
+
     private var messageBubbleWithReactions: some View {
         // Figma overlaps reactions by 3
         VStack(alignment: alignment, spacing: -3) {
@@ -131,6 +135,13 @@ struct TimelineItemBubbledStylerView<Content: View>: View {
                 .timelineItemAccessibility(timelineItem) {
                     context.send(viewAction: .displayTimelineItemMenu(itemID: timelineItem.id))
                 }
+
+            if let accessory {
+                accessory
+                    .padding(.horizontal, 4)
+                    // As for reactions: keep the long press off the chips.
+                    .onTapGesture { }
+            }
             
             // Do not display reactions in the pinned events timeline
             if context.viewState.timelineKind != .pinned,
@@ -204,6 +215,10 @@ struct TimelineItemBubbledStylerView<Content: View>: View {
                               insets: timelineItem.bubbleInsets(hasContentScanningFailure: hasContentScanningFailure),
                               color: hasContentScanningFailure ? .compound.bgCriticalSubtle : timelineItem.bubbleBackgroundColor,
                               borderColor: hasContentScanningFailure ? .compound.borderCriticalSubtle : nil)
+            // AGENT-PLATFORM: cap the bubble width (ADR-0005) — long
+            // messages no longer span edge-to-edge; matches the
+            // Apple/Telegram reference and improves iPad readability.
+            .frame(maxWidth: 340, alignment: timelineItem.isOutgoing ? .trailing : .leading)
     }
     
     var contentWithReply: some View {
@@ -252,6 +267,21 @@ struct TimelineItemBubbledStylerView<Content: View>: View {
     }
 }
 
+/// A view a row hangs under its bubble, drawn where reactions are drawn and
+/// in their style (`TimelineReactionButtonLabel`): outside the bubble, so
+/// the bubble keeps its own shape — which for an Interactive Post is the
+/// shape the room gives it.
+private struct TimelineItemAccessoryKey: EnvironmentKey {
+    static let defaultValue: AnyView? = nil
+}
+
+extension EnvironmentValues {
+    var timelineItemAccessory: AnyView? {
+        get { self[TimelineItemAccessoryKey.self] }
+        set { self[TimelineItemAccessoryKey.self] = newValue }
+    }
+}
+
 private extension EventBasedTimelineItemProtocol {
     var bubbleBackgroundColor: Color? {
         let defaultColor: Color = isOutgoing ? .compound._bgBubbleOutgoing : .compound._bgBubbleIncoming
@@ -262,6 +292,21 @@ private extension EventBasedTimelineItemProtocol {
             return properties.replyDetails != nil || properties.isThreaded || hasMediaCaption ? defaultColor : nil
         case is StickerRoomTimelineItem:
             return nil
+        // AGENT-PLATFORM (Brief 0066): a post draws its own surface edge to
+        // edge, like a photo. A bubble behind it is a second background nobody
+        // can see, except at the corners where it shows as a grey halo.
+        // `isThreaded` is not consulted: a draft always lives in a thread and
+        // a post may, and in the thread's own timeline there is no decorator
+        // to make room for — the post is drawn as the room will draw it. A
+        // draft IS a post, with an actions row under it; same surface.
+        case is InteractivePostRoomTimelineItem:
+            return properties.replyDetails != nil ? defaultColor : nil
+        // A draft is a post with a Publish button under it, as a poll has
+        // "End poll": the bubble's fill runs behind both.
+        case is InteractiveDraftRoomTimelineItem:
+            return defaultColor
+        case is InteractiveGeneratingRoomTimelineItem:
+            return defaultColor
         default:
             return defaultColor
         }
@@ -292,6 +337,12 @@ private extension EventBasedTimelineItemProtocol {
         case is LiveLocationRoomTimelineItem:
             return properties.replyDetails != nil ||
                 properties.isThreaded ? defaultInsets : .zero
+        case is InteractivePostRoomTimelineItem:
+            return properties.replyDetails != nil ? defaultInsets : .zero
+        // Zero: the post reaches the bubble's edges and the bubble's own
+        // radius clips it; the button pads itself.
+        case is InteractiveDraftRoomTimelineItem, is InteractiveGeneratingRoomTimelineItem:
+            return .zero
         default:
             return defaultInsets
         }
@@ -299,6 +350,8 @@ private extension EventBasedTimelineItemProtocol {
     
     var contentCornerRadius: CGFloat {
         switch self {
+        case is InteractivePostRoomTimelineItem, is InteractiveDraftRoomTimelineItem, is InteractiveGeneratingRoomTimelineItem:
+            return properties.replyDetails != nil ? 8 : .zero
         case is ImageRoomTimelineItem, is VideoRoomTimelineItem, is LocationRoomTimelineItem, is LiveLocationRoomTimelineItem:
             return properties.replyDetails != nil || properties.isThreaded ? 8 : .zero
         default:

@@ -12,40 +12,37 @@ enum SettingsScreenViewModelAction {
     case close
     case userDetails
     case userStatusEmojiPicker(EmojiPickerScreenContinuation)
-    case linkNewDevice
-    case manageAccount(url: URL)
+    case invitePeople // AGENT-PLATFORM (Brief 0073).
+    // AGENT-PLATFORM (decision 187): the sign-in phrase, devices, Encryption,
+    // Screen lock and Link new device are in the Security hub; Blocked users
+    // is in Privacy (Advanced settings re-purposed).
+    case security
+    case privacy
+    case notifications
+    case yourData // AGENT-PLATFORM (Brief 0078).
+    case appearanceAndMedia // AGENT-PLATFORM (decision 187).
     case analytics
-    case appLock
     case reportBug
     case about
-    case blockedUsers
-    case secureBackup
-    case notifications
-    case advancedSettings
+    // periphery:ignore - AGENT-PLATFORM (decision 188): Labs has no row; kept for upstream syncs.
     case labs
     case developerOptions
     case logout
     case deactivateAccount
 }
 
-enum SettingsScreenSecuritySectionMode {
-    case none
-    case secureBackup
-}
-
 struct SettingsScreenViewState: BindableState {
     var deviceID: String?
     var userProfile: UserProfile
     var showUserStatus = false
-    var showLinkNewDeviceButton: Bool
-    var accountProfileURL: URL?
     var showAccountDeactivation: Bool
+    /// AGENT-PLATFORM (Brief 0078): the exports, for a Spiral account.
+    var showYourData = false
     var showDeveloperOptions: Bool
     
-    var securitySectionMode = SettingsScreenSecuritySectionMode.none
+    /// AGENT-PLATFORM (decision 187): Element's "set up recovery" badge, on the Security row.
     var showSecuritySectionBadge = false
     
-    var showBlockedUsers = false
     let showAnalyticsSettings: Bool
     
     let isBugReportServiceEnabled: Bool
@@ -83,19 +80,19 @@ enum SettingsScreenViewAction {
     case close
     case userDetails
     case userStatus(UserStatusAction)
+    case invitePeople // AGENT-PLATFORM (Brief 0073).
+    case security // AGENT-PLATFORM (decision 187).
+    case privacy // AGENT-PLATFORM (decision 187).
+    case notifications
+    case yourData // AGENT-PLATFORM (Brief 0078).
+    case appearanceAndMedia // AGENT-PLATFORM (decision 187).
     case analytics
-    case appLock
     case reportBug
     case about
-    case blockedUsers
-    case secureBackup
-    case linkNewDevice
-    case manageAccount(url: URL)
-    case notifications
+    // periphery:ignore - AGENT-PLATFORM (decision 188): Labs has no row; kept for upstream syncs.
+    case labs
     case enableDeveloperOptions
     case developerOptions
-    case advancedSettings
-    case labs
     case logout
     case deactivateAccount
     

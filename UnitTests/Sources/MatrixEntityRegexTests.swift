@@ -25,6 +25,22 @@ struct MatrixEntityRegexTests {
         #expect(!MatrixEntityRegex.isMatrixUserIdentifier("@username.example.com"))
     }
     
+    // AGENT-PLATFORM (Brief 0063): room version 12 IDs.
+    @Test
+    func roomID() {
+        // Legacy IDs carry a homeserver, room version 12 IDs are the create
+        // event's hash. Both are room IDs; only the first is legacy.
+        #expect(MatrixEntityRegex.isMatrixRoomID("!zwjWNJioalQOdYtyHa:matrix.org"))
+        #expect(MatrixEntityRegex.isMatrixRoomID("!HAeQ7vXbo3RaJnKgJyLKfsHZ0OQ8xW7lM3nBvCzQpUY"))
+        #expect(MatrixEntityRegex.isLegacyMatrixRoomID("!zwjWNJioalQOdYtyHa:matrix.org"))
+        #expect(!MatrixEntityRegex.isLegacyMatrixRoomID("!HAeQ7vXbo3RaJnKgJyLKfsHZ0OQ8xW7lM3nBvCzQpUY"))
+        
+        #expect(!MatrixEntityRegex.isMatrixRoomID("@username:example.com"))
+        #expect(!MatrixEntityRegex.isMatrixRoomID("#element-ios:matrix.org"))
+        #expect(!MatrixEntityRegex.isMatrixRoomID("zwjWNJioalQOdYtyHa"))
+        #expect(!MatrixEntityRegex.isMatrixRoomID("!room with spaces"))
+    }
+    
     @Test
     func roomAlias() {
         #expect(MatrixEntityRegex.isMatrixRoomAlias("#element-ios:matrix.org"))

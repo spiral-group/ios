@@ -80,6 +80,11 @@ targets:
         DEVELOPMENT_TEAM: $(DEVELOPMENT_TEAM)
         SWIFT_VERSION: 6.2
         SWIFT_APPROACHABLE_CONCURRENCY: YES
+      configs:
+        # AGENT-PLATFORM: Xcode compilation caching, Debug (the test
+        # configuration) only; Release/archive builds stay uncached.
+        Debug:
+          COMPILATION_CACHE_ENABLE_CACHING: YES
 
     sources:
     - path: ../Sources
@@ -91,6 +96,12 @@ targets:
     - path: ../../ElementX/Sources/AppHooks/Hooks/RemoteSettingsHook.swift
     - path: ../../Secrets/Secrets.swift
     - path: ../../ElementX/Sources/Application/Settings
+    # AGENT-PLATFORM (Brief 0073): `AppSettings.pendingInvite` is typed
+    # with these; `SpiralInviteLink` needs the `SpiralLink.serverName`
+    # constant. The extension never uses them but compiles AppSettings.
+    - path: ../../ElementX/Sources/Services/AgentPlatform/SpiralLink.swift
+    - path: ../../ElementX/Sources/Services/AgentPlatform/SpiralInviteLink.swift
+    - path: ../../ElementX/Sources/Services/AgentPlatform/PendingInvite.swift
     - path: ../../ElementX/Sources/Application/TargetConfiguration.swift
     - path: ../../ElementX/Sources/Services/AlertTones/NotificationTone.swift
     - path: ../../ElementX/Sources/Services/Keychain/KeychainController.swift

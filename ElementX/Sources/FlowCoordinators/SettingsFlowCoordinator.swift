@@ -11,6 +11,9 @@ import SwiftUI
 
 enum SettingsFlowCoordinatorAction {
     case dismiss
+    // AGENT-PLATFORM (Brief 0073): someone who joined by invitation was
+    // tapped — the session flow closes settings and opens their profile.
+    case openUserProfile(userID: String)
     case clearCache
     case runLogoutFlow
     /// Logout without a confirmation. The user forgot their PIN.
@@ -60,6 +63,8 @@ class SettingsFlowCoordinator: FlowCoordinatorProtocol {
             presentSettingsScreen(animated: animated)
         case .chatBackupSettings:
             startEncryptionSettingsFlow()
+        case .aiConsentSettings: // AGENT-PLATFORM (decisions 150, 187): the toggle is the first row of Privacy.
+            presentAdvancedSettings()
         default:
             break
         }
@@ -85,22 +90,24 @@ class SettingsFlowCoordinator: FlowCoordinatorProtocol {
                 switch action {
                 case .dismiss:
                     actionsSubject.send(.dismiss)
-                case .logout:
-                    actionsSubject.send(.runLogoutFlow)
-                case .secureBackup:
-                    startEncryptionSettingsFlow()
                 case .userDetails:
                     presentUserDetailsEditScreen()
                 case let .userStatusEmojiPicker(continuation):
                     presentEmojiPicker(emojiPickerContinuation: continuation)
-                case .linkNewDevice:
-                    startLinkNewDeviceFlow()
-                case let .manageAccount(url):
-                    presentAccountManagementURL(url)
+                case .invitePeople: // AGENT-PLATFORM (Brief 0073).
+                    presentInvitePeopleScreen()
+                case .security: // AGENT-PLATFORM (decision 187).
+                    presentSecuritySettings()
+                case .privacy: // AGENT-PLATFORM (decision 187): Advanced settings re-purposed.
+                    presentAdvancedSettings()
+                case .notifications:
+                    presentNotificationSettings()
+                case .yourData: // AGENT-PLATFORM (Brief 0078).
+                    presentYourDataScreen()
+                case .appearanceAndMedia: // AGENT-PLATFORM (decision 187).
+                    presentAppearanceAndMediaSettings()
                 case .analytics:
                     presentAnalyticsScreen()
-                case .appLock:
-                    presentAppLockSetupFlow()
                 case .bugReport:
                     bugReportFlowCoordinator = BugReportFlowCoordinator(parameters: .init(presentationMode: .push(navigationStackCoordinator),
                                                                                           userIndicatorController: flowParameters.userIndicatorController,
@@ -109,16 +116,12 @@ class SettingsFlowCoordinator: FlowCoordinatorProtocol {
                     bugReportFlowCoordinator?.start()
                 case .about:
                     presentLegalInformationScreen()
-                case .blockedUsers:
-                    presentBlockedUsersScreen()
-                case .notifications:
-                    presentNotificationSettings()
-                case .advancedSettings:
-                    presentAdvancedSettings()
                 case .labs:
                     presentLabs()
                 case .developerOptions:
                     presentDeveloperOptions()
+                case .logout:
+                    actionsSubject.send(.runLogoutFlow)
                 case .deactivateAccount:
                     presentDeactivateAccount()
                 }
@@ -128,6 +131,7 @@ class SettingsFlowCoordinator: FlowCoordinatorProtocol {
         navigationStackCoordinator.setRootCoordinator(settingsScreenCoordinator, animated: animated)
     }
     
+    // AGENT-PLATFORM (decision 188): no row opens Labs; kept for upstream syncs.
     private func presentLabs() {
         let coordinator = LabsScreenCoordinator(parameters: .init(appSettings: flowParameters.appSettings))
         coordinator.actions
@@ -250,7 +254,56 @@ class SettingsFlowCoordinator: FlowCoordinatorProtocol {
     }
     
     private func presentLegalInformationScreen() {
-        navigationStackCoordinator.push(LegalInformationScreenCoordinator(appSettings: flowParameters.appSettings))
+        navigationStackCoordinator.push(LegalInformationScreenCoordinator(appSettings: flowParameters.appSettings,
+                                                                          appMediator: flowParameters.appMediator)) // AGENT-PLATFORM (Brief 0078)
+    }
+    
+    // AGENT-PLATFORM (Brief 0073 / ADR-0008).
+    private func presentInvitePeopleScreen() {
+        let coordinator = InvitePeopleScreenCoordinator(parameters: .init(userSession: flowParameters.userSession,
+                                                                          userIndicatorController: flowParameters.userIndicatorController))
+        coordinator.actionsPublisher.sink { [weak self] action in
+            switch action {
+            case .openUser(let userID):
+                self?.actionsSubject.send(.openUserProfile(userID: userID))
+            }
+        }
+        .store(in: &cancellables)
+        navigationStackCoordinator.push(coordinator)
+    }
+    
+    // AGENT-PLATFORM (Brief 0075): a new account phrase from this device.
+    private var newPhrasePresenter: NewPhrasePresenter?
+    private func startNewPhrase() {
+        guard let service = flowParameters.userSession.agentPlatformService else { return }
+        let presenter = NewPhrasePresenter(agentPlatformService: service,
+                                           presentationAnchor: flowParameters.windowManager.mainWindow)
+        newPhrasePresenter = presenter
+        Task { [weak self] in
+            let outcome = await presenter.start()
+            guard let self else { return }
+            newPhrasePresenter = nil
+            switch outcome {
+            case .changed:
+                flowParameters.userIndicatorController.submitIndicator(.init(title: UntranslatedL10n.screenSettingsNewPhraseDone,
+                                                                             icon: \.checkCircle))
+            case .cancelled:
+                break
+            case .passcodeRequired:
+                flowParameters.userIndicatorController.submitIndicator(.init(title: UntranslatedL10n.screenSettingsNewPhrasePasscodeRequired))
+            case .failed:
+                flowParameters.userIndicatorController.submitIndicator(.init(title: UntranslatedL10n.screenSettingsNewPhraseFailed))
+            }
+        }
+    }
+    
+    // AGENT-PLATFORM (Brief 0078): the account export and one call's export.
+    private func presentYourDataScreen() {
+        guard let service = flowParameters.userSession.agentPlatformService else { return }
+        let coordinator = YourDataScreenCoordinator(parameters: .init(agentPlatformService: service,
+                                                                      clientProxy: flowParameters.userSession.clientProxy,
+                                                                      userIndicatorController: flowParameters.userIndicatorController))
+        navigationStackCoordinator.push(coordinator)
     }
     
     private func presentBlockedUsersScreen() {
@@ -271,11 +324,55 @@ class SettingsFlowCoordinator: FlowCoordinatorProtocol {
         navigationStackCoordinator.push(coordinator)
     }
     
+    // AGENT-PLATFORM (decision 187): «Privacy». At the upstream sync this maps
+    // onto ModerationAndSafetySettingsScreen plus the AI consent row.
     private func presentAdvancedSettings() {
         let coordinator = AdvancedSettingsScreenCoordinator(parameters: .init(appSettings: flowParameters.appSettings,
-                                                                              analytics: flowParameters.analytics,
                                                                               clientProxy: flowParameters.userSession.clientProxy,
-                                                                              userIndicatorController: flowParameters.userIndicatorController))
+                                                                              userIndicatorController: flowParameters.userIndicatorController,
+                                                                              agentPlatformService: flowParameters.userSession.agentPlatformService))
+        coordinator.actionsPublisher
+            .sink { [weak self] action in
+                switch action {
+                case .blockedUsers:
+                    self?.presentBlockedUsersScreen()
+                }
+            }
+            .store(in: &cancellables)
+        
+        navigationStackCoordinator.push(coordinator)
+    }
+    
+    // AGENT-PLATFORM (decision 187): the Security hub; each row opens a presenter of this flow.
+    private func presentSecuritySettings() {
+        let coordinator = SecuritySettingsScreenCoordinator(parameters: .init(userSession: flowParameters.userSession,
+                                                                              appSettings: flowParameters.appSettings))
+        coordinator.actionsPublisher
+            .sink { [weak self] action in
+                guard let self else { return }
+                
+                switch action {
+                case .newPhrase:
+                    startNewPhrase()
+                case .manageAccount(let url):
+                    presentAccountManagementURL(url)
+                case .linkNewDevice:
+                    startLinkNewDeviceFlow()
+                case .secureBackup:
+                    startEncryptionSettingsFlow()
+                case .appLock:
+                    presentAppLockSetupFlow()
+                }
+            }
+            .store(in: &cancellables)
+        
+        navigationStackCoordinator.push(coordinator)
+    }
+    
+    // AGENT-PLATFORM (decision 187): upstream's inline Appearance picker and MediaUploadQualitySettingsScreen, as one screen.
+    private func presentAppearanceAndMediaSettings() {
+        let coordinator = AppearanceAndMediaSettingsScreenCoordinator(parameters: .init(appSettings: flowParameters.appSettings,
+                                                                                        analytics: flowParameters.analytics))
         navigationStackCoordinator.push(coordinator)
     }
     
@@ -300,7 +397,9 @@ class SettingsFlowCoordinator: FlowCoordinatorProtocol {
     
     private func presentDeactivateAccount() {
         let parameters = DeactivateAccountScreenCoordinatorParameters(clientProxy: flowParameters.userSession.clientProxy,
-                                                                      userIndicatorController: flowParameters.userIndicatorController)
+                                                                      userIndicatorController: flowParameters.userIndicatorController,
+                                                                      // AGENT-PLATFORM (Brief 0078)
+                                                                      spiralDeletion: flowParameters.userSession.agentPlatformService.map { SpiralAccountDeletion(agentPlatformService: $0) })
         let coordinator = DeactivateAccountScreenCoordinator(parameters: parameters)
         
         coordinator.actionsPublisher

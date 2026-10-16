@@ -13,6 +13,7 @@ import SwiftState
 enum SpacesTabFlowCoordinatorAction {
     case showSettings
     case presentCallScreen(roomProxy: JoinedRoomProxyProtocol, isVoiceCall: Bool)
+    case presentAIConsentSettings // AGENT-PLATFORM (decision 150)
     case verifyUser(userID: String)
 }
 
@@ -181,6 +182,8 @@ class SpacesTabFlowCoordinator: FlowCoordinatorProtocol {
                 switch action {
                 case .presentCallScreen(let roomProxy, let isVoiceCall):
                     actionsSubject.send(.presentCallScreen(roomProxy: roomProxy, isVoiceCall: isVoiceCall))
+                case .presentAIConsentSettings: // AGENT-PLATFORM (decision 150)
+                    actionsSubject.send(.presentAIConsentSettings)
                 case .verifyUser(let userID):
                     actionsSubject.send(.verifyUser(userID: userID))
                 case .finished:
@@ -221,6 +224,8 @@ class SpacesTabFlowCoordinator: FlowCoordinatorProtocol {
                     navigationSplitCoordinator.setSheetCoordinator(nil)
                 case .showRoomDirectory:
                     fatalError("Not handled here")
+                case .showUserProfile: // AGENT-PLATFORM (Brief 0073): the space picker has no invite row.
+                    navigationSplitCoordinator.setSheetCoordinator(nil)
                 }
             }
             .store(in: &cancellables)

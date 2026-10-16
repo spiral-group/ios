@@ -101,6 +101,13 @@ struct TimelineThreadSummaryView: View {
                            plainBody: L10n.commonSharedLiveLocation,
                            formattedBody: nil,
                            numberOfReplies: numberOfReplies)
+            // AGENT-PLATFORM (Brief 0066): a thread's last reply, when it is an Interactive Post.
+            case .interactivePost(let title):
+                ThreadView(senderID: senderID,
+                           sender: sender,
+                           plainBody: title,
+                           formattedBody: nil,
+                           numberOfReplies: numberOfReplies)
             case .redacted:
                 ThreadView(senderID: senderID,
                            sender: sender,

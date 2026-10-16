@@ -17,10 +17,15 @@ enum StartChatScreenViewModelAction: Equatable {
     case createRoom
     case showRoom(roomID: String)
     case openRoomDirectorySearch
+    case invitePeople // AGENT-PLATFORM (Brief 0073).
 }
 
 struct StartChatScreenViewState: BindableState {
     let userID: String
+    // AGENT-PLATFORM (Brief 0073 / ADR-0008): the caller's personal invite
+    // link for the "Invite people" row; nil until fetched (the row then
+    // falls back to sharing the profile link).
+    var myInvite: MyInvite?
     var bindings = StartChatScreenViewStateBindings()
     var usersSection: UserDiscoverySection = .init(type: .suggestions, users: [])
     
@@ -53,6 +58,8 @@ enum StartChatScreenViewAction {
     case selectUser(UserProfile)
     case joinRoomByAddress
     case openRoomDirectorySearch
+    // AGENT-PLATFORM (Brief 0073): open the invite screen.
+    case invitePeople
 }
 
 enum JoinByAddressState: Equatable {

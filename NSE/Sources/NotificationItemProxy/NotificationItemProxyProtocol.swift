@@ -39,4 +39,8 @@ nonisolated protocol NotificationItemProxyProtocol: Sendable {
     var hasMention: Bool { get }
     
     var threadRootEventID: String? { get }
+    
+    /// AGENT-PLATFORM (§ 5.73): «your move» — a game's action that mentions
+    /// this user. The SDK has no content type for it; the event's own JSON has.
+    var spiralAction: SpiralActionNotification? { get }
 }

@@ -77,9 +77,9 @@ class SpaceScreenViewModel: SpaceScreenViewModelType, SpaceScreenViewModelProtoc
                 // Required to listen for membership updates in the members flow
                 await roomProxy.subscribeForUpdates()
                 state.roomProxy = roomProxy
-                if case let .success(permalinkURL) = await roomProxy.matrixToPermalink() {
-                    state.permalink = permalinkURL
-                }
+                // AGENT-PLATFORM (Brief 0060): spiral.md smart link.
+                state.permalink = SpiralLink(roomID: roomProxy.id,
+                                             canonicalAlias: roomProxy.infoPublisher.value.canonicalAlias)?.webURL
                 
                 roomProxy.infoPublisher
                     .sink { [weak self] roomInfo in

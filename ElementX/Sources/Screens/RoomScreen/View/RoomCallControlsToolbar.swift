@@ -75,6 +75,18 @@ struct RoomCallControlsToolbar: ToolbarContent {
                     .accessibilityLabel(L10n.a11yStartVideoCall)
                     .disabled(!viewState.canJoinCall)
                 }
+                
+                // AGENT-PLATFORM (Brief 0063): native group voice call button.
+                if viewState.canStartGroupVoiceCall {
+                    ToolbarItem(placement: .primaryAction) {
+                        Button { onCallTap(true) } label: {
+                            CompoundIcon(\.voiceCallSolid)
+                        }
+                        .accessibilityLabel(L10n.a11yStartVoiceCall)
+                        .accessibilityIdentifier(A11yIdentifiers.roomScreen.startVoiceCall)
+                        .disabled(!viewState.canJoinCall)
+                    }
+                }
             }
         }
     }
@@ -98,6 +110,9 @@ struct RoomCallControlsToolbar_Previews: PreviewProvider {
             ElementNavigationStack {
                 Color.clear.toolbar { RoomCallControlsToolbar(viewState: .mock(hasOngoingCall: false)) { _ in } }
             }
+            ElementNavigationStack { // AGENT-PLATFORM (Brief 0063)
+                Color.clear.toolbar { RoomCallControlsToolbar(viewState: .mock(hasOngoingCall: false, canStartGroupVoiceCall: true)) { _ in } }
+            }
             ElementNavigationStack {
                 Color.clear.toolbar { RoomCallControlsToolbar(viewState: .mock(hasOngoingCall: false, canJoinCall: false)) { _ in } }
             }
@@ -110,13 +125,21 @@ struct RoomCallControlsToolbar_Previews: PreviewProvider {
 }
 
 private extension RoomScreenViewState {
-    static func mock(hasOngoingCall: Bool, isDM: Bool = false, canJoinCall: Bool = true, activeRoomCallIntent: CallIntent? = nil, roomThreadListEnabled: Bool = false) -> RoomScreenViewState {
-        RoomScreenViewState(roomAvatar: .room(id: "mock", name: "Mock Room", avatarURL: nil),
-                            canJoinCall: canJoinCall,
-                            hasOngoingCall: hasOngoingCall,
-                            activeRoomCallIntent: activeRoomCallIntent,
-                            isDM: isDM,
-                            roomThreadListEnabled: roomThreadListEnabled,
-                            hasSuccessor: false)
+    // AGENT-PLATFORM (Brief 0063): `canStartGroupVoiceCall` knob added to the preview mock.
+    static func mock(hasOngoingCall: Bool,
+                     isDM: Bool = false,
+                     canJoinCall: Bool = true,
+                     activeRoomCallIntent: CallIntent? = nil,
+                     roomThreadListEnabled: Bool = false,
+                     canStartGroupVoiceCall: Bool = false) -> RoomScreenViewState {
+        var state = RoomScreenViewState(roomAvatar: .room(id: "mock", name: "Mock Room", avatarURL: nil),
+                                        canJoinCall: canJoinCall,
+                                        hasOngoingCall: hasOngoingCall,
+                                        activeRoomCallIntent: activeRoomCallIntent,
+                                        isDM: isDM,
+                                        roomThreadListEnabled: roomThreadListEnabled,
+                                        hasSuccessor: false)
+        state.canStartGroupVoiceCall = canStartGroupVoiceCall
+        return state
     }
 }

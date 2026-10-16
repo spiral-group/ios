@@ -1,0 +1,123 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>screen_agent_detail_rooms_section</key>
+	<dict>
+		<key>COUNT</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>few</key>
+			<string>%1$d sobe</string>
+			<key>one</key>
+			<string>%1$d sobi</string>
+			<key>other</key>
+			<string>%1$d soba</string>
+		</dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>Živi u %#@COUNT@</string>
+	</dict>
+	<key>screen_agent_detail_tool_count</key>
+	<dict>
+		<key>COUNT</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>few</key>
+			<string>%1$d alata</string>
+			<key>one</key>
+			<string>%1$d alat</string>
+			<key>other</key>
+			<string>%1$d alata</string>
+		</dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@COUNT@</string>
+	</dict>
+	<key>screen_agent_space_agent_status</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>U %#@ROOMS@ · %#@TOOLS@</string>
+		<key>ROOMS</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>few</key>
+			<string>%1$d sobe</string>
+			<key>one</key>
+			<string>%1$d sobi</string>
+			<key>other</key>
+			<string>%1$d soba</string>
+		</dict>
+		<key>TOOLS</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>few</key>
+			<string>%2$d aktivna alata</string>
+			<key>one</key>
+			<string>%2$d aktivan alat</string>
+			<key>other</key>
+			<string>%2$d aktivnih alata</string>
+		</dict>
+	</dict>
+	<key>screen_agent_spaces_agent_count</key>
+	<dict>
+		<key>COUNT</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>few</key>
+			<string>%1$d agenta</string>
+			<key>one</key>
+			<string>%1$d agent</string>
+			<key>other</key>
+			<string>%1$d agenata</string>
+		</dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@COUNT@</string>
+	</dict>
+	<key>screen_native_call_status_agent_count</key>
+	<dict>
+		<key>COUNT</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%1$d agent</string>
+			<key>other</key>
+			<string>%1$d agents</string>
+		</dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@COUNT@</string>
+	</dict>
+	<key>screen_native_call_status_people_count</key>
+	<dict>
+		<key>COUNT</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%1$d person</string>
+			<key>other</key>
+			<string>%1$d people</string>
+		</dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@COUNT@</string>
+	</dict>
+</dict>
+</plist>

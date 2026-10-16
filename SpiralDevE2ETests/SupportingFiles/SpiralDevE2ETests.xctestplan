@@ -1,0 +1,32 @@
+{
+  "configurations" : [
+    {
+      "id" : "7B1E2C4A-0D46-4F7B-9E1A-146D0E2E5A01",
+      "name" : "Dev stack",
+      "options" : {}
+    }
+  ],
+  "defaultOptions" : {
+    "language" : "en",
+    "maximumTestExecutionTimeAllowance" : 900,
+    "region" : "US",
+    "targetForVariableExpansion" : {
+      "containerPath" : "container:ElementX.xcodeproj",
+      "identifier" : "0E795AF06B18D9B96D8C1846",
+      "name" : "SpiralDevE2ETests"
+    },
+    "testExecutionOrdering" : "alphabetical",
+    "testTimeoutsEnabled" : true
+  },
+  "testTargets" : [
+    {
+      "parallelizable" : false,
+      "target" : {
+        "containerPath" : "container:ElementX.xcodeproj",
+        "identifier" : "0E795AF06B18D9B96D8C1846",
+        "name" : "SpiralDevE2ETests"
+      }
+    }
+  ],
+  "version" : 1
+}

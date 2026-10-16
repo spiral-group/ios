@@ -9,7 +9,6 @@
 import Combine
 import Foundation
 import GZIP
-import Sentry
 import UIKit
 
 class BugReportService: NSObject, BugReportServiceProtocol {
@@ -48,8 +47,9 @@ class BugReportService: NSObject, BugReportServiceProtocol {
     
     // MARK: - BugReportServiceProtocol
     
+    // AGENT-PLATFORM (Brief 0078): Sentry detected crashes; Spiral links no crash reporter.
     var crashedLastRun: Bool {
-        SentrySDK.lastRunStatus == .didCrash
+        false
     }
     
     // swiftlint:disable:next cyclomatic_complexity

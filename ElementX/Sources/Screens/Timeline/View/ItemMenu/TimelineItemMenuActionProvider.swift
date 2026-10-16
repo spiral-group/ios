@@ -48,13 +48,15 @@ struct TimelineItemMenuActionProvider {
         }
         
         if item.canBeRepliedTo, canCurrentUserSendMessage {
-            if let messageItem = item as? EventBasedMessageTimelineItemProtocol {
-                // If threads are enabled we will have the dedicated `replyInThread` action
-                // so there is no need to make the normal reply use the thread.
-                actions.append(.reply(isThread: areThreadsEnabled ? false : messageItem.properties.isThreaded))
-            } else {
-                actions.append(.reply(isThread: false))
-            }
+            // If threads are enabled we will have the dedicated `replyInThread` action
+            // so there is no need to make the normal reply use the thread.
+            //
+            // AGENT-PLATFORM (Brief 0066): read `isThreaded` off the item rather
+            // than through a cast to `EventBasedMessageTimelineItemProtocol`.
+            // The property is on the base protocol, so the cast never bought
+            // anything — but everything that failed it silently replied OUTSIDE
+            // the thread it was answering. An Interactive Post is such an item.
+            actions.append(.reply(isThread: areThreadsEnabled ? false : item.properties.isThreaded))
             
             if areThreadsEnabled, !timelineKind.isThread {
                 actions.append(.replyInThread)
@@ -101,6 +103,16 @@ struct TimelineItemMenuActionProvider {
         
         if item.isEditable, item.hasMediaCaption {
             actions.append(.removeCaption)
+        }
+        
+        if item is InteractiveDraftRoomTimelineItem {
+            actions.append(.viewDraftCode)
+        }
+        
+        // Not `isEditable`: the SDK says no for every custom msgtype, and the
+        // change is made in the post's thread, not in a composer.
+        if item is InteractivePostRoomTimelineItem, item.isOutgoing, item.isRemoteMessage, canCurrentUserSendMessage {
+            actions.append(.editInteractivePost)
         }
         
         if isViewSourceEnabled {

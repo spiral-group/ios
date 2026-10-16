@@ -56,6 +56,10 @@ struct AuthenticationStartScreen: View {
         .navigationBarHidden(context.viewState.classicAppMode == nil)
         .toolbar { toolbar }
         .alert(item: $context.alertInfo)
+        .sheet(isPresented: $context.showInvitePasteSheet) {
+            // AGENT-PLATFORM (Brief 0073 / ADR-0008).
+            InvitePasteSheet(context: context)
+        }
         .introspect(.window, on: .supportedVersions) { window in
             context.send(viewAction: .updateWindow(window))
         }
@@ -75,15 +79,19 @@ struct AuthenticationStartScreen: View {
             Spacer()
             
             if !context.viewState.hideBrandChrome {
+                // AGENT-PLATFORM (ADR-0005 auth v2): minimal Spiral copy —
+                // the product name + one sentence — instead of upstream's
+                // Element wordplay.
                 VStack(spacing: 8) {
-                    Text(L10n.screenOnboardingWelcomeTitle)
+                    Text(InfoPlistReader.main.productionAppName)
                         .font(.compound.headingLGBold)
                         .foregroundColor(.compound.textPrimary)
                         .multilineTextAlignment(.center)
                         .accessibilityAddTraits(.isHeader)
-                    Text(L10n.screenOnboardingWelcomeMessage(InfoPlistReader.main.productionAppName))
+                    // AGENT-PLATFORM: Spiral welcome subtitle (fork-local copy).
+                    Text(UntranslatedL10n.screenStartWelcomeSubtitle)
                         .font(.compound.bodyLG)
-                        .foregroundColor(.compound.textPrimary)
+                        .foregroundColor(.compound.textSecondary)
                         .multilineTextAlignment(.center)
                 }
                 .padding()
@@ -99,26 +107,53 @@ struct AuthenticationStartScreen: View {
     
     /// The main action buttons.
     var buttons: some View {
+        // AGENT-PLATFORM (ADR-0005 auth v2): a public single-server
+        // messenger leads with Sign in / Create account; QR (second-device
+        // linking) drops to a quiet tertiary at the bottom. Three buttons,
+        // as Element X has; the invitation is asked for behind Create
+        // account (Brief 0073).
         VStack(spacing: 16) {
+            // AGENT-PLATFORM (Brief 0073 / ADR-0008): who is inviting.
+            if let pendingInvite = context.viewState.pendingInvite {
+                invitedBanner(pendingInvite)
+            }
+            
+            // AGENT-PLATFORM (Brief 0073): an invitation leads with Create
+            // account; without one Sign in stays first.
+            if context.viewState.pendingInvite != nil, context.viewState.showCreateAccountButton {
+                Button { context.send(viewAction: .register) } label: {
+                    Text(L10n.screenCreateAccountTitle)
+                }
+                .buttonStyle(.compound(.primary))
+                .accessibilityIdentifier(A11yIdentifiers.authenticationStartScreen.createAccount) // AGENT-PLATFORM (decision 146)
+                
+                Button { context.send(viewAction: .login) } label: {
+                    Text(context.viewState.loginButtonTitle)
+                }
+                .buttonStyle(.compound(.secondary))
+                .accessibilityIdentifier(A11yIdentifiers.authenticationStartScreen.signIn)
+            } else {
+                Button { context.send(viewAction: .login) } label: {
+                    Text(context.viewState.loginButtonTitle)
+                }
+                .buttonStyle(.compound(.primary))
+                .accessibilityIdentifier(A11yIdentifiers.authenticationStartScreen.signIn)
+                
+                if context.viewState.showCreateAccountButton {
+                    Button { context.send(viewAction: .register) } label: {
+                        Text(L10n.screenCreateAccountTitle)
+                    }
+                    .buttonStyle(.compound(.secondary))
+                    .accessibilityIdentifier(A11yIdentifiers.authenticationStartScreen.createAccount) // AGENT-PLATFORM (decision 146)
+                }
+            }
+            
             if context.viewState.showQRCodeLoginButton {
                 Button { context.send(viewAction: .loginWithQR) } label: {
                     Label(L10n.screenOnboardingSignInWithQrCode, icon: \.qrCode)
                 }
-                .buttonStyle(.compound(.primary))
-                .accessibilityIdentifier(A11yIdentifiers.authenticationStartScreen.signInWithQr)
-            }
-            
-            Button { context.send(viewAction: .login) } label: {
-                Text(context.viewState.loginButtonTitle)
-            }
-            .buttonStyle(.compound(.primary))
-            .accessibilityIdentifier(A11yIdentifiers.authenticationStartScreen.signIn)
-            
-            if context.viewState.showCreateAccountButton {
-                Button { context.send(viewAction: .register) } label: {
-                    Text(L10n.screenCreateAccountTitle)
-                }
                 .buttonStyle(.compound(.tertiary))
+                .accessibilityIdentifier(A11yIdentifiers.authenticationStartScreen.signInWithQr)
             }
             
             versionText
@@ -136,6 +171,27 @@ struct AuthenticationStartScreen: View {
         }
         .padding(.horizontal, verticalSizeClass == .compact ? 128 : 24)
         .readableFrame()
+    }
+    
+    // AGENT-PLATFORM (Brief 0073 / ADR-0008).
+    private func invitedBanner(_ pendingInvite: PendingInvite) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            CompoundIcon(\.userAdd, size: .medium, relativeTo: .compound.bodyLG)
+                .foregroundStyle(.compound.iconAccentPrimary)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(pendingInvite.inviterDisplayName.map { UntranslatedL10n.screenStartInvitedBy($0) } ?? UntranslatedL10n.screenStartInvited)
+                    .font(.compound.bodyLGSemibold)
+                    .foregroundStyle(.compound.textPrimary)
+                Text(UntranslatedL10n.screenStartInvitedHint)
+                    .font(.compound.bodyMD)
+                    .foregroundStyle(.compound.textSecondary)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(16)
+        .background(.compound.bgSubtleSecondary, in: RoundedRectangle(cornerRadius: 14))
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier(A11yIdentifiers.authenticationStartScreen.invitedBanner)
     }
     
     var versionText: Text {
@@ -173,12 +229,17 @@ struct AuthenticationStartScreen_Previews: PreviewProvider, TestablePreview {
     static let viewModel = makeViewModel()
     static let provisionedViewModel = makeViewModel(provisionedServerName: "example.com")
     static let classicAppViewModel = makeViewModel(hasClassicAppAccount: true)
+    static let invitedViewModel = makeViewModel(pendingInvite: .init(token: "Qz8Hf72Kd91",
+                                                                      inviterDisplayName: "Andrii",
+                                                                      inviterUserID: "@alice:spiral.md"))
     
     static var previews: some View {
         AuthenticationStartScreen(context: viewModel.context)
             .previewDisplayName("Default")
         AuthenticationStartScreen(context: provisionedViewModel.context)
             .previewDisplayName("Provisioned")
+        AuthenticationStartScreen(context: invitedViewModel.context)
+            .previewDisplayName("Invited")
         
         ElementNavigationStack {
             AuthenticationStartScreen(context: classicAppViewModel.context)
@@ -186,17 +247,24 @@ struct AuthenticationStartScreen_Previews: PreviewProvider, TestablePreview {
         .previewDisplayName("Classic App")
     }
     
-    static func makeViewModel(provisionedServerName: String? = nil, hasClassicAppAccount: Bool = false) -> AuthenticationStartScreenViewModel {
+    static func makeViewModel(provisionedServerName: String? = nil,
+                              hasClassicAppAccount: Bool = false,
+                              pendingInvite: PendingInvite? = nil,
+                              registrationRequiresInvite: Bool = true) -> AuthenticationStartScreenViewModel {
         let classicAppAccount = ClassicAppAccount.mockDan
         classicAppAccount.state.isServerSupported = true
         classicAppAccount.state.availableSecrets = .complete
         let classicAppManager: ClassicAppManagerMock? = hasClassicAppAccount ? .init(.init(accounts: [classicAppAccount])) : nil
         
+        let appSettings = AppSettings.volatile()
+        appSettings.pendingInvite = pendingInvite
+        appSettings.registrationRequiresInvite = registrationRequiresInvite
+        
         return AuthenticationStartScreenViewModel(authenticationService: AuthenticationService.mock(classicAppManager: classicAppManager),
                                                   provisioningParameters: provisionedServerName.map { .init(accountProvider: $0, loginHint: nil) },
                                                   isBugReportServiceEnabled: true,
                                                   appMediator: AppMediatorMock(),
-                                                  appSettings: .volatile(),
+                                                  appSettings: appSettings,
                                                   mediaProvider: MediaProviderMock(.init()),
                                                   userIndicatorController: UserIndicatorControllerMock())
     }

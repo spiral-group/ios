@@ -119,8 +119,12 @@ final nonisolated class NSEUserSession: NSEUserSessionProtocol {
                 return nil
             }
         } catch {
-            MXLog.error("Could not get notification's content creating an empty notification instead, error: \(error)")
-            return EmptyNotificationItemProxy(roomID: roomID, receiverID: userID)
+            // AGENT-PLATFORM (Brief 0066, § 5.83): upstream answered with an
+            // empty proxy, which became «Spiral · Notification» on the lock
+            // screen — the fetch failed (network, token) and there is nothing
+            // to say. Nil, which the handler discards.
+            MXLog.error("Could not get notification's content, error: \(error)")
+            return nil
         }
     }
     

@@ -83,8 +83,12 @@ extension JoinedRoomProxyMock {
         
         ignoreDeviceTrustAndResendDevicesSendHandleReturnValue = .success(())
         withdrawVerificationAndResendUserIDsSendHandleReturnValue = .success(())
+        // AGENT-PLATFORM (Brief 0066 § 5.87): a refused raw send's answers.
+        ignoreDeviceTrustDevicesReturnValue = .success(())
+        withdrawVerificationUserIDsReturnValue = .success(())
         
         flagAsUnreadReturnValue = .success(())
+        declineCallNotificationIDReturnValue = .success(())
         markAsReadReceiptTypeReturnValue = .success(())
         flagAsFavouriteReturnValue = .success(())
         
@@ -115,18 +119,7 @@ extension JoinedRoomProxyMock {
         banUserReasonReturnValue = .success(())
         unbanUserReturnValue = .success(())
         
-        let widgetDriver = ElementCallWidgetDriverMock()
-        widgetDriver.messagePublisher = .init()
-        widgetDriver.actions = PassthroughSubject().eraseToAnyPublisher()
-        
-        guard let url = URL(string: "https://call.element.io/\(UUID().uuidString)#?appPrompt=false") else {
-            fatalError()
-        }
-        
-        widgetDriver.startBaseURLClientIDColorSchemeVoiceOnlyRageshakeURLAnalyticsConfigurationReturnValue = .success(url)
-        
-        elementCallWidgetDriverDeviceIDReturnValue = widgetDriver
-        
+        // AGENT-PLATFORM (Brief 0067): no Element Call widget driver to mock (ADR-0079).
         matrixToPermalinkReturnValue = .success(.homeDirectory)
         matrixToEventPermalinkReturnValue = .success(.homeDirectory)
         loadDraftThreadRootEventIDReturnValue = .success(nil)
@@ -163,6 +156,9 @@ extension RoomInfoProxyMock {
         activeMembersCount = configuration.members.filter { $0.membership == .join || $0.membership == .invite }.count
         joinedMembersCount = configuration.members.filter { $0.membership == .join }.count
         isDM = isDirect && activeMembersCount <= 2
+        // AGENT-PLATFORM (Brief 0063): service-member hints (agents), see RoomInfoProxyProtocol.
+        activeServiceMembersCount = 0
+        serviceMembers = []
         hasRoomCall = configuration.hasOngoingCall
         activeRoomCallParticipants = configuration.activeRoomCallParticipants
         pinnedEventIDs = configuration.pinnedEventIDs

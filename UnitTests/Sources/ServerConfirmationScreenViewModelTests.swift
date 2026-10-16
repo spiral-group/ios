@@ -319,6 +319,33 @@ final class ServerConfirmationScreenViewModelTests {
                                 restrictedFlow: Bool = false,
                                 requiresElementPro: Bool = false) {
         var mode = ServerConfirmationScreenMode.confirmation("matrix.org")
+        // AGENT-PLATFORM: these tests exercise the UPSTREAM auth shapes with
+        // matrix.org fixtures, but the fork's production default is a single
+        // closed provider (spiral.md) which coerces the mode and the service's
+        // initial homeserver. Explicitly restore the open upstream shape here
+        // (same pattern as UITestsAppCoordinator).
+        if !restrictedFlow {
+            appSettings.override(accountProviders: ["matrix.org"],
+                                 allowOtherAccountProviders: true,
+                                 hideBrandChrome: false,
+                                 pushGatewayBaseURL: appSettings.pushGatewayBaseURL,
+                                 oAuthRedirectURL: appSettings.oAuthRedirectURL,
+                                 oAuthClientURIPath: appSettings.oAuthClientURIPath,
+                                 websiteURL: appSettings.websiteURL,
+                                 logoURL: appSettings.logoURL,
+                                 copyrightURL: appSettings.copyrightURL,
+                                 acceptableUseURL: appSettings.acceptableUseURL,
+                                 privacyURL: appSettings.privacyURL,
+                                 encryptionURL: appSettings.encryptionURL,
+                                 deviceVerificationURL: appSettings.deviceVerificationURL,
+                                 chatBackupDetailsURL: appSettings.chatBackupDetailsURL,
+                                 identityPinningViolationDetailsURL: appSettings.identityPinningViolationDetailsURL,
+                                 historySharingDetailsURL: appSettings.historySharingDetailsURL,
+                                 accountProvisioningHost: appSettings.accountProvisioningHost,
+                                 bugReportApplicationID: appSettings.bugReportApplicationID,
+                                 analyticsTermsURL: appSettings.analyticsTermsURL,
+                                 mapTilerConfiguration: AppSettings.bundledMapTilerConfiguration)
+        }
         if restrictedFlow {
             appSettings.override(accountProviders: ["matrix.org", "beta.matrix.org"],
                                  allowOtherAccountProviders: false,
@@ -336,7 +363,6 @@ final class ServerConfirmationScreenViewModelTests {
                                  chatBackupDetailsURL: appSettings.chatBackupDetailsURL,
                                  identityPinningViolationDetailsURL: appSettings.identityPinningViolationDetailsURL,
                                  historySharingDetailsURL: appSettings.historySharingDetailsURL,
-                                 elementWebHosts: appSettings.elementWebHosts,
                                  accountProvisioningHost: appSettings.accountProvisioningHost,
                                  bugReportApplicationID: appSettings.bugReportApplicationID,
                                  analyticsTermsURL: appSettings.analyticsTermsURL,

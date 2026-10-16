@@ -45,11 +45,21 @@ targets:
       base:
         PRODUCT_NAME: UnitTests
         PRODUCT_BUNDLE_IDENTIFIER: ${BASE_BUNDLE_IDENTIFIER}.unit.tests
+        # AGENT-PLATFORM: the app target declares `productName: Spiral`, so
+        # XcodeGen now derives a correct host — but as a LITERAL. Keep the pin
+        # so the path follows $(APP_NAME) instead of a name frozen at
+        # generation time.
+        TEST_HOST: $(BUILT_PRODUCTS_DIR)/$(APP_NAME).app/$(APP_NAME)
         # Requires iOS 26 so tests exercise the Observations-based observe(_:) overload.
         IPHONEOS_DEPLOYMENT_TARGET: '26.0'
         SWIFT_VERSION: 6.2
         SWIFT_APPROACHABLE_CONCURRENCY: YES
         SWIFT_DEFAULT_ACTOR_ISOLATION: MainActor
+      configs:
+        # AGENT-PLATFORM: Xcode compilation caching, Debug (the test
+        # configuration) only; Release/archive builds stay uncached.
+        Debug:
+          COMPILATION_CACHE_ENABLE_CACHING: YES
       debug:
       release:
 

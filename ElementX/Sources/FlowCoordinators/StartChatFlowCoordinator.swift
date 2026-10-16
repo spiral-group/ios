@@ -13,6 +13,8 @@ import SwiftState
 enum StartChatFlowCoordinatorAction {
     case finished(Result)
     case showRoomDirectory
+    // AGENT-PLATFORM (Brief 0073): someone who joined by invitation was tapped.
+    case showUserProfile(userID: String)
     
     enum Result {
         case room(id: String)
@@ -199,11 +201,27 @@ class StartChatFlowCoordinator: FlowCoordinatorProtocol {
                 actionsSubject.send(.finished(.room(id: roomID)))
             case .openRoomDirectorySearch:
                 actionsSubject.send(.showRoomDirectory)
+            case .invitePeople: // AGENT-PLATFORM (Brief 0073).
+                presentInvitePeopleScreen()
             }
         }
         .store(in: &cancellables)
         
         navigationStackCoordinator.setRootCoordinator(coordinator)
+    }
+    
+    // AGENT-PLATFORM (Brief 0073 / ADR-0008).
+    private func presentInvitePeopleScreen() {
+        let coordinator = InvitePeopleScreenCoordinator(parameters: .init(userSession: flowParameters.userSession,
+                                                                          userIndicatorController: flowParameters.userIndicatorController))
+        coordinator.actionsPublisher.sink { [weak self] action in
+            switch action {
+            case .openUser(let userID):
+                self?.actionsSubject.send(.showUserProfile(userID: userID))
+            }
+        }
+        .store(in: &cancellables)
+        navigationStackCoordinator.push(coordinator)
     }
     
     private func presentCreateRoomScreen(isSpace: Bool,

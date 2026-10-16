@@ -46,7 +46,12 @@ nonisolated struct RoomTimelineItemFactory: RoomTimelineItemFactoryProtocol {
             case .liveLocation(let content):
                 return buildLiveLocationTimelineItem(eventItemProxy, messageLikeContent, content, isOutgoing)
             case .other:
-                return nil // We shouldn't receive these without asking for custom event types.
+                // AGENT-PLATFORM (Brief 0066 § 5.89): the agent-tools fallback
+                // reads as the state row it stands in for. Recognised by the
+                // raw event's `type` (the SDK's custom event type cannot be
+                // built in a test, the JSON can); every other custom
+                // message-like event stays hidden, as upstream has it.
+                return buildSpiralToolsFallbackTimelineItem(for: eventItemProxy, isOutgoing: isOutgoing)
             }
         case .failedToParseMessageLike(let eventType, let error):
             return buildUnsupportedTimelineItem(eventItemProxy, eventType, error, isOutgoing)
@@ -71,14 +76,16 @@ nonisolated struct RoomTimelineItemFactory: RoomTimelineItemFactoryProtocol {
                                                        isOutgoing: isOutgoing)
         case .callInvite:
             return buildCallInviteTimelineItem(for: eventItemProxy)
-        case .rtcNotification(let callIntent, let declinedBy, let activeMembers, let callStartMillis, let isJoined):
+        case .rtcNotification(let callIntent, let declinedBy, let activeMembers, _, let isJoined,
+                              let notificationType, _, let outcome):
             return buildCallNotificationTimelineItem(for: eventItemProxy,
                                                      isDM: isDM,
                                                      callIntent: callIntent,
                                                      declinedBy: declinedBy,
                                                      activeMembers: activeMembers,
-                                                     callStartTimestampMillis: callStartMillis,
-                                                     isJoined: isJoined)
+                                                     isJoined: isJoined,
+                                                     notificationType: notificationType,
+                                                     outcome: outcome)
         }
     }
     
@@ -98,12 +105,11 @@ nonisolated struct RoomTimelineItemFactory: RoomTimelineItemFactoryProtocol {
             case .msgLike(let messageLikeContent):
                 switch messageLikeContent.kind {
                 case .message(let messageContent):
-                    let replyContent = buildMessageTimelineItemContent(messageType: messageContent.msgType,
-                                                                       senderID: sender.id,
-                                                                       senderDisplayName: sender.displayName)
                     return .init(details: .loaded(sender: sender,
                                                   eventID: details.eventId(),
-                                                  eventContent: .message(replyContent)),
+                                                  eventContent: buildEventContent(messageType: messageContent.msgType,
+                                                                                  senderID: sender.id,
+                                                                                  senderDisplayName: sender.displayName)),
                                  isThreaded: isThreaded)
                 case .poll(let question, _, _, _, _, _, _):
                     replyContent = .poll(question: question)
@@ -126,6 +132,23 @@ nonisolated struct RoomTimelineItemFactory: RoomTimelineItemFactoryProtocol {
         }
     }
     
+    /// What a message looks like when something else STANDS IN for it — a
+    /// reply, a thread summary, a search result.
+    ///
+    /// A post names its kind here, the way a poll quotes its question. Without
+    /// it the fallback was `.message(.text(title))`, so a quoted post read as
+    /// somebody having typed its name — which is precisely the information a
+    /// quotation exists to carry.
+    func buildEventContent(messageType: MessageType, senderID: String, senderDisplayName: String?) -> TimelineEventContent {
+        if case .interactivePost(let content) = messageType {
+            return .interactivePost(title: content.title)
+        }
+
+        return .message(buildMessageTimelineItemContent(messageType: messageType,
+                                                        senderID: senderID,
+                                                        senderDisplayName: senderDisplayName))
+    }
+
     func buildMessageTimelineItemContent(messageType: MessageType?, senderID: String, senderDisplayName: String?) -> EventBasedMessageTimelineItemContentType {
         switch messageType {
         case .audio(let content):
@@ -143,15 +166,23 @@ nonisolated struct RoomTimelineItemFactory: RoomTimelineItemFactoryProtocol {
         case .notice(let content):
             .notice(buildNoticeTimelineItemContent(content))
         case .text(let content):
-            .text(buildTextTimelineItemContent(content))
+            .text(buildTextTimelineItemContent(content, senderID: senderID))
         case .video(let content):
             .video(buildVideoTimelineItemContent(content))
         case .location(let content):
             .location(buildLocationTimelineItemContent(content))
         case .gallery(let content):
             .gallery(buildGalleryTimelineItemContent(content, timelineItemID: .randomEvent))
-        case .other(_, let body):
-            .text(.init(body: body))
+        // A reply or a pinned preview of a post: its title, as text. The live
+        // app belongs to the post's own row, not to a quotation of it.
+        case .interactivePost(let content):
+            .text(.init(body: content.title))
+        case .interactiveDraft(let content):
+            .text(.init(body: content.title))
+        // AGENT-PLATFORM (Brief 0073): a notice quoted in a reply reads in
+        // the reader's language, as it does in the timeline.
+        case .other(let msgtype, let body, let data):
+            .text(.init(body: SpiralNotice(msgtype: msgtype, data: data)?.plainText ?? body))
         case .none:
             .text(.init(body: L10n.commonUnsupportedEvent))
         }
@@ -188,11 +219,103 @@ nonisolated struct RoomTimelineItemFactory: RoomTimelineItemFactoryProtocol {
             return buildLocationTimelineItem(for: eventItemProxy, messageLikeContent, messageContent, locationMessageContent, isOutgoing)
         case .gallery(let galleryMessageContent):
             return buildGalleryTimelineItem(for: eventItemProxy, messageLikeContent, messageContent, galleryMessageContent, isOutgoing)
+        // AGENT-PLATFORM (Brief 0066, ADR-0007): an Interactive Post is a
+        // message type of its own, the way a photo is `m.image`.
+        case .interactivePost(let postContent):
+            return buildInteractivePostTimelineItem(eventItemProxy, messageLikeContent, messageContent, postContent, isOutgoing)
+        case .interactiveDraft(let draftContent):
+            return buildInteractiveDraftTimelineItem(eventItemProxy, messageLikeContent, messageContent, draftContent, isOutgoing)
+        // The agent's «generating» marker (§ 5.71) — a msgtype of its own the
+        // SDK passes through as `.other`; every other unknown msgtype stays hidden.
+        // AGENT-PLATFORM (Brief 0073): a client-rendered notice — the server
+        // sent the facts, the words are chosen here. An unknown kind shows
+        // its English fallback body like any text message.
+        // Only the platform's agents post notices (their MXIDs live in the
+        // application service's exclusive namespace); from anyone else the
+        // same msgtype is plain text — a person cannot forge a «sign-in
+        // phrase changed» or «joined through your invitation» card.
+        case .other(let msgtype, let body, let data) where msgtype == SpiralNotice.msgtype:
+            let notice = SpiralAppPostSession.isAgent(eventItemProxy.sender.id) ? SpiralNotice(msgtype: msgtype, data: data) : nil
+            return buildNoticeTimelineItem(for: eventItemProxy, messageLikeContent, messageContent,
+                                           notice: notice, fallbackBody: body, isOutgoing)
+        case .other(let msgtype, let body, _) where msgtype == InteractiveGeneratingRoomTimelineItem.msgtype:
+            return InteractiveGeneratingRoomTimelineItem(id: eventItemProxy.id,
+                                                         body: body,
+                                                         timestamp: eventItemProxy.timestamp,
+                                                         isOutgoing: isOutgoing,
+                                                         isEditable: false,
+                                                         canBeRepliedTo: false,
+                                                         sender: eventItemProxy.sender,
+                                                         properties: .init(isThreaded: messageLikeContent.threadRoot != nil))
         case .other:
             return nil
         }
     }
+
+    /// The row for an Interactive Post.
+    ///
+    /// Nothing is parsed here: the SDK already read the post's claims about
+    /// itself, so the row is sized and named from typed content. A post that
+    /// names no artifact never reaches this — it converts to an ordinary
+    /// unknown message, which is what it is.
+    ///
+    /// `properties` is built exactly as every other message builds it. It was
+    /// once left at its default, and the nine things it carries — reactions,
+    /// read receipts, delivery status, replies, threads, the edited marker and
+    /// the encryption shields — were all silently dead on a post while looking
+    /// deliberate.
+    private func buildInteractivePostTimelineItem(_ eventItemProxy: EventTimelineItemProxy,
+                                                  _ messageLikeContent: MsgLikeContent,
+                                                  _ messageContent: MessageContent,
+                                                  _ postContent: InteractivePostContent,
+                                                  _ isOutgoing: Bool) -> RoomTimelineItemProtocol? {
+        let post = SpiralAppPost(postContent)
+
+        return InteractivePostRoomTimelineItem(id: eventItemProxy.id,
+                                               body: post.title,
+                                               timestamp: eventItemProxy.timestamp,
+                                               isOutgoing: isOutgoing,
+                                               isEditable: eventItemProxy.isEditable,
+                                               canBeRepliedTo: eventItemProxy.canBeRepliedTo,
+                                               sender: eventItemProxy.sender,
+                                               post: post,
+                                               properties: .init(replyDetails: buildTimelineItemReplyDetails(messageLikeContent.inReplyTo),
+                                                                 isThreaded: messageLikeContent.threadRoot != nil,
+                                                                 threadSummary: buildTimelineItemThreadSummary(messageLikeContent.threadSummary),
+                                                                 isEdited: messageContent.isEdited,
+                                                                 reactions: buildAggregatedReactions(messageLikeContent.reactions),
+                                                                 deliveryStatus: eventItemProxy.deliveryStatus,
+                                                                 orderedReadReceipts: buildOrderedReadReceipts(eventItemProxy.readReceipts),
+                                                                 encryptionAuthenticity: buildEncryptionAuthenticity(eventItemProxy.shieldState),
+                                                                 encryptionForwarder: eventItemProxy.forwarder))
+    }
     
+    private func buildInteractiveDraftTimelineItem(_ eventItemProxy: EventTimelineItemProxy,
+                                                   _ messageLikeContent: MsgLikeContent,
+                                                   _ messageContent: MessageContent,
+                                                   _ draftContent: InteractiveDraftContent,
+                                                   _ isOutgoing: Bool) -> RoomTimelineItemProtocol? {
+        let draft = SpiralAppDraft(draftContent)
+
+        return InteractiveDraftRoomTimelineItem(id: eventItemProxy.id,
+                                                body: draft.title,
+                                                timestamp: eventItemProxy.timestamp,
+                                                isOutgoing: isOutgoing,
+                                                isEditable: false,
+                                                canBeRepliedTo: eventItemProxy.canBeRepliedTo,
+                                                sender: eventItemProxy.sender,
+                                                draft: draft,
+                                                properties: .init(replyDetails: buildTimelineItemReplyDetails(messageLikeContent.inReplyTo),
+                                                                  isThreaded: messageLikeContent.threadRoot != nil,
+                                                                  threadSummary: buildTimelineItemThreadSummary(messageLikeContent.threadSummary),
+                                                                  isEdited: messageContent.isEdited,
+                                                                  reactions: buildAggregatedReactions(messageLikeContent.reactions),
+                                                                  deliveryStatus: eventItemProxy.deliveryStatus,
+                                                                  orderedReadReceipts: buildOrderedReadReceipts(eventItemProxy.readReceipts),
+                                                                  encryptionAuthenticity: buildEncryptionAuthenticity(eventItemProxy.shieldState),
+                                                                  encryptionForwarder: eventItemProxy.forwarder))
+    }
+
     private func buildTextTimelineItem(for eventItemProxy: EventTimelineItemProxy,
                                        _ messageLikeContent: MsgLikeContent,
                                        _ messageContent: MessageContent,
@@ -205,7 +328,7 @@ nonisolated struct RoomTimelineItemFactory: RoomTimelineItemFactoryProtocol {
                              canBeRepliedTo: eventItemProxy.canBeRepliedTo,
                              shouldBoost: eventItemProxy.shouldBoost,
                              sender: eventItemProxy.sender,
-                             content: buildTextTimelineItemContent(textMessageContent),
+                             content: buildTextTimelineItemContent(textMessageContent, senderID: eventItemProxy.sender.id),
                              properties: .init(replyDetails: buildTimelineItemReplyDetails(messageLikeContent.inReplyTo),
                                                isThreaded: messageLikeContent.threadRoot != nil,
                                                threadSummary: buildTimelineItemThreadSummary(messageLikeContent.threadSummary),
@@ -215,6 +338,42 @@ nonisolated struct RoomTimelineItemFactory: RoomTimelineItemFactoryProtocol {
                                                orderedReadReceipts: buildOrderedReadReceipts(eventItemProxy.readReceipts),
                                                encryptionAuthenticity: buildEncryptionAuthenticity(eventItemProxy.shieldState),
                                                encryptionForwarder: eventItemProxy.forwarder))
+    }
+    
+    // AGENT-PLATFORM (Brief 0073): a notice this client knows is a card of
+    // its own (`SpiralNoticeRoomTimelineItem`); a kind it does not know yet
+    // shows its English fallback as an ordinary text row.
+    private func buildNoticeTimelineItem(for eventItemProxy: EventTimelineItemProxy,
+                                         _ messageLikeContent: MsgLikeContent,
+                                         _ messageContent: MessageContent,
+                                         notice: SpiralNotice?,
+                                         fallbackBody: String,
+                                         _ isOutgoing: Bool) -> RoomTimelineItemProtocol {
+        if let notice {
+            return SpiralNoticeRoomTimelineItem(id: eventItemProxy.id,
+                                                timestamp: eventItemProxy.timestamp,
+                                                sender: eventItemProxy.sender,
+                                                notice: notice)
+        }
+        
+        let content = TextRoomTimelineItemContent(body: fallbackBody, formattedBody: attributedStringBuilder.fromPlain(fallbackBody))
+        return TextRoomTimelineItem(id: eventItemProxy.id,
+                                    timestamp: eventItemProxy.timestamp,
+                                    isOutgoing: isOutgoing,
+                                    isEditable: false,
+                                    canBeRepliedTo: eventItemProxy.canBeRepliedTo,
+                                    shouldBoost: eventItemProxy.shouldBoost,
+                                    sender: eventItemProxy.sender,
+                                    content: content,
+                                    properties: .init(replyDetails: buildTimelineItemReplyDetails(messageLikeContent.inReplyTo),
+                                                      isThreaded: messageLikeContent.threadRoot != nil,
+                                                      threadSummary: buildTimelineItemThreadSummary(messageLikeContent.threadSummary),
+                                                      isEdited: messageContent.isEdited,
+                                                      reactions: buildAggregatedReactions(messageLikeContent.reactions),
+                                                      deliveryStatus: eventItemProxy.deliveryStatus,
+                                                      orderedReadReceipts: buildOrderedReadReceipts(eventItemProxy.readReceipts),
+                                                      encryptionAuthenticity: buildEncryptionAuthenticity(eventItemProxy.shieldState),
+                                                      encryptionForwarder: eventItemProxy.forwarder))
     }
     
     private func buildImageTimelineItem(for eventItemProxy: EventTimelineItemProxy,
@@ -639,9 +798,15 @@ nonisolated struct RoomTimelineItemFactory: RoomTimelineItemFactoryProtocol {
     
     // MARK: - Message events content
     
-    private func buildTextTimelineItemContent(_ messageContent: TextMessageContent) -> TextRoomTimelineItemContent {
+    private func buildTextTimelineItemContent(_ messageContent: TextMessageContent, senderID: String) -> TextRoomTimelineItemContent {
         let htmlBody = messageContent.formatted?.format == .html ? messageContent.formatted?.body : nil
-        let formattedBody = (htmlBody != nil ? attributedStringBuilder.fromHTML(htmlBody) : attributedStringBuilder.fromPlain(messageContent.body))
+        // AGENT-PLATFORM (coverage walk F6): an agent writes Markdown in a plain body; it renders like a formatted message.
+        let agentHTML = htmlBody == nil && SpiralAppPostSession.isAgent(senderID) ? SpiralAgentMarkdown.html(fromBody: messageContent.body) : nil
+        let formattedBody = if let html = htmlBody ?? agentHTML {
+            attributedStringBuilder.fromHTML(html)
+        } else {
+            attributedStringBuilder.fromPlain(messageContent.body)
+        }
         
         return .init(body: messageContent.body, formattedBody: formattedBody, formattedBodyHTMLString: htmlBody)
     }
@@ -835,9 +1000,9 @@ nonisolated struct RoomTimelineItemFactory: RoomTimelineItemFactoryProtocol {
             case .msgLike(let messageLikeContent):
                 switch messageLikeContent.kind {
                 case .message(let messageContent):
-                    .message(buildMessageTimelineItemContent(messageType: messageContent.msgType,
-                                                             senderID: senderID,
-                                                             senderDisplayName: sender.displayName))
+                    buildEventContent(messageType: messageContent.msgType,
+                                      senderID: senderID,
+                                      senderDisplayName: sender.displayName)
                 case .poll(let question, _, _, _, _, _, _):
                     .poll(question: question)
                 case .sticker(let body, _, _):
@@ -887,36 +1052,53 @@ nonisolated struct RoomTimelineItemFactory: RoomTimelineItemFactoryProtocol {
                                    sender: eventItemProxy.sender)
     }
     
+    // AGENT-PLATFORM (Brief 0063 G11/G12; decisions 171/172): a tombstoned
+    // ring classifies from the SDK's `RtcCallOutcome`, which it computes from
+    // every call membership by server time, whatever order the timeline
+    // loaded in. The app applies no ring window of its own.
     private func buildCallNotificationTimelineItem(for eventItemProxy: EventTimelineItemProxy,
                                                    isDM: Bool,
                                                    callIntent: String?,
                                                    declinedBy: [String],
                                                    activeMembers: [String],
-                                                   callStartTimestampMillis: UInt64?,
-                                                   isJoined: Bool) -> RoomTimelineItemProtocol {
+                                                   isJoined: Bool,
+                                                   notificationType: String?,
+                                                   outcome: RtcCallOutcome) -> RoomTimelineItemProtocol {
         let isVoiceCall = callIntent == CallIntent.audio.rawValue
-        let callStartTimestamp = callStartTimestampMillis.map { Date(timeIntervalSince1970: TimeInterval($0 / 1000)) }
-        
+        let isOutgoing = eventItemProxy.sender.id == userID
+
+        let callState: CallNotificationRoomTimelineItem.CallState
+        if activeMembers.count > 0 {
+            callState = .active(activeMembers: activeMembers,
+                                isJoined: isJoined,
+                                callStartTimestamp: Self.activeCallStart(outcome, isDM: isDM))
+        } else if isDM {
+            callState = .tombstoned(outcome: dmCallOutcome(outcome,
+                                                           isOutgoing: isOutgoing,
+                                                           declinedBy: declinedBy,
+                                                           isRing: notificationType == "ring"))
+        } else {
+            callState = .tombstoned(outcome: groupCallOutcome(outcome, isOutgoing: isOutgoing, declinedBy: declinedBy))
+        }
+
         return CallNotificationRoomTimelineItem(id: eventItemProxy.id,
                                                 timestamp: eventItemProxy.timestamp,
                                                 sender: eventItemProxy.sender,
                                                 isDM: isDM,
                                                 isVoiceCall: isVoiceCall,
-                                                callState: activeMembers.count > 0 ?
-                                                    .active(activeMembers: activeMembers,
-                                                            isJoined: isJoined,
-                                                            callStartTimestamp: callStartTimestamp)
-                                                    :
-                                                    .tombstoned(isDeclinedByMe: declinedBy.contains(userID),
-                                                                isDeclined: declinedBy.count > 0))
+                                                callState: callState,
+                                                isOutgoing: isOutgoing)
     }
-    
+
     // MARK: - State Events
     
     private func buildStateTimelineItem(for eventItemProxy: EventTimelineItemProxy,
                                         state: OtherState,
                                         isOutgoing: Bool) -> RoomTimelineItemProtocol? {
-        guard let text = stateEventStringBuilder.buildString(for: state, sender: eventItemProxy.sender, isOutgoing: isOutgoing) else { return nil }
+        guard let text = stateEventStringBuilder.buildString(for: state,
+                                                             sender: eventItemProxy.sender,
+                                                             isOutgoing: isOutgoing,
+                                                             rawEventJSON: eventItemProxy.debugInfo.originalJSON) else { return nil }
         return buildStateTimelineItem(for: eventItemProxy, text: text, isOutgoing: isOutgoing)
     }
     
@@ -953,6 +1135,16 @@ nonisolated struct RoomTimelineItemFactory: RoomTimelineItemFactoryProtocol {
         return buildStateTimelineItem(for: eventItemProxy, text: text, isOutgoing: isOutgoing)
     }
     
+    // AGENT-PLATFORM (Brief 0066 § 5.89)
+    private func buildSpiralToolsFallbackTimelineItem(for eventItemProxy: EventTimelineItemProxy, isOutgoing: Bool) -> RoomTimelineItemProtocol? {
+        guard let rawEventJSON = eventItemProxy.debugInfo.originalJSON,
+              let text = stateEventStringBuilder.buildSpiralToolsFallbackString(rawEventJSON: rawEventJSON,
+                                                                                sender: eventItemProxy.sender) else {
+            return nil
+        }
+        return buildStateTimelineItem(for: eventItemProxy, text: text, isOutgoing: isOutgoing)
+    }
+
     private func buildStateTimelineItem(for eventItemProxy: EventTimelineItemProxy, text: String, isOutgoing: Bool) -> RoomTimelineItemProtocol {
         StateRoomTimelineItem(id: eventItemProxy.id,
                               body: text,
@@ -991,5 +1183,67 @@ private nonisolated extension Receipt {
             return nil
         }
         return Date(timeIntervalSince1970: TimeInterval(timestamp / 1000))
+    }
+}
+
+// AGENT-PLATFORM (decisions 171/172): how an ended call tile resolves.
+nonisolated extension RoomTimelineItemFactory {
+    /// A DM call is answered when the callee joined before it ended. That
+    /// includes a join after the SDK's answer window: a CallKit answer
+    /// tapped at the end of the app's 30 s ring publishes its membership a
+    /// second or two later, and the call really happened.
+    private func dmCallOutcome(_ outcome: RtcCallOutcome,
+                               isOutgoing: Bool,
+                               declinedBy: [String],
+                               isRing: Bool) -> CallNotificationRoomTimelineItem.TombstonedOutcome {
+        if !declinedBy.isEmpty {
+            return .declined(byMe: declinedBy.contains(userID))
+        }
+
+        // `firstJoinedTsMillis` is only ever someone other than the sender.
+        let calleeJoinedBeforeEnd = switch (outcome.firstJoinedTsMillis, outcome.endedTsMillis) {
+        case let (joined?, ended?): joined < ended
+        case (.some, nil): true
+        case (nil, _): false
+        }
+        if !outcome.answeredBy.isEmpty || calleeJoinedBeforeEnd {
+            return .answered(duration: Self.callLength(from: outcome.answeredTsMillis ?? outcome.firstJoinedTsMillis,
+                                                       to: outcome.endedTsMillis))
+        }
+
+        guard isRing else { return .unclassified }
+        // The caller missed nothing: their own unanswered ring was cancelled.
+        return isOutgoing ? .cancelled : .missed
+    }
+
+    /// A group call describes the call, not an answer: no ring window, no
+    /// direction. Its length runs from the first join by someone other than
+    /// the starter. A call nobody else joined keeps the decline or the plain
+    /// ended tile.
+    private func groupCallOutcome(_ outcome: RtcCallOutcome,
+                                  isOutgoing: Bool,
+                                  declinedBy: [String]) -> CallNotificationRoomTimelineItem.TombstonedOutcome {
+        if let firstJoined = outcome.firstJoinedTsMillis {
+            // The SDK sees only loaded joins; the starter's membership, sent
+            // just before the ring, may not be loaded, yet they were in it.
+            return .groupCall(duration: Self.callLength(from: firstJoined, to: outcome.endedTsMillis),
+                              ownUserJoined: outcome.ownUserJoined || isOutgoing)
+        }
+        return declinedBy.isEmpty ? .unclassified : .declined(byMe: declinedBy.contains(userID))
+    }
+
+    /// A running call's timer starts at the answer, as the call bar's does,
+    /// and the same way the ended tile measures its length: in a DM the
+    /// answer (or the callee's join), in a group the first join by someone
+    /// other than the starter. A call still ringing has no timer.
+    private static func activeCallStart(_ outcome: RtcCallOutcome, isDM: Bool) -> Date? {
+        let startMillis = isDM ? outcome.answeredTsMillis ?? outcome.firstJoinedTsMillis : outcome.firstJoinedTsMillis
+        return startMillis.map { Date(timeIntervalSince1970: TimeInterval($0) / 1000) }
+    }
+
+    /// No length when either end is unknown; the ring time never counts.
+    private static func callLength(from startMillis: UInt64?, to endMillis: UInt64?) -> TimeInterval? {
+        guard let startMillis, let endMillis else { return nil }
+        return TimeInterval(endMillis > startMillis ? endMillis - startMillis : 0) / 1000
     }
 }

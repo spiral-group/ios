@@ -8,8 +8,8 @@
 
 import AnalyticsEvents
 import Combine
-import PostHog
 
+// AGENT-PLATFORM (Brief 0078): PostHog is not linked; AppCoordinator passes `DisabledAnalyticsClient`.
 class AnalyticsService: AnalyticsServiceProtocol {
     /// The analytics client to send events with.
     private let client: AnalyticsClientProtocol
@@ -39,7 +39,7 @@ class AnalyticsService: AnalyticsServiceProtocol {
     func optOut() {
         appSettings.analyticsConsentState = .optedOut
         
-        // The order is important here. PostHog ignores the reset if stopped.
+        // The order is important here: a client may ignore the reset once stopped.
         reset()
         client.stop()
         
@@ -60,7 +60,7 @@ class AnalyticsService: AnalyticsServiceProtocol {
     /// Resets any IDs and event queues in the analytics client. This method should
     /// be called on sign-out to ensure the next
     /// account used isn't associated with the previous one.
-    /// Note: **MUST** be called before stopping PostHog or the reset is ignored.
+    /// Note: **MUST** be called before stopping the client or the reset may be ignored.
     private func reset() {
         client.reset()
         MXLog.info("Reset.")

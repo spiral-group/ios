@@ -41,6 +41,11 @@ targets:
   ElementX:
     type: application
     platform: iOS
+    # AGENT-PLATFORM: the product is `Spiral` (PRODUCT_NAME = $(APP_NAME)),
+    # but XcodeGen does not evaluate build settings and would name the
+    # scheme's buildable after the TARGET. Xcode then rewrote the generated
+    # scheme on every run, so state it here instead.
+    productName: Spiral
 
     info:
       path: Info.plist
@@ -56,7 +61,14 @@ targets:
             CFBundleURLName: "Application",
             CFBundleURLSchemes: [
               $(BASE_BUNDLE_IDENTIFIER), # The app's own scheme for custom routes
-              "matrix" # Matrix URI scheme for permalinks
+              # AGENT-PLATFORM (Brief 0060): `spiral://` mirrors every
+              # spiral.md smart-link shape. Required because iOS does
+              # NOT fire universal links on same-domain taps in Safari
+              # (Apple TN3155), so the link landing page's "Open in
+              # Spiral" button has to use a custom scheme. The generic
+              # "matrix" scheme was dropped along with matrix.to
+              # generation (ADR-0072 D2).
+              "spiral"
             ]
           }
         ]
@@ -72,32 +84,35 @@ targets:
         appGroupIdentifier: $(APP_GROUP_IDENTIFIER)
         baseBundleIdentifier: $(BASE_BUNDLE_IDENTIFIER)
         keychainAccessGroupIdentifier: $(KEYCHAIN_ACCESS_GROUP_IDENTIFIER)
-        classicAppGroupIdentifier: $(CLASSIC_APP_GROUP_IDENTIFIER)
-        classicAppKeychainServiceIdentifier: $(CLASSIC_APP_KEYCHAIN_SERVICE_IDENTIFIER)
-        classicAppKeychainAccessGroupIdentifier: $(CLASSIC_APP_KEYCHAIN_ACCESS_GROUP_IDENTIFIER)
-        classicAppDeepLinkURL: $(CLASSIC_APP_DEEP_LINK_URL)
+        # AGENT-PLATFORM: classic{App,Keychain}* Info.plist keys removed
+        # to disable Element Classic (im.vector) account import — see app.yml.
         productionAppName: $(PRODUCTION_APP_NAME)
         isNightlyBuild: $(IS_NIGHTLY_BUILD)
         ITSAppUsesNonExemptEncryption: false
         NSUserActivityTypes: [
           INSendMessageIntent,
           INStartCallIntent,
+          INStartAudioCallIntent,
+          INStartVideoCallIntent,
         ]
-        NSCameraUsageDescription: To take pictures or videos and send them as a message $(APP_DISPLAY_NAME) needs access to the camera.
-        NSMicrophoneUsageDescription: To record and send messages with audio, $(APP_DISPLAY_NAME) needs to access the microphone.
+        NSCameraUsageDescription: To make video calls, and to take pictures or videos and send them as a message, $(APP_DISPLAY_NAME) needs access to the camera.
+        NSMicrophoneUsageDescription: To make calls, and to record and send messages with audio, $(APP_DISPLAY_NAME) needs to access the microphone.
         NSPhotoLibraryAddUsageDescription: This lets you save images and videos to your photo library.
         NSLocationWhenInUseUsageDescription: Grant location access so that $(APP_DISPLAY_NAME) can share your location.
         NSLocationAlwaysAndWhenInUseUsageDescription: To share your live location, $(APP_DISPLAY_NAME) needs location access when the app is in the background.
         NSFaceIDUsageDescription: Face ID is used to access your app.
+        # AGENT-PLATFORM (Brief 0078): no `location` mode while location sharing
+        # is off (no MapTiler key, no `m.tile_server`) — App Review 2.5.4. Add it
+        # back with the feature; `LiveLocationManager` follows this list.
+        # No `processing` either: the one background task is a BGAppRefreshTask
+        # (`fetch`), and App Review reads an unused mode as a false declaration.
         UIBackgroundModes: [
           audio,
           fetch,
-          processing,
-          voip,
-          location
+          voip
         ]
         BGTaskSchedulerPermittedIdentifiers: [
-          io.element.elementx.background.refresh
+          $(BASE_BUNDLE_IDENTIFIER).background.refresh
         ]
         UTExportedTypeDeclarations:
         - UTTypeConformsTo: [public.text]
@@ -114,28 +129,35 @@ targets:
       path: ElementX.entitlements
       properties:
         aps-environment: development
+        # AGENT-PLATFORM (Brief 0060 / ADR-0072): associated-domains
+        # scoped to our own domain ONLY. matrix.to was dropped — we no
+        # longer generate matrix.to links, so claiming that domain would
+        # only hijack third-party links we don't own. The matching AASA
+        # (components format, /u /c /r /m) ships from
+        # deploy/config/brand/.well-known/apple-app-site-association.
         com.apple.developer.associated-domains:
-        - applinks:element.io
-        - applinks:app.element.io
-        - applinks:staging.element.io
-        - applinks:develop.element.io
-        - applinks:mobile.element.io
-        - applinks:matrix.to
-        # - applinks:localhost?mode=developer # developer mode only works with https (but self-signed is fine).
-        - webcredentials:*.element.io
+        - applinks:spiral.md
+        # NB: an `applinks:spiral.md?mode=developer` entry existed during
+        # Brief 0060 so development-signed builds could bypass Apple's
+        # AASA CDN cache. It was stripped for the first TestFlight build
+        # (Apple rejects the `?mode=` query in submissions) and must not
+        # come back on a release branch — see docs/project/DECISIONS.md.
+        - webcredentials:spiral.md
         com.apple.developer.usernotifications.communication: true
         com.apple.security.app-sandbox: true
         com.apple.security.application-groups:
         - $(APP_GROUP_IDENTIFIER)
-        - $(CLASSIC_APP_GROUP_IDENTIFIER)
         com.apple.security.network.client: true
         keychain-access-groups:
         - $(KEYCHAIN_ACCESS_GROUP_IDENTIFIER)
-        - $(CLASSIC_APP_KEYCHAIN_ACCESS_GROUP_IDENTIFIER)
 
     settings:
       base:
         PRODUCT_NAME: $(APP_NAME)
+        # AGENT-PLATFORM: the product renamed to Spiral, but the Swift
+        # MODULE keeps the code-stable name — every test file does
+        # `@testable import ElementX` and Sourcery/SwiftGen emit against it.
+        PRODUCT_MODULE_NAME: ElementX
         PRODUCT_BUNDLE_IDENTIFIER: $(BASE_BUNDLE_IDENTIFIER)
         MARKETING_VERSION: $(MARKETING_VERSION)
         CURRENT_PROJECT_VERSION: $(CURRENT_PROJECT_VERSION)
@@ -150,6 +172,11 @@ targets:
         SWIFT_DEFAULT_ACTOR_ISOLATION: MainActor
         OTHER_SWIFT_FLAGS:
         - "-DIS_MAIN_APP"
+      configs:
+        # AGENT-PLATFORM: Xcode compilation caching, Debug (the test
+        # configuration) only; Release/archive builds stay uncached.
+        Debug:
+          COMPILATION_CACHE_ENABLE_CACHING: YES
 
     preBuildScripts:
     - name: 🛠 SwiftGen
@@ -231,6 +258,9 @@ targets:
     - package: MatrixRustSDK
       embed: true
     - package: Compound
+    # AGENT-PLATFORM: typed REST bindings for /api/v1/*. Drives the
+    # Services/AgentPlatform/ layer (M2.3+).
+    - package: AgentPlatformClient
     - package: BuildExtensions
       product: Macros
     - package: Algorithms
@@ -238,7 +268,14 @@ targets:
     - package: AnalyticsEvents
     - package: Collections
     - package: DeviceKit
-    - package: EmbeddedElementCall
+    # AGENT-PLATFORM (Brief 0063): native MatrixRTC media transport.
+    - package: LiveKit
+      product: LiveKit
+    # AGENT-PLATFORM (Brief 0066): trusted shell + runtime for Interactive
+    # Posts. Carries the built `dist` as a bundle resource; see the note on
+    # the package in project.yml for why this does not reopen ADR-0079.
+    - package: SpiralAppShell
+      product: SpiralAppShell
     - package: KeychainAccess
     - package: Kingfisher
     - package: KZFileWatchers
@@ -246,13 +283,10 @@ targets:
     - package: LRUCache
     - package: Mantis
     - package: MapLibre
-    - package: PostHog
+    # AGENT-PLATFORM (Brief 0078): no PostHog and no Sentry — Spiral collects no
+    # analytics or crash data, and their manifests would contradict the label.
     - package: SwiftState
     - package: GZIP
-    - package: Sentry
-      products: 
-        - Sentry
-        - SentrySwiftUI
     - package: Version
     - package: Emojibase
     - package: WysiwygComposer

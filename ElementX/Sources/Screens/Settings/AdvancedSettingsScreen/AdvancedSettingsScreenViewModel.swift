@@ -12,20 +12,26 @@ import SwiftUI
 typealias AdvancedSettingsScreenViewModelType = StateStoreViewModelV2<AdvancedSettingsScreenViewState, AdvancedSettingsScreenViewAction>
 
 class AdvancedSettingsScreenViewModel: AdvancedSettingsScreenViewModelType, AdvancedSettingsScreenViewModelProtocol {
-    private let analytics: AnalyticsServiceProtocol
     private let clientProxy: ClientProxyProtocol
     private let userIndicatorController: UserIndicatorControllerProtocol
+    private let agentPlatformService: AgentPlatformServiceProtocol? // AGENT-PLATFORM (Brief 0078 phase 2)
     
     private var timelineMediaVisibilityTask: Task<Void, Never>?
+    private var aiConsentTask: Task<Void, Never>?
     private var hideInviteAvatarsTask: Task<Void, Never>?
     
+    private let actionsSubject: PassthroughSubject<AdvancedSettingsScreenViewModelAction, Never> = .init()
+    var actionsPublisher: AnyPublisher<AdvancedSettingsScreenViewModelAction, Never> {
+        actionsSubject.eraseToAnyPublisher()
+    }
+    
     init(advancedSettings: AdvancedSettingsProtocol,
-         analytics: AnalyticsServiceProtocol,
          clientProxy: ClientProxyProtocol,
-         userIndicatorController: UserIndicatorControllerProtocol) {
-        self.analytics = analytics
+         userIndicatorController: UserIndicatorControllerProtocol,
+         agentPlatformService: AgentPlatformServiceProtocol?) {
         self.clientProxy = clientProxy
         self.userIndicatorController = userIndicatorController
+        self.agentPlatformService = agentPlatformService
         
         let state = AdvancedSettingsScreenViewState(timelineMediaVisibility: clientProxy.timelineMediaVisibilityPublisher.value,
                                                     hideInviteAvatars: clientProxy.hideInviteAvatarsPublisher.value,
@@ -43,17 +49,66 @@ class AdvancedSettingsScreenViewModel: AdvancedSettingsScreenViewModelType, Adva
             .receive(on: DispatchQueue.main)
             .weakAssign(to: \.state.hideInviteAvatars, on: self)
             .store(in: &cancellables)
+        
+        // AGENT-PLATFORM (decision 187): the row shows only while someone is blocked, as on upstream's main screen.
+        clientProxy.ignoredUsersPublisher
+            .receive(on: DispatchQueue.main)
+            .map { !($0?.isEmpty ?? true) }
+            .weakAssign(to: \.state.showBlockedUsers, on: self)
+            .store(in: &cancellables)
+        
+        aiConsentTask = Task { [weak self] in await self?.loadAIConsent() }
     }
     
     override func process(viewAction: AdvancedSettingsScreenViewAction) {
         switch viewAction {
-        case .optimizeMediaUploadsChanged:
-            // Note: Using a view action here as sinking the AppSettings publisher tracks the initial value.
-            analytics.trackInteraction(name: state.bindings.optimizeMediaUploads ? .MobileSettingsOptimizeMediaUploadsEnabled : .MobileSettingsOptimizeMediaUploadsDisabled)
+        case .blockedUsers: // AGENT-PLATFORM (decision 187)
+            actionsSubject.send(.blockedUsers)
         case let .updateHideInviteAvatars(value):
             hideInviteAvatarsTask = Task { [weak self] in await self?.updateHideInviteAvatars(value) }
         case let .updateTimelineMediaVisibility(value):
             timelineMediaVisibilityTask = Task { [weak self] in await self?.updateTimelineMediaVisibility(value) }
+        case let .updateAIConsent(granted):
+            aiConsentTask = Task { [weak self] in await self?.updateAIConsent(granted) }
+        case .retryAIConsent:
+            aiConsentTask = Task { [weak self] in await self?.retryAIConsent() }
+        }
+    }
+    
+    // MARK: - AI consent (AGENT-PLATFORM, Brief 0078 phase 2)
+    
+    private func loadAIConsent() async {
+        guard let agentPlatformService else { return }
+        switch await agentPlatformService.fetchAIConsent() {
+        case .success(let consent):
+            state.aiConsentGranted = consent.isGranted
+            state.aiConsentLoadFailed = false
+        case .failure(let error):
+            MXLog.error("Fetching the AI consent failed: \(error)")
+            state.aiConsentLoadFailed = true
+        }
+    }
+    
+    private func retryAIConsent() async {
+        state.isWaitingAIConsent = true
+        await loadAIConsent()
+        state.isWaitingAIConsent = false
+    }
+    
+    private func updateAIConsent(_ granted: Bool) async {
+        guard let agentPlatformService, let previous = state.aiConsentGranted else { return }
+        defer { state.isWaitingAIConsent = false }
+        
+        state.isWaitingAIConsent = true
+        state.aiConsentGranted = granted
+        
+        switch await agentPlatformService.setAIConsent(granted: granted) {
+        case .success(let consent):
+            state.aiConsentGranted = consent.isGranted
+        case .failure(let error):
+            MXLog.error("Recording the AI consent decision failed: \(error)")
+            state.aiConsentGranted = previous
+            userIndicatorController.submitIndicator(.init(title: L10n.errorUnknown))
         }
     }
     

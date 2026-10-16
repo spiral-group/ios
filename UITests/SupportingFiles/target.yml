@@ -33,10 +33,9 @@ targets:
     - package: KeychainAccess
     - package: Kingfisher
     - package: KZFileWatchers
-    - package: PostHog
+    # AGENT-PLATFORM (Brief 0078): no PostHog, no Sentry.
     - package: SwiftState
     - package: GZIP
-    - package: Sentry
     - package: SnapshotTesting
     - package: Collections
     - package: SwiftOGG
@@ -68,3 +67,7 @@ targets:
     - path: ../../ElementX/Sources/Other/Extensions/XCUIElement.swift
     - path: ../../ElementX/Sources/UITests/UITestsScreenIdentifier.swift
     - path: ../../ElementX/Sources/UITests/UITestsSignalling.swift
+    # AGENT-PLATFORM (Brief 0067): the UI tests that drive analytics and map
+    # surfaces have to know those surfaces are compiled out when the secret
+    # is nil — the same gate `SpiralSecretsTraits` puts on the unit tests.
+    - path: ../../Secrets/Secrets.swift

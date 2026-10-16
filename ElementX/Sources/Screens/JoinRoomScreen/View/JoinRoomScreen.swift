@@ -266,8 +266,10 @@ struct JoinRoomScreen: View {
     var inviteButtons: some View {
         Button(L10n.actionDecline) { context.send(viewAction: .declineInvite) }
             .buttonStyle(.compound(.secondary))
+            .accessibilityIdentifier(A11yIdentifiers.joinRoomScreen.declineInvite) // AGENT-PLATFORM (decision 146)
         Button(L10n.actionAccept) { context.send(viewAction: .acceptInvite) }
             .buttonStyle(.compound(.primary))
+            .accessibilityIdentifier(A11yIdentifiers.joinRoomScreen.acceptInvite) // AGENT-PLATFORM (decision 146)
     }
     
     @ViewBuilder

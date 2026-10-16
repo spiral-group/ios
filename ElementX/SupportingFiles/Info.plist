@@ -4,7 +4,7 @@
 <dict>
 	<key>BGTaskSchedulerPermittedIdentifiers</key>
 	<array>
-		<string>io.element.elementx.background.refresh</string>
+		<string>$(BASE_BUNDLE_IDENTIFIER).background.refresh</string>
 	</array>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
@@ -45,7 +45,7 @@
 			<key>CFBundleURLSchemes</key>
 			<array>
 				<string>$(BASE_BUNDLE_IDENTIFIER)</string>
-				<string>matrix</string>
+				<string>spiral</string>
 			</array>
 		</dict>
 	</array>
@@ -56,7 +56,7 @@
 	<key>LSSupportsOpeningDocumentsInPlace</key>
 	<false/>
 	<key>NSCameraUsageDescription</key>
-	<string>To take pictures or videos and send them as a message $(APP_DISPLAY_NAME) needs access to the camera.</string>
+	<string>To make video calls, and to take pictures or videos and send them as a message, $(APP_DISPLAY_NAME) needs access to the camera.</string>
 	<key>NSFaceIDUsageDescription</key>
 	<string>Face ID is used to access your app.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
@@ -64,13 +64,15 @@
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Grant location access so that $(APP_DISPLAY_NAME) can share your location.</string>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>To record and send messages with audio, $(APP_DISPLAY_NAME) needs to access the microphone.</string>
+	<string>To make calls, and to record and send messages with audio, $(APP_DISPLAY_NAME) needs to access the microphone.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>This lets you save images and videos to your photo library.</string>
 	<key>NSUserActivityTypes</key>
 	<array>
 		<string>INSendMessageIntent</string>
 		<string>INStartCallIntent</string>
+		<string>INStartAudioCallIntent</string>
+		<string>INStartVideoCallIntent</string>
 	</array>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
@@ -81,9 +83,7 @@
 	<array>
 		<string>audio</string>
 		<string>fetch</string>
-		<string>processing</string>
 		<string>voip</string>
-		<string>location</string>
 	</array>
 	<key>UILaunchScreen</key>
 	<dict>
@@ -114,14 +114,6 @@
 	<string>$(APP_GROUP_IDENTIFIER)</string>
 	<key>baseBundleIdentifier</key>
 	<string>$(BASE_BUNDLE_IDENTIFIER)</string>
-	<key>classicAppDeepLinkURL</key>
-	<string>$(CLASSIC_APP_DEEP_LINK_URL)</string>
-	<key>classicAppGroupIdentifier</key>
-	<string>$(CLASSIC_APP_GROUP_IDENTIFIER)</string>
-	<key>classicAppKeychainAccessGroupIdentifier</key>
-	<string>$(CLASSIC_APP_KEYCHAIN_ACCESS_GROUP_IDENTIFIER)</string>
-	<key>classicAppKeychainServiceIdentifier</key>
-	<string>$(CLASSIC_APP_KEYCHAIN_SERVICE_IDENTIFIER)</string>
 	<key>isNightlyBuild</key>
 	<string>$(IS_NIGHTLY_BUILD)</string>
 	<key>keychainAccessGroupIdentifier</key>

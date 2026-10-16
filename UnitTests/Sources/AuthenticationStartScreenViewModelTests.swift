@@ -25,13 +25,19 @@ final class AuthenticationStartScreenViewModelTests {
         viewModel.context
     }
     
+    /// Set by `setAllowedAccountProviders` so the default setup doesn't clobber
+    /// a provider list a `singleProvider*` test has explicitly configured.
+    private var didOverrideAccountProviders = false
+    
     init() {
         appSettings = AppSettings.volatile()
     }
     
     @Test
     func initialState() async throws {
-        // Given a view model that has no provisioning parameters.
+        // Given a view model that has no provisioning parameters (and open
+        // registration, so the upstream `.register` path exists).
+        appSettings.registrationRequiresInvite = false
         await setupViewModel()
         #expect(authenticationService.homeserver.value.loginMode == .unknown)
         #expect(client.urlForOauthOauthConfigurationPromptLoginHintDeviceIdAdditionalScopesCallsCount == 0)
@@ -40,7 +46,10 @@ final class AuthenticationStartScreenViewModelTests {
         let actions: [(AuthenticationStartScreenViewAction, AuthenticationStartScreenViewModelAction)] = [
             (.loginWithQR, .loginWithQR),
             (.login, .login),
-            (.register, .register),
+            // AGENT-PLATFORM (Brief 0073): Create account asks for an
+            // invitation first; going on without one is the upstream path
+            // (open registration here, see the invite-only test).
+            (.registerWithoutInvite, .register),
             (.reportProblem, .reportProblem)
         ]
         
@@ -273,11 +282,192 @@ final class AuthenticationStartScreenViewModelTests {
     
     // MARK: - Helpers
     
+    // MARK: - Invite links (Brief 0073 / ADR-0008)
+    
+    @Test
+    func pendingInviteRidesOnTheAuthorizationURL() async throws {
+        // Given a single-provider app and an invitation the person arrived with.
+        setAllowedAccountProviders(["company.com"])
+        appSettings.pendingInvite = PendingInvite(token: "Qz8Hf72Kd91", inviterDisplayName: "Andrii", inviterUserID: "@alice:spiral.md")
+        await setupViewModel()
+        #expect(context.viewState.pendingInvite?.inviterDisplayName == "Andrii")
+        
+        // When creating an account.
+        let deferred = deferFulfillment(viewModel.actions) { $0.isLoginDirectlyWithOAuth }
+        context.send(viewAction: .register)
+        let action = try await deferred.fulfill()
+        
+        // Then the OAuth URL carries the token for MAS → Hydra → identity-login.
+        guard case .loginDirectlyWithOAuth(let data, _) = action else {
+            Issue.record("Expected the OAuth action")
+            return
+        }
+        let components = try #require(URLComponents(url: data.url, resolvingAgainstBaseURL: false))
+        #expect(components.queryItems?.first { $0.name == "spiral_invite" }?.value == "Qz8Hf72Kd91")
+        #expect(components.queryItems?.first { $0.name == "spiral_flow" }?.value == "register")
+    }
+    
+    @Test
+    func authorizationURLIsUntouchedWithoutAnInvite() async throws {
+        setAllowedAccountProviders(["company.com"])
+        await setupViewModel()
+        #expect(context.viewState.pendingInvite == nil)
+        
+        let deferred = deferFulfillment(viewModel.actions) { $0.isLoginDirectlyWithOAuth }
+        context.send(viewAction: .login)
+        let action = try await deferred.fulfill()
+        
+        guard case .loginDirectlyWithOAuth(let data, _) = action else {
+            Issue.record("Expected the OAuth action")
+            return
+        }
+        #expect(data.url.absoluteString == "https://account.company.com/authorize")
+    }
+    
+    @Test
+    func createAccountWithoutAnInvitationAsksForOne() async throws {
+        setAllowedAccountProviders(["company.com"])
+        await setupViewModel()
+        
+        context.send(viewAction: .register)
+        
+        #expect(context.showInvitePasteSheet)
+        #expect(context.viewState.pendingInvite == nil)
+    }
+    
+    @Test
+    func pastedInvitationIsCheckedThenRegistrationStarts() async throws {
+        setAllowedAccountProviders(["company.com"])
+        await setupViewModel()
+        inviteLinkResolver.resolveReturnValue = .success(.valid(inviter: .init(displayName: "Andrii", avatarURL: nil, mxid: "@alice:spiral.md")))
+        
+        context.send(viewAction: .register)
+        #expect(context.showInvitePasteSheet)
+        context.pastedInviteText = "https://spiral.md/join/Qz8Hf72Kd91"
+        
+        let deferred = deferFulfillment(viewModel.actions) { $0.isLoginDirectlyWithOAuth }
+        context.send(viewAction: .usePastedInvite)
+        let action = try await deferred.fulfill()
+        
+        // The invitation is remembered with its inviter, the screen closes,
+        // and the OAuth URL carries the token.
+        #expect(inviteLinkResolver.resolveReceivedLink?.token == "Qz8Hf72Kd91")
+        #expect(appSettings.pendingInvite?.inviterUserID == "@alice:spiral.md")
+        #expect(context.viewState.pendingInvite?.inviterDisplayName == "Andrii")
+        #expect(!context.showInvitePasteSheet)
+        #expect(context.viewState.pastedInviteError == nil)
+        guard case .loginDirectlyWithOAuth(let data, _) = action else {
+            Issue.record("Expected the OAuth action")
+            return
+        }
+        let components = try #require(URLComponents(url: data.url, resolvingAgainstBaseURL: false))
+        #expect(components.queryItems?.first { $0.name == "spiral_invite" }?.value == "Qz8Hf72Kd91")
+    }
+    
+    @Test
+    func registrationCanGoOnWithoutAnInvitationWhenOpen() async throws {
+        setAllowedAccountProviders(["company.com"])
+        appSettings.registrationRequiresInvite = false
+        await setupViewModel()
+        context.send(viewAction: .register)
+        
+        let deferred = deferFulfillment(viewModel.actions) { $0.isLoginDirectlyWithOAuth }
+        context.send(viewAction: .registerWithoutInvite)
+        let action = try await deferred.fulfill()
+        
+        #expect(!context.showInvitePasteSheet)
+        #expect(inviteLinkResolver.resolveCallsCount == 0)
+        guard case .loginDirectlyWithOAuth(let data, _) = action else {
+            Issue.record("Expected the OAuth action")
+            return
+        }
+        // No invitation, but still a registration — the page opens that tab.
+        #expect(data.url.absoluteString == "https://account.company.com/authorize?spiral_flow=register")
+    }
+    
+    // AGENT-PLATFORM (ADR-0008): invite-only — the way on without an
+    // invitation does not exist, even if the action is sent.
+    @Test
+    func registrationCannotGoOnWithoutAnInvitationWhenInviteOnly() async throws {
+        setAllowedAccountProviders(["company.com"])
+        appSettings.registrationRequiresInvite = true
+        await setupViewModel()
+        context.send(viewAction: .register)
+        #expect(context.viewState.registrationRequiresInvite)
+        
+        let noRegistration = deferFailure(viewModel.actions, timeout: .seconds(1)) { $0.isLoginDirectlyWithOAuth }
+        context.send(viewAction: .registerWithoutInvite)
+        try await noRegistration.fulfill()
+        #expect(context.showInvitePasteSheet, "the screen stays")
+    }
+    
+    // AGENT-PLATFORM (Brief 0073): the homeserver has no MSC4108 rendezvous,
+    // so the QR sign-in stays hidden until the setting says otherwise.
+    @Test
+    func qrCodeLoginIsHiddenByDefault() async {
+        setAllowedAccountProviders(["company.com"])
+        await setupViewModel()
+        #expect(!appSettings.qrCodeLoginEnabled)
+        #expect(!context.viewState.showQRCodeLoginButton)
+    }
+    
+    @Test
+    func deadInvitationIsRefusedWithAReason() async throws {
+        await setupViewModel()
+        inviteLinkResolver.resolveReturnValue = .success(.exhausted)
+        
+        context.send(viewAction: .register)
+        context.pastedInviteText = "Qz8Hf72Kd91"
+        
+        let deferred = deferFulfillment(context.observe(\.viewState.pastedInviteError)) { $0 != nil }
+        context.send(viewAction: .usePastedInvite)
+        try await deferred.fulfill()
+        
+        #expect(context.viewState.pastedInviteError == UntranslatedL10n.screenInvitePasteExhausted)
+        #expect(appSettings.pendingInvite == nil)
+        #expect(context.showInvitePasteSheet, "the screen stays open to try again")
+    }
+    
+    @Test
+    func gibberishIsRefusedWithoutAskingTheServer() async throws {
+        await setupViewModel()
+        
+        context.send(viewAction: .register)
+        context.pastedInviteText = "hello world"
+        
+        let deferred = deferFulfillment(context.observe(\.viewState.pastedInviteError)) { $0 != nil }
+        context.send(viewAction: .usePastedInvite)
+        try await deferred.fulfill()
+        
+        #expect(context.viewState.pastedInviteError == UntranslatedL10n.screenInvitePasteInvalid)
+        #expect(inviteLinkResolver.resolveCallsCount == 0)
+    }
+    
+    // MARK: - Helpers
+    
+    private var inviteLinkResolver: InviteLinkResolverMock!
+    
     private func setupViewModel(classicAppAccount: ClassicAppAccount? = nil,
                                 provisioningParameters: AccountProvisioningParameters? = nil,
                                 supportsOAuth: Bool = true,
                                 supportsPasswordLogin: Bool = true,
                                 availableSecrets: ClassicAppAccount.AvailableSecrets = .complete) async {
+        // AGENT-PLATFORM: the fork ships a closed single-provider default
+        // (`accountProviders = ["spiral.md"]`, `allowOtherAccountProviders =
+        // false`), which changes the start-screen defaults these upstream tests
+        // were written against (a provider-less, open configuration). Unless a
+        // `singleProvider*` test has explicitly set a provider list, reset to the
+        // open upstream shape so the generic OAuth / password / provisioning /
+        // classic-account behaviour is what's under test.
+        if !didOverrideAccountProviders {
+            // A non-single list with `allowOtherAccountProviders = true` keeps
+            // the VM on its open/default branch (serverName stays nil unless a
+            // provisioning link is supplied) — matching the upstream shape these
+            // tests assume. An empty list is avoided (some settings consumers
+            // index accountProviders[0]).
+            setAllowedAccountProviders(["matrix.org"], allowOtherAccountProviders: true)
+        }
+        
         // Manually create a configuration as the default homeserver address setting is immutable.
         client = ClientSDKMock(.init(oAuthLoginURL: supportsOAuth ? "https://account.company.com/authorize" : nil,
                                      supportsOAuthCreatePrompt: false,
@@ -305,6 +495,8 @@ final class AuthenticationStartScreenViewModelTests {
         
         await authenticationService.setupClassicAppAccountState()
         
+        inviteLinkResolver = InviteLinkResolverMock()
+        
         viewModel = AuthenticationStartScreenViewModel(authenticationService: authenticationService,
                                                        provisioningParameters: provisioningParameters,
                                                        isBugReportServiceEnabled: true,
@@ -312,7 +504,8 @@ final class AuthenticationStartScreenViewModelTests {
                                                        appSettings: appSettings,
                                                        mediaProvider: MediaProviderMock(.init()),
                                                        notificationCenter: notificationCenter,
-                                                       userIndicatorController: UserIndicatorControllerMock())
+                                                       userIndicatorController: UserIndicatorControllerMock(),
+                                                       inviteLinkResolver: inviteLinkResolver)
         
         // Add a fake window in order for the OAuth flow to continue
         viewModel.context.send(viewAction: .updateWindow(UIWindow()))
@@ -330,9 +523,10 @@ final class AuthenticationStartScreenViewModelTests {
                           accessToken: "accessToken")
     }
     
-    private func setAllowedAccountProviders(_ providers: [String]) {
+    private func setAllowedAccountProviders(_ providers: [String], allowOtherAccountProviders: Bool = false) {
+        didOverrideAccountProviders = true
         appSettings.override(accountProviders: providers,
-                             allowOtherAccountProviders: false,
+                             allowOtherAccountProviders: allowOtherAccountProviders,
                              hideBrandChrome: false,
                              pushGatewayBaseURL: appSettings.pushGatewayBaseURL,
                              oAuthRedirectURL: appSettings.oAuthRedirectURL,
@@ -347,7 +541,6 @@ final class AuthenticationStartScreenViewModelTests {
                              chatBackupDetailsURL: appSettings.chatBackupDetailsURL,
                              identityPinningViolationDetailsURL: appSettings.identityPinningViolationDetailsURL,
                              historySharingDetailsURL: appSettings.historySharingDetailsURL,
-                             elementWebHosts: appSettings.elementWebHosts,
                              accountProvisioningHost: appSettings.accountProvisioningHost,
                              bugReportApplicationID: appSettings.bugReportApplicationID,
                              analyticsTermsURL: appSettings.analyticsTermsURL,

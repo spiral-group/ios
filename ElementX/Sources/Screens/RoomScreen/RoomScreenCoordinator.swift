@@ -33,6 +33,7 @@ struct RoomScreenCoordinatorParameters {
 }
 
 enum RoomScreenCoordinatorAction {
+    case presentAIConsentSettings // AGENT-PLATFORM (decision 150)
     case presentReportContent(itemID: TimelineItemIdentifier, senderID: String)
     case presentMediaUploadPicker(mode: MediaPickerScreenMode, caption: NSAttributedString)
     case presentMediaUploadPreviewScreen(mediaURLs: [URL], caption: NSAttributedString)
@@ -46,11 +47,18 @@ enum RoomScreenCoordinatorAction {
     case presentMessageForwarding(forwardingItem: MessageForwardingItem)
     case presentCallScreen(isVoiceCall: Bool)
     case presentPinnedEventsTimeline
-    case presentResolveSendFailure(failure: TimelineItemSendFailure.VerifiedUser, sendHandle: SendHandleProxy)
+    case presentResolveSendFailure(failure: TimelineItemSendFailure.VerifiedUser, resolver: VerifiedUserSendFailureResolver) // AGENT-PLATFORM: § 5.87
     case presentKnockRequestsList
     case presentThreadList
     case presentThread(threadRootEventID: String, focussedEventID: String?)
     case presentRoom(roomID: String, via: [String])
+    // AGENT-PLATFORM: open the agent-tools sheet (Brief 0036). The banner opens
+    // the EDIT surface (active-tools list); the composer "+" opens the CREATE
+    // surface (capabilities catalog).
+    case presentAgentToolsEdit
+    case presentAgentToolsCreate
+    case presentInteractivePostAgentPicker
+    case presentInteractivePostEditor(eventID: String, post: SpiralAppPost, title: String)
 }
 
 final class RoomScreenCoordinator: CoordinatorProtocol {
@@ -152,8 +160,8 @@ final class RoomScreenCoordinator: CoordinatorProtocol {
                     actionsSubject.send(.presentLocationViewer(location))
                 case .displayLiveLocation(let sender, let initialLiveLocationShare):
                     actionsSubject.send(.presentLiveLocationViewer(sender: sender, initialLiveLocationShare: initialLiveLocationShare))
-                case .displayResolveSendFailure(let failure, let sendHandle):
-                    actionsSubject.send(.presentResolveSendFailure(failure: failure, sendHandle: sendHandle))
+                case .displayResolveSendFailure(let failure, let resolver): // AGENT-PLATFORM: § 5.87
+                    actionsSubject.send(.presentResolveSendFailure(failure: failure, resolver: resolver))
                 case .displayThread(let itemID):
                     guard let eventID = itemID.eventID else {
                         fatalError("A thread root has always an eventID")
@@ -167,6 +175,14 @@ final class RoomScreenCoordinator: CoordinatorProtocol {
                     actionsSubject.send(.presentRoom(roomID: roomID, via: via))
                 case .presentCallScreen(let isVoiceCall):
                     actionsSubject.send(.presentCallScreen(isVoiceCall: isVoiceCall))
+                case .displayAIConsentSettings: // AGENT-PLATFORM (decision 150)
+                    actionsSubject.send(.presentAIConsentSettings)
+                case .interactivePostPublished:
+                    // Published from a draft in this very room; the row's
+                    // toast already said so.
+                    break
+                case .editInteractivePost(let eventID, let post, let title):
+                    actionsSubject.send(.presentInteractivePostEditor(eventID: eventID, post: post, title: title))
                 case .viewInRoomTimeline, .displayMediaDetails:
                     fatalError("The action: \(action) should not be sent to this coordinator")
                 }
@@ -174,11 +190,7 @@ final class RoomScreenCoordinator: CoordinatorProtocol {
             .store(in: &cancellables)
         
         composerViewModel.actions
-            .sink { [weak self] action in
-                guard let self else { return }
-                
-                timelineViewModel.process(composerAction: action)
-            }
+            .sink { [weak self] action in self?.route(composerAction: action) }
             .store(in: &cancellables)
         
         roomViewModel.actions
@@ -192,6 +204,8 @@ final class RoomScreenCoordinator: CoordinatorProtocol {
                     actionsSubject.send(.presentPinnedEventsTimeline)
                 case .displayRoomDetails:
                     actionsSubject.send(.presentRoomDetails)
+                case .displayAgentTools:
+                    actionsSubject.send(.presentAgentToolsEdit)
                 case .displayCall(let isVoiceCall):
                     actionsSubject.send(.presentCallScreen(isVoiceCall: isVoiceCall))
                 case .removeComposerFocus:
@@ -231,6 +245,25 @@ final class RoomScreenCoordinator: CoordinatorProtocol {
     func setSelectedPin(eventID: String) {
         roomViewModel.setSelectedPinnedEventID(eventID)
     }
+
+    // AGENT-PLATFORM: re-pull the active-tools banner after an agent-tools
+    // sheet change (Brief 0036 F2).
+    func refreshAgentToolsBanner() {
+        roomViewModel.refreshAgentToolsBanner()
+    }
+
+    // AGENT-PLATFORM (Brief 0066, § 5.80): the room's Interactive Posts stop
+    // while one of our sheets covers the room.
+    func setInteractivePostsCovered(_ covered: Bool) {
+        timelineViewModel.context.viewState.spiralAppHosts?.setCovered(covered)
+    }
+
+    // AGENT-PLATFORM (Brief 0066, § 5.84): a post published into this room
+    // from one of our sheets lands at the bottom, as a sent message does —
+    // the same scroll the composer's send takes.
+    func scrollToBottom() {
+        timelineViewModel.context.send(viewAction: .scrollToBottom)
+    }
     
     func shareText(_ string: String) {
         composerViewModel.process(timelineAction: .setMode(mode: .default)) // Make sure we're not e.g. replying.
@@ -243,6 +276,19 @@ final class RoomScreenCoordinator: CoordinatorProtocol {
         roomViewModel.stop()
     }
     
+    // AGENT-PLATFORM: the "Agent" and "Interactive post" compose-menu items
+    // are not timeline concerns — they go straight to the flow.
+    private func route(composerAction action: ComposerToolbarViewModelAction) {
+        switch action {
+        case .presentAgentTools:
+            actionsSubject.send(.presentAgentToolsCreate)
+        case .presentInteractivePostAgentPicker:
+            actionsSubject.send(.presentInteractivePostAgentPicker)
+        default:
+            timelineViewModel.process(composerAction: action)
+        }
+    }
+
     func toPresentable() -> AnyView {
         let composerToolbar = ComposerToolbar(context: composerViewModel.context)
         

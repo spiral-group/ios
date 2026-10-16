@@ -34,6 +34,8 @@ struct NotificationItemProxyMockConfiguration {
     var isNoisy = false
     var hasMention = false
     var threadRootEventID: String?
+    // AGENT-PLATFORM (Brief 0066, § 5.73)
+    var spiralAction: SpiralActionNotification?
 }
 
 extension NotificationItemProxyMock {
@@ -50,6 +52,7 @@ extension NotificationItemProxyMock {
         isNoisy = configuration.isNoisy
         hasMention = configuration.hasMention
         threadRootEventID = configuration.threadRootEventID
+        spiralAction = configuration.spiralAction
         isDM = configuration.isRoomDirect && configuration.roomJoinedMembers <= 2
     }
 }

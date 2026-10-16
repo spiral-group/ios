@@ -69,6 +69,11 @@ enum TimelineItemMenuAction: Identifiable, Hashable {
     case replyInThread
     case forward(itemID: TimelineItemIdentifier)
     case viewSource
+    // AGENT-PLATFORM (Brief 0066 step 6): a draft's module, to read.
+    case viewDraftCode
+    // AGENT-PLATFORM (§ 5.55): reopen the thread a published post was made
+    // in, and change the post in place from there.
+    case editInteractivePost
     case report
     case react
     case toggleReaction(key: String)
@@ -105,7 +110,7 @@ enum TimelineItemMenuAction: Identifiable, Hashable {
     /// Whether the action should be shown for a redacted item.
     var canAppearInRedacted: Bool {
         switch self {
-        case .viewSource, .unpin, .viewInRoomTimeline:
+        case .viewSource, .viewDraftCode, .unpin, .viewInRoomTimeline:
             true
         default:
             false
@@ -173,8 +178,13 @@ enum TimelineItemMenuAction: Identifiable, Hashable {
             Label(isMedia ? L10n.actionDeleteFile : L10n.actionRemoveMessage, icon: \.delete)
         case .viewSource:
             Label(L10n.actionViewSource, icon: \.code)
+        case .viewDraftCode:
+            Label(UntranslatedL10n.screenRoomInteractiveDraftCode, icon: \.code)
+        case .editInteractivePost:
+            Label(UntranslatedL10n.screenRoomInteractivePostEdit, icon: \.edit)
         case .report:
             Label(L10n.actionReportContent, icon: \.chatProblem)
+                .accessibilityIdentifier(A11yIdentifiers.roomScreen.timelineItemActionMenuAction.reportContent) // AGENT-PLATFORM (decision 146)
         case .react:
             Label(L10n.actionReact, icon: \.reactionAdd)
         case .toggleReaction:

@@ -6,18 +6,13 @@
 // Please see LICENSE files in the repository root for full details.
 //
 
+import Combine
 import Compound
 import SFSafeSymbols
 import SwiftUI
 
 struct SettingsScreen: View {
     @Bindable var context: SettingsScreenViewModel.Context
-    
-    private var shouldHideManageAccountSection: Bool {
-        context.viewState.accountProfileURL == nil &&
-            !context.viewState.showBlockedUsers &&
-            !context.viewState.showLinkNewDeviceButton
-    }
     
     var body: some View {
         Form {
@@ -27,19 +22,20 @@ struct SettingsScreen: View {
                 userStatusSection
             }
             
-            if !shouldHideManageAccountSection {
-                manageAccountSection
-            }
+            // AGENT-PLATFORM (decisions 187, 188): one row per domain, no
+            // section headers. The account and security rows are in the
+            // Security hub, the consent and visibility rows in Privacy, and
+            // Labs has no row (threads are always on).
             
-            manageMyAppSection
+            // AGENT-PLATFORM (Brief 0073 / ADR-0008): registration is by
+            // invitation, so the link is a first-class setting.
+            invitePeopleSection
             
-            generalSection
+            accountSection
+            
+            appSection
             
             signOutSection
-            
-            if context.viewState.showDeveloperOptions {
-                developerOptionsSection
-            }
         }
         .compoundList()
         .navigationTitle(L10n.commonSettings)
@@ -104,8 +100,36 @@ struct SettingsScreen: View {
         }
     }
     
-    private var manageMyAppSection: some View {
+    // AGENT-PLATFORM (Brief 0073 / ADR-0008).
+    private var invitePeopleSection: some View {
         Section {
+            ListRow(label: .default(title: UntranslatedL10n.screenInvitePeopleTitle,
+                                    icon: \.userAdd),
+                    kind: .navigationLink {
+                        context.send(viewAction: .invitePeople)
+                    })
+                    .accessibilityIdentifier(A11yIdentifiers.settingsScreen.invitePeople)
+        }
+    }
+    
+    // AGENT-PLATFORM (decision 187).
+    private var accountSection: some View {
+        Section {
+            ListRow(label: .default(title: L10n.commonSecurity,
+                                    icon: \.shield),
+                    details: context.viewState.showSecuritySectionBadge ? .icon(securitySectionBadge) : nil,
+                    kind: .navigationLink {
+                        context.send(viewAction: .security)
+                    })
+                    .accessibilityIdentifier(A11yIdentifiers.settingsScreen.security)
+            
+            ListRow(label: .default(title: UntranslatedL10n.screenSettingsPrivacyTitle,
+                                    icon: \.visibilityOn),
+                    kind: .navigationLink {
+                        context.send(viewAction: .privacy)
+                    })
+                    .accessibilityIdentifier(A11yIdentifiers.settingsScreen.privacy)
+            
             ListRow(label: .default(title: L10n.screenNotificationSettingsTitle,
                                     icon: \.notifications),
                     kind: .navigationLink {
@@ -113,70 +137,27 @@ struct SettingsScreen: View {
                     })
                     .accessibilityIdentifier(A11yIdentifiers.settingsScreen.notifications)
             
-            ListRow(label: .default(title: L10n.commonScreenLock,
-                                    icon: \.lock),
-                    kind: .navigationLink {
-                        context.send(viewAction: .appLock)
-                    })
-                    .accessibilityIdentifier(A11yIdentifiers.settingsScreen.screenLock)
-            
-            switch context.viewState.securitySectionMode {
-            case .secureBackup:
-                ListRow(label: .default(title: L10n.commonEncryption,
-                                        icon: \.key),
-                        details: context.viewState.showSecuritySectionBadge ? .icon(securitySectionBadge) : nil,
-                        kind: .navigationLink { context.send(viewAction: .secureBackup) })
-                    .accessibilityIdentifier(A11yIdentifiers.settingsScreen.secureBackup)
-            default:
-                EmptyView()
+            // AGENT-PLATFORM (Brief 0078): the account export and one call's export.
+            if context.viewState.showYourData {
+                ListRow(label: .default(title: UntranslatedL10n.screenYourDataTitle,
+                                        icon: \.exportArchive),
+                        kind: .navigationLink {
+                            context.send(viewAction: .yourData)
+                        })
+                        .accessibilityIdentifier(A11yIdentifiers.settingsScreen.yourData) // AGENT-PLATFORM (decision 146)
             }
         }
     }
     
-    private var manageAccountSection: some View {
+    // AGENT-PLATFORM (decision 187).
+    private var appSection: some View {
         Section {
-            if let url = context.viewState.accountProfileURL {
-                ListRow(label: .default(title: L10n.actionManageAccountAndDevices,
-                                        icon: \.userProfile),
-                        kind: .button {
-                            context.send(viewAction: .manageAccount(url: url))
-                        })
-                        .accessibilityIdentifier(A11yIdentifiers.settingsScreen.account)
-            }
-            
-            if context.viewState.showLinkNewDeviceButton {
-                ListRow(label: .default(title: L10n.commonLinkNewDevice,
-                                        icon: \.devices),
-                        kind: .navigationLink {
-                            context.send(viewAction: .linkNewDevice)
-                        })
-            }
-            
-            if context.viewState.showBlockedUsers {
-                ListRow(label: .default(title: L10n.commonBlockedUsers,
-                                        icon: \.block),
-                        kind: .navigationLink {
-                            context.send(viewAction: .blockedUsers)
-                        })
-                        .accessibilityIdentifier(A11yIdentifiers.settingsScreen.blockedUsers)
-            }
-        }
-    }
-    
-    private var generalSection: some View {
-        Section {
-            ListRow(label: .default(title: L10n.commonAdvancedSettings,
-                                    icon: \.settings),
+            ListRow(label: .default(title: UntranslatedL10n.screenSettingsAppearanceMediaTitle,
+                                    icon: \.theme),
                     kind: .navigationLink {
-                        context.send(viewAction: .advancedSettings)
+                        context.send(viewAction: .appearanceAndMedia)
                     })
-                    .accessibilityIdentifier(A11yIdentifiers.settingsScreen.advancedSettings)
-            
-            ListRow(label: .default(title: L10n.screenAdvancedSettingsLabs,
-                                    icon: \.labs),
-                    kind: .navigationLink {
-                        context.send(viewAction: .labs)
-                    })
+                    .accessibilityIdentifier(A11yIdentifiers.settingsScreen.appearanceAndMedia)
             
             ListRow(label: .default(title: L10n.commonAbout,
                                     icon: \.info),
@@ -202,13 +183,23 @@ struct SettingsScreen: View {
                         })
                         .accessibilityIdentifier(A11yIdentifiers.settingsScreen.analytics)
             }
+            
+            if context.viewState.showDeveloperOptions {
+                ListRow(label: .default(title: L10n.commonDeveloperOptions,
+                                        icon: \.code),
+                        kind: .navigationLink {
+                            context.send(viewAction: .developerOptions)
+                        })
+                        .accessibilityIdentifier(A11yIdentifiers.settingsScreen.developerOptions)
+            }
         }
     }
     
     private var signOutSection: some View {
         Section {
-            ListRow(label: .action(title: L10n.screenSignoutPreferenceItem,
-                                   icon: \.close,
+            // AGENT-PLATFORM (decision 187): «Sign out», not upstream's «Remove this device».
+            ListRow(label: .action(title: UntranslatedL10n.screenSignoutPreferenceItemSpiral,
+                                   icon: \.signOut,
                                    role: .destructive),
                     kind: .button {
                         context.send(viewAction: .logout)
@@ -222,22 +213,8 @@ struct SettingsScreen: View {
                         kind: .navigationLink {
                             context.send(viewAction: .deactivateAccount)
                         })
+                        .accessibilityIdentifier(A11yIdentifiers.settingsScreen.deleteAccount) // AGENT-PLATFORM (decision 146)
             }
-        } footer: {
-            if !context.viewState.showDeveloperOptions {
-                versionSection
-            }
-        }
-    }
-    
-    private var developerOptionsSection: some View {
-        Section {
-            ListRow(label: .default(title: L10n.commonDeveloperOptions,
-                                    icon: \.code),
-                    kind: .navigationLink {
-                        context.send(viewAction: .developerOptions)
-                    })
-                    .accessibilityIdentifier(A11yIdentifiers.settingsScreen.developerOptions)
         } footer: {
             versionSection
         }
@@ -284,30 +261,33 @@ struct SettingsScreen: View {
 @available(iOS 26.0, *)
 struct SettingsScreen_Previews: PreviewProvider, TestablePreview {
     static let viewModel = makeViewModel()
-    static let bugReportDisabledViewModel = makeViewModel(isBugReportServiceEnabled: false)
+    static let recoveryDisabledViewModel = makeViewModel(recoveryState: .disabled)
     
     static var previews: some View {
         ElementNavigationStack {
             SettingsScreen(context: viewModel.context)
         }
-        .snapshotPreferences(expect: viewModel.context.observe(\.viewState.accountProfileURL).map { $0 != nil })
         .previewDisplayName("Default")
         
+        // AGENT-PLATFORM (decision 187): Element's recovery nudge, on the Security row.
         ElementNavigationStack {
-            SettingsScreen(context: bugReportDisabledViewModel.context)
+            SettingsScreen(context: recoveryDisabledViewModel.context)
         }
-        .snapshotPreferences(expect: bugReportDisabledViewModel.context.observe(\.viewState.accountProfileURL).map { $0 != nil })
-        .previewDisplayName("Bug report disabled")
+        .snapshotPreferences(expect: recoveryDisabledViewModel.context.observe(\.viewState.showSecuritySectionBadge))
+        .previewDisplayName("Recovery not set up")
     }
     
-    static func makeViewModel(isBugReportServiceEnabled: Bool = true) -> SettingsScreenViewModel {
+    static func makeViewModel(recoveryState: SecureBackupRecoveryState = .enabled) -> SettingsScreenViewModel {
         let userSession = UserSessionMock(.init(clientProxy: ClientProxyMock(.init(userID: "@alice:example.com",
                                                                                    deviceID: "AAAAAAAAAAA",
                                                                                    displayName: "Alice Liddell",
                                                                                    status: .mockFocussing))))
+        // AGENT-PLATFORM (decision 187): a Spiral account, which shows Your data and Delete account.
+        userSession.agentPlatformService = AgentPlatformServiceMock()
+        userSession.sessionSecurityStatePublisher = CurrentValueSubject(.init(verificationState: .verified, recoveryState: recoveryState)).asCurrentValuePublisher()
         return SettingsScreenViewModel(userSession: userSession,
                                        appSettings: .volatile(),
-                                       isBugReportServiceEnabled: isBugReportServiceEnabled,
+                                       isBugReportServiceEnabled: false,
                                        isInSecondaryWindow: false,
                                        userIndicatorController: UserIndicatorControllerMock())
     }

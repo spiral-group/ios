@@ -20,6 +20,7 @@ nonisolated struct InfoPlistReader {
         static let utExportedTypeDeclarationsKey = "UTExportedTypeDeclarations"
         static let utTypeIdentifierKey = "UTTypeIdentifier"
         static let utDescriptionKey = "UTTypeDescription"
+        static let backgroundModes = "UIBackgroundModes" // AGENT-PLATFORM (Brief 0078)
         
         static let bundleURLTypes = "CFBundleURLTypes"
         static let bundleURLName = "CFBundleURLName"
@@ -98,6 +99,12 @@ nonisolated struct InfoPlistReader {
     /// Whether or not the build is from the Nightly stream.
     var isNightlyBuild: Bool {
         infoPlistValue(forKey: Keys.isNightlyBuild)
+    }
+    
+    // AGENT-PLATFORM (Brief 0078): what `LiveLocationManager` may ask CoreLocation for.
+    /// The background modes the target declares (`UIBackgroundModes`).
+    var backgroundModes: [String] {
+        infoPlistValue(forKey: Keys.backgroundModes) ?? []
     }
     
     // MARK: - Custom App Scheme

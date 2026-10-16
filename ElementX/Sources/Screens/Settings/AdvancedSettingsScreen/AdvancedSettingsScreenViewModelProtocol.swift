@@ -9,5 +9,6 @@
 import Combine
 
 protocol AdvancedSettingsScreenViewModelProtocol {
+    var actionsPublisher: AnyPublisher<AdvancedSettingsScreenViewModelAction, Never> { get } // AGENT-PLATFORM (decision 187)
     var context: AdvancedSettingsScreenViewModelType.Context { get }
 }

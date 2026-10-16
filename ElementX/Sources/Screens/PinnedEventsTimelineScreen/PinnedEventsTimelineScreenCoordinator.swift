@@ -95,10 +95,11 @@ final class PinnedEventsTimelineScreenCoordinator: CoordinatorProtocol {
             case .viewInRoomTimeline(let eventID, let threadRootEventID):
                 actionsSubject.send(.displayRoomScreenWithFocussedPin(eventID: eventID, threadRootEventID: threadRootEventID))
             // These other actions will not be handled in this view
+            // AGENT-PLATFORM (Brief 0066): + .interactivePostPublished, .editInteractivePost.
             case .displayEmojiPicker, .displayReportContent, .displayCameraPicker, .displayMediaPicker,
                  .displayDocumentPicker, .displayLocationPicker, .displayNewPollForm, .displayEditPollForm, .displayMediaUploadPreviewScreen,
-                 .displayResolveSendFailure, .displayThread, .composer, .hasScrolled, .displayRoom, .displayMediaDetails,
-                 .presentCallScreen:
+                 .displayResolveSendFailure, .displayThread, .composer, .hasScrolled, .displayRoom, .displayMediaDetails, .interactivePostPublished, .editInteractivePost,
+                 .presentCallScreen, .displayAIConsentSettings: // AGENT-PLATFORM (decision 150)
                 // These actions are not handled in this coordinator
                 break
             }

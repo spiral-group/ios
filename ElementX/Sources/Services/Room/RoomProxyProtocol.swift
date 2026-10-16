@@ -20,6 +20,10 @@ enum RoomProxyError: Error {
     case failedCreatingPinnedTimeline
     case timelineError(TimelineProxyError)
     case liveLocationSessionIsNotActive
+    /// AGENT-PLATFORM (Brief 0066 § 5.87): a raw send that encryption refused
+    /// because a verified user has unsigned devices or a changed identity —
+    /// resolvable as a wedged send-queue item is.
+    case verifiedUser(TimelineItemSendFailure.VerifiedUser)
 }
 
 /// An enum that describes the relationship between the current user and the room, and contains a reference to the specific implementation of the `RoomProxy`.
@@ -88,6 +92,46 @@ protocol JoinedRoomProxyProtocol: RoomProxyProtocol {
     func threadListService() -> RoomThreadListServiceProxyProtocol
     
     func loadOrFetchEventDetails(for eventID: String) async -> Result<TimelineEvent, RoomProxyError>
+    
+    // MARK: - AGENT-PLATFORM (Brief 0066, ADR-0007): Interactive Posts
+    
+    /// Every `m.reference` child of `eventID`, as raw decrypted event JSON.
+    ///
+    /// The authoritative read for a post's state. May return a PARTIAL set
+    /// without saying so — see `DESIGNS/spiral-app-runtime.md` §3.15 — so the
+    /// caller checks completeness rather than trusting the result.
+    func loadSpiralAppRelations(for eventID: String) async -> Result<[String], RoomProxyError>
+    
+    /// Observe events of `types` as they reach this room, below the timeline's
+    /// filter and above decryption.
+    ///
+    /// The caller MUST retain the returned handle: dropping it unsubscribes.
+    /// Retaining it also pins this room's events in memory, so subscribe when
+    /// a room opens and release on close.
+    ///
+    /// Takes the listener rather than a closure because that is what survives
+    /// mock generation — `subscribeToCallDeclineEvents` is the same shape.
+    /// Build one with `SDKListener.onMainActor { … }`.
+    func subscribeToSpiralEvents(types: [String],
+                                 listener: SpiralEventListener) async -> Result<TaskHandle, RoomProxyError>
+    
+    /// Send an event of a custom type, bypassing the timeline's send path.
+    ///
+    /// Interactive Post actions go out this way because routing them through
+    /// the timeline would create a local echo for an event the timeline is
+    /// deliberately not allowed to show.
+    func sendSpiralRawEvent(type: String, content: String) async -> Result<Void, RoomProxyError>
+    /// `sendSpiralRawEvent`, returning the event id — for a caller that
+    /// starts a thread on what it sent.
+    ///
+    /// Both fail with `.verifiedUser` when encryption refused a verified
+    /// user's devices or identity (§ 5.87); see `RawSendResolution`.
+    func sendSpiralRawEventReturningEventID(type: String, content: String) async -> Result<String, RoomProxyError>
+    /// AGENT-PLATFORM (§ 5.87): the answers to a refused raw send: share with these unsigned devices
+    /// after all, or stop holding these users to their old identity. The
+    /// queue's `…AndResend` without the resend.
+    func ignoreDeviceTrust(devices: [String: [String]]) async -> Result<Void, RoomProxyError>
+    func withdrawVerification(userIDs: [String]) async -> Result<Void, RoomProxyError>
     
     func messageFilteredTimeline(focus: TimelineFocus,
                                  allowedMessageTypes: [TimelineAllowedMessageType],
@@ -159,9 +203,11 @@ protocol JoinedRoomProxyProtocol: RoomProxyProtocol {
     func banUser(_ userID: String, reason: String?) async -> Result<Void, RoomProxyError>
     func unbanUser(_ userID: String) async -> Result<Void, RoomProxyError>
     
-    // MARK: - Element Call
+    // MARK: - Calls
     
-    func elementCallWidgetDriver(deviceID: String) -> ElementCallWidgetDriverProtocol
+    // AGENT-PLATFORM (Brief 0063/0067): the native MatrixRTC session is the
+    // only call surface; the Element Call widget driver is gone (ADR-0079).
+    func matrixRTCSession() -> Result<MatrixRTCSessionProtocol, RoomProxyError>
     func declineCall(notificationID: String) async -> Result<Void, RoomProxyError>
     func subscribeToCallDeclineEvents(rtcNotificationEventID: String, listener: CallDeclineListener) -> Result<TaskHandle, RoomProxyError>
     

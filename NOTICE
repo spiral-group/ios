@@ -1,0 +1,66 @@
+Spiral for iOS
+Copyright 2026 the Spiral authors.
+
+"The Spiral authors" is Andrii Panasiuk, the individual developer who
+publishes Spiral and holds the copyright in Spiral's code. Spiral is the
+product's name, not a company.
+
+Source requests: support@spiral.md
+
+Whose code this is
+------------------
+
+This product is a modified version of Element X iOS,
+Copyright 2025-2026 Element Creations Ltd.
+Copyright 2022-2025 New Vector Ltd.
+
+- Element's code is licensed under the GNU Affero General Public License
+  v3.0 only (LICENSE). That includes every Element file modified for
+  Spiral, and every file Spiral made from Element's code.
+  - An Element file modified in place keeps Element's header unchanged;
+    Spiral's changes in it are marked "AGENT-PLATFORM".
+  - A file Spiral made from Element's code (renamed, copied, adapted or
+    generated from Element's templates) keeps the header of the Element
+    file it came from and adds the line "Modified <year> by the Spiral
+    authors.". Tools/Scripts/element-derived-files.txt lists those files
+    and the Element file each one came from.
+- Spiral's code is licensed under the GNU Affero General Public License
+  v3.0 or, at your option, any later version. It is every file whose
+  header reads "Copyright <year> the Spiral authors. AGPL-3.0-or-later.",
+  and every package with its own LICENSE file saying so
+  (libraries/agentplatform-client).
+- LICENSE-COMMERCIAL is Element's notice that Element also licenses its own
+  code commercially. It covers Element's code only and gives no rights in
+  Spiral's.
+- The app as a whole, Element's code and Spiral's combined, is distributed
+  under AGPL-3.0-only, the terms of Element's code.
+
+Additional permission under section 7 of the AGPL
+-------------------------------------------------
+
+As the holders of the copyright in Spiral's code, the Spiral authors give
+you permission to convey a work that contains Spiral's code through Apple's
+App Store, or a similar app store whose terms restrict what recipients may
+do with the copy they receive (for example a device limit or a ban on
+redistribution), provided that you meet every other condition of the
+license, and in particular that the Corresponding Source of the version you
+convey is available to everyone who receives it, under the same license.
+This permission covers Spiral's code only. It gives no permission for
+Element's code or anyone else's; their own licenses apply to it. You may
+remove this permission from your copies, as section 7 allows.
+
+The corresponding source for every release, and how to build it, is listed
+in SOURCES.md and BUILDING.md.
+
+It includes software from:
+- matrix-rust-sdk and matrix-rust-components-swift (Apache-2.0), The
+  Matrix.org Foundation C.I.C. and contributors, modified by the Spiral
+  authors;
+- LiveKit client-sdk-swift (Apache-2.0), LiveKit, Inc., modified by the
+  Spiral authors;
+- compound-design-tokens (AGPL-3.0-only), Element, modified by the Spiral
+  authors;
+- spiral-app-shell (AGPL-3.0-or-later), the Spiral authors;
+- the Swift packages pinned in Package.resolved, under their own licenses.
+  Settings > About > Open source licenses lists every package with its
+  licence.

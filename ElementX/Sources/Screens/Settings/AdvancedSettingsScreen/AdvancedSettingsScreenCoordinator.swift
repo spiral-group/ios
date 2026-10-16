@@ -11,19 +11,40 @@ import SwiftUI
 
 struct AdvancedSettingsScreenCoordinatorParameters {
     let appSettings: AppSettings
-    let analytics: AnalyticsServiceProtocol
     let clientProxy: ClientProxyProtocol
     let userIndicatorController: UserIndicatorControllerProtocol
+    let agentPlatformService: AgentPlatformServiceProtocol? // AGENT-PLATFORM (Brief 0078 phase 2)
+}
+
+// AGENT-PLATFORM (decision 187): Blocked users opens from here, as in upstream's ModerationAndSafetySettingsScreen.
+enum AdvancedSettingsScreenCoordinatorAction {
+    case blockedUsers
 }
 
 final class AdvancedSettingsScreenCoordinator: CoordinatorProtocol {
     private var viewModel: AdvancedSettingsScreenViewModelProtocol
     
+    private let actionsSubject: PassthroughSubject<AdvancedSettingsScreenCoordinatorAction, Never> = .init()
+    var actionsPublisher: AnyPublisher<AdvancedSettingsScreenCoordinatorAction, Never> {
+        actionsSubject.eraseToAnyPublisher()
+    }
+    
+    private var cancellables = Set<AnyCancellable>()
+    
     init(parameters: AdvancedSettingsScreenCoordinatorParameters) {
         viewModel = AdvancedSettingsScreenViewModel(advancedSettings: parameters.appSettings,
-                                                    analytics: parameters.analytics,
                                                     clientProxy: parameters.clientProxy,
-                                                    userIndicatorController: parameters.userIndicatorController)
+                                                    userIndicatorController: parameters.userIndicatorController,
+                                                    agentPlatformService: parameters.agentPlatformService)
+        
+        viewModel.actionsPublisher
+            .sink { [weak self] action in
+                switch action {
+                case .blockedUsers:
+                    self?.actionsSubject.send(.blockedUsers)
+                }
+            }
+            .store(in: &cancellables)
     }
     
     func toPresentable() -> AnyView {

@@ -52,6 +52,11 @@ nonisolated protocol RoomInfoProxyProtocol: BaseRoomInfoProxyProtocol {
     // periphery:ignore - might be useful to have
     var invitedMembersCount: Int { get }
     var joinedMembersCount: Int { get }
+    // AGENT-PLATFORM (Brief 0063): service-member hints (agents) from the SDK fork.
+    /// Joined/invited members flagged as service accounts in the room's member hints.
+    var activeServiceMembersCount: Int { get }
+    /// MXIDs the room's member hints (`io.element.functional_members`) declare as service accounts (agents).
+    var serviceMembers: Set<String> { get }
     // periphery:ignore - might be useful to have
     var highlightCount: Int { get }
     // periphery:ignore - might be useful to have
@@ -98,6 +103,13 @@ extension BaseRoomInfoProxyProtocol {
     var statusEmoji: Character? {
         guard case let .heroes(heroes) = avatar else { return nil }
         return heroes.first?.status.displayed?.emoji
+    }
+    
+    // AGENT-PLATFORM (Brief 0072, ADR-0083): the DM's other person, by the
+    // same rule as `statusEmoji`.
+    var dmUserID: String? {
+        guard case let .heroes(heroes) = avatar, heroes.count == 1 else { return nil }
+        return heroes[0].id
     }
 }
 

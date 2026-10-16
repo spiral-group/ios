@@ -71,6 +71,29 @@ nonisolated struct RoomSummary {
     var isMuted: Bool {
         notificationMode == .mute
     }
+    
+    /// Whether this room is asking for the user's attention — the single
+    /// definition behind BOTH the room-list dot and the app icon badge.
+    ///
+    /// AGENT-PLATFORM: the two used to be computed from different sources
+    /// entirely. The dot came from the SDK's client-side unread counters
+    /// (decrypted, and deliberately blind to the event types we hide); the
+    /// badge came from the homeserver's push count, which in an encrypted
+    /// room can only apply the "all encrypted events" rule and therefore
+    /// counts everything — call notices, agent control flips, reactions.
+    /// Sharing one predicate is what makes "badge says 2, nothing is
+    /// unread" structurally impossible rather than merely fixed once.
+    func needsAttention(activityVisibility: RoomListActivityVisibility,
+                        seenInvites: Set<String>) -> Bool {
+        let isUnseenInvite = joinRequestType?.isInvite == true && !seenInvites.contains(id)
+        
+        return switch activityVisibility {
+        case .current:
+            hasUnreadMessages || hasUnreadMentions || hasUnreadNotifications || isMarkedUnread || isUnseenInvite
+        case .hide, .show:
+            (!isMuted && (hasUnreadNotifications || hasUnreadMentions)) || isMarkedUnread || isUnseenInvite
+        }
+    }
 }
 
 nonisolated extension RoomSummary: CustomStringConvertible {
@@ -188,5 +211,12 @@ nonisolated extension RoomSummary {
     var statusEmoji: Character? {
         guard case let .heroes(heroes) = avatar else { return nil }
         return heroes.first?.status.displayed?.emoji
+    }
+    
+    // AGENT-PLATFORM (Brief 0072, ADR-0083): the DM's other person, by the
+    // same rule as `statusEmoji`.
+    var dmUserID: String? {
+        guard case let .heroes(heroes) = avatar, heroes.count == 1 else { return nil }
+        return heroes[0].id
     }
 }

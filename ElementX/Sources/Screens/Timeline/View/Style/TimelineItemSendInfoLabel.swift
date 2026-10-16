@@ -36,6 +36,8 @@ private struct TimelineItemSendInfoModifier: ViewModifier {
             AnyLayout(HStackLayout(alignment: .bottom, spacing: spacing))
         case .vertical(let spacing):
             AnyLayout(GridLayout(alignment: .leading, verticalSpacing: spacing))
+        case .below:
+            AnyLayout(VStackLayout(alignment: .trailing, spacing: 0))
         case .overlay, .hidden:
             AnyLayout(ZStackLayout(alignment: .bottomTrailing))
         }
@@ -43,7 +45,16 @@ private struct TimelineItemSendInfoModifier: ViewModifier {
     
     func body(content: Content) -> some View {
         layout {
-            content
+            if case .below = sendInfo.layoutType {
+                // The strip is inside the bubble, so the bubble's rounding
+                // (16, `bubbleBackground`) lands on the strip's corners and
+                // left the post above it square at the bottom (§ 5.60). The
+                // post keeps its own corners, as a photo does.
+                content
+                    .cornerRadius(16, corners: [.bottomLeft, .bottomRight])
+            } else {
+                content
+            }
             
             TimelineItemSendInfoLabel(sendInfo: sendInfo)
                 .accessibilityHidden(isAccessibilityHidden)
@@ -98,6 +109,15 @@ private struct TimelineItemSendInfoLabel: View {
                 content
                     .gridColumnAlignment(.trailing)
             }
+        case .below:
+            // A strip the width of the post: the time at its end, and the
+            // whole strip a place to long-press — the post above it is a web
+            // view that takes every touch (§ 5.60).
+            content
+                .padding(.horizontal, 8)
+                .padding(.top, 3)
+                .padding(.bottom, 5)
+                .frame(maxWidth: .infinity, alignment: .trailing)
         case .hidden:
             EmptyView()
         }
@@ -131,6 +151,8 @@ private struct TimelineItemSendInfo {
         case horizontal(spacing: CGFloat = 4)
         case vertical(spacing: CGFloat = 4)
         case overlay(capsuleStyle: Bool)
+        // AGENT-PLATFORM (§ 5.60): under the content, in a full-width strip.
+        case below
         case hidden
     }
     
@@ -198,8 +220,26 @@ private extension TimelineItemSendInfo {
                 }
             case is StickerRoomTimelineItem:
                 .overlay(capsuleStyle: true)
+            // AGENT-PLATFORM (§ 5.60): UNDER the app, not over it. Overlaid, as
+            // on a photo, the capsule covered whatever the post drew in its
+            // bottom-right corner — a card's last avatar, the end of a line —
+            // and the web view took every long press on the post, so the menu
+            // («Change», «Forward») opened only from that capsule. Below, the
+            // time covers nothing, and the strip it sits in is a place to
+            // long-press. Beside the post it would still reshape it.
+            case is InteractivePostRoomTimelineItem:
+                .below
             case is PollRoomTimelineItem:
                 .vertical(spacing: 16)
+            // A draft is drawn as a post, and its capsule covered the end of
+            // the Publish button: under it too.
+            case is InteractiveDraftRoomTimelineItem:
+                .below
+            // The generating card stands where the draft will (§ 5.71): the
+            // same strip under it, else the time widened the square and sat on
+            // the band.
+            case is InteractiveGeneratingRoomTimelineItem:
+                .below
             default:
                 .horizontal()
             }

@@ -24,6 +24,7 @@ options:
     - UITests
     - AccessibilityTests
     - IntegrationTests
+    - SpiralDevE2ETests
     - DevelopmentAssets
     - SDKMocks
     - Secrets
@@ -51,10 +52,11 @@ options:
 settings:
   CLANG_ANALYZER_LOCALIZABILITY_NONLOCALIZED: true
   ENABLE_BITCODE: false
-  APP_NAME: ElementX
+  APP_NAME: Spiral
   KEYCHAIN_ACCESS_GROUP_IDENTIFIER: "$(DEVELOPMENT_TEAM).$(BASE_BUNDLE_IDENTIFIER)"
-  MARKETING_VERSION: 26.08.1
-  CURRENT_PROJECT_VERSION: 1
+  # AGENT-PLATFORM: Spiral marketing version (upstream calendar version was 26.08.1).
+  MARKETING_VERSION: 1.0.1
+  CURRENT_PROJECT_VERSION: 5
   SUPPORTS_MACCATALYST: false
 
 include:
@@ -67,26 +69,67 @@ include:
 - path: PreviewTests/SupportingFiles/target.yml
 - path: UITests/SupportingFiles/target.yml
 - path: IntegrationTests/SupportingFiles/target.yml
+# AGENT-PLATFORM (decision 146): the dev-stack E2E suite; its runner is not published.
+- path: SpiralDevE2ETests/SupportingFiles/target.yml
 - path: AccessibilityTests/SupportingFiles/target.yml
 # - path: MyAppVariant/override.yml
 
 packages:
   # Element/Matrix dependencies
   MatrixRustSDK:
-    url: https://github.com/element-hq/matrix-rust-components-swift
-    exactVersion: 26.07.28
-    # path: ../matrix-rust-sdk
+    # AGENT-PLATFORM (Brief 0063, decision 203): Spiral's components fork.
+    # Its release carries the XCFramework built from Spiral's matrix-rust-sdk
+    # fork; the SOURCE OF TRUTH for which SDK commit is the tag's
+    # PROVENANCE.json. For cross-repo work, swap in the sibling path (a
+    # locally built framework beside its Package.swift is used first).
+    url: https://github.com/spiral-group/matrix-rust-components-swift
+    exactVersion: 26.07.28-spiral.31
+    # path: ../matrix-rust-components-swift
   Compound:
     path: compound-ios
+  # AGENT-PLATFORM: typed REST bindings against the Matrix AI
+  # Agent Platform backend (`/api/v1/*`). Local-path package
+  # mirroring the compound-ios shape; sources live at
+  # `libraries/agentplatform-client/`. Drives the
+  # `Services/AgentPlatform/` layer (M2.3+).
+  AgentPlatformClient:
+    path: libraries/agentplatform-client
   BuildExtensions:
     path: BuildExtensions
   AnalyticsEvents:
     url: https://github.com/matrix-org/matrix-analytics-events
     minorVersion: 0.37.0
     # path: ../matrix-analytics-events
-  EmbeddedElementCall:
-    url: https://github.com/element-hq/element-call-swift
-    exactVersion: 0.22.0
+  # AGENT-PLATFORM (Brief 0067): upstream's `EmbeddedElementCall` package is
+  # deliberately absent — calls are native MatrixRTC only (ADR-0079). Do not
+  # restore it on an upstream sync.
+  #
+  # AGENT-PLATFORM (Brief 0066, ADR-0007): `SpiralAppShell` below is NOT a
+  # restoration of that package and does not reopen ADR-0079. That decision
+  # removed a WebView that was a second CALL stack, competing with CallKit
+  # for media ownership and duplicating what native does better. This one
+  # carries the trusted shell and runtime for Interactive Posts — untrusted,
+  # vibe-coded React that has no native alternative (the declarative variant
+  # was evaluated and rejected). It touches no call code and captures no
+  # media. See ADR-0007 § "Reconciliation with ADR-0079".
+  SpiralAppShell:
+    url: https://github.com/spiral-group/spiral-app-shell
+    exactVersion: 1.0.1
+    # path: ../spiral-app-shell/ios
+  # AGENT-PLATFORM (Brief 0063): native MatrixRTC media stack. Sibling fork
+  # of livekit/client-sdk-swift on the exact 2.16.0 tag (the first release
+  # exposing `BaseKeyProvider.setKey(keyData:)`, required to install the raw
+  # binary media keys MatrixRTC distributes) plus ONE addition, branch
+  # `spiral/2.16.0`: `E2EEManager.setSenderKeyIndex(_:)`. Upstream never moves
+  # a local sender off key-ring index 0, so a gapless key rotation (new key
+  # under a new index, old key left decryptable until the switch) had no way
+  # to tell the sender which slot to tag frames with — device day run 4
+  # (2026-09-12) heard the ~1 s of silence that costs. Published as
+  # spiral-group/client-sdk-swift (decision 203).
+  LiveKit:
+    url: https://github.com/spiral-group/client-sdk-swift
+    exactVersion: 2.16.0-spiral.1
+    # path: ../client-sdk-swift
   Emojibase:
     url: https://github.com/matrix-org/emojibase-bindings
     revision: 60bc01f2e3b31445dc723f5af1a777b63d18e6c2 # pinned due to https://github.com/matrix-org/emojibase-bindings/issues/59
@@ -147,12 +190,8 @@ packages:
   MapLibre:
     url: https://github.com/maplibre/maplibre-gl-native-distribution
     minorVersion: 6.27.0
-  PostHog:
-    url: https://github.com/PostHog/posthog-ios
-    minorVersion: 3.67.0
-  Sentry:
-    url: https://github.com/getsentry/sentry-cocoa
-    minorVersion: 9.22.0
+  # AGENT-PLATFORM (Brief 0078): PostHog and Sentry removed — Spiral collects no
+  # analytics or crash data (docs/project/DECISIONS.md, App Review pass).
   SnapshotTesting:
     url: https://github.com/pointfreeco/swift-snapshot-testing
     minorVersion: 1.19.3
@@ -177,4 +216,3 @@ aggregateTargets:
         export PATH="$PATH:/opt/homebrew/bin"
         periphery scan --format xcode
       basedOnDependencyAnalysis: false
-

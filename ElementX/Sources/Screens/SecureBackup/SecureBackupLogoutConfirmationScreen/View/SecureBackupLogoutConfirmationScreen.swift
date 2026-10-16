@@ -70,7 +70,7 @@ struct SecureBackupLogoutConfirmationScreen: View {
             Button(role: .destructive) {
                 context.send(viewAction: .logout)
             } label: {
-                Text(L10n.actionSignout)
+                Text(UntranslatedL10n.screenSignoutConfirmationDialogSubmitSpiral) // AGENT-PLATFORM (decision 187): «Sign out».
             }
             .buttonStyle(.compound(.primary))
         }

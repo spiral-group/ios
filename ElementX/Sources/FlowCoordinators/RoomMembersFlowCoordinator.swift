@@ -12,6 +12,7 @@ import SwiftUI
 enum RoomMembersFlowCoordinatorAction {
     case finished
     case presentCallScreen(roomProxy: JoinedRoomProxyProtocol, isVoiceCall: Bool)
+    case presentAIConsentSettings // AGENT-PLATFORM (decision 150)
     case verifyUser(userID: String)
 }
 
@@ -118,11 +119,17 @@ final class RoomMembersFlowCoordinator: FlowCoordinatorProtocol {
             }
         case .roomAlias, .childRoomAlias, .eventOnRoomAlias, .childEventOnRoomAlias:
             break // These are converted to a room ID route one level above.
-        case .accountProvisioningLink, .oAuthCallback,
+        case .accountProvisioningLink, .oAuthCallback, .inviteLink, // AGENT-PLATFORM: .inviteLink (Brief 0073)
              .roomList, .room, .roomDetails, .event,
              .userProfile, .call, .settings, .chatBackupSettings,
              .share, .transferOwnership, .thread, .search:
             break
+        case .approvalDetail, .verificationDetail, .publicProfile:
+            break // AGENT-PLATFORM: handled by AgentsTabFlowCoordinator.
+        case .aiConsentSettings:
+            break // AGENT-PLATFORM (decision 150): handled by the settings flow.
+        case .catalogTemplate:
+            break // AGENT-PLATFORM (decision 111): handled by ChatsTabFlowCoordinator.
         }
     }
     
@@ -326,6 +333,8 @@ final class RoomMembersFlowCoordinator: FlowCoordinatorProtocol {
                 switch action {
                 case .presentCallScreen(let roomProxy, let isVoiceCall):
                     actionsSubject.send(.presentCallScreen(roomProxy: roomProxy, isVoiceCall: isVoiceCall))
+                case .presentAIConsentSettings: // AGENT-PLATFORM (decision 150)
+                    actionsSubject.send(.presentAIConsentSettings)
                 case .verifyUser(let userID):
                     actionsSubject.send(.verifyUser(userID: userID))
                 case .continueWithSpaceFlow:

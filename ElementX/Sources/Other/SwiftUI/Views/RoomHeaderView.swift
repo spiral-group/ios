@@ -14,6 +14,9 @@ struct RoomHeaderView: View {
     struct DMRecipientDetails {
         var statusEmoji: Character?
         var verification: UserIdentityVerificationState?
+        // AGENT-PLATFORM (Brief 0072, ADR-0083): the other person's presence,
+        // nil when unknown or not a DM. Draws the dot and the subtitle.
+        var presence: UserPresence?
     }
     
     let roomName: String
@@ -56,10 +59,15 @@ struct RoomHeaderView: View {
                 roomDetails
                 
                 if let roomSubtitle {
-                    Text(roomSubtitle)
-                        .lineLimit(1)
-                        .font(.compound.bodyXS)
-                        .foregroundStyle(.compound.textSecondary)
+                    subtitleText(roomSubtitle)
+                } else if let presence = dmRecipientDetails.presence {
+                    // AGENT-PLATFORM (Brief 0072, ADR-0083): «online» / «last
+                    // seen 5 minutes ago» — the minutes move without a new answer.
+                    SwiftUI.TimelineView(.everyMinute) { context in
+                        if let status = presence.statusText(now: context.date) {
+                            subtitleText(status)
+                        }
+                    }
                 }
             }
         }
@@ -95,7 +103,17 @@ struct RoomHeaderView: View {
         RoomAvatarImage(avatar: roomAvatar,
                         avatarSize: .room(on: .timeline),
                         mediaProvider: mediaProvider)
+            // AGENT-PLATFORM (Brief 0072, ADR-0083)
+            .presenceBadge(isOnline: dmRecipientDetails.presence?.isOnline ?? false,
+                           avatarSize: Avatars.Size.room(on: .timeline).value)
             .accessibilityIdentifier(A11yIdentifiers.roomScreen.avatar)
+    }
+    
+    private func subtitleText(_ text: String) -> some View {
+        Text(text)
+            .lineLimit(1)
+            .font(.compound.bodyXS)
+            .foregroundStyle(.compound.textSecondary)
     }
     
     private var historySharingIcon: KeyPath<CompoundIcons, Image>? {
@@ -168,6 +186,30 @@ struct RoomHeaderView_Previews: PreviewProvider, TestablePreview {
             }
         }
         .previewLayout(.sizeThatFits)
+        
+        // AGENT-PLATFORM (Brief 0072, ADR-0083, ADR-0084): online, last seen
+        // exactly, last seen coarsely, and a room subtitle winning over
+        // presence. Only texts that do not depend on the clock the snapshot
+        // runs at.
+        VStack(alignment: .leading, spacing: 16) {
+            makeHeader(avatarURL: .mockMXCUserAvatar,
+                       verificationState: .verified,
+                       presence: .init(userID: "@u:x", state: .online, lastActiveAgo: 2, currentlyActive: true, receivedAt: .now))
+            makeHeader(avatarURL: .mockMXCUserAvatar,
+                       userStatus: .mockHoliday,
+                       verificationState: .verified,
+                       presence: .init(userID: "@u:x", state: .unavailable, lastActiveAgo: 10, currentlyActive: false, receivedAt: .now))
+            makeHeader(avatarURL: .mockMXCUserAvatar,
+                       verificationState: .verified,
+                       presence: .init(userID: "@u:x", state: .offline, lastActiveAgo: nil, currentlyActive: false,
+                                       lastSeenBucket: .withinWeek, receivedAt: .now))
+            makeHeader(avatarURL: .mockMXCUserAvatar,
+                       roomSubtitle: "Thread in Some Room",
+                       verificationState: .verified,
+                       presence: .init(userID: "@u:x", state: .online, lastActiveAgo: 2, currentlyActive: true, receivedAt: .now))
+        }
+        .previewLayout(.sizeThatFits)
+        .previewDisplayName("Presence")
     }
     
     @ViewBuilder
@@ -175,7 +217,8 @@ struct RoomHeaderView_Previews: PreviewProvider, TestablePreview {
                            roomSubtitle: String? = nil,
                            userStatus: UserStatus? = nil,
                            verificationState: UserIdentityVerificationState? = nil,
-                           historySharingState: RoomHistorySharingState? = nil) -> some View {
+                           historySharingState: RoomHistorySharingState? = nil,
+                           presence: UserPresence? = nil) -> some View {
         let roomName = verificationState == nil ? "Some Room Name" : "Some User Name"
         RoomHeaderView(roomName: roomName,
                        roomSubtitle: roomSubtitle,
@@ -183,7 +226,8 @@ struct RoomHeaderView_Previews: PreviewProvider, TestablePreview {
                                          name: roomName,
                                          avatarURL: avatarURL),
                        dmRecipientDetails: .init(statusEmoji: userStatus?.displayed?.emoji,
-                                                 verification: verificationState),
+                                                 verification: verificationState,
+                                                 presence: presence),
                        roomHistorySharingState: historySharingState,
                        
                        mediaProvider: MediaProviderMock(.init())) { }

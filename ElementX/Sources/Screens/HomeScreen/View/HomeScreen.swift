@@ -8,7 +8,6 @@
 
 import Combine
 import Compound
-import SentrySwiftUI
 import SwiftUI
 
 struct HomeScreen: View {
@@ -31,8 +30,13 @@ struct HomeScreen: View {
             .toolbar { toolbar }
             .background(Color.compound.bgCanvasDefault.ignoresSafeArea())
             .track(screen: .Home)
+            // AGENT-PLATFORM: navigation-bar bloom restored (ADR-0005 revision). The
+            // colour now comes from the synced alpha-blue subtle gradient — the
+            // `gradient.subtle.*` stops resolve to `color.alpha.orange.*`, which the
+            // fork's token generator builds from the brand blue (#2E6BE6), so this is
+            // a blue glow, not the retired gold.
             .toolbarBloom(hasSearchBar: true)
-            .sentryTrace("\(Self.self)")
+            // AGENT-PLATFORM (Brief 0078): upstream's `.sentryTrace` went with Sentry.
             .sheet(item: $context.spaceFiltersViewModel) { vm in
                 ChatsSpaceFiltersScreen(context: vm.context)
                     .navigationTransition(.zoom(sourceID: NavigationTransitionSourceID.spaceFilters,

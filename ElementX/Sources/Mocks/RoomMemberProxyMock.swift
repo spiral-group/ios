@@ -17,6 +17,7 @@ nonisolated struct RoomMemberProxyMockConfiguration {
     
     var membership: MembershipState
     var isIgnored = false
+    var isServiceMember = false
     
     var powerLevel = RoomPowerLevel(value: 0)
 }
@@ -33,6 +34,7 @@ extension RoomMemberProxyMock {
         
         membership = configuration.membership
         isIgnored = configuration.isIgnored
+        isServiceMember = configuration.isServiceMember
         
         powerLevel = configuration.powerLevel
     }

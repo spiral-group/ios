@@ -26,6 +26,9 @@ struct ThreadTimelineScreenCoordinatorParameters {
     let composerDraftService: ComposerDraftServiceProtocol
     let timelineControllerFactory: TimelineControllerFactoryProtocol
     let userIndicatorController: UserIndicatorControllerProtocol
+    /// AGENT-PLATFORM (§ 5.56): a generation thread opened from the
+    /// catalogue in another room publishes there.
+    var spiralPublishRoom: SpiralPublishRoom?
 }
 
 enum ThreadTimelineScreenCoordinatorAction {
@@ -39,7 +42,9 @@ enum ThreadTimelineScreenCoordinatorAction {
     case presentEmojiPicker(selectedEmojis: Set<String>, continuation: EmojiPickerScreenContinuation)
     case presentRoomMemberDetails(userID: String)
     case presentMessageForwarding(forwardingItem: MessageForwardingItem)
-    case presentResolveSendFailure(failure: TimelineItemSendFailure.VerifiedUser, sendHandle: SendHandleProxy)
+    case presentResolveSendFailure(failure: TimelineItemSendFailure.VerifiedUser, resolver: VerifiedUserSendFailureResolver) // AGENT-PLATFORM: § 5.87
+    // AGENT-PLATFORM (Brief 0066 step 6): the generation sheet closes on it.
+    case interactivePostPublished(roomID: String)
 }
 
 final class ThreadTimelineScreenCoordinator: CoordinatorProtocol {
@@ -72,6 +77,8 @@ final class ThreadTimelineScreenCoordinator: CoordinatorProtocol {
                                               emojiProvider: parameters.emojiProvider,
                                               linkMetadataProvider: parameters.linkMetadataProvider,
                                               timelineControllerFactory: parameters.timelineControllerFactory)
+        
+        (timelineViewModel as? TimelineViewModel)?.setSpiralPublishRoom(parameters.spiralPublishRoom)
         
         let wysiwygViewModel = WysiwygComposerViewModel(minHeight: ComposerConstant.minHeight,
                                                         maxCompressedHeight: ComposerConstant.maxHeight,
@@ -137,11 +144,14 @@ final class ThreadTimelineScreenCoordinator: CoordinatorProtocol {
                     actionsSubject.send(.presentRoomMemberDetails(userID: userID))
                 case .displayMessageForwarding(let forwardingItem):
                     actionsSubject.send(.presentMessageForwarding(forwardingItem: forwardingItem))
-                case .displayResolveSendFailure(let failure, let sendHandle):
+                case .displayResolveSendFailure(let failure, let resolver): // AGENT-PLATFORM: § 5.87
                     actionsSubject.send(.presentResolveSendFailure(failure: failure,
-                                                                   sendHandle: sendHandle))
-                case .hasScrolled, .displayRoom, .displayMediaDetails, .presentCallScreen:
+                                                                   resolver: resolver))
+                case .hasScrolled, .displayRoom, .displayMediaDetails, .presentCallScreen, .editInteractivePost,
+                     .displayAIConsentSettings: // AGENT-PLATFORM (decision 150): the notice is not in threads.
                     break
+                case .interactivePostPublished(let roomID):
+                    actionsSubject.send(.interactivePostPublished(roomID: roomID))
                 case .composer(let action):
                     composerViewModel.process(timelineAction: action)
                 case .viewInRoomTimeline, .displayThread:

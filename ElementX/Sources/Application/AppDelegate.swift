@@ -41,4 +41,14 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
     func application(_ application: UIApplication, supportedInterfaceOrientationsFor window: UIWindow?) -> UIInterfaceOrientationMask {
         orientationLock
     }
+    
+    // AGENT-PLATFORM (Brief 0063): native CallKit Recents redial.
+    // Fallback for start-call activities (Recents redial) that UIKit routes to the
+    // app delegate instead of the scene delegate.
+    func application(_ application: UIApplication,
+                     continue userActivity: NSUserActivity,
+                     restorationHandler: @escaping ([UIUserActivityRestoring]?) -> Void) -> Bool {
+        SceneDelegate.handleUserActivityIfNeeded(userActivity)
+        return true
+    }
 }

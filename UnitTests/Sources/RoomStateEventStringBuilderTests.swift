@@ -186,4 +186,114 @@ struct RoomStateEventStringBuilderTests {
                                            isOutgoing: false)
         #expect(string == L10n.stateEventRoomBan(other.displayName ?? other.id, banned.displayName ?? banned.id))
     }
+
+    // MARK: - AGENT-PLATFORM (Brief 0044): detailed com.spiral.tools rows
+
+    private static func spiralEvent(agent: String, tools: String) -> String {
+        """
+        {"type":"com.spiral.tools","state_key":"\(agent)","sender":"\(agent)",
+         "content":{"version":1,"by":"@owner:host","at":1000,"tools":\(tools)}}
+        """
+    }
+
+    @Test
+    func spiralToolsSingleTranslateShowsLanguage() {
+        let sender = TimelineItemSender(id: "@assistant-bob:host", displayName: "Bob's Assistant")
+        let json = Self.spiralEvent(agent: "@assistant-bob:host",
+                                    tools: #"[{"tool":"translate","enabled":true,"target_language":"English"}]"#)
+        let string = stringBuilder.buildString(for: .custom(eventType: "com.spiral.tools"),
+                                               sender: sender, isOutgoing: false, rawEventJSON: json)
+        #expect(string == UntranslatedL10n.stateEventSpiralToolsActive("Bob's Assistant",
+                                                                       UntranslatedL10n.screenAgentToolsListTitleTranslate("English")))
+    }
+
+    @Test
+    func spiralToolsSingleNonTranslateShowsKindName() {
+        let sender = TimelineItemSender(id: "@assistant-bob:host", displayName: "Bob's Assistant")
+        let json = Self.spiralEvent(agent: "@assistant-bob:host",
+                                    tools: #"[{"tool":"summarize","enabled":true}]"#)
+        let string = stringBuilder.buildString(for: .custom(eventType: "com.spiral.tools"),
+                                               sender: sender, isOutgoing: false, rawEventJSON: json)
+        #expect(string == UntranslatedL10n.stateEventSpiralToolsActive("Bob's Assistant", ToolDisplayName.name(forKind: "summarize")))
+    }
+
+    @Test
+    func spiralToolsCallArtifactKindsAreLocalized() {
+        // Regression: call_summary / call_recording aren't in ArmToolKind, so
+        // the old fallback rendered the raw "Call_summary" tag. They must now
+        // show their localized capability titles.
+        let sender = TimelineItemSender(id: "@assistant-red:host", displayName: "Red's Assistant")
+        let json = Self.spiralEvent(agent: "@assistant-red:host",
+                                    tools: #"[{"tool":"call_recording","enabled":true},{"tool":"call_summary","enabled":true}]"#)
+        let string = stringBuilder.buildString(for: .custom(eventType: "com.spiral.tools"),
+                                               sender: sender, isOutgoing: false, rawEventJSON: json)
+        let expectedLine = "\(UntranslatedL10n.screenAgentCapabilitiesCallRecordingTitle) · \(UntranslatedL10n.screenAgentCapabilitiesCallSummaryTitle)"
+        #expect(string == UntranslatedL10n.stateEventSpiralToolsActive("Red's Assistant", expectedLine))
+        // And never the raw kind tag.
+        #expect(string?.contains("Call_summary") == false)
+        #expect(string?.contains("Call_recording") == false)
+    }
+
+    @Test
+    func spiralToolsMultipleListsEveryTool() {
+        // The event is a full snapshot, so the row must list ALL current tools
+        // (no "+N" hiding the rest) so the user sees exactly what's active.
+        let sender = TimelineItemSender(id: "@assistant-bob:host", displayName: "Bob's Assistant")
+        let json = Self.spiralEvent(agent: "@assistant-bob:host",
+                                    tools: #"[{"tool":"translate","enabled":true,"target_language":"English"},{"tool":"summarize","enabled":true}]"#)
+        let string = stringBuilder.buildString(for: .custom(eventType: "com.spiral.tools"),
+                                               sender: sender, isOutgoing: false, rawEventJSON: json)
+        let translateText = UntranslatedL10n.screenAgentToolsListTitleTranslate("English")
+        let expectedLine = "\(translateText) · \(ToolDisplayName.name(forKind: "summarize"))"
+        #expect(string == UntranslatedL10n.stateEventSpiralToolsActive("Bob's Assistant", expectedLine))
+    }
+
+    @Test
+    func spiralToolsEmptyShowsTurnedOff() {
+        let sender = TimelineItemSender(id: "@assistant-bob:host", displayName: "Bob's Assistant")
+        let json = Self.spiralEvent(agent: "@assistant-bob:host", tools: "[]")
+        let string = stringBuilder.buildString(for: .custom(eventType: "com.spiral.tools"),
+                                               sender: sender, isOutgoing: false, rawEventJSON: json)
+        #expect(string == UntranslatedL10n.stateEventSpiralToolsOff("Bob's Assistant"))
+    }
+
+    @Test
+    func spiralToolsWithoutJSONFallsBackToGeneric() {
+        let sender = TimelineItemSender(id: "@assistant-bob:host", displayName: "Bob's Assistant")
+        let string = stringBuilder.buildString(for: .custom(eventType: "com.spiral.tools"),
+                                               sender: sender, isOutgoing: false, rawEventJSON: nil)
+        #expect(string == UntranslatedL10n.stateEventSpiralToolsUpdated("Bob's Assistant"))
+    }
+
+    // MARK: - AGENT-PLATFORM (Brief 0066 § 5.89): the fallback reads as the state row
+
+    @Test
+    func spiralToolsFallbackReadsLikeTheStateRow() {
+        let agent = "@assistant-bob:matrix.org"
+        let sender = TimelineItemSender(id: agent, displayName: "Bob's Assistant")
+        let tools = #"[{"tool":"translate","enabled":true,"target_language":"English"}]"#
+        let fallback = """
+        {"type":"com.spiral.tools.changed","sender":"\(agent)",
+         "content":{"version":1,"by":"@bob:matrix.org","at":1000,"tools":\(tools),"fallback":true}}
+        """
+
+        let row = stringBuilder.buildSpiralToolsFallbackString(rawEventJSON: fallback, sender: sender)
+        let stateRow = stringBuilder.buildString(for: .custom(eventType: "com.spiral.tools"),
+                                                 sender: sender, isOutgoing: false,
+                                                 rawEventJSON: Self.spiralEvent(agent: agent, tools: tools))
+
+        #expect(row != nil)
+        #expect(row == stateRow)
+    }
+
+    @Test
+    func spiralToolsFallbackFromAPersonHasNoRow() {
+        let person = "@mallory:matrix.org"
+        let fallback = """
+        {"type":"com.spiral.tools.changed","sender":"\(person)",
+         "content":{"version":1,"by":"\(person)","at":1000,"tools":[{"tool":"translate","enabled":true}],"fallback":true}}
+        """
+        #expect(stringBuilder.buildSpiralToolsFallbackString(rawEventJSON: fallback,
+                                                             sender: TimelineItemSender(id: person)) == nil)
+    }
 }

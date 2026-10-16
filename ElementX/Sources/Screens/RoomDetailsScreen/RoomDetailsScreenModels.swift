@@ -16,6 +16,7 @@ import SwiftUI
 enum RoomDetailsScreenViewModelAction: Equatable {
     case requestNotificationSettingsPresentation
     case requestMemberDetailsPresentation
+    case requestAgentsPresentation // AGENT-PLATFORM (decision 192)
     case requestRecipientDetailsPresentation(userID: String)
     case requestInvitePeoplePresentation
     case requestInviteToNewRoomPresentation(selectedInvitee: UserProfile)
@@ -50,6 +51,10 @@ struct RoomDetailsScreenViewState: BindableState {
     var topicSummary: AttributedString?
     
     var joinedMembersCount: Int
+    // AGENT-PLATFORM (decision 192): the «Агенты» row — shown with the agent
+    // platform; the count is `nil` until read (a failed read shows none, never 0).
+    var showsAgentsRow = false
+    var agentsCount: Int?
     var hasMemberIdentityVerificationStateViolations = false
     
     var isProcessingIgnoreRequest = false
@@ -69,6 +74,9 @@ struct RoomDetailsScreenViewState: BindableState {
     var knockRequestsCount = 0
     
     var reportRoomEnabled = false
+    
+    // AGENT-PLATFORM (Brief 0072, ADR-0083): the other person of a DM.
+    var dmRecipientPresence: UserPresence?
     
     var canSeeKnockingRequests: Bool {
         dmRecipientInfo == nil && isKnockableRoom && (canInviteUsers || canKickUsers || canBanUsers)
@@ -137,6 +145,8 @@ struct RoomDetailsScreenViewStateBindings {
         }
         
         let action: Action
+        /// AGENT-PLATFORM (decision 98): the owner's block reaches their agents.
+        var mentionsAgents = false
         let cancelTitle = L10n.actionCancel
         
         var title: String {
@@ -154,10 +164,11 @@ struct RoomDetailsScreenViewStateBindings {
         }
         
         var description: String {
-            switch action {
-            case .ignore: return L10n.screenDmDetailsBlockAlertDescription
-            case .unignore: return L10n.screenDmDetailsUnblockAlertDescription
+            let description = switch action {
+            case .ignore: L10n.screenDmDetailsBlockAlertDescription
+            case .unignore: L10n.screenDmDetailsUnblockAlertDescription
             }
+            return mentionsAgents ? "\(description)\n\n\(OwnerBlocksSync.alertLine(for: action == .ignore))" : description
         }
         
         var viewAction: RoomDetailsScreenViewAction {
@@ -210,6 +221,7 @@ struct LeaveRoomAlertItem: AlertProtocol {
 
 enum RoomDetailsScreenViewAction {
     case processTapPeople
+    case processTapAgents // AGENT-PLATFORM (decision 192)
     case processTapInvite
     case processTapLeave
     case processTapIgnore

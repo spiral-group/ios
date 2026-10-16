@@ -20,6 +20,16 @@ struct RoomMemberDetailsScreen: View {
                 verificationSection
             }
             
+            // AGENT-PLATFORM (Brief 0078, ADR-0019 P5)
+            if context.viewState.showEraseAssistantMemorySection {
+                eraseAssistantMemorySection
+            }
+            
+            // AGENT-PLATFORM (decision 87): above Element's Block user, which is a different thing.
+            if context.viewState.showAgentBlocksSection {
+                agentBlocksSection
+            }
+            
             if context.viewState.memberDetails != nil, !context.viewState.isOwnMemberDetails {
                 blockUserSection
             }
@@ -36,6 +46,7 @@ struct RoomMemberDetailsScreen: View {
         }
         .track(screen: .User)
         .interactiveQuickLook(item: $context.mediaPreviewItem, allowEditing: false)
+        .onAppear { context.send(viewAction: .appeared) } // AGENT-PLATFORM (decision 87): blocks may have changed meanwhile.
     }
     
     // MARK: - Private
@@ -58,6 +69,7 @@ struct RoomMemberDetailsScreen: View {
                         .padding(.top, 8)
                 }
             }
+            .presence(context.viewState.presence) // AGENT-PLATFORM (Brief 0072)
         } else {
             AvatarHeaderView(user: UserProfile(userID: context.viewState.userID),
                              isVerified: context.viewState.showVerifiedBadge,
@@ -136,6 +148,39 @@ struct RoomMemberDetailsScreen: View {
         }
     }
     
+    // AGENT-PLATFORM (Brief 0078, ADR-0019 P5): what the person's assistant remembers about them.
+    private var eraseAssistantMemorySection: some View {
+        Section {
+            ListRow(label: .default(title: UntranslatedL10n.screenRoomMemberDetailsEraseAssistantMemory,
+                                    icon: \.delete,
+                                    role: .destructive),
+                    details: .isWaiting(context.viewState.isErasingAssistantMemory),
+                    kind: .button {
+                        context.send(viewAction: .eraseAssistantMemory)
+                    })
+                    .accessibilityIdentifier(A11yIdentifiers.roomMemberDetailsScreen.eraseAssistantMemory)
+                    .disabled(context.viewState.isErasingAssistantMemory)
+        }
+    }
+    
+    // AGENT-PLATFORM (decision 87): the person's agents that block them, each undone here.
+    private var agentBlocksSection: some View {
+        Section {
+            ForEach(context.viewState.agentBlocks) { block in
+                ListRow(label: .default(title: UntranslatedL10n.screenRoomMemberDetailsAgentBlockTitle(block.agentName), icon: \.block),
+                        details: .title(UntranslatedL10n.screenRoomMemberDetailsAgentUnblockAction,
+                                        isWaiting: context.viewState.unblockingAgentID == block.agentID),
+                        kind: .button {
+                            context.send(viewAction: .unblockAgent(agentID: block.agentID))
+                        })
+                        .disabled(context.viewState.unblockingAgentID != nil)
+            }
+        } footer: {
+            Text(UntranslatedL10n.screenRoomMemberDetailsAgentBlockFooter)
+                .compoundListSectionFooter()
+        }
+    }
+    
     @ViewBuilder
     private var blockUserSection: some View {
         if let memberDetails = context.viewState.memberDetails {
@@ -179,6 +224,13 @@ struct RoomMemberDetailsScreen_Previews: PreviewProvider, TestablePreview {
     static let otherUserViewModel = makeViewModel(member: .mockAlice)
     static let accountOwnerViewModel = makeViewModel(member: .mockMe)
     static let ignoredUserViewModel = makeViewModel(member: .mockIgnored)
+    static let spiralContactViewModel = makeViewModel(member: .mockAlice, hasAssistant: true) // AGENT-PLATFORM (Brief 0078)
+    static let blockedByAgentViewModel = makeViewModel(member: .mockAlice, hasAssistant: true, agentBlocks: [previewAgentBlock])
+    // AGENT-PLATFORM (decision 87): one of the person's agents blocks them.
+    static let previewAgentBlock = AgentContactBlock(agentID: "0199d0a1-7c2e-7b44-9a51-3f1e2d4c5b02",
+                                                     agentMXID: "@aria:spiral.md",
+                                                     agentName: "Aria",
+                                                     blockedAt: Date(timeIntervalSince1970: 1_791_709_200))
     
     static var previews: some View {
         RoomMemberDetailsScreen(context: verifiedUserViewModel.context)
@@ -210,9 +262,24 @@ struct RoomMemberDetailsScreen_Previews: PreviewProvider, TestablePreview {
                 state.memberDetails?.isIgnored ?? false && state.dmRoomID != nil
             })
             .previewDisplayName("Ignored User")
+        
+        // AGENT-PLATFORM (Brief 0078): a Spiral account can erase what its assistant remembers.
+        RoomMemberDetailsScreen(context: spiralContactViewModel.context)
+            .snapshotPreferences(expect: spiralContactViewModel.context.$viewState.map { state in
+                state.showEraseAssistantMemorySection && state.dmRoomID != nil
+            })
+            .previewDisplayName("Other User With Assistant")
+        
+        // AGENT-PLATFORM (decision 87): the owner can undo an agent's block.
+        RoomMemberDetailsScreen(context: blockedByAgentViewModel.context)
+            .snapshotPreferences(expect: blockedByAgentViewModel.context.$viewState.map { state in
+                state.showAgentBlocksSection && state.dmRoomID != nil
+            })
+            .previewDisplayName("Blocked By Agent")
     }
     
-    static func makeViewModel(member: RoomMemberProxyMock) -> RoomMemberDetailsScreenViewModel {
+    static func makeViewModel(member: RoomMemberProxyMock, hasAssistant: Bool = false,
+                              agentBlocks: [AgentContactBlock] = []) -> RoomMemberDetailsScreenViewModel {
         let roomProxyMock = JoinedRoomProxyMock(.init(name: ""))
         roomProxyMock.getMemberUserIDReturnValue = .success(member)
         
@@ -236,9 +303,16 @@ struct RoomMemberDetailsScreen_Previews: PreviewProvider, TestablePreview {
             clientProxyMock.directRoomForUserIDReturnValue = .success("roomID")
         }
         
+        let userSession = UserSessionMock(.init(clientProxy: clientProxyMock))
+        if hasAssistant {
+            let agentPlatformService = AgentPlatformServiceMock()
+            agentPlatformService.listAgentBlocksOfContactReturnValue = .success(agentBlocks) // AGENT-PLATFORM (decision 87)
+            userSession.agentPlatformService = agentPlatformService
+        }
+        
         return RoomMemberDetailsScreenViewModel(userID: member.userID,
                                                 roomProxy: roomProxyMock,
-                                                userSession: UserSessionMock(.init(clientProxy: clientProxyMock)),
+                                                userSession: userSession,
                                                 userIndicatorController: UserIndicatorControllerMock(),
                                                 analytics: AnalyticsServiceMock(.init()))
     }

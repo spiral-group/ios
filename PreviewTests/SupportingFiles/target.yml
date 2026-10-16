@@ -41,11 +41,19 @@ targets:
       base:
         PRODUCT_NAME: PreviewTests
         PRODUCT_BUNDLE_IDENTIFIER: ${BASE_BUNDLE_IDENTIFIER}.preview.tests
+        # AGENT-PLATFORM: same TEST_HOST pin as UnitTests — keeps the host
+        # following $(APP_NAME) rather than the literal XcodeGen derives.
+        TEST_HOST: $(BUILT_PRODUCTS_DIR)/$(APP_NAME).app/$(APP_NAME)
         # Requires iOS 26 as the generated tests reference previews gated to the Observations-based observe(_:).
         IPHONEOS_DEPLOYMENT_TARGET: '26.0'
         SWIFT_VERSION: 6.2
         SWIFT_APPROACHABLE_CONCURRENCY: YES
         SWIFT_DEFAULT_ACTOR_ISOLATION: MainActor
+      configs:
+        # AGENT-PLATFORM: Xcode compilation caching, Debug (the test
+        # configuration) only; Release/archive builds stay uncached.
+        Debug:
+          COMPILATION_CACHE_ENABLE_CACHING: YES
       debug:
       release:
 

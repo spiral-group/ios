@@ -151,6 +151,83 @@ struct RoomDetailsScreenViewModelTests {
     }
     
     @Test
+    mutating func dmRecipientUsesRoomHeroInsteadOfLeftAgent() async throws {
+        let recipient = RoomMemberProxyMock(with: .init(userID: "@bob:spiral.md",
+                                                        displayName: "Bob",
+                                                        membership: .join))
+        let leftAgent = RoomMemberProxyMock(with: .init(userID: "@assistant-alice:example.org",
+                                                        displayName: "Assistant",
+                                                        membership: .leave))
+        roomProxyMock = JoinedRoomProxyMock(.init(id: "!WHlYHuBYYEXNYFveuw:spiral.md",
+                                                  name: "Bob",
+                                                  isDirect: true,
+                                                  members: [.mockMe, leftAgent, recipient],
+                                                  heroes: [recipient]))
+        viewModel = RoomDetailsScreenViewModel(roomProxy: roomProxyMock,
+                                               userSession: UserSessionMock(.init()),
+                                               analyticsService: AnalyticsServiceMock(.init()),
+                                               userIndicatorController: UserIndicatorControllerMock(),
+                                               notificationSettingsProxy: NotificationSettingsProxyMock(with: NotificationSettingsProxyMockConfiguration()),
+                                               attributedStringBuilder: AttributedStringBuilder(mentionBuilder: MentionBuilder()))
+
+        let deferredRecipient = deferFulfillment(context.observe(\.viewState.dmRecipientInfo)) { $0?.member.id == recipient.userID }
+        try await deferredRecipient.fulfill()
+
+        #expect(context.viewState.dmRecipientInfo?.member.id == recipient.userID)
+        let expectedShareURL = try #require(URL(string: "https://spiral.md/@bob"))
+        #expect(context.viewState.shortcuts.contains(.share(link: expectedShareURL)))
+
+        let deferredAction = deferFulfillment(viewModel.actions) { action in
+            guard case .requestRecipientDetailsPresentation(let userID) = action else { return false }
+            return userID == recipient.userID
+        }
+        context.send(viewAction: .processTapRecipientProfile)
+        try await deferredAction.fulfill()
+    }
+
+    @Test
+    mutating func dmRecipientFallsBackToOnlyActiveMember() async throws {
+        let recipient = RoomMemberProxyMock.mockDan
+        let leftAgent = RoomMemberProxyMock(with: .init(userID: "@assistant-me:matrix.org",
+                                                        membership: .leave))
+        roomProxyMock = JoinedRoomProxyMock(.init(name: "Dan",
+                                                  isDirect: true,
+                                                  members: [.mockMe, leftAgent, recipient]))
+        viewModel = RoomDetailsScreenViewModel(roomProxy: roomProxyMock,
+                                               userSession: UserSessionMock(.init()),
+                                               analyticsService: AnalyticsServiceMock(.init()),
+                                               userIndicatorController: UserIndicatorControllerMock(),
+                                               notificationSettingsProxy: NotificationSettingsProxyMock(with: NotificationSettingsProxyMockConfiguration()),
+                                               attributedStringBuilder: AttributedStringBuilder(mentionBuilder: MentionBuilder()))
+
+        let deferredRecipient = deferFulfillment(context.observe(\.viewState.dmRecipientInfo)) { $0 != nil }
+        try await deferredRecipient.fulfill()
+
+        #expect(context.viewState.dmRecipientInfo?.member.id == recipient.userID)
+    }
+
+    @Test
+    mutating func dmRecipientRemainsNilWhenActiveMembersAreAmbiguous() async throws {
+        let mockedMembers: [RoomMemberProxyMock] = [.mockMe, .mockAlice, .mockBob]
+        roomProxyMock = JoinedRoomProxyMock(.init(name: "Ambiguous DM",
+                                                  isDirect: true,
+                                                  members: mockedMembers))
+        let roomInfo = try #require(roomProxyMock.infoPublisher.value as? RoomInfoProxyMock)
+        roomInfo.isDM = true
+        viewModel = RoomDetailsScreenViewModel(roomProxy: roomProxyMock,
+                                               userSession: UserSessionMock(.init()),
+                                               analyticsService: AnalyticsServiceMock(.init()),
+                                               userIndicatorController: UserIndicatorControllerMock(),
+                                               notificationSettingsProxy: NotificationSettingsProxyMock(with: NotificationSettingsProxyMockConfiguration()),
+                                               attributedStringBuilder: AttributedStringBuilder(mentionBuilder: MentionBuilder()))
+
+        let deferredOwner = deferFulfillment(context.observe(\.viewState.accountOwner)) { $0 != nil }
+        try await deferredOwner.fulfill()
+
+        #expect(context.viewState.dmRecipientInfo == nil)
+    }
+
+    @Test
     mutating func ignoreSuccess() async throws {
         let recipient = RoomMemberProxyMock.mockDan
         
@@ -210,6 +287,60 @@ struct RoomDetailsScreenViewModelTests {
         
         #expect(context.viewState.dmRecipientInfo?.member.isIgnored == false)
         #expect(context.alertInfo != nil)
+    }
+    
+    /// AGENT-PLATFORM (walk F2): a members update read before the block
+    /// arrives after it; the row keeps reading "Unblock".
+    @Test
+    mutating func aMembersUpdateReadBeforeABlockDoesNotUndoIt() async throws {
+        let members = CurrentValueSubject<[RoomMemberProxyProtocol], Never>([RoomMemberProxyMock.mockMe, RoomMemberProxyMock.mockDan])
+        roomProxyMock = JoinedRoomProxyMock(.init(name: "Test", isDirect: true, isEncrypted: true, members: [.mockMe, .mockDan]))
+        roomProxyMock.membersPublisher = members.asCurrentValuePublisher()
+        viewModel = RoomDetailsScreenViewModel(roomProxy: roomProxyMock,
+                                               userSession: UserSessionMock(.init()),
+                                               analyticsService: AnalyticsServiceMock(.init()),
+                                               userIndicatorController: UserIndicatorControllerMock(),
+                                               notificationSettingsProxy: NotificationSettingsProxyMock(with: NotificationSettingsProxyMockConfiguration()),
+                                               attributedStringBuilder: AttributedStringBuilder(mentionBuilder: MentionBuilder()))
+        try await deferFulfillment(viewModel.context.observe(\.viewState.dmRecipientInfo)) { $0 != nil }.fulfill()
+        
+        let deferredProcessing = deferFulfillment(viewModel.context.observe(\.viewState.isProcessingIgnoreRequest),
+                                                  transitionValues: [true, false])
+        context.send(viewAction: .ignoreConfirmed)
+        try await deferredProcessing.fulfill()
+        #expect(context.viewState.dmRecipientInfo?.member.isIgnored == true)
+        
+        let staleDan = RoomMemberProxyMock(with: .init(userID: RoomMemberProxyMock.mockDan.userID, displayName: "Dan, renamed", membership: .join))
+        let deferredUpdate = deferFulfillment(viewModel.context.observe(\.viewState.dmRecipientInfo)) { $0?.member.name == "Dan, renamed" }
+        members.send([RoomMemberProxyMock.mockMe, staleDan])
+        try await deferredUpdate.fulfill()
+        
+        #expect(context.viewState.dmRecipientInfo?.member.isIgnored == true)
+    }
+    
+    /// AGENT-PLATFORM (walk F2): a block made elsewhere shows here.
+    @Test
+    mutating func theIgnoredListFlipsTheRow() async throws {
+        let ignoredUsers = CurrentValueSubject<[String]?, Never>([])
+        let clientProxy = ClientProxyMock(.init())
+        clientProxy.ignoredUsersPublisher = ignoredUsers.asCurrentValuePublisher()
+        roomProxyMock = JoinedRoomProxyMock(.init(name: "Test", isDirect: true, isEncrypted: true, members: [.mockMe, .mockDan]))
+        viewModel = RoomDetailsScreenViewModel(roomProxy: roomProxyMock,
+                                               userSession: UserSessionMock(.init(clientProxy: clientProxy)),
+                                               analyticsService: AnalyticsServiceMock(.init()),
+                                               userIndicatorController: UserIndicatorControllerMock(),
+                                               notificationSettingsProxy: NotificationSettingsProxyMock(with: NotificationSettingsProxyMockConfiguration()),
+                                               attributedStringBuilder: AttributedStringBuilder(mentionBuilder: MentionBuilder()))
+        try await deferFulfillment(viewModel.context.observe(\.viewState.dmRecipientInfo)) { $0 != nil }.fulfill()
+        #expect(context.viewState.dmRecipientInfo?.member.isIgnored == false)
+        
+        let blocked = deferFulfillment(viewModel.context.observe(\.viewState.dmRecipientInfo)) { $0?.member.isIgnored == true }
+        ignoredUsers.send([RoomMemberProxyMock.mockDan.userID])
+        try await blocked.fulfill()
+        
+        let unblocked = deferFulfillment(viewModel.context.observe(\.viewState.dmRecipientInfo)) { $0?.member.isIgnored == false }
+        ignoredUsers.send([])
+        try await unblocked.fulfill()
     }
     
     @Test

@@ -36,6 +36,18 @@ struct NavigationTabCoordinatorTests {
         assertCoordinatorsEqual(navigationTabCoordinator.tabCoordinators, [chatsCoordinator, spacesCoordinator])
     }
     
+    // AGENT-PLATFORM (coverage walk F3): VoiceOver and UI tests read the badge from the tab's value.
+    @Test
+    func aBadgeIsTheTabsAccessibilityValue() {
+        let details = NavigationTabCoordinator<TestTab>.TabDetails(tag: .tab, title: "Agents", icon: \.host, selectedIcon: \.host)
+        #expect(details.badgeAccessibilityValue == nil)
+        
+        details.badgeCount = 1
+        #expect(details.badgeAccessibilityValue == "1 waiting")
+        details.badgeCount = 3
+        #expect(details.badgeAccessibilityValue == "3 waiting")
+    }
+    
     @Test
     mutating func singleSheet() {
         let tabCoordinator = SomeTestCoordinator()

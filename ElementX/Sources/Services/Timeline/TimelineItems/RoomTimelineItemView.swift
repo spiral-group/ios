@@ -56,6 +56,27 @@ struct RoomTimelineItemView: View {
             PaginationIndicatorRoomTimelineView()
         case .sticker(let item):
             StickerRoomTimelineView(timelineItem: item)
+        // AGENT-PLATFORM (Brief 0066)
+        case .interactivePost(let item):
+            // The slot is the row's only way to learn that an app has started;
+            // the registry decides that long after this.
+            //
+            // A post with no event id yet — a local echo, still on its way to
+            // the server — gets a slot of its own that the registry never sees.
+            // It cannot run: its state lives under the event id it does not
+            // have. Keying those on `""` put every unsent post in the world in
+            // one bucket, and filled the registry with entries nothing would
+            // ever arm.
+            let slot = item.id.eventID.flatMap {
+                context?.viewState.spiralAppHosts?.slot(for: $0, post: item.post)
+            } ?? SpiralAppSlot()
+            InteractivePostRoomTimelineView(timelineItem: item, slot: slot)
+        case .interactiveDraft(let item):
+            InteractiveDraftRoomTimelineView(timelineItem: item)
+        case .interactiveGenerating(let item):
+            InteractiveGeneratingRoomTimelineView(timelineItem: item)
+        case .spiralNotice(let item):
+            SpiralNoticeRoomTimelineView(timelineItem: item)
         case .unsupported(let item):
             UnsupportedRoomTimelineView(timelineItem: item)
         case .timelineStart(let item):

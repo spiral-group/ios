@@ -140,6 +140,19 @@ class AudioPlayer: NSObject, AudioPlayerProtocol {
     
     private func setupAudioSession() {
         releaseAudioSessionTask = nil
+
+        // AGENT-PLATFORM (Brief 0063): a call owns the session while it runs,
+        // and the call screen minimises, so the timeline and its voice messages
+        // stay reachable throughout. `.playback` has no input, so taking the
+        // category here killed the microphone of a live call — and nothing
+        // restores it, because nothing in the call stack watches for a category
+        // change made inside this process. A call session is `.playAndRecord`,
+        // which plays perfectly well.
+        guard !NativeCallAudioSession.isHeldByCall else {
+            MXLog.info("Playing through the call's audio session; leaving its category alone")
+            return
+        }
+
         do {
             try audioSession.setCategory(.playback)
             try audioSession.setActive(true)
@@ -163,6 +176,12 @@ class AudioPlayer: NSObject, AudioPlayerProtocol {
     
     private func releaseAudioSession() {
         releaseAudioSessionTask = nil
+
+        // Deactivating a session a call is using ends the call's audio. The
+        // category check below cannot catch that on its own: it passes whenever
+        // this player set `.playback` itself.
+        guard !NativeCallAudioSession.isHeldByCall else { return }
+
         if audioSession.category == .playback, !audioSession.isOtherAudioPlaying {
             MXLog.info("releasing audio session")
             try? audioSession.setActive(false, options: .notifyOthersOnDeactivation)

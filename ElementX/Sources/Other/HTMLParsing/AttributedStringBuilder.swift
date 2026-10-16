@@ -395,19 +395,25 @@ nonisolated struct AttributedStringBuilder: AttributedStringBuilderProtocol {
     func addMatrixEntityPermalinkAttributesTo(_ attributedString: NSMutableAttributedString) {
         attributedString.enumerateAttribute(.link, in: .init(location: 0, length: attributedString.length), options: []) { value, range, _ in
             if value != nil {
+                // AGENT-PLATFORM (Brief 0060): one resolver for both
+                // namespaces — inbound matrix.to permalinks (the Matrix
+                // wire format for mentions) and pasted spiral.md smart
+                // links get identical pill treatment.
                 if let url = value as? URL,
-                   let matrixEntity = parseMatrixEntityFrom(uri: url.absoluteString) {
-                    switch matrixEntity.id {
+                   let target = SpiralLink.matrixLinkTarget(from: url) {
+                    switch target {
                     case .user(let userID):
                         mentionBuilder.handleUserMention(for: attributedString, in: range, url: url, userID: userID, userDisplayName: nil)
                     case .room(let roomID):
                         mentionBuilder.handleRoomIDMention(for: attributedString, in: range, url: url, roomID: roomID)
                     case .roomAlias(let alias):
                         mentionBuilder.handleRoomAliasMention(for: attributedString, in: range, url: url, roomAlias: alias, roomDisplayName: nil)
-                    case .eventOnRoomId(let roomID, let eventID):
-                        mentionBuilder.handleEventOnRoomIDMention(for: attributedString, in: range, url: url, eventID: eventID, roomID: roomID)
-                    case .eventOnRoomAlias(let alias, let eventID):
-                        mentionBuilder.handleEventOnRoomAliasMention(for: attributedString, in: range, url: url, eventID: eventID, roomAlias: alias)
+                    case .event(let roomID, let eventID):
+                        if roomID.hasPrefix("#") {
+                            mentionBuilder.handleEventOnRoomAliasMention(for: attributedString, in: range, url: url, eventID: eventID, roomAlias: roomID)
+                        } else {
+                            mentionBuilder.handleEventOnRoomIDMention(for: attributedString, in: range, url: url, eventID: eventID, roomID: roomID)
+                        }
                     }
                 }
             }

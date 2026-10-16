@@ -50,6 +50,8 @@ struct HomeScreenRoomCell: View {
             RoomAvatarImage(avatar: room.avatar,
                             avatarSize: .room(on: .chats),
                             mediaProvider: mediaProvider)
+                // AGENT-PLATFORM (Brief 0072, ADR-0083): the online dot on a DM.
+                .presenceBadge(isOnline: room.isOnline, avatarSize: Avatars.Size.room(on: .chats).value)
                 .dynamicTypeSize(dynamicTypeSize < .accessibility1 ? dynamicTypeSize : .accessibility1)
                 .accessibilityHidden(true)
         }
@@ -77,6 +79,9 @@ struct HomeScreenRoomCell: View {
             HStack(spacing: 4) {
                 Text(room.name)
                     .lineLimit(1)
+                    // AGENT-PLATFORM (Brief 0072, ADR-0083): the dot is on the
+                    // avatar, which VoiceOver skips — say it with the name.
+                    .accessibilityLabel(room.isOnline ? "\(room.name), \(UntranslatedL10n.commonPresenceOnline)" : room.name)
                 
                 if let statusEmoji = room.statusEmoji {
                     Text(String(statusEmoji))

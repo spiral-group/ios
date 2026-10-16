@@ -19,21 +19,20 @@ struct SettingsScreenCoordinatorParameters {
 
 enum SettingsScreenCoordinatorAction {
     case dismiss
-    case logout
-    case secureBackup
     case userDetails
     case userStatusEmojiPicker(EmojiPickerScreenContinuation)
+    case invitePeople // AGENT-PLATFORM (Brief 0073).
+    case security // AGENT-PLATFORM (decision 187).
+    case privacy // AGENT-PLATFORM (decision 187).
+    case notifications
+    case yourData // AGENT-PLATFORM (Brief 0078).
+    case appearanceAndMedia // AGENT-PLATFORM (decision 187).
     case analytics
-    case appLock
     case bugReport
     case about
-    case blockedUsers
-    case linkNewDevice
-    case manageAccount(url: URL)
-    case notifications
-    case advancedSettings
     case labs
     case developerOptions
+    case logout
     case deactivateAccount
 }
 
@@ -67,26 +66,24 @@ final class SettingsScreenCoordinator: CoordinatorProtocol {
                     actionsSubject.send(.userDetails)
                 case let .userStatusEmojiPicker(continuation):
                     actionsSubject.send(.userStatusEmojiPicker(continuation))
-                case .linkNewDevice:
-                    actionsSubject.send(.linkNewDevice)
-                case let .manageAccount(url):
-                    actionsSubject.send(.manageAccount(url: url))
+                case .invitePeople: // AGENT-PLATFORM (Brief 0073).
+                    actionsSubject.send(.invitePeople)
+                case .security: // AGENT-PLATFORM (decision 187).
+                    actionsSubject.send(.security)
+                case .privacy: // AGENT-PLATFORM (decision 187).
+                    actionsSubject.send(.privacy)
+                case .notifications:
+                    actionsSubject.send(.notifications)
+                case .yourData: // AGENT-PLATFORM (Brief 0078).
+                    actionsSubject.send(.yourData)
+                case .appearanceAndMedia: // AGENT-PLATFORM (decision 187).
+                    actionsSubject.send(.appearanceAndMedia)
                 case .analytics:
                     actionsSubject.send(.analytics)
-                case .appLock:
-                    actionsSubject.send(.appLock)
                 case .reportBug:
                     actionsSubject.send(.bugReport)
                 case .about:
                     actionsSubject.send(.about)
-                case .blockedUsers:
-                    actionsSubject.send(.blockedUsers)
-                case .secureBackup:
-                    actionsSubject.send(.secureBackup)
-                case .notifications:
-                    actionsSubject.send(.notifications)
-                case .advancedSettings:
-                    actionsSubject.send(.advancedSettings)
                 case .labs:
                     actionsSubject.send(.labs)
                 case .developerOptions:

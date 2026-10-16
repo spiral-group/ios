@@ -8,6 +8,8 @@
 
 import XCTest
 
+// AGENT-PLATFORM (Brief 0063 audit wave 8): distinct screenshot steps.
+
 @MainActor
 class BugReportTests: XCTestCase {
     func testInitialStateComponents() async throws {
@@ -24,13 +26,17 @@ class BugReportTests: XCTestCase {
         app.textFields[A11yIdentifiers.bugReportScreen.report].clearAndTypeText("Text", app: app)
         XCTAssert(app.switches[A11yIdentifiers.bugReportScreen.sendLogs].isOn)
         XCTAssert(!app.switches[A11yIdentifiers.bugReportScreen.canContact].isOn)
-        try await app.assertScreenshot()
+        // Distinct steps or both screenshots compare against ONE reference —
+        // which is how this test shipped, and it passed only while the
+        // perceptual tolerance absorbed the difference between "Text" and
+        // "Longer text" (audit wave 8 close-out).
+        try await app.assertScreenshot(step: 1)
         
         // Type more than 4 characters and send the button should become enabled.
         app.textFields[A11yIdentifiers.bugReportScreen.report].clearAndTypeText("Longer text", app: app)
         XCTAssert(app.switches[A11yIdentifiers.bugReportScreen.sendLogs].isOn)
         XCTAssert(!app.switches[A11yIdentifiers.bugReportScreen.canContact].isOn)
-        try await app.assertScreenshot()
+        try await app.assertScreenshot(step: 2)
     }
 }
 

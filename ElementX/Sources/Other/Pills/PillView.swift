@@ -14,8 +14,13 @@ struct PillView: View {
     /// callback triggerd by changes in the display text
     let didChangeText: () -> Void
     
+    // AGENT-PLATFORM: upstream inks the pill with `textOnSolidPrimary`, which
+    // its tokens alias to `theme.bg` (black in dark mode). Spiral's token
+    // fork pins `on-solid` to white in both themes for the blue primary
+    // button, so on the neutral `bgBadgePrimary` (white in dark mode) the
+    // pill read white-on-white. `bgCanvasDefault` IS `theme.bg`.
     var textColor: Color {
-        context.viewState.isOwnMention ? .compound.textBadgeAccent : .compound.textOnSolidPrimary
+        context.viewState.isOwnMention ? .compound.textBadgeAccent : .compound.bgCanvasDefault
     }
     
     var backgroundColor: Color {

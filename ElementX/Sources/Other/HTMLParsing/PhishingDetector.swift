@@ -61,37 +61,24 @@ nonisolated enum PhishingDetector {
         return false
     }
     
+    // AGENT-PLATFORM (Brief 0060): resolution goes through
+    // `SpiralLink.matrixLinkTarget` so spiral.md smart links count as
+    // real Matrix entities here. Without that, every shared Spiral
+    // link whose display text is the MXID would be branded a phishing
+    // attempt and buried under a confirmation dialog.
     private static func isMatrixUserIDPhishingAttempt(internalURL: URL, identifier: String) -> Bool {
-        // if is not a matrix entity then is a phishing attempt
-        guard let internalMatrixEntity = parseMatrixEntityFrom(uri: internalURL.absoluteString) else {
+        // If it is not a matrix entity then it is a phishing attempt
+        guard case .user(let id) = SpiralLink.matrixLinkTarget(from: internalURL) else {
             return true
         }
-        
-        // If it is we check if is a user
-        switch internalMatrixEntity.id {
-        case .user(let id):
-            // If it is, and it does not match the external one, it's a phishing attempt
-            return id != identifier
-        default:
-            break
-        }
-        return true
+        // If it is, and it does not match the external one, it's a phishing attempt
+        return id != identifier
     }
     
     private static func isRoomAliasPhishingAttempt(internalURL: URL, alias: String) -> Bool {
-        // if is not a matrix entity then is a phishing attempt
-        guard let internalMatrixEntity = parseMatrixEntityFrom(uri: internalURL.absoluteString) else {
+        guard case .roomAlias(let internalAlias) = SpiralLink.matrixLinkTarget(from: internalURL) else {
             return true
         }
-        
-        // If it is we check if is a user
-        switch internalMatrixEntity.id {
-        case .roomAlias(let internalAlias):
-            // If it is, and it does not match the external one, it's a phishing attempt
-            return alias != internalAlias
-        default:
-            break
-        }
-        return true
+        return alias != internalAlias
     }
 }

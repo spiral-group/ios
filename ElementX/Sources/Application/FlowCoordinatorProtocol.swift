@@ -8,6 +8,8 @@
 
 import Foundation
 
+// AGENT-PLATFORM (Brief 0067): `ElementCallService` → `CallKitService` — the one call stack.
+
 protocol FlowCoordinatorProtocol {
     func start(animated: Bool)
     func handleAppRoute(_ appRoute: AppRoute, animated: Bool)
@@ -26,7 +28,7 @@ extension FlowCoordinatorProtocol {
 struct CommonFlowParameters {
     let userSession: UserSessionProtocol
     let bugReportService: BugReportServiceProtocol
-    let elementCallService: ElementCallServiceProtocol
+    let callKitService: CallKitServiceProtocol
     let timelineControllerFactory: TimelineControllerFactoryProtocol
     let emojiProvider: EmojiProviderProtocol
     let linkMetadataProvider: LinkMetadataProviderProtocol
@@ -43,6 +45,6 @@ struct CommonFlowParameters {
     }
     
     var ongoingCallRoomIDPublisher: CurrentValuePublisher<String?, Never> {
-        elementCallService.ongoingCallRoomIDPublisher
+        callKitService.ongoingCallRoomIDPublisher
     }
 }

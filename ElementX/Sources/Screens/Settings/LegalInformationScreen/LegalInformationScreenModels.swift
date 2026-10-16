@@ -15,6 +15,19 @@ struct LegalInformationScreenViewState: BindableState {
     let copyrightURL: URL
     let acceptableUseURL: URL
     let privacyURL: URL
+    // AGENT-PLATFORM (AGPL publication)
+    let sourceCodeURL: URL
+    let serverSourceCodeURL: URL
+    let sourcesListURL: URL
+    let sourceRequestAddress: String
+    
+    var sourceRequestURL: URL? {
+        URL(string: "mailto:\(sourceRequestAddress)")
+    }
 }
 
-enum LegalInformationScreenViewAction { }
+enum LegalInformationScreenViewAction {
+    // AGENT-PLATFORM (Brief 0078): the acknowledgements live in the app's
+    // Settings.bundle, so the row opens the app's page in iOS Settings.
+    case openAcknowledgements
+}

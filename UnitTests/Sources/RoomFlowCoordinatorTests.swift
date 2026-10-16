@@ -7,6 +7,9 @@
 //
 
 import Combine
+import Foundation
+
+// AGENT-PLATFORM (Brief 0067): `CallKitServiceMock` replaces the retired `ElementCallServiceMock`.
 @testable import ElementX
 import MatrixRustSDKMocks
 import Testing
@@ -21,8 +24,9 @@ final class RoomFlowCoordinatorTests {
     
     private let appSettings: AppSettings
     
-    init() {
-        appSettings = AppSettings.volatile()
+    init() throws {
+        // AGENT-PLATFORM (decision 111): the catalogue a link opens is on disk.
+        appSettings = try AppSettings.volatile(catalogURL: AppSettings.catalogueFixture(index: SpiralAppCatalogTests.index))
     }
     
     @Test
@@ -386,6 +390,54 @@ final class RoomFlowCoordinatorTests {
         try await fulfillment.fulfill()
     }
     
+    // MARK: - AGENT-PLATFORM: catalogue links (decision 111)
+    
+    /// The chat picked for a catalogue link opens, then the catalogue on the
+    /// link's template — for anyone (decision 129): the agents decide only
+    /// whether the assistant's paths show, and what a template that needs
+    /// one says otherwise. A failed read is not "no agents", and an agent
+    /// still being provisioned is not "create one".
+    @Test(arguments: [(AgentsRead.agents(count: 1), InteractivePostCatalogAssistant.available),
+                      (AgentsRead.agents(count: 2), .available), // no "who builds it" before the template
+                      (AgentsRead.agents(count: 0, status: .inProgress), .settingUp), // a fresh account
+                      (AgentsRead.agents(count: 0, status: .idle), .none), // declined AI: no agent made
+                      (AgentsRead.agents(count: 0, status: .ready), .none),
+                      (AgentsRead.failure, .unknown), // a network failure
+                      (AgentsRead.noPlatform, .unknown)])
+    func aCatalogueLinkOpensTheCatalogueForAnyone(agents: AgentsRead, assistant: InteractivePostCatalogAssistant) async throws {
+        setupRoomFlowCoordinator(agentsRead: agents)
+        
+        let deferredSheet = deferFulfillment(navigationStackCoordinator.observe(\.sheetCoordinatorID)) { $0 != nil }
+        try await processExpectingNewRootCoordinator(route: .catalogTemplate(templateID: "poll", roomID: "1"))
+        try await deferredSheet.fulfill()
+        
+        #expect(navigationStackCoordinator.rootCoordinator is RoomScreenCoordinator)
+        let catalogue = try #require((navigationStackCoordinator.sheetCoordinator as? NavigationStackCoordinator)?.rootCoordinator as? InteractivePostCatalogScreenCoordinator)
+        #expect(catalogue.assistant == assistant)
+    }
+    
+    /// Already in the room: the catalogue opens over it.
+    @Test
+    func aCatalogueLinkForTheRoomOnScreenOpensTheCatalogue() async throws {
+        setupRoomFlowCoordinator(agentsRead: .agents(count: 1))
+        try await processExpectingNewRootCoordinator(route: .room(roomID: "1", via: []))
+        
+        try await processExpectingSheet(route: .catalogTemplate(templateID: "poll", roomID: "1"))
+        #expect((navigationStackCoordinator.sheetCoordinator as? NavigationStackCoordinator)?.rootCoordinator is InteractivePostCatalogScreenCoordinator)
+    }
+    
+    /// A link for another chat is the chats tab's, not this room's.
+    @Test
+    func aCatalogueLinkForAnotherRoomIsIgnored() async throws {
+        setupRoomFlowCoordinator(agentsRead: .agents(count: 1))
+        try await processExpectingNewRootCoordinator(route: .room(roomID: "1", via: []))
+        
+        let deferredNoSheet = deferFailure(navigationStackCoordinator.observe(\.sheetCoordinatorID), timeout: .seconds(1)) { $0 != nil }
+        roomFlowCoordinator.handleAppRoute(.catalogTemplate(templateID: "poll", roomID: "2"), animated: true)
+        roomFlowCoordinator.handleAppRoute(.catalogTemplate(templateID: "poll", roomID: nil), animated: true)
+        try await deferredNoSheet.fulfill()
+    }
+    
     // MARK: - Spaces
     
     @Test
@@ -495,7 +547,7 @@ final class RoomFlowCoordinatorTests {
         }
     }
     
-    private func setupRoomFlowCoordinator(asChildFlow: Bool = false, roomType: RoomType? = nil) {
+    private func setupRoomFlowCoordinator(asChildFlow: Bool = false, roomType: RoomType? = nil, agentsRead: AgentsRead = .noPlatform) {
         cancellables.removeAll()
         clientProxy = ClientProxyMock(.init(userID: "hi@bob",
                                             roomSummaryProvider: RoomSummaryProviderMock(.init(state: .loaded(.mockRooms))),
@@ -522,9 +574,17 @@ final class RoomFlowCoordinatorTests {
             "1"
         }
         
-        let flowParameters = CommonFlowParameters(userSession: UserSessionMock(.init(clientProxy: clientProxy)),
+        let userSession = UserSessionMock(.init(clientProxy: clientProxy))
+        if let read = agentsRead.result { // AGENT-PLATFORM (decisions 111, 129)
+            let agentPlatformService = AgentPlatformServiceMock()
+            agentPlatformService.listMyPersonalAgentsReturnValue = read
+            agentPlatformService.fetchRoomToolsRoomIDReturnValue = .success(.init(roomID: roomID, agents: [])) // the room screen's tools banner
+            userSession.agentPlatformService = agentPlatformService
+        }
+        
+        let flowParameters = CommonFlowParameters(userSession: userSession,
                                                   bugReportService: BugReportServiceMock(.init()),
-                                                  elementCallService: ElementCallServiceMock(.init()),
+                                                  callKitService: CallKitServiceMock(.init()),
                                                   timelineControllerFactory: timelineControllerFactory,
                                                   emojiProvider: EmojiProvider(appSettings: appSettings),
                                                   linkMetadataProvider: LinkMetadataProvider(),
@@ -545,4 +605,35 @@ final class RoomFlowCoordinatorTests {
 
 private enum RoomType {
     case invited(roomID: String)
+}
+
+/// AGENT-PLATFORM (decision 129): what reading the person's agents gives.
+enum AgentsRead: CustomTestStringConvertible {
+    case agents(count: Int, status: MyPersonalAgentsView.ProvisioningStatus = .ready)
+    case failure
+    /// No agent platform in this session at all.
+    case noPlatform
+    
+    var result: Result<MyPersonalAgentsView, AgentPlatformError>? {
+        switch self {
+        case .agents(let count, let status):
+            let agents = (0..<count).map {
+                PersonalAgentSummary(id: "a\($0)", matrixUserID: "@assistant-a\($0):spiral.md", displayName: "A\($0)",
+                                     avatarMXC: nil, visibility: "private", lifecycleState: "active")
+            }
+            return .success(.init(agents: agents, provisioningStatus: status))
+        case .failure:
+            return .failure(.transport(underlying: URLError(.notConnectedToInternet)))
+        case .noPlatform:
+            return nil
+        }
+    }
+    
+    var testDescription: String {
+        switch self {
+        case .agents(let count, let status): "\(count) agents, \(status)"
+        case .failure: "the agents read failed"
+        case .noPlatform: "no agent platform"
+        }
+    }
 }

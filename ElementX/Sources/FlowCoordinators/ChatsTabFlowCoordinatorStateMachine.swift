@@ -50,6 +50,9 @@ class ChatsTabFlowCoordinatorStateMachine {
         
         case shareExtensionRoomList(sharePayload: ShareExtensionPayload)
         
+        /// AGENT-PLATFORM (decision 111): asking which chat a catalogue link's template goes to.
+        case catalogRoomList(templateID: String)
+        
         case declineAndBlockUserScreen(detailState: DetailState?)
         
         case transferOwnershipScreen(detailState: DetailState?)
@@ -57,7 +60,8 @@ class ChatsTabFlowCoordinatorStateMachine {
         /// The state of the currently selected room
         var detailState: DetailState? {
             switch self {
-            case .initial, .userProfileScreen, .shareExtensionRoomList:
+            case .initial, .userProfileScreen, .shareExtensionRoomList,
+                 .catalogRoomList: // AGENT-PLATFORM (decision 111)
                 nil
             case .roomList(let detailState),
                  .feedbackScreen(let detailState),
@@ -132,6 +136,10 @@ class ChatsTabFlowCoordinatorStateMachine {
         case showShareExtensionRoomList(sharePayload: ShareExtensionPayload)
         case dismissedShareExtensionRoomList
         
+        // AGENT-PLATFORM (decision 111)
+        case showCatalogRoomList(templateID: String)
+        case dismissedCatalogRoomList
+        
         case presentReportRoomScreen(roomID: String)
         case dismissedReportRoomScreen
         
@@ -202,6 +210,12 @@ class ChatsTabFlowCoordinatorStateMachine {
             case (.roomList, .showShareExtensionRoomList(let sharePayload)):
                 return .shareExtensionRoomList(sharePayload: sharePayload)
             case (.shareExtensionRoomList, .dismissedShareExtensionRoomList):
+                return .roomList(detailState: nil)
+                
+            // AGENT-PLATFORM (decision 111)
+            case (.roomList, .showCatalogRoomList(let templateID)):
+                return .catalogRoomList(templateID: templateID)
+            case (.catalogRoomList, .dismissedCatalogRoomList):
                 return .roomList(detailState: nil)
                 
             case (.roomList(let detailState), .presentReportRoomScreen):

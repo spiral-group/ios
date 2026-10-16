@@ -6,22 +6,23 @@
 // Please see LICENSE files in the repository root for full details.
 //
 
-import CryptoKit
-import Sentry
+import OSLog
 
-/// A simple wrapper around Sentry for easy instrumentation
+// AGENT-PLATFORM (Brief 0078): upstream wraps Sentry performance transactions here. Spiral
+// links no Sentry, so the same calls are OS signpost intervals: Instruments shows them, nothing
+// is sent anywhere. Upstream's hashed homeserver tag went with Sentry.
+/// A simple wrapper around `OSSignposter` for easy instrumentation
 class Signposter {
-    private var transactions = [TransactionName: any Sentry.Span]()
-    
-    private var globalTags = [TagName: String]()
-    
+    private let signposter = OSSignposter(subsystem: InfoPlistReader.main.baseBundleIdentifier, category: "Performance")
+    private var transactions = [TransactionName: OSSignpostIntervalState]()
+
     enum TransactionName: Hashable {
         case cachedRoomList
         case upToDateRoomList
         case notificationToMessage
         case openRoom
         case sendMessage(uuid: String)
-        
+
         var id: String {
             switch self {
             case .cachedRoomList:
@@ -37,75 +38,44 @@ class Signposter {
             }
         }
     }
-    
+
     enum SpanName: String {
         case timelineLoad = "Timeline load"
     }
-    
+
     struct Span {
-        fileprivate let innerSpan: Sentry.Span
-        
+        fileprivate let signposter: OSSignposter
+        fileprivate let state: OSSignpostIntervalState
+
         func finish() {
-            innerSpan.finish()
+            signposter.endInterval("Span", state)
         }
     }
-    
-    enum TagName: String {
-        case homeserver
-    }
-    
+
     // MARK: - Transactions
-    
-    func startTransaction(_ transactionName: TransactionName, operation: String = "ux", tags: [TagName: String] = [:]) {
-        let span = SentrySDK.startTransaction(name: transactionName.id, operation: operation)
-        
-        tags
-            .merging(globalTags) { tagValue, _ in
-                tagValue
-            }
-            .forEach { (key: TagName, value: String) in
-                span.setTag(value: value, key: key.rawValue)
-            }
-        
-        transactions[transactionName] = span
+
+    func startTransaction(_ transactionName: TransactionName) {
+        transactions[transactionName] = signposter.beginInterval("Transaction",
+                                                                 id: signposter.makeSignpostID(),
+                                                                 "\(transactionName.id, privacy: .public)")
     }
-    
+
     func finishTransaction(_ transactionName: TransactionName) {
-        transactions[transactionName]?.finish()
-        transactions[transactionName] = nil
+        guard let state = transactions.removeValue(forKey: transactionName) else { return }
+        signposter.endInterval("Transaction", state)
     }
-    
-    func resetTransactions() {
-        transactions.removeAll()
-    }
-    
+
     // MARK: - Spans
-    
+
     func addSpan(_ spanName: SpanName, toTransaction transactionName: TransactionName) -> Span? {
-        guard let transaction = transactions[transactionName] else {
+        guard transactions[transactionName] != nil else {
             MXLog.error("Transaction not started or already finished")
             return nil
         }
-        
-        return Span(innerSpan: transaction.startChild(operation: spanName.rawValue))
-    }
-    
-    // MARK: - Tags
-    
-    func addGlobalTag(_ tagName: TagName, value: String) {
-        let value = switch tagName {
-        case .homeserver:
-            sha512(value)
-        }
-        
-        globalTags[tagName] = value
-    }
-    
-    // MARK: - Private
-    
-    func sha512(_ string: String) -> String {
-        let data = Data(string.utf8)
-        let hash = SHA512.hash(data: data)
-        return hash.map { String(format: "%02x", $0) }.joined()
+
+        let state = signposter.beginInterval("Span",
+                                             id: signposter.makeSignpostID(),
+                                             "\(spanName.rawValue, privacy: .public)")
+        return Span(signposter: signposter, state: state)
     }
 }

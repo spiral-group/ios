@@ -13,7 +13,11 @@
 --commas inline
 --ifdef no-indent
 --indent 4
---indent-blank-lines enabled
+# AGENT-PLATFORM: upstream's `--indent-blank-lines enabled` was removed in
+# SwiftFormat 0.61.x (the version installed locally / via brew). Its intent —
+# keeping indentation whitespace on blank lines — is already enforced by
+# `--trimwhitespace nonblank-lines` below, so the option is redundant here.
+# Restore/rename if the project pins an older SwiftFormat that still has it.
 --nospaceoperators ...,..<
 --stripunusedargs closure-only
 --trimwhitespace nonblank-lines

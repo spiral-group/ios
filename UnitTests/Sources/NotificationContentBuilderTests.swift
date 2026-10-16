@@ -12,7 +12,12 @@ import MatrixRustSDKMocks
 import Testing
 import UserNotifications
 
-nonisolated struct NotificationContentBuilderTests {
+// `@MainActor` because this target defaults to that isolation and
+// `UNNotificationSoundName`'s unannotated initialiser is inferred to need it —
+// the NSE builds the same value freely because that target is nonisolated.
+// Xcode 27 began enforcing this.
+@MainActor
+struct NotificationContentBuilderTests {
     var notificationContentBuilder: NotificationContentBuilder
     var mediaProvider: MediaProviderMock
     var notificationContent: UNMutableNotificationContent
@@ -37,9 +42,15 @@ nonisolated struct NotificationContentBuilderTests {
                                                                isRoomDirect: true,
                                                                isRoomPrivate: true,
                                                                isNoisy: true))
-        await notificationContentBuilder.process(notificationContent: &notificationContent,
+        // Via a local: an actor-isolated property cannot be passed `inout` to an
+        // async call. Written back because `process` REPLACES the content when
+        // it builds a communication notification, so a local alone would drop
+        // exactly what these tests are checking.
+        var content = notificationContent
+        await notificationContentBuilder.process(notificationContent: &content,
                                                  notificationItem: notificationItem,
                                                  mediaProvider: mediaProvider)
+        notificationContent = content
         
         let communicationContext = Dynamic(notificationContent, memberName: "communicationContext")
         // Checking if nil without using asObject always fails
@@ -66,9 +77,15 @@ nonisolated struct NotificationContentBuilderTests {
                                                                isNoisy: true,
                                                                hasMention: true))
         
-        await notificationContentBuilder.process(notificationContent: &notificationContent,
+        // Via a local: an actor-isolated property cannot be passed `inout` to an
+        // async call. Written back because `process` REPLACES the content when
+        // it builds a communication notification, so a local alone would drop
+        // exactly what these tests are checking.
+        var content = notificationContent
+        await notificationContentBuilder.process(notificationContent: &content,
                                                  notificationItem: notificationItem,
                                                  mediaProvider: mediaProvider)
+        notificationContent = content
         
         let communicationContext = Dynamic(notificationContent, memberName: "communicationContext")
         // Checking if nil without using asObject always fails
@@ -81,6 +98,8 @@ nonisolated struct NotificationContentBuilderTests {
         // Remember we remove the @ due to an iOS bug
         #expect(notificationContent.threadIdentifier == "bob:matrix.org!test:matrix.org")
         #expect(notificationContent.attachments == [])
+        // AGENT-PLATFORM (§ 5.82): a mention in a message opens the room as before.
+        #expect(notificationContent.spiralPostEventID == nil)
     }
     
     @Test
@@ -96,9 +115,15 @@ nonisolated struct NotificationContentBuilderTests {
                                                                hasMention: false,
                                                                threadRootEventID: "thread"))
         
-        await notificationContentBuilder.process(notificationContent: &notificationContent,
+        // Via a local: an actor-isolated property cannot be passed `inout` to an
+        // async call. Written back because `process` REPLACES the content when
+        // it builds a communication notification, so a local alone would drop
+        // exactly what these tests are checking.
+        var content = notificationContent
+        await notificationContentBuilder.process(notificationContent: &content,
                                                  notificationItem: notificationItem,
                                                  mediaProvider: mediaProvider)
+        notificationContent = content
         
         let communicationContext = Dynamic(notificationContent, memberName: "communicationContext")
         #expect(communicationContext.displayName == L10n.commonThread)
@@ -125,9 +150,15 @@ nonisolated struct NotificationContentBuilderTests {
                                                                hasMention: true,
                                                                threadRootEventID: "thread"))
         
-        await notificationContentBuilder.process(notificationContent: &notificationContent,
+        // Via a local: an actor-isolated property cannot be passed `inout` to an
+        // async call. Written back because `process` REPLACES the content when
+        // it builds a communication notification, so a local alone would drop
+        // exactly what these tests are checking.
+        var content = notificationContent
+        await notificationContentBuilder.process(notificationContent: &content,
                                                  notificationItem: notificationItem,
                                                  mediaProvider: mediaProvider)
+        notificationContent = content
         
         let communicationContext = Dynamic(notificationContent, memberName: "communicationContext")
         #expect(communicationContext.displayName == L10n.commonThread)
@@ -152,9 +183,15 @@ nonisolated struct NotificationContentBuilderTests {
                                                                isRoomPrivate: false,
                                                                isNoisy: false))
         
-        await notificationContentBuilder.process(notificationContent: &notificationContent,
+        // Via a local: an actor-isolated property cannot be passed `inout` to an
+        // async call. Written back because `process` REPLACES the content when
+        // it builds a communication notification, so a local alone would drop
+        // exactly what these tests are checking.
+        var content = notificationContent
+        await notificationContentBuilder.process(notificationContent: &content,
                                                  notificationItem: notificationItem,
                                                  mediaProvider: mediaProvider)
+        notificationContent = content
         let communicationContext = Dynamic(notificationContent, memberName: "communicationContext")
         
         #expect(communicationContext.displayName == "General")
@@ -180,9 +217,15 @@ nonisolated struct NotificationContentBuilderTests {
                                                                isNoisy: true,
                                                                hasMention: true))
         
-        await notificationContentBuilder.process(notificationContent: &notificationContent,
+        // Via a local: an actor-isolated property cannot be passed `inout` to an
+        // async call. Written back because `process` REPLACES the content when
+        // it builds a communication notification, so a local alone would drop
+        // exactly what these tests are checking.
+        var content = notificationContent
+        await notificationContentBuilder.process(notificationContent: &content,
                                                  notificationItem: notificationItem,
                                                  mediaProvider: mediaProvider)
+        notificationContent = content
         
         let communicationContext = Dynamic(notificationContent, memberName: "communicationContext")
         #expect(communicationContext.displayName == "General")
@@ -207,9 +250,15 @@ nonisolated struct NotificationContentBuilderTests {
                                                                isNoisy: false,
                                                                threadRootEventID: "thread123"))
         
-        await notificationContentBuilder.process(notificationContent: &notificationContent,
+        // Via a local: an actor-isolated property cannot be passed `inout` to an
+        // async call. Written back because `process` REPLACES the content when
+        // it builds a communication notification, so a local alone would drop
+        // exactly what these tests are checking.
+        var content = notificationContent
+        await notificationContentBuilder.process(notificationContent: &content,
                                                  notificationItem: notificationItem,
                                                  mediaProvider: mediaProvider)
+        notificationContent = content
         
         let communicationContext = Dynamic(notificationContent, memberName: "communicationContext")
         #expect(communicationContext.displayName == L10n.notificationThreadInRoom("General"))
@@ -238,9 +287,15 @@ nonisolated struct NotificationContentBuilderTests {
                                                                isRoomPrivate: true,
                                                                isNoisy: true))
         
-        await notificationContentBuilder.process(notificationContent: &notificationContent,
+        // Via a local: an actor-isolated property cannot be passed `inout` to an
+        // async call. Written back because `process` REPLACES the content when
+        // it builds a communication notification, so a local alone would drop
+        // exactly what these tests are checking.
+        var content = notificationContent
+        await notificationContentBuilder.process(notificationContent: &content,
                                                  notificationItem: notificationItem,
                                                  mediaProvider: mediaProvider)
+        notificationContent = content
         
         let communicationContext = Dynamic(notificationContent, memberName: "communicationContext")
         #expect(communicationContext.sender.displayName == "Alice")
@@ -249,6 +304,47 @@ nonisolated struct NotificationContentBuilderTests {
         #expect(notificationContent.sound != nil)
     }
     
+    /// AGENT-PLATFORM (§ 5.73): a game's move that mentions the reader — a
+    /// custom event the SDK cannot type — is shown as a mention from the
+    /// player who moved, in the room; and it names the post the move was made
+    /// in, which a tap opens the room on (§ 5.82).
+    @Test
+    mutating func spiralActionMentionNotification() async throws {
+        let event = TimelineEventSDKMock()
+        event.eventIdReturnValue = UUID().uuidString
+        event.contentThrowableError = NotificationTestError.customEvent
+        let raw = #"{"type":"com.spiral.app.action","content":{"m.relates_to":{"rel_type":"m.reference","event_id":"$post"},"m.mentions":{"user_ids":["@bob:matrix.org"]},"summary":{"line":"Alice placed X"}}}"#
+        let action = try #require(SpiralActionNotification(rawEvent: raw, receiverID: "@bob:matrix.org"))
+        let notificationItem = NotificationItemProxyMock(.init(event: .timeline(event: event),
+                                                               roomID: "!testroom:matrix.org",
+                                                               receiverID: "@bob:matrix.org",
+                                                               senderDisplayName: "Alice",
+                                                               roomDisplayName: "General",
+                                                               roomJoinedMembers: 5,
+                                                               isRoomDirect: false,
+                                                               isRoomPrivate: false,
+                                                               isNoisy: true,
+                                                               hasMention: true,
+                                                               spiralAction: action))
+
+        var content = notificationContent
+        await notificationContentBuilder.process(notificationContent: &content,
+                                                 notificationItem: notificationItem,
+                                                 mediaProvider: mediaProvider)
+        notificationContent = content
+
+        let communicationContext = Dynamic(notificationContent, memberName: "communicationContext")
+        #expect(communicationContext.displayName == "General")
+        #expect(communicationContext.sender.displayName == L10n.notificationSenderMentionReply("Alice"))
+        #expect(notificationContent.body == action.body())
+        #expect(notificationContent.categoryIdentifier == NotificationConstants.Category.message)
+        #expect(notificationContent.sound != nil)
+        #expect(notificationContent.spiralPostEventID == "$post")
+        #expect(notificationContent.roomID == "!testroom:matrix.org")
+    }
+
+    private enum NotificationTestError: Error { case customEvent }
+
     @Test
     mutating func otherStateEventNotification() async {
         let event = TimelineEventSDKMock()
@@ -265,9 +361,15 @@ nonisolated struct NotificationContentBuilderTests {
                                                                isRoomPrivate: true,
                                                                isNoisy: true))
         
-        await notificationContentBuilder.process(notificationContent: &notificationContent,
+        // Via a local: an actor-isolated property cannot be passed `inout` to an
+        // async call. Written back because `process` REPLACES the content when
+        // it builds a communication notification, so a local alone would drop
+        // exactly what these tests are checking.
+        var content = notificationContent
+        await notificationContentBuilder.process(notificationContent: &content,
                                                  notificationItem: notificationItem,
                                                  mediaProvider: mediaProvider)
+        notificationContent = content
         
         #expect(notificationContent.body == L10n.notification)
     }
@@ -284,9 +386,15 @@ nonisolated struct NotificationContentBuilderTests {
                                                                isNoisy: true,
                                                                hasMention: true,
                                                                threadRootEventID: "thread123"))
-        await notificationContentBuilder.process(notificationContent: &notificationContent,
+        // Via a local: an actor-isolated property cannot be passed `inout` to an
+        // async call. Written back because `process` REPLACES the content when
+        // it builds a communication notification, so a local alone would drop
+        // exactly what these tests are checking.
+        var content = notificationContent
+        await notificationContentBuilder.process(notificationContent: &content,
                                                  notificationItem: notificationItem,
                                                  mediaProvider: mediaProvider)
+        notificationContent = content
         let communicationContext = Dynamic(notificationContent, memberName: "communicationContext")
         #expect(communicationContext.displayName == L10n.notificationThreadInRoom("General"))
         #expect(communicationContext.sender.displayName == L10n.notificationSenderMentionReply("Alice"))

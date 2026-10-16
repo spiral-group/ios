@@ -1,0 +1,53 @@
+# Copyright 2026 the Spiral authors. AGPL-3.0-or-later.
+#
+# AGENT-PLATFORM (decision 146): the end-to-end UI suite against the LOCAL dev
+# stack. Run only through Tools/Scripts/run-dev-e2e.sh, which prepares the
+# accounts, the fixture file and the host helper; not in any CI scheme.
+name: SpiralDevE2ETests
+
+schemes:
+  SpiralDevE2ETests:
+    analyze:
+      config: Debug
+    archive:
+      config: Release
+    build:
+      targets:
+        SpiralDevE2ETests: all
+    profile:
+      config: Release
+    run:
+      config: Debug
+      disableMainThreadChecker: false
+    test:
+      config: Debug
+      disableMainThreadChecker: false
+      testPlans:
+        - path: SpiralDevE2ETests.xctestplan
+          defaultPlan: true
+
+targets:
+  SpiralDevE2ETests:
+    type: bundle.ui-testing
+    platform: iOS
+
+    dependencies:
+    - target: ElementX
+
+    info:
+      path: ../SupportingFiles/Info.plist
+
+    settings:
+      base:
+        PRODUCT_NAME: SpiralDevE2ETests
+        PRODUCT_BUNDLE_IDENTIFIER: ${BASE_BUNDLE_IDENTIFIER}.dev-e2e.tests
+        SWIFT_VERSION: 6.2
+        SWIFT_APPROACHABLE_CONCURRENCY: YES
+      debug:
+      release:
+
+    sources:
+    - path: ../Sources
+    - path: ../SupportingFiles
+    - path: ../../ElementX/Sources/Other/AccessibilityIdentifiers.swift
+    - path: ../../ElementX/Sources/Other/Extensions/XCUIElement.swift

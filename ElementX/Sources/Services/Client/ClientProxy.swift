@@ -279,7 +279,7 @@ class ClientProxy: ClientProxyProtocol {
             }
         })
         
-        try await client.setUtdDelegate(utdDelegate: ClientDecryptionErrorDelegate(actionsSubject: actionsSubject))
+        try await client.setUtdDelegate(utdDelegate: Self.makeDecryptionErrorDelegate(actionsSubject: actionsSubject))
         
         let canSubscribeToUserProfile = if appSettings.userStatusEnabled, case .success(true) = await isUserStatusSupported() {
             true
@@ -482,6 +482,28 @@ class ClientProxy: ClientProxyProtocol {
         }
     }
     
+    // AGENT-PLATFORM (Brief 0073): the SDK looks at joined rooms only, so a pending
+    // DM invite from this person was invisible and «Message» made a second room.
+    // Opening the invite shows the stock Accept/Decline instead.
+    func directRoomOrPendingInviteForUserID(_ userID: String) -> Result<String?, ClientProxyError> {
+        switch directRoomForUserID(userID) {
+        case .success(.some(let roomID)):
+            .success(roomID)
+        case .success(.none):
+            .success(Self.pendingDirectInvite(from: userID, in: staticRoomSummaryProvider.roomListPublisher.value))
+        case .failure(let error):
+            .failure(error)
+        }
+    }
+    
+    /// A direct room this account is invited to by `userID`, if any.
+    nonisolated static func pendingDirectInvite(from userID: String, in summaries: [RoomSummary]) -> String? {
+        summaries.first { summary in
+            guard summary.isDirect, case .invite(let inviter) = summary.joinRequestType else { return false }
+            return inviter?.userID == userID
+        }?.id
+    }
+    
     func createDirectRoom(with userID: String, expectedRoomName: String?) async -> Result<String, ClientProxyError> {
         do {
             let parameters = CreateRoomParameters(name: nil,
@@ -638,6 +660,19 @@ class ClientProxy: ClientProxyProtocol {
             return .failure(ClientProxyError.failedUploadingMedia(errorKind))
         } catch {
             MXLog.error("Failed uploading media with error: \(error)")
+            return .failure(ClientProxyError.sdkError(error))
+        }
+    }
+    
+    // AGENT-PLATFORM (Brief 0066, step 6.1): an Interactive Post's artifact is uploaded encrypted.
+    func uploadEncryptedMedia(_ data: Data) async -> Result<EncryptedUpload, ClientProxyError> {
+        do {
+            return try await .success(client.uploadEncryptedMedia(data: data))
+        } catch let ClientError.MatrixApi(errorKind, _, _, _) {
+            MXLog.error("Failed uploading encrypted media with error kind: \(errorKind)")
+            return .failure(ClientProxyError.failedUploadingMedia(errorKind))
+        } catch {
+            MXLog.error("Failed uploading encrypted media with error: \(error)")
             return .failure(ClientProxyError.sdkError(error))
         }
     }
@@ -1056,6 +1091,41 @@ class ClientProxy: ClientProxyProtocol {
             return .success(())
         } catch {
             MXLog.error("Failed setting presence with error: \(error)")
+            return .failure(.sdkError(error))
+        }
+    }
+    
+    // AGENT-PLATFORM (Brief 0072, ADR-0084)
+    func accountData(eventType: String) async -> Result<String?, ClientProxyError> {
+        do {
+            return try await .success(client.accountData(eventType: eventType))
+        } catch {
+            MXLog.error("Failed reading account data \(eventType): \(error)")
+            return .failure(.sdkError(error))
+        }
+    }
+    
+    // AGENT-PLATFORM (Brief 0072, ADR-0084)
+    func setAccountData(eventType: String, content: String) async -> Result<Void, ClientProxyError> {
+        do {
+            try await client.setAccountData(eventType: eventType, content: content)
+            return .success(())
+        } catch {
+            MXLog.error("Failed writing account data \(eventType): \(error)")
+            return .failure(.sdkError(error))
+        }
+    }
+    
+    // AGENT-PLATFORM (Brief 0072, ADR-0083)
+    func userPresence(for userID: String) async -> Result<UserPresence, ClientProxyError> {
+        do {
+            let presence = try await client.getUserPresence(userId: userID)
+            return .success(UserPresence(rustValue: presence, receivedAt: Date()))
+        } catch ClientError.MatrixApi(.forbidden, _, _, _) {
+            // Expected: no shared room, or no such user. Not an error worth a log line.
+            return .failure(.forbiddenAccess)
+        } catch {
+            MXLog.error("Failed reading presence for \(userID): \(error)")
             return .failure(.sdkError(error))
         }
     }
@@ -1510,15 +1580,14 @@ private final class ClientDelegateWrapper: ClientDelegate {
     }
 }
 
-private final class ClientDecryptionErrorDelegate: UnableToDecryptDelegate {
-    private let actionsSubject: PassthroughSubject<ClientProxyAction, Never>
-    
-    init(actionsSubject: PassthroughSubject<ClientProxyAction, Never>) {
-        self.actionsSubject = actionsSubject
-    }
-    
-    func onUtd(info: UnableToDecryptInfo) {
-        actionsSubject.send(.receivedDecryptionError(info))
+// AGENT-PLATFORM (decision 157): the SDK reports an undecryptable event from
+// its own threads, and `actionsPublisher`'s subscribers are main-actor
+// closures that trap when called anywhere else, so the report hops first.
+extension ClientProxy {
+    static func makeDecryptionErrorDelegate(actionsSubject: PassthroughSubject<ClientProxyAction, Never>) -> UnableToDecryptDelegate {
+        SDKListener.onMainActor { info in
+            actionsSubject.send(.receivedDecryptionError(info))
+        }
     }
 }
 
@@ -1615,6 +1684,40 @@ private extension TimelineMediaVisibility {
             .off
         case .privateOnly:
             .private
+        }
+    }
+}
+
+// AGENT-PLATFORM (Brief 0072, ADR-0083)
+private extension UserPresence {
+    init(rustValue: MatrixRustSDK.UserPresence, receivedAt: Date) {
+        self.init(userID: rustValue.userId,
+                  state: .init(rustValue: rustValue.presence),
+                  lastActiveAgo: rustValue.lastActiveAgoMs.map { TimeInterval($0) / 1000 },
+                  currentlyActive: rustValue.currentlyActive ?? false,
+                  lastSeenBucket: rustValue.lastSeen.map(UserPresence.LastSeenBucket.init(rustValue:)),
+                  receivedAt: receivedAt)
+    }
+}
+
+// AGENT-PLATFORM (Brief 0072, ADR-0084)
+private extension UserPresence.LastSeenBucket {
+    init(rustValue: PresenceLastSeen) {
+        switch rustValue {
+        case .recently: self = .recently
+        case .withinWeek: self = .withinWeek
+        case .withinMonth: self = .withinMonth
+        case .longAgo: self = .longAgo
+        }
+    }
+}
+
+private extension UserPresence.State {
+    init(rustValue: PresenceState) {
+        switch rustValue {
+        case .online: self = .online
+        case .unavailable: self = .unavailable
+        case .offline: self = .offline
         }
     }
 }

@@ -12,9 +12,23 @@ import SwiftUI
 typealias LegalInformationScreenViewModelType = StateStoreViewModelV2<LegalInformationScreenViewState, LegalInformationScreenViewAction>
 
 class LegalInformationScreenViewModel: LegalInformationScreenViewModelType, LegalInformationScreenViewModelProtocol {
-    init(appSettings: AppSettings) {
+    private let appMediator: AppMediatorProtocol // AGENT-PLATFORM (Brief 0078)
+    
+    init(appSettings: AppSettings, appMediator: AppMediatorProtocol) {
+        self.appMediator = appMediator
         super.init(initialViewState: LegalInformationScreenViewState(copyrightURL: appSettings.copyrightURL,
                                                                      acceptableUseURL: appSettings.acceptableUseURL,
-                                                                     privacyURL: appSettings.privacyURL))
+                                                                     privacyURL: appSettings.privacyURL,
+                                                                     sourceCodeURL: appSettings.sourceCodeURL, // AGENT-PLATFORM (AGPL publication)
+                                                                     serverSourceCodeURL: appSettings.serverSourceCodeURL,
+                                                                     sourcesListURL: appSettings.sourcesListURL,
+                                                                     sourceRequestAddress: appSettings.sourceRequestAddress))
+    }
+    
+    override func process(viewAction: LegalInformationScreenViewAction) {
+        switch viewAction {
+        case .openAcknowledgements:
+            appMediator.openAppSettings()
+        }
     }
 }

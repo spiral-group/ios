@@ -20,13 +20,17 @@ struct RoomListFilterView: View {
     }
 }
 
-private struct FilterToggleStyle: ToggleStyle {
+/// The chip the room list filters with. Shared with the interactive post
+/// catalogue's section chips (AGENT-PLATFORM), so there is one chip.
+struct FilterToggleStyle: ToggleStyle {
+    // AGENT-PLATFORM: Apple-reference chips (ADR-0005) — filled, borderless;
+    // inactive rides the card surface, active rides the blue primary action.
     private func strokeColor(isOn: Bool) -> Color {
-        isOn ? .compound.bgActionPrimaryRest : .compound.borderInteractiveSecondary
+        .clear
     }
     
     private func backgroundColor(isOn: Bool) -> Color {
-        isOn ? .compound.bgActionPrimaryRest : .compound.bgCanvasDefault
+        isOn ? .compound.bgActionPrimaryRest : .compound.bgSubtleSecondary
     }
     
     private func foregroundColor(isOn: Bool) -> Color {

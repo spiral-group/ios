@@ -132,7 +132,7 @@ nonisolated struct RoomStateEventStringBuilder {
         }
     }
     
-    func buildString(for state: OtherState, sender: TimelineItemSender, isOutgoing: Bool) -> String? {
+    func buildString(for state: OtherState, sender: TimelineItemSender, isOutgoing: Bool, rawEventJSON: String? = nil) -> String? {
         let displayName = sender.disambiguatedDisplayName ?? sender.id
         
         switch state {
@@ -209,11 +209,64 @@ nonisolated struct RoomStateEventStringBuilder {
             break
         case .spaceChild, .spaceParent: // Users shouldn't see the timeline of a Space.
             break
-        case .custom: // Won't provide actionable information to the user.
-            break
+        case .custom(let eventType):
+            // AGENT-PLATFORM (Brief 0043/0044, ADR-0057/0058): Spiral room
+            // facts render as quiet gray rows for EVERY participant. The
+            // factory now hands us the event's raw JSON, so we render the
+            // CURRENT tool state ("Agent: translating to English") instead
+            // of a generic "updated tools" line; we fall back to the
+            // generic line when the JSON isn't available or doesn't parse.
+            if eventType == "com.spiral.tools" {
+                if let rawEventJSON,
+                   let event = SpiralToolsStateReader.parseEvent(rawEventJSON: rawEventJSON) {
+                    return spiralToolsLine(agentName: displayName, tools: event.tools)
+                }
+                return UntranslatedL10n.stateEventSpiralToolsUpdated(displayName)
+            }
+            // Other custom types: no actionable information.
         }
         
         MXLog.verbose("Filtering timeline item for state: \(state)")
         return nil
+    }
+
+    // MARK: - AGENT-PLATFORM (Brief 0044, ADR-0058)
+
+    /// AGENT-PLATFORM (Brief 0066 § 5.89): the line for the agent-tools
+    /// FALLBACK — the message-like event the platform sends when the room
+    /// refused the agent's `com.spiral.tools` state row. It says the same
+    /// thing, so it reads the same; nil unless it is a fallback from one of
+    /// this server's agents.
+    func buildSpiralToolsFallbackString(rawEventJSON: String, sender: TimelineItemSender) -> String? {
+        guard let event = SpiralToolsStateReader.parseFallbackEvent(rawEventJSON: rawEventJSON, ownUserID: userID) else {
+            return nil
+        }
+        return spiralToolsLine(agentName: sender.disambiguatedDisplayName ?? sender.id, tools: event.tools)
+    }
+
+    /// Compact gray-row line for a `com.spiral.tools` state event: the
+    /// agent's CURRENT tools. Empty tools = "turned all tools off"; otherwise
+    /// EVERY active tool is listed by name, joined with " · " — the event is a
+    /// full snapshot of the agent's tools, so the row shows the complete
+    /// current set rather than hiding the rest behind a "+N". Names reuse the
+    /// arm-tool / banner titles so the surfaces never drift.
+    private func spiralToolsLine(agentName: String, tools: [ToolsBannerEntry.Tool]) -> String {
+        guard !tools.isEmpty else {
+            return UntranslatedL10n.stateEventSpiralToolsOff(agentName)
+        }
+        let line = tools.map(spiralToolText(for:)).joined(separator: " · ")
+        return UntranslatedL10n.stateEventSpiralToolsActive(agentName, line)
+    }
+
+    /// One tool's compact name — translate shows its target language, every
+    /// other kind (including the call-artifact tools) its localized name via
+    /// `ToolDisplayName`, so a call summary / recording tool never falls back
+    /// to a raw "Call_summary" tag.
+    private func spiralToolText(for tool: ToolsBannerEntry.Tool) -> String {
+        if tool.kind == "translate" || tool.kind == "live_translate",
+           let language = tool.targetLanguage {
+            return UntranslatedL10n.screenAgentToolsListTitleTranslate(TranslationLanguageDisplayName.localizedName(for: language))
+        }
+        return ToolDisplayName.name(forKind: tool.kind)
     }
 }

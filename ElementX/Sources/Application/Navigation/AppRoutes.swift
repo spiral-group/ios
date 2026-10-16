@@ -56,12 +56,67 @@ enum AppRoute: Hashable {
     case thread(roomID: String, threadRootEventID: String, focusEventID: String?)
     /// The search screen
     case search
+
+    // AGENT-PLATFORM: deep-link into the ApprovalDetailScreen,
+    // triggered by tapping an approval's push. The `approvalID`
+    // is the one the Spiral direct push names. Drives
+    // both `UserSessionFlowCoordinator.handleAppRoute` (which
+    // switches to the Agents tab) and
+    // `AgentSpacesTabFlowCoordinator.handleAppRoute` (which pushes
+    // the detail coordinator onto the sidebar nav stack).
+    case approvalDetail(approvalID: String)
+
+    // AGENT-PLATFORM: deep-link into the VerificationDetailScreen,
+    // triggered by tapping a verification's push. The
+    // `verificationID` is the `verification_approvals` row the
+    // Spiral direct push names. Routing is the
+    // same shape as `.approvalDetail` — `UserSessionFlowCoordinator`
+    // switches to the Agents tab, then `AgentSpacesTabFlowCoordinator`
+    // pops to dashboard root and pushes
+    // `VerificationDetailScreenCoordinator` onto the sidebar
+    // stack so back-button returns to the dashboard rather than
+    // an intermediate Verifications list.
+    case verificationDetail(verificationID: String)
+
+    // AGENT-PLATFORM: deep-link into the `PublicProfileScreen`
+    // (S178), which lists a person's *public agents*. Reached
+    // from the agent surfaces, where those agents are the
+    // subject.
+    //
+    // Brief 0060: `.userProfile` is NO LONGER promoted to this
+    // route. That promotion (v1.7.x chore P4) fired whenever the
+    // MXID sat on a homeserver we provision, which became every
+    // MXID once spiral.md was the only one (ADR-0060) — so every
+    // shared profile link landed here and read "no public
+    // agents". Profile links now open Element's canonical
+    // `UserProfileScreen`.
+    case publicProfile(targetMXID: String)
     
+    // AGENT-PLATFORM (Brief 0073 / ADR-0008): an invitation to register,
+    // `https://spiral.md/join/{token}`. Logged out it reaches the
+    // authentication flow (start-screen banner, token on the OAuth URL);
+    // logged in `AppCoordinator.handleDeepLink` turns it into the
+    // inviter's profile instead.
+    case inviteLink(SpiralInviteLink)
+    
+    // AGENT-PLATFORM (decision 111): a post catalogue template,
+    // `https://spiral.md/catalog/<id>`. Shaped like `.share`: a nil
+    // `roomID` asks which chat, and the chats tab resolves the id against
+    // the catalogue before it asks.
+    case catalogTemplate(templateID: String, roomID: String?)
+
+    // AGENT-PLATFORM (decision 150): the third-party AI toggle in Advanced
+    // settings, opened by the notice to a person without AI consent. Raised
+    // by the notice's action only: no URL parses into it, so a link in a
+    // message can't open Settings.
+    case aiConsentSettings
+
     /// Whether or not the route should be handled by the authentication flow.
     var isAuthenticationRoute: Bool {
         switch self {
         case .accountProvisioningLink: true
         case .oAuthCallback: true
+        case .inviteLink: true
         default: false
         }
     }
@@ -84,8 +139,15 @@ struct AppRouteURLParser {
     init(appSettings: AppSettings) {
         urlParsers = [
             AppGroupURLParser(),
-            MatrixPermalinkParser(),
-            ElementWebURLParser(domains: appSettings.elementWebHosts),
+            // AGENT-PLATFORM (Brief 0060 / ADR-0072): one parser for
+            // both link namespaces — `SpiralLink.matrixLinkTarget`
+            // resolves our own spiral.md smart links and, inbound only,
+            // the matrix.to permalinks the Matrix wire format uses.
+            // `ElementWebURLParser` is gone — there is no Spiral web
+            // client and we never link to app.element.io.
+            MatrixLinkParser(),
+            InviteLinkParser(),
+            CatalogLinkParser(), // AGENT-PLATFORM (decision 111)
             AccountProvisioningURLParser(domain: appSettings.accountProvisioningHost),
             OAuthCallbackURLParser(redirectURL: appSettings.oAuthRedirectURL)
         ]
@@ -137,52 +199,50 @@ private struct AppGroupURLParser: URLParser {
     }
 }
 
-private struct MatrixPermalinkParser: URLParser {
+/// AGENT-PLATFORM (Brief 0060 / ADR-0072): routes every Matrix link the
+/// app can receive — our own `spiral.md` smart links and their
+/// `spiral://` scheme twins (used by the link landing page's open
+/// button, because universal links don't fire on same-domain taps in
+/// Safari), plus inbound matrix.to permalinks from message content.
+///
+/// `.user` maps to the upstream `.userProfile` route, which lands on
+/// Element's canonical profile screen — the person, their MXID and a
+/// way to message them. That is what a shared profile link promises.
+private struct MatrixLinkParser: URLParser {
     func route(from url: URL) -> AppRoute? {
-        guard let entity = parseMatrixEntityFrom(uri: url.absoluteString) else { return nil }
-        
-        switch entity.id {
-        case .room(let id):
-            return .room(roomID: id, via: entity.via)
+        switch SpiralLink.matrixLinkTarget(from: url) {
+        case .user(let userID):
+            return .userProfile(userID: userID)
         case .roomAlias(let alias):
             return .roomAlias(alias)
-        case .user(let id):
-            return .userProfile(userID: id)
-        case .eventOnRoomId(let roomID, let eventID):
-            return .event(eventID: eventID, roomID: roomID, via: entity.via)
-        case .eventOnRoomAlias(let alias, let eventID):
-            return .eventOnRoomAlias(eventID: eventID, alias: alias)
+        case .room(let roomID):
+            return .room(roomID: roomID, via: [])
+        case .event(let roomID, let eventID):
+            // A room alias here means the permalink addressed the room
+            // by alias; the alias-flavoured route keeps that shape.
+            if roomID.hasPrefix("#") {
+                return .eventOnRoomAlias(eventID: eventID, alias: roomID)
+            }
+            return .event(eventID: eventID, roomID: roomID, via: [])
+        case .none:
+            return nil
         }
     }
 }
 
-private struct ElementWebURLParser: URLParser {
-    let domains: [String]
-    let paths = ["room", "user"]
-    
-    private let permalinkParser = MatrixPermalinkParser()
-    
+/// AGENT-PLATFORM (Brief 0073 / ADR-0008): `spiral.md/join/{token}` and
+/// `spiral://join/{token}` — an invitation to register.
+private struct InviteLinkParser: URLParser {
     func route(from url: URL) -> AppRoute? {
-        guard let matrixToURL = buildMatrixToURL(from: url) else { return nil }
-        return permalinkParser.route(from: matrixToURL)
+        SpiralInviteLink.parse(url).map { .inviteLink($0) }
     }
-    
-    private func buildMatrixToURL(from url: URL) -> URL? {
-        guard var components = URLComponents(url: url, resolvingAgainstBaseURL: false) else {
-            return url
-        }
-        
-        for domain in domains where domain == url.host {
-            components.host = "matrix.to"
-            for path in paths {
-                components.fragment?.replace("/\(path)", with: "")
-            }
-            
-            guard let matrixToURL = components.url else { continue }
-            return matrixToURL
-        }
-        
-        return url
+}
+
+/// AGENT-PLATFORM (decision 111): `spiral.md/catalog/<id>` and
+/// `spiral:///catalog/<id>` — a post catalogue template, with no chat yet.
+private struct CatalogLinkParser: URLParser {
+    func route(from url: URL) -> AppRoute? {
+        SpiralCatalogLink.parse(url).map { .catalogTemplate(templateID: $0.templateID, roomID: nil) }
     }
 }
 

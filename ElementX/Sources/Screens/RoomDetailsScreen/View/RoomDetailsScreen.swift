@@ -79,6 +79,7 @@ struct RoomDetailsScreen: View {
                     .padding(.top, 8)
             }
         }
+        .presence(context.viewState.dmRecipientPresence) // AGENT-PLATFORM (Brief 0072)
         .accessibilityIdentifier(A11yIdentifiers.roomDetailsScreen.avatar)
     }
     
@@ -249,6 +250,16 @@ struct RoomDetailsScreen: View {
                         .accessibilityIdentifier(A11yIdentifiers.roomDetailsScreen.people)
             }
             
+            // AGENT-PLATFORM (decision 192): the same screen as the composer's «+».
+            if context.viewState.showsAgentsRow {
+                ListRow(label: .default(title: UntranslatedL10n.screenRoomDetailsAgents, icon: \.extensions),
+                        details: context.viewState.agentsCount.map { .title(String($0)) },
+                        kind: .navigationLink {
+                            context.send(viewAction: .processTapAgents)
+                        })
+                        .accessibilityIdentifier(A11yIdentifiers.roomDetailsScreen.agents)
+            }
+            
             if context.viewState.canSeeKnockingRequests {
                 ListRow(label: .default(title: L10n.screenRoomDetailsRequestsToJoinTitle, icon: \.askToJoin),
                         details: context.viewState.knockRequestsCount > 0 ? .counter(context.viewState.knockRequestsCount) : nil,
@@ -306,6 +317,7 @@ struct RoomDetailsScreen: View {
                         context.send(viewAction: user.isIgnored ? .processTapUnignore : .processTapIgnore)
                     })
                     .disabled(context.viewState.isProcessingIgnoreRequest)
+                    .accessibilityIdentifier(user.isIgnored ? A11yIdentifiers.roomDetailsScreen.unblockUser : A11yIdentifiers.roomDetailsScreen.blockUser) // AGENT-PLATFORM (decision 146)
         }
     }
     
@@ -316,6 +328,7 @@ struct RoomDetailsScreen: View {
                                        icon: \.chatProblem,
                                        role: .destructive),
                         kind: .button { context.send(viewAction: .processTapReport) })
+                    .accessibilityIdentifier(A11yIdentifiers.roomDetailsScreen.reportRoom) // AGENT-PLATFORM (decision 146)
             }
         }
     }
@@ -388,7 +401,10 @@ struct RoomDetailsScreen_Previews: PreviewProvider, TestablePreview {
             .frame(height: 1200)
         
         RoomDetailsScreen(context: dmRoomViewModel.context)
-            .snapshotPreferences(expect: dmRoomViewModel.context.observe(\.viewState.accountOwner).map { $0 != nil })
+            // AGENT-PLATFORM: also wait for the hero-based dmRecipientInfo —
+            // it resolves asynchronously, so waiting on accountOwner alone
+            // races the recipient section and flakes the snapshot.
+            .snapshotPreferences(expect: dmRoomViewModel.context.observe(\.viewState).map { $0.accountOwner != nil && $0.dmRecipientInfo != nil })
             .previewDisplayName("DM Room")
             .previewLayout(.sizeThatFits)
             .frame(height: 1350)
@@ -400,7 +416,9 @@ struct RoomDetailsScreen_Previews: PreviewProvider, TestablePreview {
             .frame(height: 1350)
         
         RoomDetailsScreen(context: dmRoomVerificationViolationViewModel.context)
-            .snapshotPreferences(expect: dmRoomVerificationViolationViewModel.context.observe(\.viewState.accountOwner).map { $0 != nil })
+            // AGENT-PLATFORM: wait for the violation badge state, not just the
+            // account owner, for a deterministic snapshot.
+            .snapshotPreferences(expect: dmRoomVerificationViolationViewModel.context.observe(\.viewState).map { $0.accountOwner != nil && $0.dmRecipientInfo?.verificationState == .verificationViolation })
             .previewDisplayName("DM Room Verification Violation")
             .previewLayout(.sizeThatFits)
             .frame(height: 1350)
@@ -416,7 +434,7 @@ struct RoomDetailsScreen_Previews: PreviewProvider, TestablePreview {
             .mockCharlie
         ]
         
-        let roomProxy = JoinedRoomProxyMock(.init(id: "room_a_id",
+        let roomProxy = JoinedRoomProxyMock(.init(id: "!room_a:spiral.md", // AGENT-PLATFORM: sigil-less mock IDs yield no SpiralLink, deadlocking the permalink snapshot wait
                                                   name: "Room A",
                                                   topic: """
                                                   Discussions about Element X iOS | https://github.com/vector-im/element-x-ios
@@ -456,7 +474,7 @@ struct RoomDetailsScreen_Previews: PreviewProvider, TestablePreview {
             .mockBob,
             .mockCharlie
         ]
-        let roomProxy = JoinedRoomProxyMock(.init(id: "simple_room_id",
+        let roomProxy = JoinedRoomProxyMock(.init(id: "!simple_room:spiral.md",
                                                   name: "Room A",
                                                   isDirect: false,
                                                   isEncrypted: false,
@@ -480,7 +498,7 @@ struct RoomDetailsScreen_Previews: PreviewProvider, TestablePreview {
             .mockDan
         ]
         
-        let roomProxy = JoinedRoomProxyMock(.init(id: "dm_room_id",
+        let roomProxy = JoinedRoomProxyMock(.init(id: "!dm_room:spiral.md",
                                                   name: "Dan",
                                                   topic: "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.",
                                                   isDirect: true,

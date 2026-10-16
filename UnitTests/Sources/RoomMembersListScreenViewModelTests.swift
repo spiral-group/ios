@@ -317,9 +317,86 @@ struct RoomMembersListScreenViewModelTests {
     
     // MARK: - Helpers
     
-    private mutating func setup(members: [RoomMemberProxyMock], activeRoomCallParticipants: [String] = []) {
+    // MARK: - Presence (AGENT-PLATFORM, Brief 0072, ADR-0083)
+    
+    @Test
+    mutating func theJoinedMembersOnScreenAreAskedForAsOneList() async throws {
+        let presenceService = makePresenceService()
+        setup(members: [.mockAlice, .mockBob, .mockCharlie], presenceObserverService: presenceService)
+        try await deferFulfillment(context.$viewState) { $0.visibleJoinedMembers.count == 3 }.fulfill()
+        let alice = RoomMemberProxyMock.mockAlice.userID
+        let bob = RoomMemberProxyMock.mockBob.userID
+        let charlie = RoomMemberProxyMock.mockCharlie.userID
+        
+        for userID in [alice, bob, charlie] {
+            context.send(viewAction: .memberAppeared(userID: userID))
+        }
+        try await waitUntil { presenceService.setObservedScopeReceivedArguments?.userIDs == [alice, bob, charlie] }
+        try await Task.sleep(for: .milliseconds(400))
+        #expect(presenceService.setObservedScopeCallsCount == 1, "a scroll settles before the set is sent")
+        
+        context.send(viewAction: .memberDisappeared(userID: bob))
+        try await waitUntil { presenceService.setObservedScopeReceivedArguments?.userIDs == [alice, charlie] }
+        
+        viewModel.stop()
+        #expect(presenceService.setObservedScopeReceivedArguments?.userIDs == [], "leaving the screen clears the scope")
+        #expect(Set(presenceService.setObservedScopeReceivedInvocations.map(\.scope)).count == 1)
+    }
+    
+    @Test
+    mutating func onlyThisRoomsMembersReachTheState() async throws {
+        let presences = CurrentValueSubject<[String: UserPresence], Never>([:])
+        setup(members: [.mockAlice, .mockBob], presenceObserverService: makePresenceService(presences))
+        try await deferFulfillment(context.$viewState) { $0.visibleJoinedMembers.count == 2 }.fulfill()
+        let alice = RoomMemberProxyMock.mockAlice.userID
+        let stranger = "@stranger:matrix.org"
+        
+        let deferred = deferFulfillment(context.$viewState) { $0.presences[alice]?.isOnline == true }
+        presences.send([alice: Self.online(alice), stranger: Self.online(stranger)])
+        try await deferred.fulfill()
+        #expect(context.viewState.presences.keys.sorted() == [alice])
+    }
+    
+    @Test
+    mutating func presenceKnownBeforeTheMembersSurvivesTheirArrival() async throws {
+        let alice = RoomMemberProxyMock.mockAlice.userID
+        let presences = CurrentValueSubject<[String: UserPresence], Never>([alice: Self.online(alice)])
+        setup(members: [.mockAlice, .mockBob], presenceObserverService: makePresenceService(presences))
+        
+        try await deferFulfillment(context.$viewState) { state in
+            state.visibleJoinedMembers.count == 2 && state.presences[alice]?.isOnline == true
+        }.fulfill()
+    }
+    
+    private static func online(_ userID: String) -> UserPresence {
+        UserPresence(userID: userID, state: .online, lastActiveAgo: 1, currentlyActive: true, receivedAt: .now)
+    }
+    
+    private func makePresenceService(_ presences: CurrentValueSubject<[String: UserPresence], Never> = .init([:])) -> PresenceObserverServiceMock {
+        let service = PresenceObserverServiceMock()
+        service.presencePublisher = presences.asCurrentValuePublisher()
+        return service
+    }
+    
+    private func waitUntil(_ condition: () -> Bool, timeout: Duration = .seconds(5)) async throws {
+        let clock = ContinuousClock()
+        let deadline = clock.now + timeout
+        while !condition() {
+            guard clock.now < deadline else {
+                Issue.record("Timed out waiting")
+                return
+            }
+            try await Task.sleep(for: .milliseconds(20))
+        }
+    }
+    
+    private mutating func setup(members: [RoomMemberProxyMock],
+                                activeRoomCallParticipants: [String] = [],
+                                presenceObserverService: PresenceObserverServiceProtocol? = nil) {
         roomProxy = JoinedRoomProxyMock(.init(name: "test", activeRoomCallParticipants: activeRoomCallParticipants, members: members))
-        viewModel = RoomMembersListScreenViewModel(userSession: UserSessionMock(.init()),
+        let userSession = UserSessionMock(.init())
+        userSession.presenceObserverService = presenceObserverService
+        viewModel = RoomMembersListScreenViewModel(userSession: userSession,
                                                    roomProxy: roomProxy,
                                                    userIndicatorController: UserIndicatorControllerMock(),
                                                    analytics: AnalyticsServiceMock(.init()))

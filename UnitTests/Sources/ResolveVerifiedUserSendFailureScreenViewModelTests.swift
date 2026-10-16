@@ -54,8 +54,7 @@ struct ResolveVerifiedUserSendFailureScreenViewModelTests {
     
     private func makeViewModel(with failure: TimelineItemSendFailure.VerifiedUser) -> ResolveVerifiedUserSendFailureScreenViewModel {
         ResolveVerifiedUserSendFailureScreenViewModel(failure: failure,
-                                                      sendHandle: .mock,
-                                                      roomProxy: roomProxy,
+                                                      resolver: .sendQueue(sendHandle: .mock, roomProxy: roomProxy), // AGENT-PLATFORM: § 5.87
                                                       userIndicatorController: UserIndicatorControllerMock())
     }
     

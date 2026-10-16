@@ -84,12 +84,51 @@ enum OAuthError: Error {
 
 struct OAuthAuthorizationDataProxy: Hashable {
     let underlyingData: OAuthAuthorizationData
+    // AGENT-PLATFORM (Brief 0073 / ADR-0008): the invitation token the
+    // person arrived with. Appended to the authorization URL as
+    // `spiral_invite`; MAS forwards it to Hydra (additional authorization
+    // parameters) and identity-login reads it from the login request. The
+    // SDK never sees the modified URL — it only validates the callback's
+    // `state`, which is untouched.
+    var inviteToken: String?
+    // AGENT-PLATFORM (Brief 0073): `spiral_flow=register` tells identity-login
+    // which tab to open. The OIDC way (`prompt=create`) is broken in MAS
+    // (element-hq/matrix-authentication-service#3429), so the page used to
+    // guess from the invitation alone and opened «Sign in» without one.
+    var isRegistration = false
+    
+    static let flowQueryParameter = "spiral_flow"
+    
+    init(underlyingData: OAuthAuthorizationData, inviteToken: String? = nil, isRegistration: Bool = false) {
+        self.underlyingData = underlyingData
+        self.inviteToken = inviteToken
+        self.isRegistration = isRegistration
+    }
     
     var url: URL {
         guard let url = URL(string: underlyingData.loginUrl()) else {
             fatalError("OAuth login URL hasn't been validated.")
         }
-        return url
+        
+        // AGENT-PLATFORM (Brief 0073): carry the invitation and the intent.
+        var items: [URLQueryItem] = []
+        if let inviteToken {
+            // The token's alphabet needs no escaping.
+            items.append(.init(name: SpiralInviteLink.authorizationQueryParameter,
+                               value: inviteToken.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? inviteToken))
+        }
+        if isRegistration {
+            items.append(.init(name: Self.flowQueryParameter, value: "register"))
+        }
+        guard !items.isEmpty,
+              var components = URLComponents(url: url, resolvingAgainstBaseURL: false) else {
+            return url
+        }
+        // Append to the percent-encoded query: reading `queryItems` decodes
+        // the SDK's values and writing them back re-encodes them differently
+        // (`%2B` comes back as `+`).
+        components.percentEncodedQueryItems = (components.percentEncodedQueryItems ?? []) + items
+        return components.url ?? url
     }
 }
 

@@ -108,7 +108,18 @@ nonisolated class AudioRecorder: AudioRecorderProtocol, @unchecked Sendable {
     
     private func setupAudioSession() throws {
         MXLog.info("setup audio session")
-        
+
+        // AGENT-PLATFORM (Brief 0063): the microphone is already committed to a
+        // live call, whose screen minimises so the composer stays reachable.
+        // Taking it meant `mode: .default` replacing the call's `.voiceChat` —
+        // losing its echo cancellation and receiver routing — and then a
+        // `setActive(false)` on release that ended the call's audio for good.
+        // Refusing is the honest answer; the caller surfaces the failure.
+        guard !NativeCallAudioSession.isHeldByCall else {
+            MXLog.info("Refusing to record: a call is holding the audio session")
+            throw AudioRecorderError.audioSessionFailure
+        }
+
         try audioSession.setAllowHapticsAndSystemSoundsDuringRecording(true)
         try audioSession.setCategory(.playAndRecord, mode: .default, options: [.allowBluetoothHFP])
         try audioSession.setActive(true)
@@ -117,7 +128,10 @@ nonisolated class AudioRecorder: AudioRecorderProtocol, @unchecked Sendable {
     
     private func releaseAudioSession() {
         MXLog.info("releasing audio session")
-        try? audioSession.setActive(false, options: .notifyOthersOnDeactivation)
+        // Never deactivate a session a call is using — see `setupAudioSession`.
+        if !NativeCallAudioSession.isHeldByCall {
+            try? audioSession.setActive(false, options: .notifyOthersOnDeactivation)
+        }
         removeObservers()
     }
     

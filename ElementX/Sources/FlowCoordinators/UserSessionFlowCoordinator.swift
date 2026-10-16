@@ -6,7 +6,6 @@
 // Please see LICENSE files in the repository root for full details.
 //
 
-import AVKit
 import Combine
 import Compound
 import SwiftState
@@ -20,7 +19,10 @@ enum UserSessionFlowCoordinatorAction {
 }
 
 class UserSessionFlowCoordinator: FlowCoordinatorProtocol {
-    enum HomeTab: Hashable { case chats, spaces, search }
+    // AGENT-PLATFORM: added `.agents` case so the tab bar carries a
+    // third destination for the agent-platform feature (upstream's
+    // `.search` tab stays as the optional fourth, iOS 26 + dev flag).
+    enum HomeTab: Hashable { case chats, spaces, agents, search }
     
     private let navigationRootCoordinator: NavigationRootCoordinator
     private let navigationTabCoordinator: NavigationTabCoordinator<HomeTab>
@@ -28,6 +30,8 @@ class UserSessionFlowCoordinator: FlowCoordinatorProtocol {
     private let flowParameters: CommonFlowParameters
     // periphery:ignore - retaining purpose
     private let presenceService: PresenceService
+    
+    private var pendingInviteWelcome: String? // AGENT-PLATFORM (Brief 0073)
     
     private var userSession: UserSessionProtocol {
         flowParameters.userSession
@@ -39,6 +43,9 @@ class UserSessionFlowCoordinator: FlowCoordinatorProtocol {
     private let chatsTabDetails: NavigationTabCoordinator<HomeTab>.TabDetails
     private let spacesTabFlowCoordinator: SpacesTabFlowCoordinator
     private let spacesTabDetails: NavigationTabCoordinator<HomeTab>.TabDetails
+    // AGENT-PLATFORM: Agents tab flow + tab metadata (S150).
+    private let agentsTabFlowCoordinator: AgentSpacesTabFlowCoordinator
+    private let agentsTabDetails: NavigationTabCoordinator<HomeTab>.TabDetails
     
     private let searchScreenCoordinator: SearchScreenCoordinator?
     private let searchTabNavigationStackCoordinator: NavigationStackCoordinator?
@@ -98,6 +105,16 @@ class UserSessionFlowCoordinator: FlowCoordinatorProtocol {
         spacesTabDetails = .init(tag: HomeTab.spaces, title: L10n.screenHomeTabSpaces, icon: \.space, selectedIcon: \.spaceSolid)
         spacesTabDetails.navigationSplitCoordinator = spacesSplitCoordinator
         
+        // AGENT-PLATFORM: Agents tab — Brief 0037 rebuild on the
+        // Spaces model (Organization = space → Agent = child →
+        // Room = deeper). Owns the agent-spaces directory and will
+        // host the approvals inbox bell in its nav bar.
+        let agentsSplitCoordinator = NavigationSplitCoordinator(placeholderCoordinator: PlaceholderScreenCoordinator(hideBrandChrome: flowParameters.appSettings.hideBrandChrome))
+        agentsTabFlowCoordinator = AgentSpacesTabFlowCoordinator(navigationSplitCoordinator: agentsSplitCoordinator,
+                                                                 flowParameters: flowParameters)
+        agentsTabDetails = .init(tag: HomeTab.agents, title: UntranslatedL10n.screenHomeTabAgents, icon: \.host, selectedIcon: \.host)
+        agentsTabDetails.navigationSplitCoordinator = agentsSplitCoordinator
+        
         if flowParameters.appSettings.globalSearchEnabled, #available(iOS 26.0, *) {
             let searchCoordinator = SearchScreenCoordinator(parameters: .init(roomSummaryProvider: flowParameters.userSession.clientProxy.alternateRoomSummaryProvider,
                                                                               clientProxy: flowParameters.userSession.clientProxy,
@@ -123,7 +140,9 @@ class UserSessionFlowCoordinator: FlowCoordinatorProtocol {
         
         var tabs: [NavigationTabCoordinator<HomeTab>.Tab] = [
             .init(coordinator: chatsSplitCoordinator, details: chatsTabDetails),
-            .init(coordinator: spacesSplitCoordinator, details: spacesTabDetails)
+            .init(coordinator: spacesSplitCoordinator, details: spacesTabDetails),
+            // AGENT-PLATFORM: third tab for the agents feature.
+            .init(coordinator: agentsSplitCoordinator, details: agentsTabDetails)
         ]
         if let searchTabNavigationStackCoordinator, let searchTabDetails {
             tabs.append(.init(coordinator: searchTabNavigationStackCoordinator, details: searchTabDetails))
@@ -141,16 +160,31 @@ class UserSessionFlowCoordinator: FlowCoordinatorProtocol {
     }
     
     func stop() {
+        // Audit W6-6-1: a live call must be torn down BEFORE this flow is
+        // deallocated. The overlay's teardown lives in the navigation
+        // module's `didSet`, which never fires on deallocation — signing
+        // out with a minimized call left the session running with no
+        // screen, no Matrix leave, a ghost CallKit call, and a process-
+        // wide audio-ownership hold that silenced every later call until
+        // relaunch.
+        if navigationTabCoordinator.overlayCoordinator != nil {
+            MXLog.warning("Stopping the user session with a live call overlay; tearing the call down first")
+            navigationTabCoordinator.setOverlayCoordinator(nil)
+        }
+        flowParameters.callKitService.tearDownCallSession(forRoomID: nil)
         chatsTabFlowCoordinator.stop()
+        // AGENT-PLATFORM (decision 154): the stream reconnected with the ended
+        // session's token after a sign-out or account deletion.
+        userSession.approvalsStreamService?.stop()
     }
     
     func handleAppRoute(_ appRoute: AppRoute, animated: Bool) {
         MXLog.info("Handling app route: \(appRoute)")
         
         switch appRoute {
-        case .accountProvisioningLink, .oAuthCallback:
+        case .accountProvisioningLink, .oAuthCallback, .inviteLink: // AGENT-PLATFORM: .inviteLink (Brief 0073)
             break // We always ignore these flows when logged in.
-        case .settings, .chatBackupSettings:
+        case .settings, .chatBackupSettings, .aiConsentSettings: // AGENT-PLATFORM: .aiConsentSettings (decision 150)
             if ProcessInfo.processInfo.isiOSAppOnMac, flowParameters.windowManager.secondaryWindowsEnabled {
                 startSettingsFlow(detached: true)
             } else {
@@ -161,10 +195,33 @@ class UserSessionFlowCoordinator: FlowCoordinatorProtocol {
             }
         case .call(let roomID, let isVoiceCall):
             Task { await presentCallScreen(roomID: roomID, isVoiceCall: isVoiceCall) }
-        case .roomList, .room, .roomAlias, .childRoom, .childRoomAlias,
-             .roomDetails, .roomMemberDetails, .userProfile,
+        // AGENT-PLATFORM: route approval-detail + verification-detail
+        // deep links into the Agents tab. Listed before the chats
+        // catch-all so the explicit cases win.
+        case .approvalDetail, .verificationDetail, .publicProfile:
+            clearPresentedSheets(animated: animated)
+            agentsTabFlowCoordinator.handleAppRoute(appRoute, animated: animated)
+            if navigationTabCoordinator.selectedTab != .agents {
+                navigationTabCoordinator.selectedTab = .agents
+            }
+        // AGENT-PLATFORM (Brief 0060): `.userProfile` lands on Element's
+        // canonical UserProfileScreen — avatar, display name, MXID and a
+        // way to message the person.
+        //
+        // It used to be promoted to our `.publicProfile` screen whenever
+        // the MXID was on a homeserver we provision (v1.7.x chore P4,
+        // aimed at memory-recall mentions, where browsing the contact's
+        // public agents was the point). That test became universally
+        // true once spiral.md became the only homeserver (ADR-0060), so
+        // EVERY profile link started landing on a screen that reads
+        // "no public agents" for anyone who has none. A shared profile
+        // link must show the person. `.publicProfile` stays reachable
+        // from the agent surfaces, where public agents are the subject.
+        case .userProfile, .roomList, .room, .roomAlias, .childRoom, .childRoomAlias,
+             .roomDetails, .roomMemberDetails,
              .event, .eventOnRoomAlias, .childEvent, .childEventOnRoomAlias,
-             .share, .transferOwnership, .thread:
+             .share, .transferOwnership, .thread,
+             .catalogTemplate: // AGENT-PLATFORM (decision 111): the chat picker is the chats tab's.
             clearPresentedSheets(animated: animated) // Make sure the presented route is visible.
             chatsTabFlowCoordinator.handleAppRoute(appRoute, animated: animated)
             if navigationTabCoordinator.selectedTab != .chats {
@@ -177,7 +234,7 @@ class UserSessionFlowCoordinator: FlowCoordinatorProtocol {
             }
         }
     }
-    
+
     func clearRoute(animated: Bool) {
         clearPresentedSheets(animated: animated)
         chatsTabFlowCoordinator.clearRoute(animated: animated)
@@ -198,6 +255,46 @@ class UserSessionFlowCoordinator: FlowCoordinatorProtocol {
         }
     }
     
+    // MARK: - Invite welcome (AGENT-PLATFORM, Brief 0073)
+    
+    /// After an invited registration: who invited you, and a way to write to
+    /// them. Waits until onboarding has settled (G05: the consent read could
+    /// start onboarding after the welcome showed, and its cover replaced it).
+    func presentInviteWelcome(inviterUserID: String) {
+        pendingInviteWelcome = inviterUserID
+        showPendingInviteWelcomeIfOnboardingSettled()
+    }
+    
+    /// `replacingCover`: only onboarding's own dismissal hands its cover over; any other cover stays.
+    private func showPendingInviteWelcomeIfOnboardingSettled(replacingCover: Bool = false) {
+        guard replacingCover || navigationTabCoordinator.fullScreenCoverCoordinator == nil,
+              onboardingFlowCoordinator.isSettled,
+              let inviterUserID = pendingInviteWelcome.take() else {
+            return
+        }
+        showInviteWelcome(inviterUserID: inviterUserID)
+    }
+    
+    private func showInviteWelcome(inviterUserID: String) {
+        let coordinator = InviteWelcomeScreenCoordinator(parameters: .init(inviterUserID: inviterUserID,
+                                                                           clientProxy: userSession.clientProxy,
+                                                                           mediaProvider: userSession.mediaProvider))
+        coordinator.actionsPublisher
+            .sink { [weak self] action in
+                guard let self else { return }
+                navigationTabCoordinator.setFullScreenCoverCoordinator(nil)
+                switch action {
+                case .openDirectChat(let roomID):
+                    handleAppRoute(.room(roomID: roomID, via: []), animated: true)
+                case .dismiss:
+                    break
+                }
+            }
+            .store(in: &cancellables)
+        coordinator.start()
+        navigationTabCoordinator.setFullScreenCoverCoordinator(coordinator)
+    }
+    
     func isDisplayingRoomScreen(withRoomID roomID: String) -> Bool {
         guard navigationTabCoordinator.selectedTab == .chats else { return false }
         return chatsTabFlowCoordinator.isDisplayingRoomScreen(withRoomID: roomID)
@@ -211,7 +308,14 @@ class UserSessionFlowCoordinator: FlowCoordinatorProtocol {
             
             chatsTabFlowCoordinator.start()
             spacesTabFlowCoordinator.start()
+            agentsTabFlowCoordinator.start() // AGENT-PLATFORM: bring up Agents tab.
             attemptStartingOnboarding()
+            // AGENT-PLATFORM (Brief 0078 phase 2): ask about third-party AI once the server says so.
+            Task { [weak self] in
+                await self?.onboardingFlowCoordinator.refreshAIConsent()
+                self?.attemptStartingOnboarding()
+                self?.showPendingInviteWelcomeIfOnboardingSettled()
+            }
         }
         
         stateMachine.addRoutes(event: .showSettingsScreen, transitions: [.tabBar => .settingsScreen]) { [weak self] _ in
@@ -242,6 +346,8 @@ class UserSessionFlowCoordinator: FlowCoordinatorProtocol {
                     presentSessionVerificationScreen(flow: flow)
                 case .showCallScreen(let roomProxy, let isVoiceCall):
                     presentCallScreen(roomProxy: roomProxy, voiceOnly: isVoiceCall)
+                case .showAIConsentSettings: // AGENT-PLATFORM (decision 150)
+                    handleAppRoute(.aiConsentSettings, animated: true)
                 case .hideCallScreenOverlay:
                     hideCallScreenOverlay()
                 case .logout:
@@ -256,6 +362,8 @@ class UserSessionFlowCoordinator: FlowCoordinatorProtocol {
                 switch action {
                 case .presentCallScreen(let roomProxy, let isVoiceCall):
                     presentCallScreen(roomProxy: roomProxy, voiceOnly: isVoiceCall)
+                case .presentAIConsentSettings: // AGENT-PLATFORM (decision 150)
+                    handleAppRoute(.aiConsentSettings, animated: true)
                 case .verifyUser(let userID):
                     presentSessionVerificationScreen(flow: .userInitiator(userID: userID))
                 case .showSettings:
@@ -263,6 +371,50 @@ class UserSessionFlowCoordinator: FlowCoordinatorProtocol {
                 }
             }
             .store(in: &cancellables)
+        
+        // AGENT-PLATFORM: relay actions from the Agents tab (Brief
+        // 0037 rebuild). Keeping the subscription in place means the
+        // action enum can grow without touching wiring code each time.
+        agentsTabFlowCoordinator.actionsPublisher
+            .sink { [weak self] action in
+                self?.handleAgentsTabAction(action)
+            }
+            .store(in: &cancellables)
+
+        // AGENT-PLATFORM: mirror `ApprovalsStreamService.pendingCount`
+        // into the Agents tab badge. Uses self-rearming
+        // `withObservationTracking` (DECISIONS.md § "Badge propagation
+        // via @Observable, no Combine plumbing"). Per S150 architecture
+        // sprint: tab badge must update even while the user is in
+        // Chats, hence sinking here rather than in
+        // `AgentsTabFlowCoordinator`.
+        if userSession.approvalsStreamService != nil {
+            agentsTabDetails.badgeCount = userSession.approvalsStreamService?.pendingCount ?? 0
+            rearmAgentsBadgeObservation()
+            
+            // AGENT-PLATFORM: Brief 0041 C5 — the FULL SSE lifecycle from
+            // DESIGNS/sse-and-push-lifecycle.md, previously implemented only
+            // half-way (connect fired solely from the approvals inbox
+            // `.appeared`, so the badge stayed 0 until the user happened to
+            // open the bell — the C0-confirmed defect). Session start +
+            // every foreground transition connects (idempotent; `ready`
+            // triggers the REST reseed), backgrounding disconnects (iOS
+            // kills long-lived HTTP in background anyway — fail fast and
+            // reconnect cleanly on return).
+            userSession.approvalsStreamService?.connect()
+            
+            NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)
+                .sink { [weak self] _ in
+                    self?.userSession.approvalsStreamService?.connect()
+                }
+                .store(in: &cancellables)
+            
+            NotificationCenter.default.publisher(for: UIApplication.didEnterBackgroundNotification)
+                .sink { [weak self] _ in
+                    self?.userSession.approvalsStreamService?.disconnect()
+                }
+                .store(in: &cancellables)
+        }
         
         userSession.sessionSecurityStatePublisher
             .map(\.verificationState)
@@ -272,6 +424,7 @@ class UserSessionFlowCoordinator: FlowCoordinatorProtocol {
                 guard let self else { return }
                 
                 attemptStartingOnboarding()
+                showPendingInviteWelcomeIfOnboardingSettled()
                 setupSessionVerificationRequestsObserver()
             }
             .store(in: &cancellables)
@@ -308,19 +461,49 @@ class UserSessionFlowCoordinator: FlowCoordinatorProtocol {
                 case .requestPresentation(let animated):
                     navigationTabCoordinator.setFullScreenCoverCoordinator(onboardingStackCoordinator, animated: animated)
                 case .dismiss:
-                    navigationTabCoordinator.setFullScreenCoverCoordinator(nil)
+                    // Another cover (the in-app incoming call) may have taken onboarding's
+                    // place: it stays, and the welcome waits for it to go.
+                    guard navigationTabCoordinator.fullScreenCoverCoordinator === onboardingStackCoordinator else {
+                        // No cover at all (a ring took onboarding's place and has gone): the welcome can show.
+                        showPendingInviteWelcomeIfOnboardingSettled()
+                        break
+                    }
+                    // The welcome, when it waited for onboarding, takes the cover's place.
+                    if pendingInviteWelcome != nil, onboardingFlowCoordinator.isSettled {
+                        showPendingInviteWelcomeIfOnboardingSettled(replacingCover: true)
+                    } else {
+                        navigationTabCoordinator.setFullScreenCoverCoordinator(nil)
+                    }
                 case .logoutConfirmed:
                     actionsSubject.send(.logout)
                 }
             }
             .store(in: &cancellables)
         
-        flowParameters.elementCallService.actions
+        flowParameters.callKitService.actions
             .receive(on: DispatchQueue.main)
             .sink { [weak self] action in
                 switch action {
                 case .endCall:
-                    self?.dismissCallScreenIfNeeded()
+                    // AGENT-PLATFORM (Brief 0067): the call screen's own view
+                    // model ends the call and dismisses; upstream's WebView
+                    // dismissal here is gone with the widget (ADR-0079).
+                    break
+                case .startInAppRinging(let roomID, let callerDisplayName, let callerAvatarData, let isVoiceCall, let rtcNotificationID):
+                    // AGENT-PLATFORM (Brief 0063, G15): the CallKit-
+                    // unavailable fallback ring.
+                    self?.presentInAppIncomingScreen(roomID: roomID,
+                                                     callerDisplayName: callerDisplayName,
+                                                     callerAvatarData: callerAvatarData,
+                                                     isVoiceCall: isVoiceCall,
+                                                     rtcNotificationID: rtcNotificationID)
+                case .stopInAppRinging(let roomID):
+                    self?.dismissInAppIncomingScreen(roomID: roomID)
+                case .activeCallChanged(let roomID):
+                    // Brief 0068 Slice 2 — call waiting: the parked call is
+                    // the active one now; its screen comes forward and the
+                    // other one waits behind it.
+                    self?.bringHeldCallForward(roomID: roomID)
                 default:
                     break
                 }
@@ -343,6 +526,60 @@ class UserSessionFlowCoordinator: FlowCoordinatorProtocol {
                 }
             }
             .store(in: &cancellables)
+    }
+
+    private func handleAgentsTabAction(_ action: AgentSpacesTabFlowCoordinatorAction) {
+        switch action {
+        case .showSettings:
+            stateMachine.tryEvent(.showSettingsScreen)
+        case .openDMWithAgent(let matrixUserID):
+            // 'Contact agent' hand-off (Brief 0038 I5): open the existing
+            // DM, or create one; either way land in the Chats tab room.
+            Task { await openDMWithAgent(matrixUserID: matrixUserID) }
+        case .openRoom(let roomID):
+            handleAppRoute(.room(roomID: roomID, via: []), animated: true)
+        case .presentCallScreen(let roomProxy, let isVoiceCall):
+            presentCallScreen(roomProxy: roomProxy, voiceOnly: isVoiceCall)
+        case .presentAIConsentSettings: // AGENT-PLATFORM (decision 150)
+            handleAppRoute(.aiConsentSettings, animated: true)
+        case .verifyUser(let userID):
+            presentSessionVerificationScreen(flow: .userInitiator(userID: userID))
+        }
+    }
+
+    /// 'Contact agent' from the public profile: open (or create) the DM
+    /// with the agent and route into it on the Chats tab.
+    private func openDMWithAgent(matrixUserID: String) async {
+        switch userSession.clientProxy.directRoomForUserID(matrixUserID) {
+        case .success(.some(let roomID)):
+            handleAppRoute(.room(roomID: roomID, via: []), animated: true)
+        case .success(.none):
+            switch await userSession.clientProxy.createDirectRoom(with: matrixUserID, expectedRoomName: nil) {
+            case .success(let roomID):
+                handleAppRoute(.room(roomID: roomID, via: []), animated: true)
+            case .failure(let error):
+                MXLog.error("Failed to create agent DM: \(error)")
+            }
+        case .failure(let error):
+            MXLog.error("Failed to resolve agent DM: \(error)")
+        }
+    }
+    
+    /// Self-rearming observer for the approvals pending count.
+    /// Mirrors `userSession.approvalsStreamService.pendingCount`
+    /// into `agentsTabDetails.badgeCount` whenever it changes.
+    private func rearmAgentsBadgeObservation() {
+        guard let approvalsStreamService = userSession.approvalsStreamService else { return }
+        withObservationTracking {
+            _ = approvalsStreamService.pendingCount
+        } onChange: { [weak self] in
+            Task { @MainActor [weak self] in
+                guard let self,
+                      let approvalsStreamService = userSession.approvalsStreamService else { return }
+                agentsTabDetails.badgeCount = approvalsStreamService.pendingCount
+                rearmAgentsBadgeObservation()
+            }
+        }
     }
     
     // MARK: - Onboarding
@@ -371,6 +608,9 @@ class UserSessionFlowCoordinator: FlowCoordinatorProtocol {
             switch action {
             case .dismiss:
                 navigationTabCoordinator.setSheetCoordinator(nil)
+            case .openUserProfile(let userID): // AGENT-PLATFORM (Brief 0073).
+                navigationTabCoordinator.setSheetCoordinator(nil)
+                handleAppRoute(.userProfile(userID: userID), animated: true)
             case .clearCache:
                 actionsSubject.send(.clearCache)
             case .runLogoutFlow:
@@ -453,86 +693,410 @@ class UserSessionFlowCoordinator: FlowCoordinatorProtocol {
     
     // MARK: - Calls
     
-    private func presentCallScreen(roomID: String, isVoiceCall: Bool) async {
+    private func presentCallScreen(roomID: String, isVoiceCall: Bool, isAnsweringInAppRing: Bool = false) async {
+        // AGENT-PLATFORM (Brief 0067, call audit 2026-09-05): an ANSWERED
+        // call arrives here with CallKit already holding it as ongoing. The
+        // room lookup below suspends, and the user can End from the system
+        // UI in that window — `endCall(matching:)` tears the CallKit session
+        // down and emits `.endCall`, which nobody handles because no view
+        // model exists yet. The lookup then resumed and started a session
+        // that knew nothing of the end: a fresh CallKit call, a MatrixRTC
+        // join and a published microphone for a call the user had refused.
+        // The ongoing-room value is the call's generation: captured before
+        // the await, re-checked after it.
+        let wasAnsweredCall = flowParameters.callKitService.ongoingCallRoomIDPublisher.value == roomID
+        
         guard case let .joined(roomProxy) = await userSession.clientProxy.roomForIdentifier(roomID) else {
+            // Audit W6-6-2: this leg can run AFTER a CXAnswerCallAction was
+            // fulfilled — the activation-audio claim is held and CallKit
+            // shows a live call. Silently returning left both standing for
+            // a call that will never exist; the user stared at a lying
+            // system UI until they ended it by hand.
+            MXLog.error("Cannot present a call for \(roomID): the room is not joined; tearing the CallKit session down")
+            flowParameters.callKitService.tearDownCallSession(forRoomID: roomID)
             return
         }
         
-        presentCallScreen(roomProxy: roomProxy, voiceOnly: isVoiceCall)
-    }
-    
-    private func presentCallScreen(roomProxy: JoinedRoomProxyProtocol, voiceOnly: Bool) {
-        let colorScheme: ColorScheme = flowParameters.windowManager.mainWindow.traitCollection.userInterfaceStyle == .light ? .light : .dark
-        presentCallScreen(configuration: .init(roomProxy: roomProxy,
-                                               clientProxy: userSession.clientProxy,
-                                               clientID: InfoPlistReader.main.bundleIdentifier,
-                                               elementCallBaseURL: flowParameters.appSettings.elementCallBaseURL,
-                                               elementCallBaseURLOverride: flowParameters.appSettings.elementCallBaseURLOverride,
-                                               voiceOnly: voiceOnly,
-                                               colorScheme: colorScheme))
-    }
-    
-    private var callScreenPictureInPictureController: AVPictureInPictureController?
-    private func presentCallScreen(configuration: ElementCallConfiguration) {
-        guard flowParameters.ongoingCallRoomIDPublisher.value != configuration.callRoomID else {
-            MXLog.info("Returning to existing call.")
-            callScreenPictureInPictureController?.stopPictureInPicture()
+        // AGENT-PLATFORM: the scope reads the members this fresh proxy is
+        // still loading; the check below covers an end during the wait too.
+        await NativeCallConfiguration.awaitFirstMembers(of: roomProxy)
+        
+        if wasAnsweredCall, flowParameters.callKitService.ongoingCallRoomIDPublisher.value != roomID {
+            MXLog.info("The answered call in \(roomID) was ended while its room was being looked up; not presenting it")
             return
         }
         
-        let callScreenCoordinator = CallScreenCoordinator(parameters: .init(elementCallService: flowParameters.elementCallService,
-                                                                            configuration: configuration,
-                                                                            allowPictureInPicture: true,
-                                                                            appSettings: flowParameters.appSettings,
-                                                                            analytics: flowParameters.analytics))
+        // Follow-up L1: the in-app ring is not CallKit's ongoing call until
+        // its screen registers, so the check above never saw it end — its
+        // generation is the ring itself.
+        if isAnsweringInAppRing, !flowParameters.callKitService.isAcceptedRingLive(forRoomID: roomID) {
+            MXLog.info("The accepted ring in \(roomID) ended while its room was being looked up; not presenting it")
+            // The call parked for it at the tap comes back — unless the
+            // room's call went live another way (a redial answered from
+            // CallKit), which that route presents; a teardown by room
+            // would end it.
+            if flowParameters.callKitService.ongoingCallRoomIDPublisher.value != roomID {
+                flowParameters.callKitService.tearDownCallSession(forRoomID: roomID)
+            }
+            return
+        }
         
-        callScreenCoordinator.actions
-            .sink { [weak self] action in
-                guard let self else { return }
+        presentCallScreen(roomProxy: roomProxy, voiceOnly: isVoiceCall, isAnswer: wasAnsweredCall || isAnsweringInAppRing)
+    }
+    
+    private func presentCallScreen(roomProxy: JoinedRoomProxyProtocol, voiceOnly: Bool, isAnswer: Bool = false) {
+        // AGENT-PLATFORM (Brief 0063/0067): every room is a native call
+        // (ADR-0079 D3); the room's shape only decides scope and whether a
+        // fresh call rings or merely notifies.
+        let roomInfo = roomProxy.infoPublisher.value
+        let media: NativeCallMedia = voiceOnly ? .audio : .video
+        let members = roomProxy.membersPublisher.value
+        let configuration = NativeCallConfiguration(media: media, roomInfo: roomInfo, members: members, ownUserID: roomProxy.ownUserID)
+        MXLog.info("Routing call in \(roomProxy.id): media \(media), scope \(configuration.scope), notification \(String(describing: configuration.freshCallNotification)), hasRoomCall \(roomInfo.hasRoomCall)")
+        // AGENT-PLATFORM: what the scope read, so a `.direct` mis-route can be
+        // told apart in the log (no members loaded, no heroes in a named room).
+        MXLog.info("""
+        Routing topology in \(roomProxy.id): isDM \(roomInfo.isDM), isDirect \(roomInfo.isDirect), \
+        active \(roomInfo.activeMembersCount), joined \(roomInfo.joinedMembersCount), \
+        activeService \(roomInfo.activeServiceMembersCount), serviceMembers \(roomInfo.serviceMembers), \
+        members \(members.count), heroes \(roomInfo.heroes.count), hasRawName \(roomInfo.rawName != nil)
+        """)
+        
+        presentNativeCallScreen(roomProxy: roomProxy, configuration: configuration, isAnswer: isAnswer)
+    }
+    
+    // AGENT-PLATFORM (Brief 0063)
+    private func presentNativeCallScreen(roomProxy: JoinedRoomProxyProtocol, configuration: NativeCallConfiguration, isAnswer: Bool) {
+        // Keyed on the OVERLAY's room, not on `ongoingCallRoomID` (audit C6):
+        // the published id only appears at `.ringing`/`.connected`, so during
+        // the connect window a re-tap (or a double-tapped Accept) used to
+        // pass the old guard, replace the overlay, and race the first
+        // session's `leave()` against the second's `join()` on the same
+        // device membership — the leave could delete the fresh membership.
+        if returnedToExistingCallScreen(for: roomProxy.id, isAnswer: isAnswer) {
+            return
+        }
+        // Read after an ended screen came down: its call is ending by then.
+        let isOngoingCall = flowParameters.ongoingCallRoomIDPublisher.value == roomProxy.id
+        // Brief 0068 Slice 2: the room whose call is parked behind the active
+        // one — a tap on it is a swap, through CallKit, not a second join.
+        if let held = heldCallCoordinator, held.callRoomID == roomProxy.id {
+            MXLog.info("Swapping to the held call in \(roomProxy.id).")
+            flowParameters.callKitService.swapCalls()
+            return
+        }
+        
+        // Ring only when starting a fresh call: answering our own CallKit ring
+        // or joining a call that is already active in the room must not ring
+        // the other members again. An answer never rings, even when the room
+        // does not show the call (yet, or any more) — follow-up L1.
+        let notifyRoom = !isAnswer && !isOngoingCall && !roomProxy.infoPublisher.value.hasRoomCall
+        let coordinator = NativeCallScreenCoordinator(parameters: .init(roomProxy: roomProxy,
+                                                                        callKitService: flowParameters.callKitService,
+                                                                        agentPlatformService: flowParameters.userSession.agentPlatformService,
+                                                                        isRoomEncrypted: roomProxy.infoPublisher.value.isEncrypted,
+                                                                        notifyRoom: notifyRoom,
+                                                                        isAnswer: isAnswer,
+                                                                        configuration: configuration,
+                                                                        appMediator: flowParameters.appMediator,
+                                                                        mediaProvider: flowParameters.userSession.mediaProvider))
+        
+        coordinator.actions
+            .sink { [weak self, weak coordinator] action in
+                guard let self, let coordinator else { return }
+                // Brief 0068 Slice 2: two call screens can be alive; only the
+                // one on screen may drive the overlay.
+                let isOnScreen = navigationTabCoordinator.overlayCoordinator === coordinator
                 switch action {
-                case .pictureInPictureIsAvailable(let controller):
-                    callScreenPictureInPictureController = controller
-                case .pictureInPictureStarted:
-                    MXLog.info("Hiding call for PiP presentation.")
-                    navigationTabCoordinator.setOverlayPresentationMode(.minimized)
-                case .pictureInPictureStopped:
-                    MXLog.info("Restoring call after PiP presentation.")
-                    navigationTabCoordinator.setOverlayPresentationMode(.fullScreen)
                 case .dismiss:
-                    callScreenPictureInPictureController = nil
-                    navigationTabCoordinator.setOverlayCoordinator(nil)
+                    if isOnScreen {
+                        dismissCallScreenOnScreen(coordinator)
+                    } else if heldCallCoordinator === coordinator {
+                        // The parked call ended (from the system UI, or a
+                        // third call displaced it): its screen was never on
+                        // screen to be torn down, so stop it here.
+                        heldCallCoordinator = nil
+                        coordinator.isParked = false
+                        coordinator.stop()
+                    }
+                case .minimize:
+                    // G13 — back to the chat with the call running; the
+                    // coordinator (and the call it owns) stays alive and
+                    // renders the bar.
+                    guard isOnScreen else { return }
+                    navigationTabCoordinator.setOverlayPresentationMode(.minimized)
+                case .expand:
+                    // Covers the bar tap AND the window's restore button —
+                    // either way the full screen returns, so the window goes
+                    // (a no-op for the restore path, where AVKit is already
+                    // stopping it).
+                    guard isOnScreen else { return }
+                    coordinator.stopPictureInPictureForFullScreenReturn()
+                    navigationTabCoordinator.setOverlayPresentationMode(.fullScreen)
+                case .pictureInPictureStarted:
+                    // The picture lives in the floating window now; the
+                    // overlay steps aside so the app underneath is usable.
+                    guard isOnScreen else { return }
+                    navigationTabCoordinator.setOverlayPresentationMode(.minimized)
                 }
             }
             .store(in: &cancellables)
         
-        navigationTabCoordinator.setOverlayCoordinator(callScreenCoordinator, animated: true)
+        // Brief 0068 Slice 2: an answered second call HOLDS the first — the
+        // service parks it synchronously with the answer (both the CallKit
+        // banner and the in-app ring), so the held slot names the screen on
+        // screen right now. It stays alive behind the new one: `isParked`
+        // is what keeps the tab coordinator's teardown of the replaced
+        // overlay from stopping the call. An outgoing call while one is
+        // live still replaces it; CallKit ends the old one once the new
+        // call reaches `setupCallSession`.
+        if let current = navigationTabCoordinator.overlayCoordinator as? NativeCallScreenCoordinator,
+           flowParameters.callKitService.heldCallPublisher.value?.roomID == current.callRoomID {
+            MXLog.info("Parking the call screen for \(current.callRoomID) behind \(roomProxy.id).")
+            current.isParked = true
+            heldCallCoordinator = current
+        }
+        navigationTabCoordinator.setOverlayCoordinator(coordinator, animated: true)
         
         flowParameters.analytics.track(screen: .RoomCall)
     }
     
-    private func hideCallScreenOverlay() {
-        guard let callScreenPictureInPictureController else {
-            MXLog.warning("Picture in picture isn't available, dismissing the call screen.")
-            dismissCallScreenIfNeeded()
+    /// The call screen on screen goes. The parked call comes forward the
+    /// moment the active one goes. Its promotion (and the CallKit resume) is
+    /// asked for NOW, scoped to the ending call — the ending screen's own
+    /// teardown lands seconds later, after its session has stopped, and until
+    /// then the parked screen would sit "On hold" with no control.
+    private func dismissCallScreenOnScreen(_ coordinator: NativeCallScreenCoordinator) {
+        navigationTabCoordinator.setOverlayCoordinator(nil)
+        guard let held = heldCallCoordinator else {
+            showPendingInviteWelcomeIfOnboardingSettled() // AGENT-PLATFORM (Brief 0073): it waited for the call
             return
         }
-        
-        MXLog.info("Starting picture in picture to hide the call screen overlay.")
-        callScreenPictureInPictureController.startPictureInPicture()
-        navigationTabCoordinator.setOverlayPresentationMode(.minimized)
+        flowParameters.callKitService.tearDownCallSession(forRoomID: coordinator.callRoomID, callKitID: coordinator.callKitID)
+        // Still parked after that, it waits for a newer in-app accept, which
+        // gave this screen up: that answer's screen comes next, or the
+        // service brings this one back (`.activeCallChanged`).
+        guard flowParameters.callKitService.heldCallPublisher.value?.roomID != held.callRoomID else {
+            MXLog.info("The parked call in \(held.callRoomID) stays parked for a newer accept.")
+            return
+        }
+        heldCallCoordinator = nil
+        presentParkedCallScreen(held)
     }
     
-    private func dismissCallScreenIfNeeded() {
-        guard navigationTabCoordinator.overlayCoordinator is CallScreenCoordinator else {
+    /// The call screen on screen, for a route to `roomID`: its room's live
+    /// one is returned to, and one that shows its call's end comes down
+    /// first. Returns whether it returned.
+    private func returnedToExistingCallScreen(for roomID: String, isAnswer: Bool) -> Bool {
+        guard let existing = navigationTabCoordinator.overlayCoordinator as? NativeCallScreenCoordinator else { return false }
+        if existing.callRoomID == roomID {
+            return returnedToCallScreen(existing, isAnswer: isAnswer)
+        }
+        // Another room's call goes the same way. A route to the parked room
+        // is a swap, which needs the ended call there to hold.
+        if existing.hasCallEnded, heldCallCoordinator?.callRoomID != roomID {
+            replaceEndedCallScreen(existing)
+        }
+        return false
+    }
+
+    /// Returns to the room's screen, unless it shows its call's end ("Call
+    /// ended", a failure): that one comes down first, its call over, so the
+    /// fresh screen that replaces it does not take that call. Returns whether
+    /// it returned.
+    private func returnedToCallScreen(_ existing: NativeCallScreenCoordinator, isAnswer: Bool) -> Bool {
+        guard !existing.hasCallEnded else {
+            replaceEndedCallScreen(existing)
+            return false
+        }
+        returnToCallScreen(existing, isAnswer: isAnswer)
+        return true
+    }
+
+    /// A screen that shows its call's end, about to be replaced. Like its
+    /// dismissal, its call goes now, scoped to it: its own teardown lands
+    /// later and brought the parked call back over the fresh screen (M1
+    /// review; for another room's route, follow-ups 3). Unlike its dismissal,
+    /// the parked screen stays parked: the fresh screen's registration
+    /// settles it, an answer keeping it behind, an outgoing call replacing it.
+    private func replaceEndedCallScreen(_ existing: NativeCallScreenCoordinator) {
+        MXLog.info("Replacing the ended call screen for \(existing.callRoomID).")
+        navigationTabCoordinator.setOverlayCoordinator(nil)
+        flowParameters.callKitService.tearDownReplacedCallSession(forRoomID: existing.callRoomID, callKitID: existing.callKitID)
+    }
+
+    private func returnToCallScreen(_ existing: NativeCallScreenCoordinator, isAnswer: Bool) {
+        MXLog.info("Returning to existing native call.")
+        // An answer landing here is this screen's call now, so its teardown
+        // ends it: a call the screen started and never registered has none
+        // of its own, and an in-app ring accepted here outlived the screen and
+        // was later adopted by a call CallKit never had (N1 review).
+        if isAnswer, let callKitID = flowParameters.callKitService.callKitID(forRoomID: existing.callRoomID) {
+            existing.bind(toCallKitID: callKitID)
+        }
+        // The full screen is coming back by a route that is not the PiP
+        // window's restore button — the window must come down or the
+        // same call shows twice.
+        existing.stopPictureInPictureForFullScreenReturn()
+        // G9 — the call may be living behind its bar; returning to it
+        // restores the full screen.
+        navigationTabCoordinator.setOverlayPresentationMode(.fullScreen)
+    }
+    
+    // AGENT-PLATFORM (Brief 0068 Slice 2): the second call's screen, parked.
+    private var heldCallCoordinator: NativeCallScreenCoordinator?
+    
+    /// Put a parked screen back on screen. `start()` is latched inside the
+    /// coordinator, so re-presenting does not re-join the call.
+    private func presentParkedCallScreen(_ coordinator: NativeCallScreenCoordinator) {
+        coordinator.isParked = false
+        navigationTabCoordinator.setOverlayCoordinator(coordinator, animated: true)
+    }
+    
+    private func bringHeldCallForward(roomID: String) {
+        if let onScreen = navigationTabCoordinator.overlayCoordinator as? NativeCallScreenCoordinator,
+           onScreen.callRoomID == roomID {
             return
         }
-        
-        navigationTabCoordinator.setOverlayCoordinator(nil)
+        guard let held = heldCallCoordinator, held.callRoomID == roomID else {
+            MXLog.warning("No parked call screen for \(roomID) to bring forward.")
+            return
+        }
+        if let current = navigationTabCoordinator.overlayCoordinator as? NativeCallScreenCoordinator {
+            current.isParked = true
+            heldCallCoordinator = current
+        } else {
+            heldCallCoordinator = nil
+        }
+        presentParkedCallScreen(held)
+    }
+    
+    // AGENT-PLATFORM (Brief 0063, G15): the in-app incoming screen — the
+    // fallback for the rings CallKit cannot present. Same accept/decline
+    // semantics; presented as a full-screen cover so it never competes with
+    // an ongoing overlay call.
+    private var inAppIncomingRoomID: String?
+    /// Drives the in-app ring's haptic pulse (audit T4).
+    private var inAppRingingHaptic: Task<Void, Never>?
+
+    private func presentInAppIncomingScreen(roomID: String,
+                                            callerDisplayName: String,
+                                            callerAvatarData: Data?,
+                                            isVoiceCall: Bool,
+                                            rtcNotificationID: String?) {
+        guard inAppIncomingRoomID == nil else { return }
+        inAppIncomingRoomID = roomID
+        startInAppRingingHaptic()
+
+        let coordinator = NativeCallIncomingScreenCoordinator(parameters: .init(callerDisplayName: callerDisplayName,
+                                                                                callerAvatarData: callerAvatarData,
+                                                                                isVoiceCall: isVoiceCall,
+                                                                                agentPreflightText: nil))
+        // One decision per ring (audit C6). The buttons stay tappable for the
+        // dismissal transition's duration, so without the latch a double-tap
+        // Accept raced two `presentCallScreen`s, and Accept-then-Decline sent
+        // an MSC4310 decline for a call the user had just answered — the
+        // caller saw "declined" while the callee was joining.
+        var decisionMade = false
+        coordinator.actions
+            .sink { [weak self] action in
+                guard let self else { return }
+                guard !decisionMade else {
+                    MXLog.info("Ignoring a second decision for the in-app ring: \(action)")
+                    return
+                }
+                decisionMade = true
+                // An answer's call screen comes next; the welcome waits for it to end.
+                let isAnswer = if case .accept = action { true } else { false }
+                dismissInAppIncomingScreen(roomID: roomID, showsWaitingWelcome: !isAnswer)
+                switch action {
+                case .accept:
+                    // Synchronous with the tap — the seconds until
+                    // `setupCallSession` must not race the missed-call timer.
+                    flowParameters.callKitService.handleInAppRingDecision(roomID: roomID, accepted: true)
+                    Task { await self.presentCallScreen(roomID: roomID, isVoiceCall: isVoiceCall, isAnsweringInAppRing: true) }
+                case .decline:
+                    flowParameters.callKitService.handleInAppRingDecision(roomID: roomID, accepted: false)
+                    guard let rtcNotificationID else { return }
+                    Task {
+                        // MSC4310 — the caller sees an explicit refusal, the
+                        // same signal the CallKit decline path sends.
+                        guard case let .joined(roomProxy) = await self.userSession.clientProxy.roomForIdentifier(roomID) else { return }
+                        _ = await roomProxy.declineCall(notificationID: rtcNotificationID)
+                    }
+                }
+            }
+            .store(in: &cancellables)
+
+        navigationTabCoordinator.setFullScreenCoverCoordinator(coordinator)
+    }
+
+    private func dismissInAppIncomingScreen(roomID: String, showsWaitingWelcome: Bool = true) {
+        guard inAppIncomingRoomID == roomID else { return }
+        inAppIncomingRoomID = nil
+        inAppRingingHaptic?.cancel()
+        inAppRingingHaptic = nil
+        if navigationTabCoordinator.fullScreenCoverCoordinator is NativeCallIncomingScreenCoordinator {
+            navigationTabCoordinator.setFullScreenCoverCoordinator(nil)
+            if showsWaitingWelcome {
+                showPendingInviteWelcomeIfOnboardingSettled() // AGENT-PLATFORM (Brief 0073): it waited for the ring
+            }
+        }
+    }
+
+    /// Pulse while the in-app incoming screen is up (audit T4).
+    ///
+    /// A haptic and NOT a ring tone, deliberately. This screen has exactly
+    /// one trigger: CallKit refused to report the call. The most common
+    /// reason for that refusal is Do Not Disturb or a Focus mode — and we
+    /// cannot tell that case apart from a provider misconfiguration or a
+    /// region where CallKit is unavailable. Playing audio into a phone whose
+    /// owner has explicitly asked for silence would be worse than the
+    /// silence this fixes, and a tone would also need an audio session
+    /// nobody has activated here: the tone player's own rule is that a tone
+    /// may only start on a session the system has already brought up, and
+    /// the CallKit-refused path is precisely the one where it has not.
+    ///
+    /// A haptic needs no session, respects the ring/silent switch by nature,
+    /// and is noticeable in the pocket, which is the actual complaint: this
+    /// screen used to appear with no cue of any kind.
+    private func startInAppRingingHaptic() {
+        inAppRingingHaptic?.cancel()
+        inAppRingingHaptic = Task { @MainActor in
+            let generator = UIImpactFeedbackGenerator(style: .medium)
+            generator.prepare()
+            // Roughly the ETSI ring cadence the tone player uses for
+            // ringback: a pulse, then a long gap, so it reads as a call
+            // rather than a notification.
+            while !Task.isCancelled {
+                generator.impactOccurred()
+                try? await Task.sleep(for: .milliseconds(220))
+                guard !Task.isCancelled else { return }
+                generator.impactOccurred()
+                try? await Task.sleep(for: .seconds(3))
+            }
+        }
+    }
+
+    // AGENT-PLATFORM (Brief 0063/0067): the call keeps its own PiP session;
+    // for an AUDIO call `startPictureInPicture()` is a no-op by design and
+    // minimizing to the bar is the whole answer. Upstream's WebView branch
+    // (`callScreenPictureInPictureController` / `dismissCallScreenIfNeeded`)
+    // is gone with the widget (ADR-0079).
+    private func hideCallScreenOverlay() {
+        guard let nativeCallCoordinator = navigationTabCoordinator.overlayCoordinator as? NativeCallScreenCoordinator else {
+            return
+        }
+        MXLog.info("Hiding the call overlay behind picture in picture / the call bar.")
+        nativeCallCoordinator.startPictureInPicture()
+        navigationTabCoordinator.setOverlayPresentationMode(.minimized)
     }
     
     // MARK: - Logout
     
-    private func runLogoutFlow() async {
+    // AGENT-PLATFORM (decision 187): internal for tests; the confirmations say
+    // «Sign out», not upstream's «Remove this device».
+    func runLogoutFlow() async {
         let secureBackupController = userSession.clientProxy.secureBackupController
         
         guard case let .success(isLastDevice) = await userSession.clientProxy.isOnlyDeviceLeft() else {
@@ -542,9 +1106,9 @@ class UserSessionFlowCoordinator: FlowCoordinatorProtocol {
         
         guard isLastDevice else {
             navigationRootCoordinator.alertInfo = .init(id: .init(),
-                                                        title: L10n.screenSignoutConfirmationDialogTitle,
-                                                        message: L10n.screenSignoutConfirmationDialogContent,
-                                                        primaryButton: .init(title: L10n.screenSignoutConfirmationDialogSubmit, role: .destructive) { [weak self] in
+                                                        title: UntranslatedL10n.screenSignoutConfirmationDialogTitleSpiral,
+                                                        message: UntranslatedL10n.screenSignoutConfirmationDialogContentSpiral,
+                                                        primaryButton: .init(title: UntranslatedL10n.screenSignoutConfirmationDialogSubmitSpiral, role: .destructive) { [weak self] in
                                                             self?.actionsSubject.send(.logout)
                                                         })
             return
@@ -554,7 +1118,7 @@ class UserSessionFlowCoordinator: FlowCoordinatorProtocol {
             navigationRootCoordinator.alertInfo = .init(id: .init(),
                                                         title: L10n.screenSignoutRecoveryDisabledTitle,
                                                         message: L10n.screenSignoutRecoveryDisabledSubtitle,
-                                                        primaryButton: .init(title: L10n.screenSignoutConfirmationDialogSubmit, role: .destructive) { [weak self] in
+                                                        primaryButton: .init(title: UntranslatedL10n.screenSignoutConfirmationDialogSubmitSpiral, role: .destructive) { [weak self] in // AGENT-PLATFORM (decision 187)
                                                             self?.actionsSubject.send(.logout)
                                                         }, secondaryButton: .init(title: L10n.commonSettings, role: .cancel) { [weak self] in
                                                             self?.chatsTabFlowCoordinator.handleAppRoute(.chatBackupSettings, animated: true)
@@ -566,7 +1130,7 @@ class UserSessionFlowCoordinator: FlowCoordinatorProtocol {
             navigationRootCoordinator.alertInfo = .init(id: .init(),
                                                         title: L10n.screenSignoutKeyBackupDisabledTitle,
                                                         message: L10n.screenSignoutKeyBackupDisabledSubtitle,
-                                                        primaryButton: .init(title: L10n.screenSignoutConfirmationDialogSubmit, role: .destructive) { [weak self] in
+                                                        primaryButton: .init(title: UntranslatedL10n.screenSignoutConfirmationDialogSubmitSpiral, role: .destructive) { [weak self] in // AGENT-PLATFORM (decision 187)
                                                             self?.actionsSubject.send(.logout)
                                                         }, secondaryButton: .init(title: L10n.commonSettings, role: .cancel) { [weak self] in
                                                             self?.chatsTabFlowCoordinator.handleAppRoute(.chatBackupSettings, animated: true)

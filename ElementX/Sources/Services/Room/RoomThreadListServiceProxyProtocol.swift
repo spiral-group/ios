@@ -22,6 +22,9 @@ struct RoomThreadListItem: Identifiable {
         let sender: TimelineItemSender
         let timestamp: Date
         let message: AttributedString?
+        /// AGENT-PLATFORM (§ 5.56): the title of an Interactive Post draft,
+        /// when that is what this message is.
+        var interactiveDraftTitle: String?
     }
     
     let id: String

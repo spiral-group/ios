@@ -223,6 +223,12 @@ struct HomeScreenRoom: Identifiable, Equatable {
     
     let isTombstoned: Bool
     
+    // AGENT-PLATFORM (Brief 0072, ADR-0083): the other person in a DM, by the
+    // rule `statusEmoji` uses (one hero, no room avatar) — whose presence the
+    // row shows. `nil` for everything that is not such a DM.
+    var dmUserID: String?
+    var isOnline = false
+    
     var displayedLastMessage: AttributedString? {
         if isTombstoned {
             AttributedString(L10n.screenRoomlistTombstonedRoomDescription)
@@ -255,17 +261,16 @@ struct HomeScreenRoom: Identifiable, Equatable {
 extension HomeScreenRoom {
     init(summary: RoomSummary,
          roomListActivityVisibility: RoomListActivityVisibility = .current,
-         seenInvites: Set<String> = []) {
+         seenInvites: Set<String> = [],
+         presences: [String: UserPresence] = [:]) {
         let roomID = summary.id
         
         let isUnseenInvite = summary.joinRequestType?.isInvite == true && !seenInvites.contains(roomID)
         
-        let isDotShown = switch roomListActivityVisibility {
-        case .current:
-            summary.hasUnreadMessages || summary.hasUnreadMentions || summary.hasUnreadNotifications || summary.isMarkedUnread || isUnseenInvite
-        case .hide, .show:
-            (!summary.isMuted && (summary.hasUnreadNotifications || summary.hasUnreadMentions)) || summary.isMarkedUnread || isUnseenInvite
-        }
+        // AGENT-PLATFORM (Brief 0063): shared with the app icon badge on purpose — see
+        // `RoomSummary.needsAttention` (upstream inlined the switch here).
+        let isDotShown = summary.needsAttention(activityVisibility: roomListActivityVisibility,
+                                                seenInvites: seenInvites)
         
         let isMentionShown = summary.hasUnreadMentions && !summary.isMuted
         let isMuteShown = summary.isMuted
@@ -302,6 +307,10 @@ extension HomeScreenRoom {
                   statusEmoji: summary.statusEmoji,
                   canonicalAlias: summary.canonicalAlias,
                   isTombstoned: summary.isTombstoned)
+        
+        // AGENT-PLATFORM (Brief 0072, ADR-0083)
+        dmUserID = summary.dmUserID
+        isOnline = dmUserID.flatMap { presences[$0]?.isOnline } ?? false
     }
 }
 

@@ -115,9 +115,10 @@ class SearchServiceProxy: SearchServiceProxyProtocol {
             case .msgLike(let msgLike):
                 switch msgLike.kind {
                 case .message(let msg):
-                    content = .message(timelineItemFactory.buildMessageTimelineItemContent(messageType: msg.msgType,
-                                                                                           senderID: result.sender,
-                                                                                           senderDisplayName: sender.displayName))
+                    // AGENT-PLATFORM (Brief 0066): a post found by search reads as a post, not as text.
+                    content = timelineItemFactory.buildEventContent(messageType: msg.msgType,
+                                                                    senderID: result.sender,
+                                                                    senderDisplayName: sender.displayName)
                 case .poll(let question, _, _, _, _, _, _):
                     content = .poll(question: question)
                 case .sticker(let body, _, _):

@@ -6,15 +6,17 @@
 // Please see LICENSE files in the repository root for full details.
 //
 
-import AnalyticsEvents
 import BackgroundTasks
 import Combine
 import Intents
 import MatrixRustSDK
-import Sentry
 import SwiftUI
 import Version
 
+// AGENT-PLATFORM: our NSE tap-routing + approval reconcile hooks
+// push the upstream class over the 1000-line cap (same escape hatch as
+// ClientProxy.swift).
+// swiftlint:disable:next type_body_length
 class AppCoordinator: AppCoordinatorProtocol, AuthenticationFlowCoordinatorDelegate, NotificationManagerDelegate, SecureWindowManagerDelegate {
     private let stateMachine: AppCoordinatorStateMachine
     private let navigationRootCoordinator: NavigationRootCoordinator
@@ -29,7 +31,7 @@ class AppCoordinator: AppCoordinatorProtocol, AuthenticationFlowCoordinatorDeleg
     private let appDelegate: AppDelegate
     private let appHooks: AppHooks
     private let bugReportService: BugReportServiceProtocol
-    private let elementCallService: ElementCallServiceProtocol
+    private var callKitService: CallKitServiceProtocol
     
     /// Common background task to continue long-running tasks in the background.
     private var backgroundTask: UIBackgroundTaskIdentifier?
@@ -39,7 +41,7 @@ class AppCoordinator: AppCoordinatorProtocol, AuthenticationFlowCoordinatorDeleg
         didSet {
             userSessionObserver?.cancel()
             if let userSession {
-                configureElementCallService()
+                configureCallKitService()
                 configureNotificationManager()
                 observeUserSessionChanges()
                 Task {
@@ -63,7 +65,24 @@ class AppCoordinator: AppCoordinatorProtocol, AuthenticationFlowCoordinatorDeleg
     
     let windowManager: SecureWindowManagerProtocol
     let notificationManager: NotificationManagerProtocol
-    
+
+    // AGENT-PLATFORM: persisted queue of approval-decide POSTs
+    // that failed at notification-action time. Drained on
+    // applicationDidBecomeActive via approvalActionRunner.reconcile().
+    // Nil only if the App Group isn't readable (mis-configured
+    // entitlements); the action handler degrades to "do the POST
+    // once, no retry queue" in that case.
+    private let pendingApprovalActionStore: PendingApprovalActionStore?
+
+    // AGENT-PLATFORM: backing impl for approve/reject lock-screen
+    // actions. Captures `self` weakly via the resolveService
+    // closure so the runner doesn't retain the AppCoordinator.
+    private lazy var approvalActionRunner: ApprovalActionRunner = .init(resolveService: { [weak self] in self?.userSession?.agentPlatformService },
+                                                                        pendingStore: pendingApprovalActionStore)
+
+    // AGENT-PLATFORM (Brief 0073): public lookup of an invitation's state.
+    private let inviteLinkResolver: InviteLinkResolverProtocol = InviteLinkResolver()
+
     private let appRouteURLParser: AppRouteURLParser
     
     private var storedAppRoute: AppRoute?
@@ -85,11 +104,12 @@ class AppCoordinator: AppCoordinatorProtocol, AuthenticationFlowCoordinatorDeleg
             fatalError("Catastrophic error retrieving user defaults for \(AppSettings.suiteName)")
         }
         let appSettings = appHooks.appSettingsHook.configure(AppSettings(store: userDefaults))
+        appSettings.useLocalDevStackIfRequested() // AGENT-PLATFORM
         self.appSettings = appSettings
         
         targetConfiguration = Target.mainApp.configure(logLevel: appSettings.logLevel,
                                                        traceLogPacks: appSettings.traceLogPacks,
-                                                       sentryURL: appSettings.bugReportSentryRustURL,
+                                                       sentryURL: nil, // AGENT-PLATFORM (Brief 0078): no crash reporter.
                                                        rageshakeURL: appSettings.bugReportRageshakeURL,
                                                        appHooks: appHooks)
         
@@ -107,13 +127,12 @@ class AppCoordinator: AppCoordinatorProtocol, AuthenticationFlowCoordinatorDeleg
         
         appRouteURLParser = AppRouteURLParser(appSettings: appSettings)
         
-        let posthogAnalyticsClient = PostHogAnalyticsClient()
-        posthogAnalyticsClient.updateSuperProperties(AnalyticsEvent.SuperProperties(appPlatform: .EXI, cryptoSDK: .Rust, cryptoSDKVersion: sdkGitSha()))
-        analyticsService = AnalyticsService(client: posthogAnalyticsClient, appSettings: appSettings)
+        // AGENT-PLATFORM (Brief 0078): Spiral links no analytics SDK (PostHog removed).
+        analyticsService = AnalyticsService(client: DisabledAnalyticsClient(), appSettings: appSettings)
         
         userIndicatorController = UserIndicatorController()
         
-        elementCallService = ElementCallService()
+        callKitService = CallKitService()
         
         navigationRootCoordinator = NavigationRootCoordinator()
         
@@ -137,14 +156,18 @@ class AppCoordinator: AppCoordinatorProtocol, AuthenticationFlowCoordinatorDeleg
         
         notificationManager = NotificationManager(notificationCenter: UNUserNotificationCenter.current(),
                                                   appSettings: appSettings)
+
+        // AGENT-PLATFORM: pending-approval-actions queue. Lives in
+        // App Group UserDefaults so the queue survives process
+        // restarts and is reconciled on the next foreground.
+        pendingApprovalActionStore = PendingApprovalActionStore(appGroupIdentifier: InfoPlistReader.main.appGroupIdentifier)
         
         bugReportService = BugReportService(rageshakeURLPublisher: appSettings.bugReportRageshakeURL.publisher,
                                             applicationID: appSettings.bugReportApplicationID,
                                             sdkGitSHA: sdkGitSha(),
                                             appHooks: appHooks)
         
-        Self.setupSentry(bugReportService: bugReportService, appSettings: appSettings, analytics: analyticsService)
-        
+        // AGENT-PLATFORM (Brief 0078): no Sentry to set up.
         analyticsService.startIfEnabled()
         
         windowManager.delegate = self
@@ -171,14 +194,7 @@ class AppCoordinator: AppCoordinatorProtocol, AuthenticationFlowCoordinatorDeleg
         
         registerBackgroundAppRefresh()
         
-        appSettings.analyticsConsentStatePublisher
-            .dropFirst() // Sentry is configured during init; only reconfigure when consent state actually changes
-            .sink { [bugReportService, analyticsService, appSettings] _ in
-                Self.setupSentry(bugReportService: bugReportService, appSettings: appSettings, analytics: analyticsService)
-            }
-            .store(in: &cancellables)
-        
-        elementCallService.actions
+        callKitService.actions
             .receive(on: DispatchQueue.main)
             .sink { [weak self] action in
                 switch action {
@@ -264,7 +280,7 @@ class AppCoordinator: AppCoordinatorProtocol, AuthenticationFlowCoordinatorDeleg
         var handled = false
         
         switch appRoute {
-        case .accountProvisioningLink:
+        case .accountProvisioningLink, .inviteLink:
             if let authenticationFlowCoordinator {
                 authenticationFlowCoordinator.handleAppRoute(appRoute, animated: appMediator.appState == .active)
                 handled = true
@@ -289,6 +305,9 @@ class AppCoordinator: AppCoordinatorProtocol, AuthenticationFlowCoordinatorDeleg
             case .accountProvisioningLink:
                 handleAppRoute(route,
                                windowType: windowType)
+            case .inviteLink(let link):
+                // AGENT-PLATFORM (Brief 0073 / ADR-0008).
+                handleInviteLink(link, windowType: windowType)
             case .oAuthCallback(let url):
                 if stateMachine.state == .softLogout {
                     softLogoutCoordinator?.handleOAuthCallbackURL(url)
@@ -347,6 +366,10 @@ class AppCoordinator: AppCoordinatorProtocol, AuthenticationFlowCoordinatorDeleg
                 } catch {
                     MXLog.error("Failed moving payload out of the app group container: \(error)")
                 }
+            case .catalogTemplate:
+                // AGENT-PLATFORM (decision 111): without this case `default`
+                // swallows the link. Signed out it is stored and replayed.
+                handleAppRoute(route, windowType: windowType)
             default:
                 break
             }
@@ -358,15 +381,49 @@ class AppCoordinator: AppCoordinatorProtocol, AuthenticationFlowCoordinatorDeleg
     }
     
     func handleUserActivity(_ userActivity: NSUserActivity) {
-        guard let intent = userActivity.interaction?.intent as? INStartCallIntent,
-              let contact = intent.contacts?.first,
-              let roomIdentifier = contact.personHandle?.value else {
-            MXLog.error("Failed retrieving information from userActivity: \(userActivity)")
+        guard let callDetails = Self.callDetails(for: userActivity) else {
+            MXLog.error("Failed retrieving call details from user activity: \(userActivity.activityType)")
             return
         }
         
-        MXLog.info("Starting call in room: \(roomIdentifier)")
-        handleAppRoute(AppRoute.call(roomID: roomIdentifier, isVoiceCall: intent.callCapability == .audioCall), windowType: nil)
+        MXLog.info("Starting call in room: \(callDetails.roomID)")
+        handleAppRoute(.call(roomID: callDetails.roomID, isVoiceCall: callDetails.isVoiceCall), windowType: nil)
+    }
+    
+    static func callDetails(for userActivity: NSUserActivity) -> (roomID: String, isVoiceCall: Bool)? {
+        switch userActivity.interaction?.intent {
+        case let intent as INStartCallIntent:
+            return callDetails(for: intent)
+        case let intent as INStartAudioCallIntent:
+            return callDetails(contacts: intent.contacts, callRecord: nil, isVoiceCall: true)
+        case let intent as INStartVideoCallIntent:
+            return callDetails(contacts: intent.contacts, callRecord: nil, isVoiceCall: false)
+        default:
+            return nil
+        }
+    }
+
+    static func callDetails(for intent: INStartCallIntent) -> (roomID: String, isVoiceCall: Bool)? {
+        callDetails(contacts: intent.contacts,
+                    callRecord: intent.callRecordToCallBack,
+                    isVoiceCall: intent.callCapability != .videoCall)
+    }
+    
+    private static func callDetails(contacts: [INPerson]?,
+                                    callRecord: INCallRecord?,
+                                    isVoiceCall: Bool) -> (roomID: String, isVoiceCall: Bool)? {
+        let contact = contacts?.first ?? callRecord?.participants?.first
+        let identifiers = [contact?.customIdentifier,
+                           contact?.personHandle?.value,
+                           callRecord?.identifier].compactMap { $0 }
+        // Outgoing calls hand CallKit the room ID itself, incoming ones the caller's,
+        // so fall back to the routing table only when the handle isn't a room.
+        let roomID = identifiers.first(where: MatrixEntityRegex.isMatrixRoomID)
+            ?? identifiers.compactMap(CallKitRoomRouting.roomID(for:)).first
+
+        guard let roomID else { return nil }
+
+        return (roomID, isVoiceCall)
     }
     
     // MARK: - AuthenticationFlowCoordinatorDelegate
@@ -408,8 +465,23 @@ class AppCoordinator: AppCoordinatorProtocol, AuthenticationFlowCoordinatorDeleg
     func notificationTapped(content: UNNotificationContent) async {
         MXLog.info("Tapped Notification")
         
+        // AGENT-PLATFORM: an approval or verification push opens its decide
+        // screen on the Agents tab rather than a chat room.
+        if let agentPlatformRoute = content.agentPlatformRoute {
+            handleAppRoute(agentPlatformRoute, windowType: nil)
+            return
+        }
+
         guard let roomID = content.roomID,
               content.receiverID != nil else {
+            return
+        }
+        
+        // AGENT-PLATFORM (Brief 0066, § 5.82): a game's ping opens the room on
+        // the post it came from, as a link to a message does.
+        if let spiralPostRoute = content.spiralPostRoute {
+            analyticsService.signpost.startTransaction(.notificationToMessage)
+            handleAppRoute(spiralPostRoute, windowType: nil)
             return
         }
         
@@ -446,6 +518,24 @@ class AppCoordinator: AppCoordinatorProtocol, AuthenticationFlowCoordinatorDeleg
         }
         
         await processInlineReply(roomID: roomID, replyText: replyText)
+    }
+
+    // AGENT-PLATFORM: thin wrapper that forwards to
+    // `ApprovalActionRunner`. Heavy lifting (background task,
+    // session-wait, retry queue, failure notifications) lives
+    // in the runner to keep this file under SwiftLint's
+    // type_body_length cap.
+    func handleApprovalAction(_ service: NotificationManagerProtocol,
+                              content: UNNotificationContent,
+                              decision: ApprovalDecision) async {
+        guard let approvalID = content.agentApprovalID else {
+            MXLog.error("handleApprovalAction: notification missing agentApprovalID")
+            return
+        }
+        await approvalActionRunner.run(approvalID: approvalID,
+                                       decision: decision,
+                                       userInfo: content.userInfo,
+                                       threadIdentifier: content.threadIdentifier)
     }
     
     // MARK: - Private
@@ -693,6 +783,66 @@ class AppCoordinator: AppCoordinatorProtocol, AuthenticationFlowCoordinatorDeleg
         }
     }
     
+    // MARK: - Invite links (Brief 0073 / ADR-0008)
+    
+    // AGENT-PLATFORM: a tapped `spiral.md/join/{token}`. Logged out, the
+    // invitation is remembered for the OAuth round-trip and the start
+    // screen says who is inviting; logged in, the link is just a way to
+    // reach the inviter — their profile opens, no seat is touched.
+    private func handleInviteLink(_ link: SpiralInviteLink, windowType: SecondaryWindowType?) {
+        if userSessionFlowCoordinator != nil {
+            Task {
+                switch await inviteLinkResolver.resolve(link) {
+                case .success(.valid(let inviter?)):
+                    handleAppRoute(.userProfile(userID: inviter.mxid), windowType: windowType)
+                case .success:
+                    userIndicatorController.submitIndicator(UserIndicator(title: UntranslatedL10n.inviteLinkOpenedWhileSignedIn, icon: \.userAdd))
+                case .failure:
+                    userIndicatorController.submitIndicator(UserIndicator(title: L10n.errorUnknown, icon: \.close))
+                }
+            }
+            return
+        }
+        
+        // Remember the token first so the banner and the OAuth URL have it
+        // even if the lookup below is slow or fails (a campaign token has
+        // no inviter to show anyway).
+        if appSettings.pendingInvite?.token != link.token {
+            appSettings.pendingInvite = PendingInvite(token: link.token)
+        }
+        handleAppRoute(.inviteLink(link), windowType: windowType)
+        
+        Task {
+            let resolution = await inviteLinkResolver.resolve(link)
+            guard appSettings.pendingInvite?.token == link.token else { return }
+            switch resolution {
+            case .success(.valid(let inviter)):
+                appSettings.pendingInvite = PendingInvite(token: link.token,
+                                                          inviterDisplayName: inviter?.displayName,
+                                                          inviterUserID: inviter?.mxid)
+            case .success:
+                // Dead link: no banner, no token on the OAuth URL.
+                appSettings.pendingInvite = nil
+            case .failure:
+                break // Could not check; keep it, identity-login decides.
+            }
+        }
+    }
+    
+    // AGENT-PLATFORM (Brief 0073): the first session after arriving by
+    // invitation opens the welcome screen — who invited you and «Message
+    // <name>», the DM made by this client (ADR-0082). The bare inviter
+    // profile it replaces did not say why it was there. The inviter's
+    // assistant has meanwhile told them who joined (the referral notice).
+    private func offerInviterAfterLogin() {
+        guard let pendingInvite = appSettings.pendingInvite else { return }
+        appSettings.pendingInvite = nil
+        
+        guard let inviterUserID = pendingInvite.inviterUserID,
+              inviterUserID != userSession?.clientProxy.userID else { return }
+        userSessionFlowCoordinator?.presentInviteWelcome(inviterUserID: inviterUserID)
+    }
+    
     private func runPostSessionSetupTasks() async {
         guard let userSession, let userSessionFlowCoordinator else {
             fatalError("User session not setup")
@@ -705,6 +855,10 @@ class AppCoordinator: AppCoordinatorProtocol, AuthenticationFlowCoordinatorDeleg
         if storedAppRoute?.isAuthenticationRoute == false,
            let storedAppRoute = storedAppRoute.take() {
             userSessionFlowCoordinator.handleAppRoute(storedAppRoute, animated: false)
+            // The invitation was for a registration that is now behind us.
+            appSettings.pendingInvite = nil
+        } else {
+            offerInviterAfterLogin()
         }
         
         if let storedInlineReply {
@@ -764,17 +918,14 @@ class AppCoordinator: AppCoordinatorProtocol, AuthenticationFlowCoordinatorDeleg
             fatalError("User session not setup")
         }
         
-        if let serverName = userSession.clientProxy.userIDServerName {
-            analyticsService.signpost.addGlobalTag(.homeserver, value: serverName)
-        }
-        
+        // AGENT-PLATFORM (Brief 0078): the hashed homeserver tag was for Sentry.
         if !isNewLogin {
             analyticsService.signpost.startTransaction(.cachedRoomList)
         }
         
         let flowParameters = CommonFlowParameters(userSession: userSession,
                                                   bugReportService: bugReportService,
-                                                  elementCallService: elementCallService,
+                                                  callKitService: callKitService,
                                                   timelineControllerFactory: TimelineControllerFactory(appSettings: appSettings),
                                                   emojiProvider: EmojiProvider(appSettings: appSettings),
                                                   linkMetadataProvider: LinkMetadataProvider(),
@@ -821,6 +972,9 @@ class AppCoordinator: AppCoordinatorProtocol, AuthenticationFlowCoordinatorDeleg
         }
         
         windowManager.closeAllSecondaryWindows()
+        // AGENT-PLATFORM (Brief 0073): an invitation never outlives the
+        // session it was accepted into.
+        appSettings.pendingInvite = nil
         
         showLoadingIndicator()
         
@@ -851,6 +1005,9 @@ class AppCoordinator: AppCoordinatorProtocol, AuthenticationFlowCoordinatorDeleg
             appSettings.resetSessionSpecificSettings()
             appSettings.mapTilerSettings.reset()
             appHooks.remoteSettingsHook.reset(appSettings)
+            // The CallKit Recents routing table belongs to the account that
+            // built it (audit W6-5-6).
+            CallKitRoomRouting.clearAll()
             
             // Reset analytics
             analyticsService.optOut()
@@ -891,12 +1048,12 @@ class AppCoordinator: AppCoordinatorProtocol, AuthenticationFlowCoordinatorDeleg
         }
     }
     
-    private func configureElementCallService() {
+    private func configureCallKitService() {
         guard let userSession else {
             fatalError("User session not setup")
         }
         
-        elementCallService.setClientProxy(userSession.clientProxy)
+        callKitService.setClientProxy(userSession.clientProxy)
     }
     
     private func configureNotificationManager() {
@@ -963,84 +1120,6 @@ class AppCoordinator: AppCoordinatorProtocol, AuthenticationFlowCoordinatorDeleg
             stateMachine.processEvent(.startWithExistingSession)
             hideLoadingIndicator()
         }
-    }
-    
-    private static func setupSentry(bugReportService: BugReportServiceProtocol, appSettings: AppSettings, analytics: AnalyticsServiceProtocol) {
-        guard let bugReportSentryURL = appSettings.bugReportSentryURL else { return }
-        
-        let options: Options = .init()
-        
-        #if DEBUG
-        options.enabled = false
-        #else
-        options.enabled = appSettings.analyticsConsentState == .optedIn
-        #endif
-        
-        options.dsn = bugReportSentryURL.absoluteString
-        
-        // Matches android, at least for now.
-        switch AppSettings.appBuildType {
-        case .debug:
-            options.environment = "DEBUG"
-        case .nightly:
-            options.environment = "NIGHTLY"
-        case .release:
-            options.environment = "RELEASE"
-        }
-        
-        // Sentry swizzling shows up quite often as the heaviest stack trace when profiling
-        // We don't need any of the features it powers (see docs)
-        options.enableSwizzling = false
-        
-        // WatchdogTermination is currently the top issue but we've had zero complaints
-        // so it might very well just all be false positives
-        options.enableWatchdogTerminationTracking = false
-        
-        // Disabled as it seems to report a lot of false positives
-        options.enableAppHangTracking = false
-        
-        // Most of the network requests are made Rust side, this is useless
-        options.enableNetworkBreadcrumbs = false
-        
-        // Doesn't seem to work at all well with SwiftUI
-        options.enableAutoBreadcrumbTracking = false
-        
-        // Experimental. Stitches stack traces of asynchronous code together
-        options.swiftAsyncStacktraces = true
-        
-        // Uniform sample rate: 1.0 captures 100% of transactions
-        // In Production you will probably want a smaller number such as 0.5 for 50%
-        options.sampleRate = 1.0
-        options.tracesSampleRate = 1.0
-        options.configureProfiling = { $0.sessionSampleRate = 1.0 }
-        
-        // This callback is only executed once during the entire run of the program to avoid
-        // multiple callbacks if there are multiple crash events to send (see method documentation)
-        options.onLastRunStatusDetermined = { status, event in
-            guard case .didCrash = status, let event else { return }
-            MXLog.error("Sentry detected a crash in the previous run: \(event.eventId.sentryIdString)")
-            bugReportService.lastCrashEventID = event.eventId.sentryIdString
-        }
-        
-        // Mirror every crash into our own logs (which ship with rageshakes) before it's sent to Sentry.
-        // Device values are read here on the main thread; beforeSend runs on a background queue.
-        let deviceModel = UIDevice.current.model
-        let systemVersion = UIDevice.current.systemVersion
-        options.beforeSend = { @Sendable event in
-            if let crashLog = event.crashLog(deviceModel: deviceModel, systemVersion: systemVersion) {
-                MXLog.error("Sentry crash event \(event.eventId.sentryIdString):\n\(crashLog)")
-            }
-            return event
-        }
-        
-        // Any ongoing transactions will no longer be valid after calling SentrySDK.start so lets
-        // remove them and start over, otherwise the app will crash if finishTransaction is used.
-        analytics.signpost.resetTransactions()
-        
-        SentrySDK.start(options: options) // Swift
-        enableSentryLogging(enabled: options.enabled) // Rust
-        
-        MXLog.info("Sentry configured (enabled: \(options.enabled))")
     }
     
     private func processInlineReply(roomID: String, replyText: String) async {
@@ -1208,11 +1287,29 @@ class AppCoordinator: AppCoordinatorProtocol, AuthenticationFlowCoordinatorDeleg
         Task {
             await resumeClientServices()
         }
+        // AGENT-PLATFORM: replay any approval decide-POSTs that
+        // failed while the app was in the background. Idempotent
+        // — successful retries clear the queue; 409 conflicts are
+        // treated as success-equivalent.
+        Task { await self.approvalActionRunner.reconcile() }
     }
     
     @objc
     private func applicationDidBecomeActive() {
         MXLog.info("Application did become active")
+        
+        // AGENT-PLATFORM: the icon badge is written by the NSE from the
+        // homeserver's push count and by nothing else, so it survives
+        // untouched after the user has read everything — the reported
+        // "badge says 2, there is nothing unread" — until some later push
+        // happens to carry a different number. Recompute from the room list
+        // the moment the user looks at the phone, which is when a wrong
+        // number is actually visible.
+        guard let userSession else { return }
+        Task {
+            let roomSummaries = userSession.clientProxy.staticRoomSummaryProvider.roomListPublisher.value
+            await notificationManager.updateBadgeCount(with: roomSummaries)
+        }
     }
     
     private func endActiveBackgroundTask() {

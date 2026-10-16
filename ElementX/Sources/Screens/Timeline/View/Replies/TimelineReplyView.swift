@@ -145,6 +145,12 @@ struct TimelineReplyView: View {
                               plainBody: L10n.commonSharedLiveLocation,
                               formattedBody: nil,
                               icon: .init(kind: .icon(\.locationPin)))
+                // AGENT-PLATFORM (Brief 0066): a reply to an Interactive Post quotes its title.
+                case .interactivePost(let title):
+                    ReplyView(sender: sender,
+                              plainBody: title,
+                              formattedBody: nil,
+                              icon: .init(kind: .icon(\.extensions)))
                 case .redacted:
                     ReplyView(sender: sender,
                               plainBody: L10n.commonMessageRemoved,

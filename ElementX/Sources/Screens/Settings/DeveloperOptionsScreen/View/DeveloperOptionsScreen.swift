@@ -15,12 +15,25 @@ struct DeveloperOptionsScreen: View {
     @Bindable var context: DeveloperOptionsScreenViewModel.Context
     
     @State private var showConfetti = false
-    @State private var elementCallURLOverrideString: String
     
+    #if DEBUG
+    // AGENT-PLATFORM (Brief 0066): only the Interactive Post slice harness
+    // uses this, and only to reach a real room.
+    private let clientProxy: ClientProxyProtocol?
+    #endif
+    
+    // AGENT-PLATFORM (Brief 0067): no Element Call URL override — the widget
+    // is gone (ADR-0079).
+    #if DEBUG
+    init(context: DeveloperOptionsScreenViewModel.Context, clientProxy: ClientProxyProtocol? = nil) {
+        self.context = context
+        self.clientProxy = clientProxy
+    }
+    #else
     init(context: DeveloperOptionsScreenViewModel.Context) {
         self.context = context
-        elementCallURLOverrideString = context.elementCallBaseURLOverride?.absoluteString ?? ""
     }
+    #endif
     
     var body: some View {
         Form {
@@ -90,6 +103,12 @@ struct DeveloperOptionsScreen: View {
                     Text("Room thread list")
                 }
                 
+                // AGENT-PLATFORM (decision 188): moved here from Advanced settings, as upstream dropped it from the UI.
+                Toggle(isOn: $context.viewSourceEnabled) {
+                    Text(L10n.actionViewSource)
+                    Text(L10n.screenAdvancedSettingsViewSourceDescription)
+                }
+                
                 Toggle(isOn: $context.linkPreviewsEnabled) {
                     Text("Link previews")
                     Text("Follows the timeline media visibility settings.")
@@ -124,19 +143,17 @@ struct DeveloperOptionsScreen: View {
                 Text("This setting controls how end-to-end encryption (E2EE) keys are exchanged. Enabling it will prevent the inclusion of devices that have not been explicitly verified by their owners.")
             }
             
-            Section("Element Call remote URL override") {
-                TextField("Leave empty to use EC locally", text: $elementCallURLOverrideString)
-                    .autocorrectionDisabled(true)
-                    .autocapitalization(.none)
-                    .foregroundColor(URL(string: elementCallURLOverrideString) == nil ? .red : .primary)
-                    .submitLabel(.done)
-                    .onSubmit {
-                        if elementCallURLOverrideString.isEmpty {
-                            context.elementCallBaseURLOverride = nil
-                        } else if let url = URL(string: elementCallURLOverrideString) {
-                            context.elementCallBaseURLOverride = url
-                        }
-                    }
+            // AGENT-PLATFORM (ADR-0008): the twin of the platform's REGISTRATION_MODE.
+            Section("Spiral registration") {
+                Toggle(isOn: $context.registrationRequiresInvite) {
+                    Text("Registration requires an invitation")
+                    Text("Off adds «Continue without an invitation» — flip together with REGISTRATION_MODE on the server")
+                }
+                
+                Toggle(isOn: $context.qrCodeLoginEnabled) {
+                    Text("Sign in with QR code")
+                    Text("Needs MSC4108 on the homeserver")
+                }
             }
             
             Section("Notifications") {
@@ -170,6 +187,31 @@ struct DeveloperOptionsScreen: View {
                 """)
             }
             
+            // AGENT-PLATFORM (Brief 0066, ADR-0007): entry point for the
+            // Interactive Post runtime spike. DEBUG only — the harness mounts
+            // a deliberately hostile artifact, so no release build carries it.
+            #if DEBUG
+            Section("Spiral Apps") {
+                NavigationLink {
+                    SpiralAppSpikeScreen()
+                } label: {
+                    Text("Runtime spike")
+                }
+                
+                NavigationLink {
+                    SpiralAppSliceScreen(clientProxy: clientProxy)
+                } label: {
+                    Text("Shared state slice")
+                }
+
+                NavigationLink {
+                    SpiralAppLayoutLabScreen()
+                } label: {
+                    Text("Layout lab")
+                }
+            }
+            #endif
+
             Section {
                 Button {
                     showConfetti = true

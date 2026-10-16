@@ -118,7 +118,7 @@ struct LongPressWithFeedback_Previews: PreviewProvider, TestablePreview {
         func mockBubble(_ body: String) -> some View {
             Text(body)
                 .bubbleBackground()
-                .contentShape(.contextMenuPreview, RoundedRectangle(cornerRadius: 12))
+                .contentShape(.contextMenuPreview, RoundedRectangle(cornerRadius: 16)) // AGENT-PLATFORM: match 16pt bubbles (ADR-0005)
                 .onTapGesture { /* Fix long press gesture blocking the scroll view */ }
         }
     }

@@ -118,19 +118,25 @@ final class NotificationManagerTests {
     
     @Test
     func whenStart_notificationCategoriesAreSet() {
-        let replyAction = UNTextInputNotificationAction(identifier: NotificationConstants.Action.inlineReply,
-                                                        title: L10n.actionQuickReply,
-                                                        options: [])
-        let messageCategory = UNNotificationCategory(identifier: NotificationConstants.Category.message,
-                                                     actions: [replyAction],
-                                                     intentIdentifiers: [],
-                                                     options: [])
-        
-        let inviteCategory = UNNotificationCategory(identifier: NotificationConstants.Category.invite,
-                                                    actions: [],
-                                                    intentIdentifiers: [],
-                                                    options: [])
-        #expect(notificationCenter.setNotificationCategoriesReceivedCategories == [messageCategory, inviteCategory])
+        // AGENT-PLATFORM: assert by identifier set, not by full struct
+        // equality — the OS routes notification taps by
+        // `categoryIdentifier`, not by the full struct.
+        let identifiers = notificationCenter.setNotificationCategoriesReceivedCategories?
+            .map(\.identifier)
+            .sorted() ?? []
+        #expect(identifiers == [
+            NotificationConstants.Category.approval,
+            // AGENT-PLATFORM: verification joined in S157.a; the list is the
+            // canonical registration contract, so every category counts.
+            NotificationConstants.Category.verification,
+            // Operator question 88: a block request is tap-only.
+            NotificationConstants.Category.blockRequest,
+            NotificationConstants.Category.invite,
+            NotificationConstants.Category.message
+        ].sorted())
+        let blockRequest = notificationCenter.setNotificationCategoriesReceivedCategories?
+            .first { $0.identifier == NotificationConstants.Category.blockRequest }
+        #expect(blockRequest?.actions.isEmpty == true, "no Approve or Reject on the lock screen")
     }
     
     @Test
@@ -237,6 +243,76 @@ final class NotificationManagerTests {
         await notificationManager.userNotificationCenter(UNUserNotificationCenter.current(), didReceive: response)
         #expect(notificationTappedDelegateCalled)
     }
+
+    // MARK: - App icon badge (AGENT-PLATFORM)
+
+    /// The badge counts ROOMS needing attention — the number upstream's own
+    /// issue tracker says it should be (element-x-ios#2066: "the number of
+    /// rooms with unread push notifs") and the MSC4076 model: the E2EE
+    /// client computes it, because the server cannot see inside encryption.
+    @Test
+    func badgeCountsRoomsNeedingAttentionNotMessages() async {
+        appSettings.roomListActivityVisibility = .current
+        let rooms: [RoomSummary] = [
+            .mock(id: "!a:hs", name: "A", unreadMessagesCount: 7),
+            .mock(id: "!b:hs", name: "B", isMarkedUnread: true),
+            .mock(id: "!c:hs", name: "C")
+        ]
+
+        await notificationManager.updateBadgeCount(with: rooms)
+
+        #expect(notificationCenter.setBadgeCountReceivedCount == 2,
+                "two rooms ask for attention — seven messages in one room are still ONE room")
+    }
+
+    /// The badge obeys the same visibility setting as the dots: in the
+    /// mode that hides plain unreads, a room with only unread messages
+    /// (no notifying events) must not be counted — otherwise the icon
+    /// nags about a room the list shows as clean.
+    @Test
+    func badgeFollowsTheRoomListVisibilitySetting() async {
+        let rooms: [RoomSummary] = [
+            .mock(id: "!plain:hs", name: "Plain unreads", unreadMessagesCount: 3),
+            .mock(id: "!notifying:hs", name: "Notifying", unreadNotificationsCount: 1)
+        ]
+
+        appSettings.roomListActivityVisibility = .current
+        await notificationManager.updateBadgeCount(with: rooms)
+        #expect(notificationCenter.setBadgeCountReceivedCount == 2)
+
+        appSettings.roomListActivityVisibility = .hide
+        await notificationManager.updateBadgeCount(with: rooms)
+        #expect(notificationCenter.setBadgeCountReceivedCount == 1,
+                "a room the list renders clean must not keep a badge on the icon")
+    }
+
+    /// Everything read → zero. This is the reported bug: the badge said 2
+    /// while nothing was unread, because nothing ever recomputed it.
+    @Test
+    func badgeClearsWhenEverythingIsRead() async {
+        appSettings.roomListActivityVisibility = .current
+        await notificationManager.updateBadgeCount(with: [
+            .mock(id: "!a:hs", name: "A"),
+            .mock(id: "!b:hs", name: "B")
+        ])
+
+        #expect(notificationCenter.setBadgeCountReceivedCount == 0)
+    }
+
+    /// A muted room with notifying events stays OFF the badge in the
+    /// modes that respect mutes — muting a noisy room is precisely the
+    /// user saying "stop counting this at me".
+    @Test
+    func badgeRespectsMutes() async {
+        appSettings.roomListActivityVisibility = .hide
+        let rooms: [RoomSummary] = [
+            .mock(id: "!muted:hs", name: "Muted", unreadNotificationsCount: 5, notificationMode: .mute)
+        ]
+
+        await notificationManager.updateBadgeCount(with: rooms)
+
+        #expect(notificationCenter.setBadgeCountReceivedCount == 0)
+    }
 }
 
 extension NotificationManagerTests: @MainActor NotificationManagerDelegate {
@@ -260,4 +336,11 @@ extension NotificationManagerTests: @MainActor NotificationManagerDelegate {
     func handleInlineReply(_ service: ElementX.NotificationManagerProtocol, content: UNNotificationContent, replyText: String) async {
         handleInlineReplyDelegateCalled = true
     }
+
+    // AGENT-PLATFORM: protocol conformance stub for the new
+    // approval-action delegate method. Not exercised by existing
+    // tests; covered separately in ApprovalActionRunnerTests.
+    func handleApprovalAction(_ service: NotificationManagerProtocol,
+                              content: UNNotificationContent,
+                              decision: ApprovalDecision) async { }
 }

@@ -100,6 +100,7 @@ struct IdentityConfirmationScreen: View {
                     context.send(viewAction: .skip)
                 }
                 .buttonStyle(.compound(.tertiary))
+                .accessibilityIdentifier(A11yIdentifiers.identityConfirmationScreen.skip) // AGENT-PLATFORM (decision 146)
             }
         }
     }

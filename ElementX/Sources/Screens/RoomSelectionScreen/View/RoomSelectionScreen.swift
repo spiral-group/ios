@@ -14,6 +14,9 @@ struct RoomSelectionScreen: View {
     
     var body: some View {
         Form {
+            if let emptyState = context.viewState.emptyState, context.viewState.showsEmptyState { // AGENT-PLATFORM
+                emptySection(emptyState)
+            }
             Section {
                 ForEach(context.viewState.rooms) { room in
                     RoomSelectionListRow(room: room,
@@ -43,15 +46,34 @@ struct RoomSelectionScreen: View {
                 }
             }
             ToolbarItem(placement: .confirmationAction) {
-                Button(L10n.actionShare) {
+                Button(context.viewState.confirmTitle) { // AGENT-PLATFORM (decision 111)
                     context.send(viewAction: .confirm)
                 }
                 .disabled(context.viewState.selectedRoomID == nil)
+                .accessibilityIdentifier(A11yIdentifiers.roomSelectionScreen.confirm) // AGENT-PLATFORM (decision 146)
             }
         }
         .searchController(query: $context.searchQuery, showsCancelButton: false)
         .compoundSearchField()
         .disableAutocorrection(true)
+    }
+    
+    private func emptySection(_ emptyState: RoomSelectionScreenEmptyState) -> some View {
+        Section {
+            VStack(spacing: 8) {
+                Text(emptyState.title)
+                    .font(.compound.headingSMSemibold)
+                    .foregroundStyle(.compound.textPrimary)
+                Text(emptyState.message)
+                    .font(.compound.bodyMD)
+                    .foregroundStyle(.compound.textSecondary)
+            }
+            .multilineTextAlignment(.center)
+            .padding(.vertical, 40)
+            .padding(.horizontal, 24)
+            .frame(maxWidth: .infinity)
+            .listRowBackground(Color.clear)
+        }
     }
     
     /// The greedy size of Rectangle can create an issue with the navigation bar when the search is highlighted, so is best to use a fixed frame instead of hidden() or EmptyView()
@@ -76,6 +98,7 @@ private struct RoomSelectionListRow: View {
                 kind: .selection(isSelected: isSelected) {
                     context.send(viewAction: .selectRoom(roomID: room.id))
                 })
+                .accessibilityIdentifier(A11yIdentifiers.roomSelectionScreen.room(room.title)) // AGENT-PLATFORM (decision 146)
     }
     
     @ViewBuilder
@@ -101,5 +124,16 @@ struct RoomSelectionScreen_Previews: PreviewProvider, TestablePreview {
         ElementNavigationStack {
             RoomSelectionScreen(context: viewModel.context)
         }
+        
+        // AGENT-PLATFORM: «В чат» with no chat an agent can join.
+        let noChatsViewModel = RoomSelectionScreenViewModel(userSession: UserSessionMock(.init()),
+                                                            roomSummaryProvider: summaryProvider,
+                                                            roomFilter: { _ in false },
+                                                            emptyState: .init(title: "No chats to add it to",
+                                                                              message: "An agent joins a group chat you're in."))
+        ElementNavigationStack {
+            RoomSelectionScreen(context: noChatsViewModel.context)
+        }
+        .previewDisplayName("No chats")
     }
 }

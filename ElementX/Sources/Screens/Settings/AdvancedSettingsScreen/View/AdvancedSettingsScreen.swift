@@ -9,46 +9,58 @@
 import Compound
 import SwiftUI
 
+// AGENT-PLATFORM (decision 187): «Privacy» — consent and visibility. The AI
+// consent row comes first: decision 150's «Open Settings» lands here.
 struct AdvancedSettingsScreen: View {
-    static let measurementFormatter = {
-        let formatter = MeasurementFormatter()
-        formatter.unitOptions = .providedUnit
-        formatter.unitStyle = .short
-        return formatter
-    }()
-    
     @Bindable var context: AdvancedSettingsScreenViewModel.Context
     
     var body: some View {
         Form {
             Section {
-                ListRow(label: .plain(title: L10n.commonAppearance),
-                        kind: .picker(selection: $context.appAppearance,
-                                      items: AppAppearance.allCases.map { (title: $0.name, tag: $0) }))
+                aiConsentRow
                 
-                ListRow(label: .plain(title: L10n.actionViewSource,
-                                      description: L10n.screenAdvancedSettingsViewSourceDescription),
-                        kind: .toggle($context.viewSourceEnabled))
-                
+                // AGENT-PLATFORM (Brief 0072, ADR-0084): the toggle is the account's
+                // presence privacy too — say what it hides, and that it is mutual.
                 ListRow(label: .plain(title: L10n.screenAdvancedSettingsSharePresence,
-                                      description: L10n.screenAdvancedSettingsSharePresenceDescription),
+                                      description: UntranslatedL10n.screenAdvancedSettingsSharePresenceAccountDescription),
                         kind: .toggle($context.sharePresence))
-                
-                ListRow(label: .plain(title: L10n.screenAdvancedSettingsMediaCompressionTitle,
-                                      description: L10n.screenAdvancedSettingsMediaCompressionDescription),
-                        kind: .toggle($context.optimizeMediaUploads))
-                    .onChange(of: context.optimizeMediaUploads) {
-                        context.send(viewAction: .optimizeMediaUploadsChanged)
-                    }
             }
             
             moderationAndSafetySection
             timelineMediaSection
-            liveLocationSection
         }
         .compoundList()
-        .navigationTitle(L10n.commonAdvancedSettings)
+        .navigationTitle(UntranslatedL10n.screenSettingsPrivacyTitle) // AGENT-PLATFORM (decision 187)
         .navigationBarTitleDisplayMode(.inline)
+    }
+    
+    // AGENT-PLATFORM (Brief 0078 phase 2): withdraw or give consent to third-party AI.
+    @ViewBuilder
+    private var aiConsentRow: some View {
+        if let granted = context.viewState.aiConsentGranted {
+            let binding = Binding(get: {
+                granted
+            }, set: { newValue in
+                context.send(viewAction: .updateAIConsent(newValue))
+            })
+            
+            ListRow(label: .plain(title: UntranslatedL10n.screenAdvancedSettingsAiConsentTitle,
+                                  description: UntranslatedL10n.screenAdvancedSettingsAiConsentDescription),
+                    details: context.viewState.isWaitingAIConsent ? .isWaiting(true) : nil,
+                    kind: .toggle(binding))
+                .disabled(context.viewState.isWaitingAIConsent)
+                .accessibilityIdentifier(A11yIdentifiers.advancedSettingsScreen.aiConsent) // AGENT-PLATFORM (decision 148)
+        } else if context.viewState.aiConsentLoadFailed {
+            // AGENT-PLATFORM (decision 150): the read failed — say so and offer a retry, never hide the choice.
+            ListRow(label: .plain(title: UntranslatedL10n.screenAdvancedSettingsAiConsentTitle,
+                                  description: L10n.commonSomethingWentWrongMessage),
+                    details: .title(L10n.actionRetry, isWaiting: context.viewState.isWaitingAIConsent),
+                    kind: .button {
+                        context.send(viewAction: .retryAIConsent)
+                    })
+                    .disabled(context.viewState.isWaitingAIConsent)
+                    .accessibilityIdentifier(A11yIdentifiers.advancedSettingsScreen.aiConsentRetry)
+        }
     }
     
     @ViewBuilder
@@ -64,6 +76,15 @@ struct AdvancedSettingsScreen: View {
                     details: context.viewState.isWaitingHideInviteAvatars ? .isWaiting(true) : nil,
                     kind: .toggle(binding))
                 .disabled(context.viewState.isWaitingHideInviteAvatars)
+            
+            // AGENT-PLATFORM (decision 187): moved here from the main Settings screen.
+            if context.viewState.showBlockedUsers {
+                ListRow(label: .plain(title: L10n.commonBlockedUsers),
+                        kind: .navigationLink {
+                            context.send(viewAction: .blockedUsers)
+                        })
+                        .accessibilityIdentifier(A11yIdentifiers.advancedSettingsScreen.blockedUsers)
+            }
         } header: {
             Text(L10n.screenAdvancedSettingsModerationAndSafetySectionTitle)
                 .compoundListSectionHeader()
@@ -93,85 +114,38 @@ struct AdvancedSettingsScreen: View {
         }
     }
     
-    @ViewBuilder
-    private var liveLocationSection: some View {
-        let binding = Binding(get: {
-            Double(context.liveLocationMinimumDistanceUpdate)
-        }, set: { newValue in
-            context.liveLocationMinimumDistanceUpdate = Int(newValue)
-        })
-        
-        Section {
-            ListRow(kind: .custom {
-                VStack(alignment: .leading, spacing: 0) {
-                    Text(L10n.screenAdvancedSettingsLiveLocationUpdateDistance(context.liveLocationMinimumDistanceUpdate))
-                        .font(.compound.bodyLG)
-                        .foregroundStyle(.compound.textPrimary)
-                        // The internal hidden label of the slider will read voice over
-                        .accessibilityHidden(true)
-                    Slider(value: binding, in: 1...100) {
-                        Text(L10n.screenAdvancedSettingsLiveLocationUpdateDistance(context.liveLocationMinimumDistanceUpdate))
-                    } minimumValueLabel: {
-                        Text(Self.measurementFormatter.string(from: .init(value: 1,
-                                                                          unit: UnitLength.meters)))
-                            .font(.compound.bodyLG)
-                            .foregroundStyle(.compound.textSecondary)
-                            .padding(.trailing, 15)
-                    } maximumValueLabel: {
-                        Text(Self.measurementFormatter.string(from: .init(value: 100,
-                                                                          unit: UnitLength.meters)))
-                            .font(.compound.bodyLG)
-                            .foregroundStyle(.compound.textSecondary)
-                            .padding(.leading, 15)
-                    }
-                    .tint(.compound.iconAccentPrimary)
-                }
-                .padding(.horizontal, ListRowPadding.horizontal)
-                .padding(.vertical, ListRowPadding.vertical)
-            })
-        } header: {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(L10n.screenAdvancedSettingsLiveLocationSectionTitle)
-                    .compoundListSectionHeader()
-                Text(L10n.screenAdvancedSettingsLiveLocationSectionDescription)
-                    .font(.compound.bodyMD)
-                    .foregroundStyle(.compound.textSecondary)
-            }
-        } footer: {
-            Text(context.viewState.liveLocationUpdateFooterAttributedString)
-                .compoundListSectionFooter()
-        }
-    }
-}
-
-private extension AppAppearance {
-    var name: String {
-        switch self {
-        case .system:
-            L10n.themeSystem
-        case .light:
-            L10n.themeLight
-        case .dark:
-            L10n.themeDark
-        }
-    }
+    // AGENT-PLATFORM (decision 188): the live-location slider is gone — location
+    // sharing is off in Spiral. Appearance and media compression are in
+    // AppearanceAndMediaSettingsScreen, View source in Developer options.
 }
 
 // MARK: - Previews
 
 struct AdvancedSettingsScreen_Previews: PreviewProvider, TestablePreview {
-    static let viewModel = {
-        let appSettings = AppSettings.volatile()
-        return AdvancedSettingsScreenViewModel(advancedSettings: appSettings,
-                                               analytics: AnalyticsServiceMock(.init()),
-                                               clientProxy: ClientProxyMock(.init()),
-                                               userIndicatorController: UserIndicatorControllerMock())
-    }()
+    static let viewModel = makeViewModel(aiConsent: .success(AIConsent(isGranted: true, currentVersion: "2026-10-10", decidedVersion: "2026-10-10")))
+    static let loadFailedViewModel = makeViewModel(aiConsent: .failure(.serverError(status: 500))) // AGENT-PLATFORM (decision 150)
     
     static var previews: some View {
         ElementNavigationStack {
             AdvancedSettingsScreen(context: viewModel.context)
         }
+        .snapshotPreferences(expect: viewModel.context.observe(\.viewState.aiConsentGranted).map { $0 != nil })
+        .previewDisplayName("Default")
+        
+        ElementNavigationStack {
+            AdvancedSettingsScreen(context: loadFailedViewModel.context)
+        }
+        .snapshotPreferences(expect: loadFailedViewModel.context.observe(\.viewState.aiConsentLoadFailed))
+        .previewDisplayName("AI consent not loaded")
+    }
+    
+    static func makeViewModel(aiConsent: Result<AIConsent, AgentPlatformError>) -> AdvancedSettingsScreenViewModel {
+        let service = AgentPlatformServiceMock()
+        service.fetchAIConsentReturnValue = aiConsent
+        return AdvancedSettingsScreenViewModel(advancedSettings: AppSettings.volatile(),
+                                               clientProxy: ClientProxyMock(.init()),
+                                               userIndicatorController: UserIndicatorControllerMock(),
+                                               agentPlatformService: service)
     }
 }
 

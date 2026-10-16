@@ -149,11 +149,36 @@ struct AuthenticationServiceTests {
                                                             availableSecrets: availableSecrets,
                                                             secretsBundle: SecretsBundleWithUserIdSDKMock()))
         
+        // AGENT-PLATFORM: these tests exercise the UPSTREAM auth flows with
+        // matrix.org fixtures; restore the open upstream provider shape since
+        // the fork defaults to a single closed provider (spiral.md).
+        let appSettings = AppSettings.volatile()
+        appSettings.override(accountProviders: ["matrix.org"],
+                             allowOtherAccountProviders: true,
+                             hideBrandChrome: false,
+                             pushGatewayBaseURL: appSettings.pushGatewayBaseURL,
+                             oAuthRedirectURL: appSettings.oAuthRedirectURL,
+                             oAuthClientURIPath: appSettings.oAuthClientURIPath,
+                             websiteURL: appSettings.websiteURL,
+                             logoURL: appSettings.logoURL,
+                             copyrightURL: appSettings.copyrightURL,
+                             acceptableUseURL: appSettings.acceptableUseURL,
+                             privacyURL: appSettings.privacyURL,
+                             encryptionURL: appSettings.encryptionURL,
+                             deviceVerificationURL: appSettings.deviceVerificationURL,
+                             chatBackupDetailsURL: appSettings.chatBackupDetailsURL,
+                             identityPinningViolationDetailsURL: appSettings.identityPinningViolationDetailsURL,
+                             historySharingDetailsURL: appSettings.historySharingDetailsURL,
+                             accountProvisioningHost: appSettings.accountProvisioningHost,
+                             bugReportApplicationID: appSettings.bugReportApplicationID,
+                             analyticsTermsURL: appSettings.analyticsTermsURL,
+                             mapTilerConfiguration: AppSettings.bundledMapTilerConfiguration)
+        
         service = AuthenticationService(userSessionStore: userSessionStore,
                                         encryptionKeyProvider: encryptionKeyProvider,
                                         classicAppManager: classicAppManager,
                                         clientFactory: clientFactory,
-                                        appSettings: .volatile(),
+                                        appSettings: appSettings,
                                         appHooks: AppHooks())
         
         if let classicAppAccount = service.classicAppAccount {

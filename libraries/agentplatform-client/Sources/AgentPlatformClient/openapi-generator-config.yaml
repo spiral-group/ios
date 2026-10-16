@@ -1,0 +1,44 @@
+# swift-openapi-generator configuration for AgentPlatformClient.
+#
+# The generator reads `openapi.yaml` from the same directory and
+# emits Swift sources for the listed modes on every build. Output
+# lands in the build directory only — generated files are never
+# committed to git.
+#
+# Modes:
+#
+#   * `types`  — Swift bindings for every `components.schemas`
+#                entry. Lands as `enum Components.Schemas.<Name>`
+#                with nested `enum Operations.<id>.{Input,Output}`
+#                types for each path.
+#   * `client` — `Client` struct (`init(serverURL:transport:)`)
+#                with one async method per operationId. Wraps
+#                each method in `Operations.<id>.Input` /
+#                `Operations.<id>.Output`.
+#
+# We intentionally skip `server` mode (we're a client only) and
+# `swagger-ui` (operators render the spec via external tooling).
+#
+# Access modifier: `public` so the wrapping `AgentPlatformClient`
+# struct (hand-written, lives in Client+Auth.swift) can re-export
+# the generated symbols.
+
+generate:
+  - types
+  - client
+
+accessModifier: public
+
+# The generator can pin the target operationId style; we leave
+# the default (camelCase) since the backend's #[utoipa::path]
+# annotations already emit snake_case operationIds and the
+# generator converts them.
+namingStrategy: idiomatic
+
+# Filter: include every path/schema for now. Mobile UI exercises
+# the full surface; pruning unused operations is a v1.1
+# optimisation if codegen output becomes large enough to matter
+# (current ~150 KiB JSON, ~110 KiB YAML produces ~500 KiB of
+# generated Swift — comfortable).
+# filter:
+#   paths: [/api/v1/.*]

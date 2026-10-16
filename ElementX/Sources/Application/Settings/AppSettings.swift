@@ -7,7 +7,6 @@
 //
 
 #if IS_MAIN_APP
-import EmbeddedElementCall
 #endif
 
 import Combine
@@ -59,6 +58,9 @@ final nonisolated class AppSettings: @unchecked Sendable {
     private let store: UserDefaultsProtocol
     
     static var appBuildType: AppBuildType {
+        // AGENT-PLATFORM: upstream's AppBuildType.current keys off the
+        // isNightlyBuild Info.plist flag, which our rebranded Nightly
+        // variant now sets (Variants/Nightly/nightly.yml).
         AppBuildType.current
     }
     
@@ -91,7 +93,6 @@ final nonisolated class AppSettings: @unchecked Sendable {
                   chatBackupDetailsURL: URL,
                   identityPinningViolationDetailsURL: URL,
                   historySharingDetailsURL: URL,
-                  elementWebHosts: [String],
                   accountProvisioningHost: String,
                   bugReportApplicationID: String,
                   analyticsTermsURL: URL?,
@@ -112,7 +113,6 @@ final nonisolated class AppSettings: @unchecked Sendable {
         self.chatBackupDetailsURL = chatBackupDetailsURL
         self.identityPinningViolationDetailsURL = identityPinningViolationDetailsURL
         self.historySharingDetailsURL = historySharingDetailsURL
-        self.elementWebHosts = elementWebHosts
         self.accountProvisioningHost = accountProvisioningHost
         self.bugReportApplicationID = bugReportApplicationID
         self.analyticsTermsURL = analyticsTermsURL
@@ -136,42 +136,85 @@ final nonisolated class AppSettings: @unchecked Sendable {
     @UserPreference(defaultValue: true)
     var hasSeenNewSoundBanner: Bool
     
+    // AGENT-PLATFORM (Brief 0073 / ADR-0008): the invitation a person
+    // arrived with, kept across the OAuth round-trip so the authorization
+    // URL can carry it and the first session can offer "Message <inviter>".
+    // Cleared once that offer has been made (or the person signed in to an
+    // existing account).
+    @UserPreference
+    var pendingInvite: PendingInvite?
+    
     /// The initial set of account providers shown to the user in the authentication flow.
     ///
     /// Account provider is the friendly term for the server name. It should not contain an `https` prefix and should
     /// match the last part of the user ID. For example `example.com` and not `https://matrix.example.com`.
-    private(set) var accountProviders = ["matrix.org"]
+    // AGENT-PLATFORM: closed v1.0 single-tenant SaaS — only our own homeserver
+    // is offered, with manual entry of other providers disabled.
+    private(set) var accountProviders = ["spiral.md"]
     /// Whether or not the user is allowed to manually enter their own account provider or must select from one of `defaultAccountProviders`.
-    private(set) var allowOtherAccountProviders = true
+    private(set) var allowOtherAccountProviders = false
     /// Whether the components surrounding the app brand/logo should be hidden or not
     private(set) var hideBrandChrome = false
     
+    // AGENT-PLATFORM: derive from Info.plist baseBundleIdentifier so the
+    // value follows our $(BASE_BUNDLE_IDENTIFIER).background.refresh wiring
+    // and stays consistent across Debug/Release/Nightly variants.
     /// The task identifier used for background app refresh. Also used in main target's the Info.plist
-    let backgroundAppRefreshTaskIdentifier = "io.element.elementx.background.refresh"
-    
+    let backgroundAppRefreshTaskIdentifier = "\(InfoPlistReader.main.baseBundleIdentifier).background.refresh"
+
+    // AGENT-PLATFORM: brand URLs hosted on our homeserver host so MAS dynamic
+    // client registration accepts them. MSC2966 enforces that client_uri /
+    // logo_uri / tos_uri / policy_uri / redirect_uri all share a host (or
+    // subdomain) — split-host metadata is rejected as invalid_client_metadata.
+    // Pages under /brand/ are served by Caddy file_server (backend R2.3.5).
     /// A URL where users can go read more about the app.
-    private(set) var websiteURL: URL = "https://element.io"
+    private(set) var websiteURL: URL = "https://spiral.md/brand/"
+    /// AGENT-PLATFORM (§ 5.56): the curated Interactive Post templates, static
+    /// on the same host as /brand/.
+    ///
+    /// A debug build takes another from the launch arguments —
+    /// `-SpiralCatalogURL file:///…/Documents/catalog/` — so a template is
+    /// tried on a simulator before it is live for everyone (§ 5.60).
+    private(set) var interactiveCatalogURL: URL = {
+        #if DEBUG
+        if let override = UserDefaults.standard.string(forKey: "SpiralCatalogURL"), let url = URL(string: override) {
+            return url
+        }
+        #endif
+        return "https://spiral.md/catalog/"
+    }()
+
     /// A URL that contains the app's logo that may be used when showing content in a web view.
-    private(set) var logoURL: URL = "https://element.io/mobile-icon.png"
+    private(set) var logoURL: URL = "https://spiral.md/brand/logo.png"
     /// A URL that contains that app's copyright notice.
-    private(set) var copyrightURL: URL = "https://element.io/copyright"
+    private(set) var copyrightURL: URL = "https://spiral.md/brand/copyright"
     /// A URL that contains the app's Terms of use.
-    private(set) var acceptableUseURL: URL = "https://element.io/acceptable-use-policy-terms"
+    private(set) var acceptableUseURL: URL = "https://spiral.md/brand/terms"
     /// A URL that contains the app's Privacy Policy.
-    private(set) var privacyURL: URL = "https://element.io/privacy"
+    private(set) var privacyURL: URL = "https://spiral.md/brand/privacy"
+    /// AGENT-PLATFORM (AGPL publication): the app's source. Not live until the
+    /// publication pushes the repository.
+    private(set) var sourceCodeURL: URL = "https://github.com/spiral-group/ios"
+    /// AGENT-PLATFORM (AGPL publication, decision 107): the server's source, the
+    /// Synapse fork the app talks to (AGPL-3.0 §13). SOURCES.md's server section,
+    /// not a branch: a build keeps the link after the server is upgraded, and
+    /// that section names whatever the server runs. Not live until the publication.
+    private(set) var serverSourceCodeURL: URL = "https://github.com/spiral-group/ios/blob/spiral/main/SOURCES.md#the-server"
+    /// AGENT-PLATFORM (AGPL publication): SOURCES.md, every component's source for a release.
+    private(set) var sourcesListURL: URL = "https://github.com/spiral-group/ios/blob/spiral/main/SOURCES.md"
+    /// AGENT-PLATFORM (AGPL publication): where to ask for the source of a build (NOTICE).
+    private(set) var sourceRequestAddress = "support@spiral.md"
     /// A URL where users can go read more about encryption in general.
-    private(set) var encryptionURL: URL = "https://element.io/help#encryption"
+    private(set) var encryptionURL: URL = "https://spiral.md/brand/help#encryption"
     /// A URL where users can go read more about device verification..
-    private(set) var deviceVerificationURL: URL = "https://element.io/help#encryption-device-verification"
+    private(set) var deviceVerificationURL: URL = "https://spiral.md/brand/help#device-verification"
     /// A URL where users can go read more about the chat backup.
-    private(set) var chatBackupDetailsURL: URL = "https://element.io/help#encryption5"
+    private(set) var chatBackupDetailsURL: URL = "https://spiral.md/brand/help#key-backup"
     /// A URL where users can go read more about identity pinning violations
-    private(set) var identityPinningViolationDetailsURL: URL = "https://element.io/help#encryption18"
+    private(set) var identityPinningViolationDetailsURL: URL = "https://spiral.md/brand/help#identity-pinning"
     /// A URL describing how history sharing works
-    private(set) var historySharingDetailsURL: URL = "https://element.io/en/help#e2ee-history-sharing"
-    
-    /// Any domains that Element web may be hosted on - used for handling links.
-    private(set) var elementWebHosts = ["app.element.io", "staging.element.io", "develop.element.io"]
+    private(set) var historySharingDetailsURL: URL = "https://spiral.md/brand/help#history-sharing"
+
     /// The domain that account provisioning links will be hosted on - used for handling the links.
     private(set) var accountProvisioningHost = "mobile.element.io"
     /// The App Store URL for Element Pro, shown to the user when a homeserver requires that app.
@@ -196,14 +239,20 @@ final nonisolated class AppSettings: @unchecked Sendable {
     // MARK: - Authentication
     
     /// Any pre-defined static client registrations for OAuth issuers.
-    let oAuthStaticRegistrations: [URL: String] = ["https://id.thirdroom.io/realms/thirdroom": "elementx"]
-    /// The redirect URL used for OAuth. For the normal case we don't actually need the bundle ID as the web authentication session handles the redirect internally.
-    /// However in the case where MAS sends the user to an external app, we need to make sure that the system will open the correct variant of the app (e.g. Nightly).
-    private(set) nonisolated(unsafe) var oAuthRedirectURL: URL! = URL(string: "https://element.io/oauth/ios/\(InfoPlistReader.main.bundleIdentifier)")
+    // AGENT-PLATFORM: dropped ThirdRoom static registration — Element-specific,
+    // does not apply to our deployment.
+    let oAuthStaticRegistrations: [URL: String] = [:]
+    /// The redirect URL used for OAuth.
+    // AGENT-PLATFORM: redirect host must equal client_uri host per MAS dynamic
+    // client registration policy (MSC2966). Path /oidc/login is served by
+    // Caddy file_server alongside /brand/* (backend R2.3.5); the matching
+    // apple-app-site-association entry is added when AASA lands.
+    private(set) nonisolated(unsafe) var oAuthRedirectURL: URL! = URL(string: "https://spiral.md/oidc/login")
     /// A path that is appended to `websiteURL` to form the OAuth `clientURI`. MAS uses `clientURI` as the identifier for a specific app, allowing us to
     /// distinguish the various clients we have for Android, iOS and Web from each other.
-    /// Intentionally a distinct property so it can be easily overridden without having to manipulate the website URL.
-    private(set) var oAuthClientURIPath: String? // = "app/ios"
+    // AGENT-PLATFORM: nil — our clientURI stays the bare websiteURL (spiral.md),
+    // matching the MAS client registration that is already live.
+    private(set) var oAuthClientURIPath: String?
     
     var oAuthConfiguration: OAuthConfiguration {
         OAuthConfiguration(clientName: InfoPlistReader.main.bundleDisplayName,
@@ -220,6 +269,20 @@ final nonisolated class AppSettings: @unchecked Sendable {
     /// **Note:** Setting this to false doesn't prevent someone from creating an account when the selected homeserver's MAS allows registration.
     let showCreateAccountButton = true
     
+    // AGENT-PLATFORM (ADR-0008): the client's twin of the platform's
+    // `REGISTRATION_MODE`. `true` = invite-only — the invitation screen has
+    // no «Continue without an invitation». Flip both together: the
+    // identity page refuses a registration without a seat regardless, so
+    // the button is only ever a courtesy for an open registration.
+    @UserPreference(defaultValue: true)
+    var registrationRequiresInvite: Bool
+    
+    // AGENT-PLATFORM (Brief 0073): the start screen's «Sign in with QR code».
+    // Off until the homeserver enables MSC4108 — today `/rendezvous` is a 404
+    // and the scan ends in an error.
+    @UserPreference(defaultValue: false)
+    var qrCodeLoginEnabled: Bool
+    
     // MARK: - Notifications
     
     var pusherAppID: String {
@@ -230,9 +293,33 @@ final nonisolated class AppSettings: @unchecked Sendable {
         #endif
     }
     
-    private(set) var pushGatewayBaseURL: URL = "https://matrix.org"
+    // AGENT-PLATFORM: Caddy proxies /_matrix/push/v1/* to our self-hosted
+    // Sygnal instance; the actual Sygnal service lands in backend R2.3.
+    private(set) var pushGatewayBaseURL: URL = "https://spiral.md"
     var pushGatewayNotifyEndpoint: URL {
         pushGatewayBaseURL.appending(path: "_matrix/push/v1/notify")
+    }
+
+    // AGENT-PLATFORM: base URL for the Agent Platform REST API
+    // (`/api/v1/*`). Mounted on the same Caddy as Synapse + MAS;
+    // generated paths from swift-openapi-generator are absolute under
+    // /api/v1/... so the URL is protocol + host only. Lands wired
+    // through AgentPlatformClient via MatrixSDKAuthBridge — see
+    // `Services/AgentPlatform/`.
+    private(set) var agentPlatformBaseURL: URL = "https://spiral.md"
+    
+    // AGENT-PLATFORM: a Debug build launched with SPIRAL_DEV_STACK=1 talks to
+    // the local dev stack (matrix-agent-platform/docker) instead of spiral.md,
+    // so a whole flow — registration to account deletion — runs on a simulator
+    // without touching prod. The homeserver is plain HTTP on purpose: the Rust
+    // SDK accepts the dev MAS issuer (http://localhost:8081) only for an http
+    // homeserver. The platform API goes through Caddy, whose root CA the
+    // simulator must trust; links use the dev server name (`SpiralLink`).
+    // See docs/project/DEV_STACK_SIMULATOR.md.
+    func useLocalDevStackIfRequested() {
+        guard SpiralLink.isLocalDevStack else { return }
+        accountProviders = ["http://localhost:8008"]
+        agentPlatformBaseURL = "https://synapse.localhost"
     }
     
     @UserPreference(defaultValue: true)
@@ -267,8 +354,7 @@ final nonisolated class AppSettings: @unchecked Sendable {
     // MARK: - Bug report
     
     let bugReportRageshakeURL: RemotePreference<RageshakeConfiguration> = .init(Secrets.rageshakeURL.map { .url(URL(string: $0)!) } ?? .disabled) // swiftlint:disable:this force_unwrapping
-    let bugReportSentryURL: URL? = Secrets.sentryDSN.map { URL(string: $0)! } // swiftlint:disable:this force_unwrapping
-    let bugReportSentryRustURL: URL? = Secrets.sentryRustDSN.map { URL(string: $0)! } // swiftlint:disable:this force_unwrapping
+    // AGENT-PLATFORM (Brief 0078): no Sentry DSNs — Spiral links no crash reporter.
     /// The name allocated by the bug report server
     private(set) var bugReportApplicationID = "element-x-ios"
     
@@ -286,18 +372,15 @@ final nonisolated class AppSettings: @unchecked Sendable {
     
     // MARK: - Analytics
     
+    // AGENT-PLATFORM (Brief 0078): always `nil` — Spiral links no analytics SDK, so there is
+    // nothing to consent to: no onboarding prompt, no Analytics row in Settings.
     /// The configuration to use for analytics. Set to `nil` to disable analytics.
-    let analyticsConfiguration: AnalyticsConfiguration? = AppSettings.makeAnalyticsConfiguration()
+    let analyticsConfiguration: AnalyticsConfiguration? = nil
     /// The URL to open with more information about analytics terms. When this is `nil` the "Learn more" link will be hidden.
     private(set) var analyticsTermsURL: URL? = "https://element.io/cookie-policy"
     /// Whether or not there the app is able ask for user consent to enable analytics or sentry reporting.
     var canPromptForAnalytics: Bool {
-        analyticsConfiguration != nil || bugReportSentryURL != nil
-    }
-    
-    private static func makeAnalyticsConfiguration() -> AnalyticsConfiguration? {
-        guard let host = Secrets.postHogHost, let apiKey = Secrets.postHogAPIKey else { return nil }
-        return AnalyticsConfiguration(host: host, apiKey: apiKey)
+        analyticsConfiguration != nil // AGENT-PLATFORM (Brief 0078): Sentry consent went with Sentry.
     }
     
     /// Whether the user has opted in to send analytics.
@@ -353,20 +436,8 @@ final nonisolated class AppSettings: @unchecked Sendable {
     /// that captions might not be visible to users who are using other Matrix clients.
     let shouldShowMediaCaptionWarning = true
     
-    // MARK: - Element Call
-    
-    #if IS_MAIN_APP
-    // swiftlint:disable:next force_unwrapping
-    let elementCallBaseURL: URL = EmbeddedElementCall.appURL!
-    #endif
-    
-    // These are publicly availble on https://call.element.io so we don't neeed to treat them as secrets
-    let elementCallPosthogAPIHost = "https://posthog-element-call.element.io"
-    let elementCallPosthogAPIKey = "phc_rXGHx9vDmyEvyRxPziYtdVIv0ahEv8A9uLWFcCi1WcU"
-    let elementCallPosthogSentryDSN = "https://3bd2f95ba5554d4497da7153b552ffb5@sentry.tools.element.io/41"
-    
-    @UserPreference
-    var elementCallBaseURLOverride: URL?
+    // AGENT-PLATFORM (Brief 0067): the Element Call section (base URL, analytics
+    // endpoints, URL override) is gone with the widget (ADR-0079).
     
     // MARK: - Users
     
@@ -376,10 +447,15 @@ final nonisolated class AppSettings: @unchecked Sendable {
     // MARK: - Maps
     
     /// The locally-bundled MapTiler configuration.
+    // AGENT-PLATFORM: upstream UUIDs (9bc819c8…, dea61faf…) are private styles
+    // in Element Ltd's MapTiler account and return HTTP 404 for any other API
+    // key. Use the public streets-v2 / streets-v2-dark presets that every
+    // MapTiler account can serve so location sharing renders maps under our
+    // own MapTiler key. Replace with custom Spiral-branded styles later.
     static let bundledMapTilerConfiguration = MapTilerSettings.Configuration(baseURL: "https://api.maptiler.com/maps",
                                                                              apiKey: Secrets.mapLibreAPIKey,
-                                                                             lightStyleID: "9bc819c8-e627-474a-a348-ec144fe3d810",
-                                                                             darkStyleID: "dea61faf-292b-4774-9660-58fcef89a7f3")
+                                                                             lightStyleID: "streets-v2",
+                                                                             darkStyleID: "streets-v2-dark")
     
     /// The resolved map tile settings. Defaults to ``MapTilerSettings.configuration(_:)`` with the
     /// bundled configuration and is remotely overridden with ``MapTilerSettings.url(_:)`` when
@@ -407,10 +483,16 @@ final nonisolated class AppSettings: @unchecked Sendable {
     @UserPreference(defaultValue: false)
     var knockingEnabled: Bool
     
-    @UserPreference(defaultValue: false)
+    // AGENT-PLATFORM (Brief 0066 step 6): on by default. An Interactive
+    // Post is generated in a THREAD of the owner's DM with the agent
+    // (notebook § 5.35), so threads are part of the product rather than a
+    // lab. Upstream ships both off.
+    // AGENT-PLATFORM (decision 188): own storage keys, so an "off" stored by
+    // an earlier build's Labs or Developer options toggle is no longer read.
+    @UserPreference(key: "spiralThreadsEnabled", defaultValue: true)
     var threadsEnabled: Bool
     
-    @UserPreference(defaultValue: false)
+    @UserPreference(key: "spiralRoomThreadListEnabled", defaultValue: true) // AGENT-PLATFORM (decision 188)
     var roomThreadListEnabled: Bool
     
     @UserPreference(defaultValue: ProcessInfo().isiOSAppOnMac)

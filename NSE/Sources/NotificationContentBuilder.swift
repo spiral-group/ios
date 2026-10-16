@@ -91,9 +91,26 @@ nonisolated struct NotificationContentBuilder {
                     processEmpty(&notificationContent)
                 }
             case .none:
-                processEmpty(&notificationContent)
+                // AGENT-PLATFORM (§ 5.73): «Your move · emm2 placed O», from
+                // the sender, in the room, as a mention — and a tap opens the
+                // room on the post the move was made in (§ 5.82).
+                if let action = notificationItem.spiralAction {
+                    await processAsMessage(notificationContent: &notificationContent,
+                                           notificationItem: notificationItem,
+                                           mediaProvider: mediaProvider)
+                    notificationContent.body = action.body()
+                    notificationContent.spiralPostEventID = action.postEventID
+                } else {
+                    processEmpty(&notificationContent)
+                }
             }
         }
+
+        // AGENT-PLATFORM (Brief 0043 P6, ADR-0057): consent notifications
+        // no longer ride m.room.message carriers — they arrive as Spiral
+        // direct pushes handled in NotificationServiceExtension before any
+        // SDK work (SpiralPushContentBuilder). The message-marker decorator
+        // is retired.
     }
     
     // MARK: - Private

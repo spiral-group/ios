@@ -23,6 +23,13 @@ report_exclude:
 - "ElementX/Sources/Services/AppLock/LAContextMock.swift"
 # Pure payload schema, fields exist to be encoded.
 - "ElementX/Sources/Services/Notification/Manager/APNSPayload.swift"
+# The agent platform's wire DTOs — one Swift type per OpenAPI schema, so a
+# field exists because the payload carries it, not because a view reads it.
+# Deleting the unread half would make the next schema diff invisible.
+- "ElementX/Sources/Services/AgentPlatform/AgentPlatformServiceProtocol.swift"
+- "ElementX/Sources/Services/AgentPlatform/VoiceSessionControlsModels.swift"
+- "ElementX/Sources/Services/AgentPlatform/RoomToolsModels.swift"
+- "ElementX/Sources/Services/AgentPlatform/SpiralToolsStateReader.swift"
 # Backports: everything gated on #available, cleaned up with each OS drop.
 - "ElementX/Sources/Other/SwiftUI/Backports.swift"
 retain_swift_ui_previews: true

@@ -21,6 +21,7 @@ struct RoomDetailsScreenCoordinatorParameters {
 enum RoomDetailsScreenCoordinatorAction {
     case leftRoom
     case presentRoomMembersList
+    case presentAgents // AGENT-PLATFORM (decision 192)
     case presentRecipientDetails(userID: String)
     case presentRoomDetailsEditScreen
     case presentNotificationSettingsScreen
@@ -68,6 +69,8 @@ final class RoomDetailsScreenCoordinator: CoordinatorProtocol {
                 switch action {
                 case .requestMemberDetailsPresentation:
                     actionsSubject.send(.presentRoomMembersList)
+                case .requestAgentsPresentation: // AGENT-PLATFORM (decision 192)
+                    actionsSubject.send(.presentAgents)
                 case .requestInvitePeoplePresentation:
                     actionsSubject.send(.presentInviteUsersScreen)
                 case .requestInviteToNewRoomPresentation(let invitee):

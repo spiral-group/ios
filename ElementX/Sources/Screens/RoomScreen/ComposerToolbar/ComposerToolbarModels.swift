@@ -27,6 +27,9 @@ enum ComposerToolbarViewModelAction {
     case sendMessage(plain: String, html: String?, mode: ComposerMode, intentionalMentions: IntentionalMentions)
     case editLastMessage
     case attach(ComposerAttachmentType)
+    // AGENT-PLATFORM: open the agent-tools capabilities sheet (Brief 0036).
+    case presentAgentTools
+    case presentInteractivePostAgentPicker
     
     case handlePasteOrDrop(providers: [NSItemProvider])
     
@@ -49,6 +52,9 @@ enum ComposerToolbarViewAction {
     case attach(ComposerAttachmentType)
     case handlePasteOrDrop(providers: [NSItemProvider])
     case enableTextFormatting
+    // AGENT-PLATFORM: user tapped the "Agent" item in the compose "+" menu.
+    case presentAgentTools
+    case presentInteractivePostAgentPicker
     case composerAction(action: ComposerAction)
     case selectedSuggestion(_ suggestion: SuggestionItem)
     

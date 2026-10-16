@@ -14,6 +14,41 @@ import SwiftUI
 
 typealias TimelineViewModelType = StateStoreViewModel<TimelineViewState, TimelineViewAction>
 
+/// Stops a room's apps when the timeline that owned them goes away.
+///
+/// Not private so a test can drop one and watch the apps go: the wiring is one
+/// line in the view model, and the moment it describes had no coverage at all
+/// until this existed.
+///
+/// AGENT-PLATFORM (Brief 0066, step 7.8). A web view is far too expensive to
+/// let its lifetime depend on who happens to release the last reference. It was
+/// measured (2026-09-15): leaving a room with three posts running deallocated
+/// the view model but NOT the registry, and three `WKWebView`s plus their
+/// WebContent processes stayed alive — three visits to one room left nine. The
+/// app's own footprint showed almost none of it, because WebKit's cost lives in
+/// other processes.
+///
+/// This is an object rather than a `deinit` on the view model because the base
+/// class's `deinit` is MainActor-isolated and cannot be overridden with a
+/// nonisolated one. Its only job is to die at the right moment, which it does
+/// even when the registry itself is still held by something else — and stopping
+/// the apps is what actually matters, not freeing the bookkeeping around them.
+final class SpiralAppTeardown {
+    private let registry: SpiralAppHostRegistry
+
+    init(registry: SpiralAppHostRegistry) {
+        self.registry = registry
+    }
+
+    deinit {
+        // Hops to the main actor because the registry is isolated to it. The
+        // capture keeps the registry alive until the hop lands, which is the
+        // point: something has to be there to take the apps down.
+        let registry = registry
+        Task { @MainActor in registry.releaseAll() }
+    }
+}
+
 class TimelineViewModel: TimelineViewModelType, TimelineViewModelProtocol {
     private enum Constants {
         static let paginationEventLimit: UInt16 = 20
@@ -22,11 +57,14 @@ class TimelineViewModel: TimelineViewModelType, TimelineViewModelProtocol {
         static let toastErrorID = "RoomScreenToastError"
     }
     
-    private let roomProxy: JoinedRoomProxyProtocol
-    private let timelineController: TimelineControllerProtocol
-    private let userSession: UserSessionProtocol
+    // AGENT-PLATFORM (Brief 0066): `TimelineViewModel+InteractiveDraft` is
+    // an extension in its own file — the class is at SwiftLint's body limit
+    // — and a file-level extension cannot see `private`.
+    let roomProxy: JoinedRoomProxyProtocol
+    let timelineController: TimelineControllerProtocol
+    let userSession: UserSessionProtocol
     private let mediaPlayerProvider: MediaPlayerProviderProtocol
-    private let userIndicatorController: UserIndicatorControllerProtocol
+    let userIndicatorController: UserIndicatorControllerProtocol
     private let appMediator: AppMediatorProtocol
     private let appSettings: AppSettings
     private let analyticsService: AnalyticsServiceProtocol
@@ -36,7 +74,7 @@ class TimelineViewModel: TimelineViewModelType, TimelineViewModelProtocol {
     
     private let composerFocusedSubject = PassthroughSubject<Bool, Never>()
     
-    private let actionsSubject: PassthroughSubject<TimelineViewModelAction, Never> = .init()
+    let actionsSubject: PassthroughSubject<TimelineViewModelAction, Never> = .init()
     var actions: AnyPublisher<TimelineViewModelAction, Never> {
         actionsSubject.eraseToAnyPublisher()
     }
@@ -46,6 +84,9 @@ class TimelineViewModel: TimelineViewModelType, TimelineViewModelProtocol {
     private var paginateBackwardsTask: Task<Void, Never>?
     private var paginateForwardsTask: Task<Void, Never>?
     
+    /// Takes this room's apps down when the timeline goes. See its own doc.
+    private var spiralAppTeardown: SpiralAppTeardown?
+
     init(roomProxy: JoinedRoomProxyProtocol,
          focussedEventID: String? = nil,
          timelineController: TimelineControllerProtocol,
@@ -119,6 +160,36 @@ class TimelineViewModel: TimelineViewModelType, TimelineViewModelProtocol {
         setupSubscriptions()
         setupDirectRoomSubscriptionsIfNeeded()
         
+        // AGENT-PLATFORM (Brief 0066, step 7.4): one registry per timeline, so
+        // apps belong to the room they are in rather than to the app. Sharing
+        // one across rooms would let posts nobody is looking at hold web views.
+        //
+        // Leaving the room stops them — through `SpiralAppTeardown` below, not
+        // through this registry being freed, which it measurably was not
+        // (§5.25). The hosts are unbound: the registry's pool binds each one
+        // to a post's session per mount.
+        state.spiralAppHosts = SpiralAppHostRegistry(artifacts: .init(mediaLoader: userSession.clientProxy.mediaLoader),
+                                                     roomProxy: roomProxy,
+                                                     mediaProvider: userSession.mediaProvider) {
+            SpiralAppWebViewHost()
+        }
+
+        if let registry = state.spiralAppHosts {
+            spiralAppTeardown = SpiralAppTeardown(registry: registry)
+            // AGENT-PLATFORM (§ 5.87): a post's refused action asks the user — only where this
+            // timeline's coordinator shows the resolve sheet; pinned events and
+            // media drop the action, and a question nobody sees would hold every
+            // later move for ever.
+            switch timelineController.timelineKind {
+            case .live, .detached, .thread:
+                registry.sendRefusals = SpiralAppSendRefusals(roomProxy: roomProxy) { [weak self] failure, resolver in
+                    self?.actionsSubject.send(.displayResolveSendFailure(failure: failure, resolver: resolver))
+                }
+            case .pinned, .media:
+                break
+            }
+        }
+
         state.audioPlayerStateProvider = { [weak self] itemID -> AudioPlayerState? in
             guard let self else {
                 return nil
@@ -138,6 +209,10 @@ class TimelineViewModel: TimelineViewModelType, TimelineViewModelProtocol {
         state.roomNameForAliasResolver = { [weak self] alias in
             self?.userSession.clientProxy.roomSummaryForAlias(alias)?.name
         }
+        
+        installSpiralMembersResolver()
+        installSpiralDisplayNameResolver() // AGENT-PLATFORM (decision 38)
+        installSpiralAIConsentResolver() // AGENT-PLATFORM (decision 150)
         
         state.timelineState.paginationState = timelineController.paginationState
         buildTimelineViews(timelineItems: timelineController.timelineItems)
@@ -164,6 +239,10 @@ class TimelineViewModel: TimelineViewModelType, TimelineViewModelProtocol {
             Task { await handleMediaTapped(with: galleryItemID.timelineItemID, galleryIndex: galleryItemID.mediaIndex) }
         case .itemSendInfoTapped(let itemID):
             handleItemSendInfoTapped(itemID: itemID)
+        case .publishInteractiveDraft(let itemID):
+            Task { await publishInteractiveDraft(itemID: itemID) }
+        case .publishInteractiveDraftAsNew(let itemID):
+            Task { await publishInteractiveDraft(itemID: itemID, asNew: true) }
         case .toggleReaction(let emoji, let itemID):
             emojiProvider.markEmojiAsFrequentlyUsed(emoji)
             
@@ -235,6 +314,8 @@ class TimelineViewModel: TimelineViewModelType, TimelineViewModelProtocol {
             actionsSubject.send(.displayRoom(roomID: predecessorID, via: Array(serverNames)))
         case .joinActiveCall(let isVoiceCall):
             actionsSubject.send(.presentCallScreen(isVoiceCall: isVoiceCall))
+        case .openAIConsentSettings: // AGENT-PLATFORM (decision 150)
+            actionsSubject.send(.displayAIConsentSettings)
         }
     }
     
@@ -251,6 +332,10 @@ class TimelineViewModel: TimelineViewModelType, TimelineViewModelProtocol {
             editLastMessage()
         case .attach(let attachment):
             attach(attachment)
+        case .presentAgentTools, .presentInteractivePostAgentPicker:
+            // AGENT-PLATFORM: handled by RoomScreenCoordinator (routed to the
+            // flow, not the timeline) — never reaches here in practice.
+            break
         case .handlePasteOrDrop(let providers):
             timelineInteractionHandler.handlePasteOrDrop(providers)
         case .composerModeChanged(mode: let mode):
@@ -535,6 +620,10 @@ class TimelineViewModel: TimelineViewModelType, TimelineViewModelProtocol {
                     }
                 case .showDebugInfo(let debugInfo):
                     state.bindings.debugInfo = debugInfo
+                case .showDraftCode(let code):
+                    state.bindings.draftCode = code
+                case .editInteractivePost(let eventID, let post, let title):
+                    actionsSubject.send(.editInteractivePost(eventID: eventID, post: post, title: title))
                 case .viewInRoomTimeline(let eventID):
                     Task { await self.viewInRoomTimeline(eventID: eventID) }
                 case .displayThread(let itemID):
@@ -747,7 +836,7 @@ class TimelineViewModel: TimelineViewModelType, TimelineViewModelProtocol {
             }
             
             actionsSubject.send(.displayResolveSendFailure(failure: failure,
-                                                           sendHandle: sendHandle))
+                                                           resolver: .sendQueue(sendHandle: sendHandle, roomProxy: roomProxy))) // AGENT-PLATFORM: § 5.87
             
         } else if let forwarderMessage = eventTimelineItem.properties.encryptionForwarder?.message {
             displayAlert(.encryptionForwarder(forwarderMessage))
@@ -861,6 +950,8 @@ class TimelineViewModel: TimelineViewModelType, TimelineViewModelProtocol {
     
     private func buildTimelineViews(timelineItems: [RoomTimelineItemProtocol], isSwitchingTimelines: Bool = false) {
         var timelineItemsDictionary = OrderedDictionary<TimelineItemIdentifier.UniqueID, RoomTimelineItemViewState>()
+        
+        updateSpiralLivePost(timelineItems) // AGENT-PLATFORM (§ 5.55)
         
         timelineItems.filter { $0 is RedactedRoomTimelineItem }.forEach { timelineItem in
             // Stops the audio player when a voice message is redacted.

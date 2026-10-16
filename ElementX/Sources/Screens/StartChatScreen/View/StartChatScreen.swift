@@ -98,13 +98,20 @@ struct StartChatScreen: View {
     
     private var inviteFriendsSection: some View {
         Section {
-            ListRow(kind: .custom {
-                MatrixUserShareLink(userID: context.viewState.userID) {
-                    ListRowLabel.default(title: L10n.actionInvitePeopleToApp(InfoPlistReader.main.bundleDisplayName),
-                                         icon: \.shareIos)
-                }
-            })
-            .accessibilityIdentifier(A11yIdentifiers.startChatScreen.inviteFriends)
+            // AGENT-PLATFORM (Brief 0073 / ADR-0008): registration is by
+            // invitation; the row opens the invite screen (link, seats,
+            // who joined) — the same one Settings has.
+            ListRow(label: .default(title: UntranslatedL10n.screenInvitePeopleTitle,
+                                    icon: \.userAdd),
+                    kind: .navigationLink { context.send(viewAction: .invitePeople) })
+                .accessibilityIdentifier(A11yIdentifiers.startChatScreen.inviteFriends)
+        } footer: {
+            if let invite = context.viewState.myInvite {
+                Text(invite.isExhausted
+                    ? UntranslatedL10n.screenInvitePeopleExhausted(invite.maxUses)
+                    : UntranslatedL10n.screenInvitePeopleSeatsLeft(invite.seatsLeft, invite.maxUses))
+                    .compoundListSectionFooter()
+            }
         }
     }
     

@@ -1,6 +1,9 @@
 settings:
-  APP_GROUP_IDENTIFIER: group.io.element.nightly
-  BASE_BUNDLE_IDENTIFIER: io.element.elementx.nightly
+  # AGENT-PLATFORM: Nightly variant identifiers rebranded to our namespace
+  # to stay consistent with the main app target. Runtime detection at
+  # AppSettings.appBuildType + BugReportService matches these values.
+  APP_GROUP_IDENTIFIER: group.com.veruslogistics.messenger.nightly
+  BASE_BUNDLE_IDENTIFIER: com.veruslogistics.messenger.nightly
   IS_NIGHTLY_BUILD: true
 
 targets:

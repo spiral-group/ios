@@ -6,6 +6,8 @@
 //
 
 import Combine
+
+// AGENT-PLATFORM (Brief 0067): `CallKitServiceMock` replaces the retired `ElementCallServiceMock`.
 @testable import ElementX
 import Testing
 
@@ -55,7 +57,7 @@ struct RoomMembersFlowCoordinatorTests {
         
         let flowParameters = CommonFlowParameters(userSession: UserSessionMock(.init(clientProxy: clientProxy)),
                                                   bugReportService: BugReportServiceMock(.init()),
-                                                  elementCallService: ElementCallServiceMock(.init()),
+                                                  callKitService: CallKitServiceMock(.init()),
                                                   timelineControllerFactory: TimelineControllerFactoryMock(.init()),
                                                   emojiProvider: EmojiProvider(appSettings: appSettings),
                                                   linkMetadataProvider: LinkMetadataProvider(),

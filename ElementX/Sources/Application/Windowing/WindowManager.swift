@@ -47,7 +47,7 @@ class WindowManager: SecureWindowManagerProtocol {
     func configure(withScene scene: UIWindowScene, session: UISceneSession) {
         // This gets called for all opened windows, we're only interested in the main window.
         guard let userInfo = session.userInfo, userInfo[SceneDelegate.sceneIDKey] as? String == SceneDelegate.mainSceneID else {
-            scene.windows.forEach { $0.tintColor = .compound.textActionPrimary } // SecondaryWindow tinting.
+            scene.windows.forEach { $0.tintColor = .compound.textActionAccent } // AGENT-PLATFORM: blue accent tint (ADR-0005), was monochrome textActionPrimary. SecondaryWindow tinting.
             return
         }
         
@@ -69,15 +69,16 @@ class WindowManager: SecureWindowManagerProtocol {
         // `keyWindow` can be nil on iOS 26 until the scene becomes active, but the
         // SwiftUI WindowGroup's window is already attached to the scene by then.
         mainWindow = scene.keyWindow ?? scene.windows.first
-        mainWindow.tintColor = .compound.textActionPrimary
+        mainWindow.tintColor = .compound.textActionAccent // AGENT-PLATFORM: blue accent tint (ADR-0005)
         
         overlayWindow = PassthroughWindow(windowScene: scene)
-        overlayWindow.tintColor = .compound.textActionPrimary
+        overlayWindow.tintColor = .compound.textActionAccent // AGENT-PLATFORM: blue accent tint (ADR-0005)
         overlayWindow.backgroundColor = .clear
         overlayWindow.isHidden = false
         
+
         alternateWindow = UIWindow(windowScene: scene)
-        alternateWindow.tintColor = .compound.textActionPrimary
+        alternateWindow.tintColor = .compound.textActionAccent // AGENT-PLATFORM: blue accent tint (ADR-0005)
         
         delegate?.windowManagerDidConfigureWindows(self)
     }

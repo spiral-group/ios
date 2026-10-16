@@ -80,58 +80,9 @@ nonisolated struct NotificationItemProxy: NotificationItemProxyProtocol {
     var threadRootEventID: String? {
         notificationItem.threadId
     }
-}
-
-nonisolated struct EmptyNotificationItemProxy: NotificationItemProxyProtocol {
-    var event: NotificationEvent? {
-        nil
-    }
     
-    let roomID: String
-    
-    let receiverID: String
-    
-    var senderID: String {
-        ""
-    }
-    
-    var senderDisplayName: String? {
-        nil
-    }
-    
-    var roomDisplayName: String {
-        ""
-    }
-    
-    var isNoisy: Bool {
-        false
-    }
-    
-    var isRoomSpace: Bool {
-        false
-    }
-    
-    var isDM: Bool {
-        false
-    }
-    
-    var isRoomPrivate: Bool {
-        false
-    }
-    
-    var senderAvatarMediaSource: MediaSourceProxy? {
-        nil
-    }
-    
-    var roomAvatarMediaSource: MediaSourceProxy? {
-        nil
-    }
-    
-    var hasMention: Bool {
-        false
-    }
-    
-    var threadRootEventID: String? {
-        nil
+    // AGENT-PLATFORM (Brief 0066, § 5.73): «your move» read from the action itself.
+    var spiralAction: SpiralActionNotification? {
+        SpiralActionNotification(rawEvent: notificationItem.rawEvent, receiverID: receiverID)
     }
 }

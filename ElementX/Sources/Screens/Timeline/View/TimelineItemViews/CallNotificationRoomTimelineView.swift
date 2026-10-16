@@ -11,12 +11,14 @@ import Foundation
 import SwiftUI
 
 struct CallNotificationRoomTimelineView: View {
+    @Environment(\.timelineContext) private var context
+
     let timelineItem: CallNotificationRoomTimelineItem
     
     var body: some View {
         switch timelineItem.callState {
-        case .tombstoned(let isDeclinedByMe, let isDeclined):
-            tombstonedCallView(isDeclinedByMe: isDeclinedByMe, isDeclined: isDeclined)
+        case .tombstoned(let outcome):
+            tombstonedCallView(outcome: outcome)
         case .active(let activeMembers, let isJoined, let callStartTimestamp):
             ActiveCallTimelineItemView(isDM: timelineItem.isDM,
                                        isVoiceCall: timelineItem.isVoiceCall,
@@ -28,17 +30,30 @@ struct CallNotificationRoomTimelineView: View {
     }
     
     // MARK: - Tombstoned Call View
-    
-    private func tombstonedCallView(isDeclinedByMe: Bool, isDeclined: Bool) -> some View {
+
+    // AGENT-PLATFORM (Brief 0063, G11/G12 — `17 · Call tiles in chat`):
+    // ended calls carry their outcome. Only a missed DM ring reads critical
+    // and taps straight into a call back; the caller's own cancelled ring is
+    // grey (decision 172). The length and direction replace the
+    // clock-time-only tile the design review flagged.
+    private func tombstonedCallView(outcome: CallNotificationRoomTimelineItem.TombstonedOutcome) -> some View {
         HStack(spacing: 12) {
-            CompoundIcon(iconKeyPath(isDeclinedByMe: isDeclinedByMe, isDeclined: isDeclined), size: .medium, relativeTo: .compound.headingMDBold)
-                .foregroundStyle(.compound.iconSecondary)
+            CompoundIcon(iconKeyPath(outcome: outcome), size: .medium, relativeTo: .compound.headingMDBold)
+                .foregroundStyle(outcome == .missed ? .compound.iconCriticalPrimary : .compound.iconSecondary)
                 .accessibilityHidden(true)
-            
-            Text(tileTitle(isDeclinedByMe: isDeclinedByMe, isDeclined: isDeclined))
-                .font(.compound.bodyMD)
-                .foregroundColor(.compound.textSecondary)
-                .labelStyle(.custom(spacing: 4))
+
+            VStack(alignment: .leading, spacing: 1) {
+                Text(tileTitle(outcome: outcome))
+                    .font(.compound.bodyMD)
+                    .foregroundColor(outcome == .missed ? .compound.textCriticalPrimary : .compound.textSecondary)
+                    .labelStyle(.custom(spacing: 4))
+
+                if let subtitle = tileSubtitle(outcome: outcome) {
+                    Text(subtitle)
+                        .font(.compound.bodyXS)
+                        .foregroundColor(.compound.textSecondary)
+                }
+            }
             
             Spacer()
             
@@ -50,30 +65,36 @@ struct CallNotificationRoomTimelineView: View {
         .overlay(RoundedRectangle(cornerRadius: 8)
             .stroke(.compound.borderInteractiveSecondary, lineWidth: 1))
         .padding(16)
+        .contentShape(Rectangle())
+        // The call-back affordance: a missed tile IS the redial button.
+        .onTapGesture {
+            guard outcome == .missed else { return }
+            context?.send(viewAction: .joinActiveCall(isVoiceCall: timelineItem.isVoiceCall))
+        }
     }
     
     // MARK: - Private
     
-    private func tileTitle(isDeclinedByMe: Bool, isDeclined: Bool) -> String {
-        if timelineItem.isDM {
-            // As per design only have declined variants in DM
-            if isDeclinedByMe {
-                L10n.commonCallYouDeclined
-            } else if isDeclined {
-                L10n.commonCallDeclined
-            } else {
-                L10n.commonCallStarted
-            }
-        } else {
-            L10n.commonCallStarted
-        }
+    private func tileTitle(outcome: CallNotificationRoomTimelineItem.TombstonedOutcome) -> String {
+        timelineItem.tombstoneTitle(for: outcome) // AGENT-PLATFORM (walk F7)
+    }
+
+    private func tileSubtitle(outcome: CallNotificationRoomTimelineItem.TombstonedOutcome) -> String? {
+        timelineItem.tombstoneSubtitle(for: outcome)
     }
     
-    private func iconKeyPath(isDeclinedByMe: Bool, isDeclined: Bool) -> KeyPath<CompoundIcons, Image> {
-        if timelineItem.isDM, isDeclined || isDeclinedByMe {
+    private func iconKeyPath(outcome: CallNotificationRoomTimelineItem.TombstonedOutcome) -> KeyPath<CompoundIcons, Image> {
+        switch outcome {
+        case .declined(let byMe) where timelineItem.isDM || byMe:
             // As per design only have declined variants in DM
             timelineItem.isVoiceCall ? \.voiceCallDeclinedSolid : \.videoCallDeclinedSolid
-        } else {
+        case .missed:
+            timelineItem.isVoiceCall ? \.voiceCallMissedSolid : \.videoCallMissedSolid
+        case .cancelled:
+            timelineItem.isVoiceCall ? \.voiceCallOutgoingSolid : \.videoCallOutgoingSolid
+        case .answered where timelineItem.isOutgoing:
+            timelineItem.isVoiceCall ? \.voiceCallOutgoingSolid : \.videoCallOutgoingSolid
+        default:
             timelineItem.isVoiceCall ? \.voiceCallSolid : \.videoCallSolid
         }
     }
@@ -83,76 +104,59 @@ struct CallNotificationRoomTimelineView_Previews: PreviewProvider, TestablePrevi
     static let viewModel = TimelineViewModel.mock
     
     static var previews: some View {
-        body.environmentObject(viewModel.context)
+        dmTiles.environmentObject(viewModel.context)
+            .previewDisplayName("DM")
+        groupTiles.environmentObject(viewModel.context)
+            .previewDisplayName("Group")
     }
     
-    static var body: some View {
+    // Tombstoned call previews (`17 · Call tiles in chat`)
+    static var dmTiles: some View {
         VStack(spacing: 0) {
-            // Tombstoned call previews
-            CallNotificationRoomTimelineView(timelineItem: .init(id: .randomEvent,
-                                                                 timestamp: .mock,
-                                                                 sender: .init(id: "@sender:localhost"),
-                                                                 isDM: false,
-                                                                 isVoiceCall: false,
-                                                                 callState: .tombstoned(isDeclinedByMe: false, isDeclined: false)))
-            
+            tile(isDM: true, isVoiceCall: true, .tombstoned(outcome: .declined(byMe: false)))
             Divider()
-            
-            CallNotificationRoomTimelineView(timelineItem: .init(id: .randomEvent,
-                                                                 timestamp: .mock,
-                                                                 sender: .init(id: "@sender:localhost"),
-                                                                 isDM: true,
-                                                                 isVoiceCall: true,
-                                                                 callState: .tombstoned(isDeclinedByMe: false, isDeclined: false)))
-            
+            tile(isDM: true, isVoiceCall: false, .tombstoned(outcome: .declined(byMe: true)))
             Divider()
-            
-            CallNotificationRoomTimelineView(timelineItem: .init(id: .randomEvent,
-                                                                 timestamp: .mock,
-                                                                 sender: .init(id: "@sender:localhost"),
-                                                                 isDM: false,
-                                                                 isVoiceCall: false,
-                                                                 callState: .tombstoned(isDeclinedByMe: true, isDeclined: true)))
-            
+            // G11 — missed, critical with the call-back affordance.
+            tile(isDM: true, isVoiceCall: true, .tombstoned(outcome: .missed))
             Divider()
-            
-            CallNotificationRoomTimelineView(timelineItem: .init(id: .randomEvent,
-                                                                 timestamp: .mock,
-                                                                 sender: .init(id: "@sender:localhost"),
-                                                                 isDM: true,
-                                                                 isVoiceCall: true,
-                                                                 callState: .tombstoned(isDeclinedByMe: false, isDeclined: true)))
-            
+            // Decision 172 — the caller's own unanswered ring, grey.
+            tile(isDM: true, isVoiceCall: true, .tombstoned(outcome: .cancelled), isOutgoing: true)
             Divider()
-            
-            CallNotificationRoomTimelineView(timelineItem: .init(id: .randomEvent,
-                                                                 timestamp: .mock,
-                                                                 sender: .init(id: "@sender:localhost"),
-                                                                 isDM: true,
-                                                                 isVoiceCall: false,
-                                                                 callState: .tombstoned(isDeclinedByMe: false, isDeclined: true)))
-            
+            // G12 — ended calls carry their length and direction.
+            tile(isDM: true, isVoiceCall: true, .tombstoned(outcome: .answered(duration: 321)), isOutgoing: true)
             Divider()
-            
-            CallNotificationRoomTimelineView(timelineItem: .init(id: .randomEvent,
-                                                                 timestamp: .mock,
-                                                                 sender: .init(id: "@sender:localhost"),
-                                                                 isDM: true,
-                                                                 isVoiceCall: false,
-                                                                 callState: .tombstoned(isDeclinedByMe: true, isDeclined: true)))
-            
-            Divider()
-            
-            // Active call previews
-            CallNotificationRoomTimelineView(timelineItem: .init(id: .randomEvent,
-                                                                 timestamp: .mock,
-                                                                 sender: .init(id: "@sender:localhost", displayName: "John"),
-                                                                 isDM: false,
-                                                                 isVoiceCall: false,
-                                                                 callState: .active(activeMembers: ["@alice:example.org"],
-                                                                                    isJoined: false,
-                                                                                    callStartTimestamp: Date())))
+            tile(isDM: true, isVoiceCall: false, .tombstoned(outcome: .answered(duration: 1458)))
         }
         .padding()
+    }
+    
+    static var groupTiles: some View {
+        VStack(spacing: 0) {
+            tile(isDM: false, isVoiceCall: false, .tombstoned(outcome: .unclassified))
+            Divider()
+            // Decision 172 — a finished group call, joined and never joined.
+            tile(isDM: false, isVoiceCall: false, .tombstoned(outcome: .groupCall(duration: 754, ownUserJoined: true)))
+            Divider()
+            tile(isDM: false, isVoiceCall: false, .tombstoned(outcome: .groupCall(duration: 754, ownUserJoined: false)))
+            Divider()
+            tile(isDM: false, isVoiceCall: false, .active(activeMembers: ["@alice:example.org"],
+                                                          isJoined: false,
+                                                          callStartTimestamp: Date()))
+        }
+        .padding()
+    }
+    
+    private static func tile(isDM: Bool,
+                             isVoiceCall: Bool,
+                             _ callState: CallNotificationRoomTimelineItem.CallState,
+                             isOutgoing: Bool = false) -> CallNotificationRoomTimelineView {
+        CallNotificationRoomTimelineView(timelineItem: .init(id: .randomEvent,
+                                                             timestamp: .mock,
+                                                             sender: .init(id: "@sender:localhost", displayName: "John"),
+                                                             isDM: isDM,
+                                                             isVoiceCall: isVoiceCall,
+                                                             callState: callState,
+                                                             isOutgoing: isOutgoing))
     }
 }

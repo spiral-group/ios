@@ -13,6 +13,8 @@ struct RoomMembersListScreenMemberCell: View {
     let listEntry: RoomMemberListScreenEntry
     let isLast: Bool
     let context: RoomMembersListScreenViewModel.Context
+    // AGENT-PLATFORM (Brief 0072, ADR-0083): nil when unknown or not asked for.
+    var presence: UserPresence?
     
     var body: some View {
         Button {
@@ -24,6 +26,11 @@ struct RoomMembersListScreenMemberCell: View {
                                     contentID: listEntry.member.id,
                                     avatarSize: .user(on: .roomMembersList),
                                     mediaProvider: context.mediaProvider)
+                    // AGENT-PLATFORM (Brief 0072, ADR-0083): the status line says it to VoiceOver.
+                    .presenceBadge(isOnline: presence?.isOnline ?? false,
+                                   avatarSize: Avatars.Size.user(on: .roomMembersList).value,
+                                   ringColor: .compound.bgCanvasDefaultLevel1,
+                                   announced: false)
                     .accessibilityHidden(true)
                 
                 HStack(alignment: .center, spacing: 4) {
@@ -39,12 +46,7 @@ struct RoomMembersListScreenMemberCell: View {
                         .font(.compound.bodyLG)
                         .foregroundColor(.compound.textPrimary)
                         
-                        if let subtitle {
-                            Text(subtitle)
-                                .font(.compound.bodySM)
-                                .foregroundColor(.compound.textSecondary)
-                                .lineLimit(1)
-                        }
+                        subtitleLine
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                     
@@ -74,6 +76,31 @@ struct RoomMembersListScreenMemberCell: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .accessibilityElement(children: .combine)
         }
+    }
+    
+    // AGENT-PLATFORM (Brief 0072, ADR-0083): as Telegram has it, the line
+    // under a member is their presence; the user ID when there is none
+    // (agents, bridges, not asked for yet). The minutes move on their own.
+    @ViewBuilder
+    private var subtitleLine: some View {
+        if let presence, !listEntry.member.isBanned {
+            SwiftUI.TimelineView(.everyMinute) { timeline in
+                if let status = presence.statusText(now: timeline.date) {
+                    subtitleText(status, isOnline: presence.isOnline)
+                } else if let subtitle {
+                    subtitleText(subtitle, isOnline: false)
+                }
+            }
+        } else if let subtitle {
+            subtitleText(subtitle, isOnline: false)
+        }
+    }
+    
+    private func subtitleText(_ text: String, isOnline: Bool) -> some View {
+        Text(text)
+            .font(.compound.bodySM)
+            .foregroundColor(isOnline ? .compound.textActionAccent : .compound.textSecondary)
+            .lineLimit(1)
     }
     
     var role: String? {
@@ -169,5 +196,35 @@ struct RoomMembersListMemberCell_Previews: PreviewProvider, TestablePreview {
                 }
             }
         }
+        
+        // AGENT-PLATFORM (Brief 0072, ADR-0083, ADR-0084): online, last seen
+        // exactly, last seen coarsely, and no presence (the user ID stays).
+        // Only texts that do not depend on the clock the snapshot runs at.
+        VStack(spacing: 0) {
+            ForEach(presenceMembers, id: \.member.id) { entry in
+                RoomMembersListScreenMemberCell(listEntry: entry,
+                                                isLast: presenceMembers.last == entry,
+                                                context: viewModel.context,
+                                                presence: presences[entry.member.id])
+            }
+        }
+        .previewDisplayName("Presence")
     }
+    
+    static let presenceMembers: [RoomMemberListScreenEntry] = [
+        .init(member: .init(withProxy: RoomMemberProxyMock.mockAlice), verificationState: .notVerified),
+        .init(member: .init(withProxy: RoomMemberProxyMock.mockBob), verificationState: .notVerified),
+        .init(member: .init(withProxy: RoomMemberProxyMock.mockAdmin), verificationState: .verified),
+        .init(member: .init(withProxy: RoomMemberProxyMock.mockCharlie), verificationState: .notVerified)
+    ]
+    
+    static let presences: [String: UserPresence] = [
+        RoomMemberProxyMock.mockAlice.userID: .init(userID: RoomMemberProxyMock.mockAlice.userID, state: .online,
+                                                    lastActiveAgo: 2, currentlyActive: true, receivedAt: .now),
+        RoomMemberProxyMock.mockBob.userID: .init(userID: RoomMemberProxyMock.mockBob.userID, state: .unavailable,
+                                                  lastActiveAgo: 10, currentlyActive: false, receivedAt: .now),
+        RoomMemberProxyMock.mockAdmin.userID: .init(userID: RoomMemberProxyMock.mockAdmin.userID, state: .offline,
+                                                    lastActiveAgo: nil, currentlyActive: false,
+                                                    lastSeenBucket: .withinWeek, receivedAt: .now)
+    ]
 }

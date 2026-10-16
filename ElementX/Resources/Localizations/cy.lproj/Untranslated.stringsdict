@@ -1,0 +1,153 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>screen_agent_detail_rooms_section</key>
+	<dict>
+		<key>COUNT</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>few</key>
+			<string>%1$d ystafell</string>
+			<key>many</key>
+			<string>%1$d ystafell</string>
+			<key>one</key>
+			<string>%1$d ystafell</string>
+			<key>other</key>
+			<string>%1$d ystafell</string>
+			<key>two</key>
+			<string>%1$d ystafell</string>
+			<key>zero</key>
+			<string>%1$d ystafell</string>
+		</dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>Yn byw yn %#@COUNT@</string>
+	</dict>
+	<key>screen_agent_detail_tool_count</key>
+	<dict>
+		<key>COUNT</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>few</key>
+			<string>%1$d teclyn</string>
+			<key>many</key>
+			<string>%1$d theclyn</string>
+			<key>one</key>
+			<string>%1$d teclyn</string>
+			<key>other</key>
+			<string>%1$d teclyn</string>
+			<key>two</key>
+			<string>%1$d declyn</string>
+			<key>zero</key>
+			<string>%1$d teclyn</string>
+		</dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@COUNT@</string>
+	</dict>
+	<key>screen_agent_space_agent_status</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>Yn %#@ROOMS@ · %#@TOOLS@</string>
+		<key>ROOMS</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>few</key>
+			<string>%1$d ystafell</string>
+			<key>many</key>
+			<string>%1$d ystafell</string>
+			<key>one</key>
+			<string>%1$d ystafell</string>
+			<key>other</key>
+			<string>%1$d ystafell</string>
+			<key>two</key>
+			<string>%1$d ystafell</string>
+			<key>zero</key>
+			<string>%1$d ystafell</string>
+		</dict>
+		<key>TOOLS</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>few</key>
+			<string>%2$d teclyn yn weithredol</string>
+			<key>many</key>
+			<string>%2$d theclyn yn weithredol</string>
+			<key>one</key>
+			<string>%2$d teclyn yn weithredol</string>
+			<key>other</key>
+			<string>%2$d teclyn yn weithredol</string>
+			<key>two</key>
+			<string>%2$d declyn yn weithredol</string>
+			<key>zero</key>
+			<string>%2$d teclyn yn weithredol</string>
+		</dict>
+	</dict>
+	<key>screen_agent_spaces_agent_count</key>
+	<dict>
+		<key>COUNT</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>few</key>
+			<string>%1$d asiant</string>
+			<key>many</key>
+			<string>%1$d asiant</string>
+			<key>one</key>
+			<string>%1$d asiant</string>
+			<key>other</key>
+			<string>%1$d asiant</string>
+			<key>two</key>
+			<string>%1$d asiant</string>
+			<key>zero</key>
+			<string>%1$d asiant</string>
+		</dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@COUNT@</string>
+	</dict>
+	<key>screen_native_call_status_agent_count</key>
+	<dict>
+		<key>COUNT</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%1$d agent</string>
+			<key>other</key>
+			<string>%1$d agents</string>
+		</dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@COUNT@</string>
+	</dict>
+	<key>screen_native_call_status_people_count</key>
+	<dict>
+		<key>COUNT</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%1$d person</string>
+			<key>other</key>
+			<string>%1$d people</string>
+		</dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@COUNT@</string>
+	</dict>
+</dict>
+</plist>

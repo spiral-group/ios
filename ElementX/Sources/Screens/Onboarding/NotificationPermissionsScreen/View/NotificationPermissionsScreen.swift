@@ -54,12 +54,14 @@ struct NotificationPermissionsScreen: View {
         VStack(spacing: 16) {
             Button(L10n.actionOk) { context.send(viewAction: .enable) }
                 .buttonStyle(.compound(.primary))
+                .accessibilityIdentifier(A11yIdentifiers.notificationPermissionsScreen.enable) // AGENT-PLATFORM (decision 146)
             
             Button { context.send(viewAction: .notNow) } label: {
                 Text(L10n.actionNotNow)
                     .font(.compound.bodyLGSemibold)
                     .padding(14)
             }
+            .accessibilityIdentifier(A11yIdentifiers.notificationPermissionsScreen.notNow) // AGENT-PLATFORM (decision 146)
         }
     }
 }

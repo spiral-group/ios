@@ -15,6 +15,9 @@ class SettingsScreenViewModel: SettingsScreenViewModelType, SettingsScreenViewMo
     private let appSettings: AppSettings
     private let clientProxy: ClientProxyProtocol
     private let userIndicatorController: UserIndicatorControllerProtocol
+    // AGENT-PLATFORM (Brief 0078): App Review 2.3.1 — no hidden features in a Release build.
+    /// Whether Developer options may appear at all: Debug and Nightly builds only.
+    private let allowsDeveloperOptions: Bool
     
     private var actionsSubject: PassthroughSubject<SettingsScreenViewModelAction, Never> = .init()
     
@@ -22,27 +25,31 @@ class SettingsScreenViewModel: SettingsScreenViewModelType, SettingsScreenViewMo
         actionsSubject.eraseToAnyPublisher()
     }
     
-    init(userSession: UserSessionProtocol, appSettings: AppSettings, isBugReportServiceEnabled: Bool, isInSecondaryWindow: Bool, userIndicatorController: UserIndicatorControllerProtocol) {
+    init(userSession: UserSessionProtocol,
+         appSettings: AppSettings,
+         isBugReportServiceEnabled: Bool,
+         isInSecondaryWindow: Bool,
+         userIndicatorController: UserIndicatorControllerProtocol,
+         allowsDeveloperOptions: Bool = AppSettings.appBuildType != .release) { // AGENT-PLATFORM (Brief 0078)
         self.appSettings = appSettings
         clientProxy = userSession.clientProxy
         self.userIndicatorController = userIndicatorController
+        self.allowsDeveloperOptions = allowsDeveloperOptions
         
         super.init(initialViewState: .init(deviceID: userSession.clientProxy.deviceID,
                                            userProfile: userSession.clientProxy.userProfilePublisher.value,
-                                           showLinkNewDeviceButton: appSettings.linkNewDeviceEnabled,
-                                           showAccountDeactivation: userSession.clientProxy.canDeactivateAccount,
-                                           showDeveloperOptions: appSettings.developerOptionsEnabled,
+                                           // AGENT-PLATFORM (Brief 0078): a Spiral account is deleted through the platform.
+                                           showAccountDeactivation: userSession.clientProxy.canDeactivateAccount || userSession.agentPlatformService != nil,
+                                           showYourData: userSession.agentPlatformService != nil, // AGENT-PLATFORM (Brief 0078)
+                                           showDeveloperOptions: allowsDeveloperOptions && appSettings.developerOptionsEnabled, // AGENT-PLATFORM (Brief 0078)
                                            showAnalyticsSettings: appSettings.canPromptForAnalytics,
                                            isBugReportServiceEnabled: isBugReportServiceEnabled,
                                            navigationBarVisibility: isInSecondaryWindow ? .hidden : .automatic),
                    mediaProvider: userSession.mediaProvider)
         
         appSettings.developerOptionsEnabledPublisher
+            .map { allowsDeveloperOptions && $0 } // AGENT-PLATFORM (Brief 0078): a stored `true` from an older build stays hidden.
             .weakAssign(to: \.state.showDeveloperOptions, on: self)
-            .store(in: &cancellables)
-        
-        appSettings.linkNewDeviceEnabledPublisher
-            .weakAssign(to: \.state.showLinkNewDeviceButton, on: self)
             .store(in: &cancellables)
         
         userSession.clientProxy.userProfilePublisher
@@ -50,38 +57,12 @@ class SettingsScreenViewModel: SettingsScreenViewModelType, SettingsScreenViewMo
             .weakAssign(to: \.state.userProfile, on: self)
             .store(in: &cancellables)
         
+        // AGENT-PLATFORM (decision 187): Encryption lives in the Security hub;
+        // its badge stays visible here, on the hub's row.
         userSession.sessionSecurityStatePublisher
             .receive(on: DispatchQueue.main)
-            .sink { [weak self] securityState in
-                guard let self else { return }
-                
-                switch (securityState.verificationState, securityState.recoveryState) {
-                case (.verified, .disabled):
-                    state.showSecuritySectionBadge = true
-                    state.securitySectionMode = .secureBackup
-                case (.verified, .incomplete):
-                    state.showSecuritySectionBadge = true
-                    state.securitySectionMode = .secureBackup
-                case (.unknown, _):
-                    state.showSecuritySectionBadge = false
-                    state.securitySectionMode = .none
-                default:
-                    state.showSecuritySectionBadge = false
-                    state.securitySectionMode = .secureBackup
-                }
-            }
-            .store(in: &cancellables)
-        
-        userSession.clientProxy.ignoredUsersPublisher
-            .receive(on: DispatchQueue.main)
-            .map {
-                guard let blockedUsers = $0 else {
-                    return false
-                }
-                
-                return !blockedUsers.isEmpty
-            }
-            .weakAssign(to: \.state.showBlockedUsers, on: self)
+            .map(\.needsRecoverySetup)
+            .weakAssign(to: \.state.showSecuritySectionBadge, on: self)
             .store(in: &cancellables)
         
         Task {
@@ -90,7 +71,6 @@ class SettingsScreenViewModel: SettingsScreenViewModelType, SettingsScreenViewMo
             }
             await userSession.clientProxy.loadUserProfileIfNeeded()
         }
-        Task { await state.accountProfileURL = userSession.clientProxy.accountURL(action: .profile) }
     }
     
     override func process(viewAction: SettingsScreenViewAction) {
@@ -113,31 +93,30 @@ class SettingsScreenViewModel: SettingsScreenViewModelType, SettingsScreenViewMo
         case .userStatus(.cancel):
             state.bindings.isPresentingStatusPicker = false
             state.bindings.isShowingCustomStatusField = false
-        case .linkNewDevice:
-            actionsSubject.send(.linkNewDevice)
-        case let .manageAccount(url):
-            actionsSubject.send(.manageAccount(url: url))
+        case .invitePeople: // AGENT-PLATFORM (Brief 0073).
+            actionsSubject.send(.invitePeople)
+        case .security: // AGENT-PLATFORM (decision 187).
+            actionsSubject.send(.security)
+        case .privacy: // AGENT-PLATFORM (decision 187).
+            actionsSubject.send(.privacy)
+        case .notifications:
+            actionsSubject.send(.notifications)
+        case .yourData: // AGENT-PLATFORM (Brief 0078).
+            actionsSubject.send(.yourData)
+        case .appearanceAndMedia: // AGENT-PLATFORM (decision 187).
+            actionsSubject.send(.appearanceAndMedia)
         case .analytics:
             actionsSubject.send(.analytics)
-        case .appLock:
-            actionsSubject.send(.appLock)
         case .reportBug:
             actionsSubject.send(.reportBug)
         case .about:
             actionsSubject.send(.about)
-        case .blockedUsers:
-            actionsSubject.send(.blockedUsers)
-        case .logout:
-            actionsSubject.send(.logout)
-        case .secureBackup:
-            actionsSubject.send(.secureBackup)
-        case .notifications:
-            actionsSubject.send(.notifications)
-        case .advancedSettings:
-            actionsSubject.send(.advancedSettings)
         case .labs:
             actionsSubject.send(.labs)
+        case .logout:
+            actionsSubject.send(.logout)
         case .enableDeveloperOptions:
+            guard allowsDeveloperOptions else { return } // AGENT-PLATFORM (Brief 0078): seven taps do nothing in Release.
             appSettings.developerOptionsEnabled.toggle()
         case .developerOptions:
             actionsSubject.send(.developerOptions)

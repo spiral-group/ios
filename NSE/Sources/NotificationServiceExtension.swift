@@ -52,7 +52,11 @@ final nonisolated class NotificationServiceExtension: UNNotificationServiceExten
 }
 
 actor NotificationServiceExtensionActor {
-    static let receivedWhileOfflineNotificationID = "io.element.elementx.receivedWhileOfflineNotification"
+    // AGENT-PLATFORM: derive notification ID from the base bundle identifier
+    // (read at runtime from Info.plist) instead of hard-coding the upstream
+    // io.element.elementx domain. Marker preserved so an upstream sync that
+    // touches this line surfaces immediately.
+    static let receivedWhileOfflineNotificationID = "\(InfoPlistReader.main.baseBundleIdentifier).receivedWhileOfflineNotification"
     
     /// Process-wide target configuration, `Mutex`-protected so it can be read/written from any
     /// thread (in particular, from the actor's synchronous `init` without spawning a Task).
@@ -132,6 +136,25 @@ actor NotificationServiceExtensionActor {
             return contentHandler(.init())
         }
         
+        // AGENT-PLATFORM (Brief 0043, ADR-0057): Spiral direct pushes
+        // carry NO Matrix event — the orchestrator POSTed sygnal with
+        // {spiral: {kind, id}}. Build the localized content right here
+        // (device locale) and skip the whole SDK path; tap / inline
+        // actions route via the userInfo keys and categories
+        // `SpiralPushContentBuilder` sets.
+        if let subject = SpiralPushContentBuilder.extractSubject(from: request.content.userInfo) {
+            // Brief 0078: an approval's push names its escalation tag.
+            if let content = SpiralPushContentBuilder.build(kind: subject.kind,
+                                                            subjectID: subject.id,
+                                                            baseContent: request.content,
+                                                            reason: subject.reason) {
+                return contentHandler(content)
+            }
+            // The content could not be copied: show it as it came rather
+            // than a broken SDK lookup.
+            return contentHandler(request.content)
+        }
+
         guard let roomID = request.content.roomID else {
             // Don't log until the app hooks have been run:
             // swiftlint:disable:next print_deprecation
@@ -191,7 +214,12 @@ actor NotificationServiceExtensionActor {
             
             await notificationHandler?.processEvent(eventID, roomID: roomID)
         } catch {
-            MXLog.error("Failed creating user session with error: \(error)")
+            // AGENT-PLATFORM (Brief 0066, § 5.83): nothing to show without a
+            // session; say so rather than leave iOS to time out. Seen on a
+            // simulator with an unreadable store: iOS discarded the unanswered
+            // push on its own, but that is iOS's choice, not ours.
+            MXLog.error("Failed creating user session with error: \(error), discarding")
+            contentHandler(.init())
         }
     }
     

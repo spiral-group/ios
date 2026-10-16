@@ -265,7 +265,9 @@ struct MessageText: UIViewRepresentable {
                     return nil
                 }
                 // We don't want to show a URL preview for permalinks
-                let isPermalink = parseMatrixEntityFrom(uri: url.absoluteString) != nil
+                // AGENT-PLATFORM (Brief 0060): resolves both namespaces
+                // (spiral.md smart links + inbound matrix.to).
+                let isPermalink = SpiralLink.matrixLinkTarget(from: url) != nil
                 return .init(preview: isPermalink ? nil : .default, menu: defaultMenu)
             default:
                 return nil

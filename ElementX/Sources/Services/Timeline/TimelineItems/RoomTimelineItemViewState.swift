@@ -71,6 +71,12 @@ enum RoomTimelineItemType: Equatable {
     case callInvite(CallInviteRoomTimelineItem)
     case callNotification(CallNotificationRoomTimelineItem)
     case liveLocation(LiveLocationRoomTimelineItem)
+    // AGENT-PLATFORM (Brief 0066)
+    case interactivePost(InteractivePostRoomTimelineItem)
+    case interactiveDraft(InteractiveDraftRoomTimelineItem)
+    case interactiveGenerating(InteractiveGeneratingRoomTimelineItem)
+    // AGENT-PLATFORM (Brief 0073): a client-rendered notice card.
+    case spiralNotice(SpiralNoticeRoomTimelineItem)
     
     init(item: RoomTimelineItemProtocol) {
         switch item {
@@ -102,6 +108,14 @@ enum RoomTimelineItemType: Equatable {
             self = .paginationIndicator(item)
         case let item as StickerRoomTimelineItem:
             self = .sticker(item)
+        case let item as InteractivePostRoomTimelineItem:
+            self = .interactivePost(item)
+        case let item as InteractiveDraftRoomTimelineItem:
+            self = .interactiveDraft(item)
+        case let item as InteractiveGeneratingRoomTimelineItem:
+            self = .interactiveGenerating(item)
+        case let item as SpiralNoticeRoomTimelineItem:
+            self = .spiralNotice(item)
         case let item as UnsupportedRoomTimelineItem:
             self = .unsupported(item)
         case let item as TimelineStartRoomTimelineItem:
@@ -152,7 +166,11 @@ enum RoomTimelineItemType: Equatable {
              .voice(let item as RoomTimelineItemProtocol),
              .callInvite(let item as RoomTimelineItemProtocol),
              .callNotification(let item as RoomTimelineItemProtocol),
-             .liveLocation(let item as RoomTimelineItemProtocol):
+             .liveLocation(let item as RoomTimelineItemProtocol),
+             .interactivePost(let item as RoomTimelineItemProtocol),
+             .interactiveDraft(let item as RoomTimelineItemProtocol),
+             .interactiveGenerating(let item as RoomTimelineItemProtocol),
+             .spiralNotice(let item as RoomTimelineItemProtocol):
             return item.id
         }
     }
@@ -187,6 +205,12 @@ enum RoomTimelineItemType: Equatable {
             return item.timestamp
         case .sticker(let item):
             return item.timestamp
+        case .interactivePost(let item):
+            return item.timestamp
+        case .interactiveDraft(let item):
+            return item.timestamp
+        case .interactiveGenerating(let item):
+            return item.timestamp
         case .unsupported(let item):
             return item.timestamp
         case .state(let item):
@@ -200,6 +224,8 @@ enum RoomTimelineItemType: Equatable {
         case .callInvite(let item):
             return item.timestamp
         case .callNotification(let item):
+            return item.timestamp
+        case .spiralNotice(let item):
             return item.timestamp
         case .liveLocation(let item):
             return item.timestamp

@@ -31,4 +31,31 @@ protocol UserSessionProtocol: Sendable {
     var sessionSecurityStatePublisher: CurrentValuePublisher<SessionSecurityState, Never> { get }
     
     var callbacks: PassthroughSubject<UserSessionCallback, Never> { get }
+
+    // AGENT-PLATFORM: typed REST client for `/api/v1/*` on the
+    // Agent Platform backend (`spiral.md`). Constructed in
+    // `UserSessionStore::buildUserSessionWithClient` alongside
+    // the rest of the session-scoped services; bearer-token
+    // resolution flows through `MatrixSDKAuthBridge` which
+    // reads the MAS session token from the keychain.
+    //
+    // Optional because (a) the bridge can fail to build if the
+    // backend base URL is malformed in `AppSettings`, in which
+    // case we'd rather degrade gracefully than block login; and
+    // (b) it keeps the surface backward-compatible for the
+    // UI-tests app coordinator + the existing mock generator.
+    var agentPlatformService: AgentPlatformServiceProtocol? { get }
+
+    // AGENT-PLATFORM: long-lived SSE subscription to
+    // `/api/v1/approvals/stream`. UserSession-scope per
+    // DECISIONS.md ("ApprovalsStreamService lives at UserSession
+    // scope"). Same optionality contract as `agentPlatformService`
+    // — nil if the bridge couldn't build. Lifecycle managed by
+    // `AppCoordinator` foreground/background hooks (S151+).
+    var approvalsStreamService: ApprovalsStreamServiceProtocol? { get }
+    
+    // AGENT-PLATFORM (Brief 0072, ADR-0083): who is online, for the DM
+    // header and the room list. Session-scoped so two screens share one
+    // cache and one poll. Optional for the mocks and the UI-tests session.
+    var presenceObserverService: PresenceObserverServiceProtocol? { get }
 }

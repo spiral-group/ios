@@ -22,11 +22,16 @@ enum RoomScreenViewModelAction: Equatable {
     case displayMessageForwarding(MessageForwardingItem)
     case stopLiveLocationSharing
     case displayLiveLocation
+    // AGENT-PLATFORM: open the agent-tools capabilities sheet (Brief 0036).
+    case displayAgentTools
 }
 
 enum RoomScreenViewAction {
     case tappedPinnedEventsBanner
     case viewAllPins
+    // AGENT-PLATFORM: user tapped the active-tools banner (Brief 0036).
+    case tappedActiveToolsBanner
+    case rotateActiveToolsBanner
     case displayRoomDetails
     case displayCall(isVoiceCall: Bool)
     case footerViewAction(RoomScreenFooterViewAction)
@@ -50,7 +55,18 @@ struct RoomScreenViewState: BindableState {
     var shouldShowPinnedEventsBanner: Bool {
         !pinnedEventsBannerState.isEmpty && lastScrollDirection != .top
     }
-    
+
+    // AGENT-PLATFORM (Brief 0044): the all-participant tools banner,
+    // timeline-native (fed by com.spiral.tools events, per
+    // ActiveToolsBannerState). Visible to every participant live. Like the
+    // pinned-events banner, it hides once the user scrolls to the top of the
+    // timeline (`lastScrollDirection == .top`) so it never obscures the
+    // messages the user just scrolled up to read.
+    var activeToolsBannerState: ActiveToolsBannerState = .loading
+    var shouldShowActiveToolsBanner: Bool {
+        !activeToolsBannerState.isEmpty && lastScrollDirection != .top
+    }
+
     var isSharingLiveLocation = false
     
     var canSendMessage = true
@@ -71,6 +87,9 @@ struct RoomScreenViewState: BindableState {
     
     /// Whether the current room is a DM
     var isDM: Bool
+    // AGENT-PLATFORM (Brief 0063): native group voice call entry point.
+    /// Voice is exposed in every non-DM room (ADR-0079 D3).
+    var canStartGroupVoiceCall = false
     
     var roomThreadListEnabled = false
     var isKnockableRoom = false

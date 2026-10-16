@@ -11,8 +11,9 @@ import SwiftUI
 
 struct ResolveVerifiedUserSendFailureScreenCoordinatorParameters {
     let failure: TimelineItemSendFailure.VerifiedUser
-    let sendHandle: SendHandleProxy
-    let roomProxy: JoinedRoomProxyProtocol
+    // AGENT-PLATFORM (Brief 0066 § 5.87): was `sendHandle` + `roomProxy`; the
+    // resolver carries the room, and also resolves a raw send.
+    let resolver: VerifiedUserSendFailureResolver
     let userIndicatorController: UserIndicatorControllerProtocol
 }
 
@@ -32,8 +33,7 @@ final class ResolveVerifiedUserSendFailureScreenCoordinator: CoordinatorProtocol
     
     init(parameters: ResolveVerifiedUserSendFailureScreenCoordinatorParameters) {
         viewModel = ResolveVerifiedUserSendFailureScreenViewModel(failure: parameters.failure,
-                                                                  sendHandle: parameters.sendHandle,
-                                                                  roomProxy: parameters.roomProxy,
+                                                                  resolver: parameters.resolver,
                                                                   userIndicatorController: parameters.userIndicatorController)
     }
     

@@ -51,6 +51,10 @@ struct RoomMembersListScreenViewState: BindableState {
     var canKickUsers = false
     var canBanUsers = false
     
+    // AGENT-PLATFORM (Brief 0072, ADR-0083): what is known of the room's
+    // members' presence, by user ID.
+    var presences: [String: UserPresence] = [:]
+    
     var bindings: RoomMembersListScreenViewStateBindings
     
     init(joinedMembersCount: Int,
@@ -104,6 +108,10 @@ struct RoomMembersListScreenViewStateBindings {
 enum RoomMembersListScreenViewAction {
     case selectMember(RoomMemberDetails)
     case invite
+    // AGENT-PLATFORM (Brief 0072, ADR-0083): a joined member's row came on
+    // screen or left it — the rows on screen are whose presence is asked for.
+    case memberAppeared(userID: String)
+    case memberDisappeared(userID: String)
 }
 
 enum RoomMembersListScreenAlertType: Hashable { }

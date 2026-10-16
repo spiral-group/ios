@@ -73,6 +73,24 @@ struct RoomAttachmentPicker: View {
                 Label(L10n.screenRoomAttachmentSourceCamera, icon: \.takePhoto)
             }
             .accessibilityIdentifier(A11yIdentifiers.roomScreen.attachmentPickerCamera)
+
+            // AGENT-PLATFORM (Brief 0066 step 6): an Interactive Post is
+            // asked for here and generated in the DM with the agent picked.
+            Button {
+                context.send(viewAction: .presentInteractivePostAgentPicker)
+            } label: {
+                Label(UntranslatedL10n.screenRoomAttachmentInteractivePost, icon: \.extensions)
+            }
+            .accessibilityIdentifier(A11yIdentifiers.roomScreen.attachmentPickerInteractivePost) // AGENT-PLATFORM (decision 146)
+
+            // AGENT-PLATFORM: the "Agents" item — last in the list — opens the
+            // agent bottom-sheet (room → agent → tool). Brief 0035/0036.
+            Button {
+                context.send(viewAction: .presentAgentTools)
+            } label: {
+                Label(UntranslatedL10n.screenRoomAttachmentAgentTools, icon: \.userProfile)
+            }
+            .accessibilityIdentifier(A11yIdentifiers.roomScreen.attachmentPickerAgentTools) // AGENT-PLATFORM (decision 146)
         }
     }
 }

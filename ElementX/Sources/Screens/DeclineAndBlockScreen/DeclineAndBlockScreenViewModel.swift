@@ -62,8 +62,10 @@ class DeclineAndBlockScreenViewModel: DeclineAndBlockScreenViewModelType, Declin
                 shouldShowFailure = await clientProxy.reportRoomForIdentifier(roomID, reason: state.bindings.reportReason).isFailure
             }
             
-            if state.bindings.shouldBlockUser {
-                shouldShowFailure = await clientProxy.ignoreUser(userID).isFailure
+            // AGENT-PLATFORM (re-walk review): a failed report must not be
+            // overwritten by a successful block and end in the success toast.
+            if state.bindings.shouldBlockUser, await clientProxy.ignoreUser(userID).isFailure {
+                shouldShowFailure = true
             }
             
             hideLoadingIndicator()

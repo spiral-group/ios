@@ -12,8 +12,8 @@ import SwiftUI
 final class LegalInformationScreenCoordinator: CoordinatorProtocol {
     private let viewModel: LegalInformationScreenViewModelProtocol
     
-    init(appSettings: AppSettings) {
-        viewModel = LegalInformationScreenViewModel(appSettings: appSettings)
+    init(appSettings: AppSettings, appMediator: AppMediatorProtocol) {
+        viewModel = LegalInformationScreenViewModel(appSettings: appSettings, appMediator: appMediator)
     }
     
     func toPresentable() -> AnyView {

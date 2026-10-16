@@ -1,6 +1,6 @@
-"NSCameraUsageDescription" = "Um Bilder oder Videos aufzunehmen und als Nachricht zu versenden, benötigt Element X Zugriff auf die Kamera.";
+"NSCameraUsageDescription" = "Für Videoanrufe und um Bilder oder Videos aufzunehmen und als Nachricht zu versenden, benötigt Spiral Zugriff auf die Kamera.";
 "NSFaceIDUsageDescription" = "Face ID wird verwendet um die App zu entsperren.";
-"NSLocationAlwaysAndWhenInUseUsageDescription" = "Um deinen Live-Standort zu teilen, benötigt Element X Zugriff auf deinen Standort, während die App im Hintergrund läuft.";
-"NSLocationWhenInUseUsageDescription" = "Erlaube Element X den Zugriff auf deinen Standort, um den Standort zu teilen.";
-"NSMicrophoneUsageDescription" = "Um Sprachnachrichten aufzunehmen und mit Element X zu versenden, wird der Zugriff auf das Mikrofon benötigt.";
+"NSLocationAlwaysAndWhenInUseUsageDescription" = "Um deinen Live-Standort zu teilen, benötigt Spiral Zugriff auf deinen Standort, während die App im Hintergrund läuft.";
+"NSLocationWhenInUseUsageDescription" = "Erlaube Spiral den Zugriff auf deinen Standort, um den Standort zu teilen.";
+"NSMicrophoneUsageDescription" = "Für Anrufe und um Sprachnachrichten aufzunehmen und zu versenden, benötigt Spiral Zugriff auf das Mikrofon.";
 "NSPhotoLibraryUsageDescription" = "Damit kannst du Bilder und Videos in deiner Foto Galerie speichern.";

@@ -6,6 +6,7 @@
 // Please see LICENSE files in the repository root for full details.
 //
 
+import AgentPlatformClient
 import Foundation
 import MatrixRustSDK
 
@@ -114,11 +115,69 @@ class UserSessionStore: UserSessionStoreProtocol {
             LiveLocationManager(clientProxy: clientProxy,
                                 appSettings: appSettings)
         }
-        
+
+        // AGENT-PLATFORM: build the typed REST client + service for
+        // `/api/v1/*`. Failure here is non-blocking — login still
+        // succeeds, the `agentPlatformService` field on UserSession
+        // is just nil and dependent UI degrades gracefully.
+        let agentPlatformService = await buildAgentPlatformService(clientProxy: clientProxy)
+
+        // AGENT-PLATFORM: build the SSE service for live approval
+        // events. Requires the REST service (for the reseed call)
+        // — if REST construction failed we skip the stream too, so
+        // both nil together or both present.
+        let approvalsStreamService = await buildApprovalsStreamService(clientProxy: clientProxy,
+                                                                       agentPlatformService: agentPlatformService)
+
         return UserSession(clientProxy: clientProxy,
                            mediaProvider: mediaProvider,
                            voiceMessageMediaManager: voiceMessageMediaManager,
-                           liveLocationManager: liveLocationManager)
+                           liveLocationManager: liveLocationManager,
+                           agentPlatformService: agentPlatformService,
+                           approvalsStreamService: approvalsStreamService,
+                           // AGENT-PLATFORM (Brief 0072, ADR-0083, ADR-0084)
+                           presenceObserverService: PresenceObserverService(clientProxy: clientProxy),
+                           sharePresenceSettingSync: SharePresenceSettingSync(clientProxy: clientProxy,
+                                                                              appSettings: appSettings),
+                           // AGENT-PLATFORM (decision 98)
+                           ownerBlocksSync: agentPlatformService.map { OwnerBlocksSync(clientProxy: clientProxy, agentPlatformService: $0) })
+    }
+
+    // AGENT-PLATFORM: glue between MatrixRustSDK session storage
+    // (the keychain we already own) and the typed REST client from
+    // `libraries/agentplatform-client/`. Runs on `@MainActor` because
+    // `AgentPlatformService` is `@MainActor`-isolated to keep
+    // ViewModel call sites lock-free.
+    @MainActor
+    private func buildAgentPlatformService(clientProxy: ClientProxyProtocol) -> AgentPlatformServiceProtocol? {
+        do {
+            let bridge = MatrixSDKAuthBridge(clientProxy: clientProxy,
+                                             keychainController: keychainController)
+            let client = try AgentPlatformClient(serverURL: appSettings.agentPlatformBaseURL,
+                                                 authProvider: bridge)
+            MXLog.info("AgentPlatform: REST client constructed against \(appSettings.agentPlatformBaseURL)")
+            return AgentPlatformService(client: client)
+        } catch {
+            MXLog.error("AgentPlatform: failed to build REST client: \(error)")
+            return nil
+        }
+    }
+
+    // AGENT-PLATFORM: SSE service for `/approvals/stream`. Shares
+    // the bridge with the REST client so both use the same MAS
+    // token from the keychain. Returns nil if the REST service
+    // failed to build (no point streaming without a reseed path).
+    @MainActor
+    private func buildApprovalsStreamService(clientProxy: ClientProxyProtocol,
+                                             agentPlatformService: AgentPlatformServiceProtocol?) -> ApprovalsStreamServiceProtocol? {
+        guard let agentPlatformService else { return nil }
+        let bridge = MatrixSDKAuthBridge(clientProxy: clientProxy,
+                                         keychainController: keychainController)
+        let service = ApprovalsStreamService(agentPlatformService: agentPlatformService,
+                                             authProvider: bridge,
+                                             baseURL: appSettings.agentPlatformBaseURL)
+        MXLog.info("AgentPlatform: approvals stream service constructed")
+        return service
     }
     
     private func restorePreviousLogin(_ credentials: KeychainCredentials) async -> Result<ClientProxyProtocol, UserSessionStoreError> {

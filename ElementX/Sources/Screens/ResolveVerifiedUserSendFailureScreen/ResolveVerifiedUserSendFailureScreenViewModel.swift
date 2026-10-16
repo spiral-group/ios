@@ -14,8 +14,13 @@ typealias ResolveVerifiedUserSendFailureScreenViewModelType = StateStoreViewMode
 class ResolveVerifiedUserSendFailureScreenViewModel: ResolveVerifiedUserSendFailureScreenViewModelType, ResolveVerifiedUserSendFailureScreenViewModelProtocol {
     private let iterator: VerifiedUserSendFailureIterator
     private let failure: TimelineItemSendFailure.VerifiedUser
-    private let sendHandle: SendHandleProxy
+    // AGENT-PLATFORM (Brief 0066 § 5.87): what an answer does, so the screen
+    // also resolves a raw send, which has no send handle.
+    private let resolver: VerifiedUserSendFailureResolver
     private let roomProxy: JoinedRoomProxyProtocol
+    // AGENT-PLATFORM: the user after the one on screen, read ahead so the
+    // resolver knows when the last answer is given.
+    private var upcoming: (userID: String, failure: TimelineItemSendFailure.VerifiedUser)?
     private var members: [String: RoomMemberProxyProtocol]
     
     private let userIndicatorController: UserIndicatorControllerProtocol
@@ -26,8 +31,7 @@ class ResolveVerifiedUserSendFailureScreenViewModel: ResolveVerifiedUserSendFail
     }
     
     init(failure: TimelineItemSendFailure.VerifiedUser,
-         sendHandle: SendHandleProxy,
-         roomProxy: JoinedRoomProxyProtocol,
+         resolver: VerifiedUserSendFailureResolver, // AGENT-PLATFORM: was `sendHandle`
          userIndicatorController: UserIndicatorControllerProtocol) {
         iterator = switch failure {
         case .hasUnsignedDevice(let devices): UnsignedDeviceFailureIterator(devices: devices)
@@ -35,8 +39,8 @@ class ResolveVerifiedUserSendFailureScreenViewModel: ResolveVerifiedUserSendFail
         }
         
         self.failure = failure
-        self.sendHandle = sendHandle
-        self.roomProxy = roomProxy
+        self.resolver = resolver
+        roomProxy = resolver.roomProxy
         self.userIndicatorController = userIndicatorController
         
         members = Dictionary(uniqueKeysWithValues: roomProxy.membersPublisher.value.map { ($0.userID, $0) })
@@ -45,6 +49,7 @@ class ResolveVerifiedUserSendFailureScreenViewModel: ResolveVerifiedUserSendFail
             MXLog.error("There aren't any known users/devices to resolve the failure with.")
             fatalError("There aren't any known users/devices to resolve the failure with.")
         }
+        upcoming = iterator.next()
         
         super.init(initialViewState: ResolveVerifiedUserSendFailureScreenViewState(currentFailure: failure,
                                                                                    currentMemberDisplayName: members[userID]?.displayName ?? userID,
@@ -67,12 +72,10 @@ class ResolveVerifiedUserSendFailureScreenViewModel: ResolveVerifiedUserSendFail
     }
     
     private func resolveAndResend() async {
-        let result = switch failure {
-        case .hasUnsignedDevice(let devices):
-            await roomProxy.ignoreDeviceTrustAndResend(devices: devices, sendHandle: sendHandle)
-        case .changedIdentity(let users):
-            await roomProxy.withdrawVerificationAndResend(userIDs: users, sendHandle: sendHandle)
-        }
+        // AGENT-PLATFORM (Brief 0066 § 5.87): through the resolver — for a
+        // send-queue item it ignores/withdraws for the whole failure and
+        // resends, exactly as before.
+        let result = await resolver.resolve(state.currentFailure, failure, upcoming == nil)
         
         if case let .failure(error) = result {
             MXLog.error("Failed to resolve send failure: \(error)")
@@ -80,7 +83,8 @@ class ResolveVerifiedUserSendFailureScreenViewModel: ResolveVerifiedUserSendFail
             return
         }
         
-        if let (userID, failure) = iterator.next() {
+        if let (userID, failure) = upcoming {
+            upcoming = iterator.next()
             state.currentMemberDisplayName = members[userID]?.displayName ?? userID
             state.currentFailure = failure
             state.isYou = userID == roomProxy.ownUserID
@@ -90,7 +94,7 @@ class ResolveVerifiedUserSendFailureScreenViewModel: ResolveVerifiedUserSendFail
     }
     
     private func resend() async {
-        switch await sendHandle.resend() {
+        switch await resolver.resend() { // AGENT-PLATFORM: was `sendHandle.resend()`
         case .success:
             actionsSubject.send(.dismiss)
         case .failure(let error):

@@ -11,7 +11,11 @@ xcuserdata/
 *.xcarchive
 
 ## SwiftPM
-.build
+/.build
+/.build-dd
+# Spiral: derived-data roots used by the sim/device build scripts (~10 GB each)
+/.build-sim
+/.build-device
 /Packages
 xcuserdata/
 DerivedData/
@@ -40,6 +44,7 @@ build
 ._*
 
 ## Editors
+.idea
 .nova
 .vscode
 
@@ -49,3 +54,6 @@ test_output
 # Only commit Pkl packages (there may be other caches in here).
 Secrets/vendor/*
 !Secrets/vendor/package-2
+
+# CodeGraph local index (machine-local, not committed)
+.codegraph/

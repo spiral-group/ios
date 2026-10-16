@@ -18,6 +18,8 @@ struct SpacesScreen: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { toolbar }
             .background(Color.compound.bgCanvasDefault.ignoresSafeArea())
+            // AGENT-PLATFORM: navigation-bar bloom restored (ADR-0005 revision) — now
+            // a blue glow via the synced alpha-blue subtle gradient (see HomeScreen).
             .toolbarBloom(hasSearchBar: false)
     }
     

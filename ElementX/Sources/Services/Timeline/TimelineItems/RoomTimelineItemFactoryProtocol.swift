@@ -13,4 +13,7 @@ nonisolated protocol RoomTimelineItemFactoryProtocol: Sendable {
     func buildTimelineItem(for eventItemProxy: EventTimelineItemProxy, isDM: Bool) -> RoomTimelineItemProtocol?
     func buildTimelineItemReply(_ details: MatrixRustSDK.InReplyToDetails) -> TimelineItemReply
     func buildMessageTimelineItemContent(messageType: MessageType?, senderID: String, senderDisplayName: String?) -> EventBasedMessageTimelineItemContentType
+    /// AGENT-PLATFORM (Brief 0066): what a message looks like when something
+    /// else stands in for it — a reply, a thread summary, a search result.
+    func buildEventContent(messageType: MessageType, senderID: String, senderDisplayName: String?) -> TimelineEventContent
 }

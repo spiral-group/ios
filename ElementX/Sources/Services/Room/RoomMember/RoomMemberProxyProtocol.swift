@@ -36,8 +36,9 @@ nonisolated extension RoomMemberProxyProtocol {
         membership == .join || membership == .invite || membership == .knock
     }
     
+    // AGENT-PLATFORM (Brief 0060): spiral.md smart link, not matrix.to.
     var permalink: URL? {
-        try? URL(string: matrixToUserPermalink(userId: userID))
+        SpiralLink(userID: userID)?.webURL
     }
     
     /// The name used for sorting the member alphabetically. This will be the displayname if,

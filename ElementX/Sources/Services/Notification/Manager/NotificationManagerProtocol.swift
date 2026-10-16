@@ -15,6 +15,16 @@ protocol NotificationManagerDelegate: AnyObject {
     func handleInlineReply(_ service: NotificationManagerProtocol,
                            content: UNNotificationContent,
                            replyText: String) async
+    // AGENT-PLATFORM: invoked by an Approve/Reject UNNotificationAction
+    // tap on an approval-category notification. Runs in the main app
+    // process (background-launched if necessary); guarded by
+    // UIApplication.beginBackgroundTask in the implementation so the
+    // POST completes even if the user dismisses the notification UI
+    // immediately. See LEARNING.md L154-4 for the architectural
+    // rationale ("don't use background URLSession for sub-second POSTs").
+    func handleApprovalAction(_ service: NotificationManagerProtocol,
+                              content: UNNotificationContent,
+                              decision: ApprovalDecision) async
     func registerForRemoteNotifications()
     func unregisterForRemoteNotifications()
 }
@@ -36,4 +46,7 @@ protocol NotificationManagerProtocol: AnyObject {
     func removeDeliveredMessageNotifications(for roomID: String) async
     
     func removeDeliveredNotificationsForFullyReadRooms(_ rooms: [RoomSummary]) async
+    /// AGENT-PLATFORM: recompute the icon badge from the room list's own
+    /// truth. See `NotificationManager.updateBadgeCount`.
+    func updateBadgeCount(with rooms: [RoomSummary]) async
 }

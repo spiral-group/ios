@@ -133,7 +133,26 @@ class TimelineController: TimelineControllerProtocol {
             return
         }
         
+        // AGENT-PLATFORM (§ 5.73): the newest item of the live timeline read
+        // means the room is read to its END, hidden events included. A game's
+        // move is hidden and may carry a mention; a receipt on the post before
+        // it left the room's «@» there for good. The SDK's `markAsRead`
+        // receipts the latest event whether or not it is shown.
+        if Self.readsToTheEnd(itemID, in: timelineItems, kind: timelineKind) {
+            _ = await activeTimeline.markAsRead(receiptType: receiptType)
+            return
+        }
+        
         _ = await activeTimeline.sendReadReceipt(for: eventID, type: receiptType)
+    }
+    
+    /// Whether reading `itemID` reads the whole room: it is the newest event
+    /// of a live timeline — not a thread, not a timeline focused on the past.
+    static func readsToTheEnd(_ itemID: TimelineItemIdentifier,
+                              in items: [RoomTimelineItemProtocol],
+                              kind: TimelineKind) -> Bool {
+        guard kind == .live, itemID.eventID != nil else { return false }
+        return items.last { $0.id.eventID != nil }?.id == itemID
     }
     
     func processItemAppearance(_ itemID: TimelineItemIdentifier) async {
@@ -457,7 +476,12 @@ class TimelineController: TimelineControllerProtocol {
         callbacks.send(.isLive(activeTimelineItemProvider.kind == .live))
         
         let contentSizeChangePublisher = NotificationCenter.default.publisher(for: UIContentSizeCategory.didChangeNotification)
-        let timelineUpdates = activeTimelineItemProvider.updatePublisher.merge(with: contentSizeChangePublisher.compactMap { [weak self] _ in
+        // AGENT-PLATFORM: items bake in `isDM`, which flips when an agent joins or
+        // leaves the room (agents are service members, excluded from the DM/group
+        // boundary). Without this the call tile keeps the stale group wording.
+        let isDMChangePublisher = roomProxy.infoPublisher.map(\.isDM).removeDuplicates().dropFirst()
+        let rebuildTriggers = contentSizeChangePublisher.map { _ in () }.merge(with: isDMChangePublisher.map { _ in () })
+        let timelineUpdates = activeTimelineItemProvider.updatePublisher.merge(with: rebuildTriggers.compactMap { [weak self] _ in
             guard let activeTimelineProvider = self?.activeTimelineItemProvider else {
                 return nil
             }
@@ -485,27 +509,38 @@ class TimelineController: TimelineControllerProtocol {
             
             let collapsibleChunks = itemProxies.groupBy { $0.isItemCollapsible }
             
-            for (index, collapsibleChunk) in collapsibleChunks.enumerated() {
-                let isLastItem = index == collapsibleChunks.indices.last
-                
-                let items = collapsibleChunk.compactMap { itemProxy in
-                    self.buildTimelineItem(for: itemProxy,
-                                           isDM: isDM,
-                                           hasPredecessor: hasPredecessor,
-                                           roomDisplayName: displayName,
-                                           timelineItemFactory: timelineItemFactory,
-                                           activeTimeline: activeTimeline)
+            // AGENT-PLATFORM: the SDK puts its read marker before the first event from
+            // someone else, counting events with no row here (`m.call.member`, sent by
+            // every call). Show «New» only above a row from someone else.
+            var readMarkerIndex: Int?
+            var isReadMarkerFollowed = false
+            
+            for collapsibleChunk in collapsibleChunks {
+                var hasRowFromOthers = false
+                let items = collapsibleChunk.compactMap { itemProxy -> RoomTimelineItemProtocol? in
+                    let item = self.buildTimelineItem(for: itemProxy,
+                                                      isDM: isDM,
+                                                      hasPredecessor: hasPredecessor,
+                                                      roomDisplayName: displayName,
+                                                      timelineItemFactory: timelineItemFactory,
+                                                      activeTimeline: activeTimeline)
+                    if item != nil, case .event(let eventItem) = itemProxy, !eventItem.isOwn {
+                        hasRowFromOthers = true
+                    }
+                    return item
                 }
                 
                 if items.isEmpty {
                     continue
                 }
                 
+                if readMarkerIndex != nil, hasRowFromOthers {
+                    isReadMarkerFollowed = true
+                }
+                
                 if items.count == 1, let timelineItem = items.first {
-                    // Don't show the read marker if it's the last item in the timeline
-                    // https://github.com/matrix-org/matrix-rust-sdk/issues/1546
-                    guard !(timelineItem is ReadMarkerRoomTimelineItem && isLastItem) else {
-                        continue
+                    if timelineItem is ReadMarkerRoomTimelineItem {
+                        readMarkerIndex = newTimelineItems.endIndex
                     }
                     
                     newTimelineItems.append(timelineItem)
@@ -514,7 +549,11 @@ class TimelineController: TimelineControllerProtocol {
                 }
             }
             
-            return newTimelineItems
+            if let readMarkerIndex, !isReadMarkerFollowed {
+                newTimelineItems.remove(at: readMarkerIndex)
+            }
+            
+            return InteractiveGeneratingRoomTimelineItem.droppingSuperseded(newTimelineItems)
         }.value
         
         // Check if we need to add anything to the top of the timeline.

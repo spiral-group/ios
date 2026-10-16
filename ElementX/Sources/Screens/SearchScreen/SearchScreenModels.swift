@@ -106,6 +106,9 @@ struct SearchScreenMessage: Identifiable, Equatable {
             AttributedString(question)
         case .liveLocation:
             AttributedString(L10n.commonSharedLiveLocation)
+        // AGENT-PLATFORM (Brief 0066): an Interactive Post is found by its title.
+        case .interactivePost(let title):
+            AttributedString(title)
         case .redacted:
             AttributedString(L10n.commonMessageRemoved)
         }

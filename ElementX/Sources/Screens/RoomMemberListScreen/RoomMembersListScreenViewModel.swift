@@ -20,6 +20,12 @@ class RoomMembersListScreenViewModel: RoomMembersListScreenViewModelType, RoomMe
     private var members: [RoomMemberProxyProtocol] = []
     private var currentUserProxy: RoomMemberProxyProtocol?
     
+    // AGENT-PLATFORM (Brief 0072, ADR-0083)
+    private var presenceScope: PresenceScope?
+    private var visibleMemberIDs = Set<String>()
+    private let visibleMembersSubject = PassthroughSubject<Set<String>, Never>()
+    private var memberIDs = Set<String>()
+    
     private var actionsSubject: PassthroughSubject<RoomMembersListScreenViewModelAction, Never> = .init()
     
     var actions: AnyPublisher<RoomMembersListScreenViewModelAction, Never> {
@@ -41,6 +47,7 @@ class RoomMembersListScreenViewModel: RoomMembersListScreenViewModelType, RoomMe
                    mediaProvider: userSession.mediaProvider)
         
         setupMembers()
+        setupPresence()
     }
     
     // MARK: - Public
@@ -51,12 +58,48 @@ class RoomMembersListScreenViewModel: RoomMembersListScreenViewModelType, RoomMe
             selectMember(member)
         case .invite:
             actionsSubject.send(.invite)
+        case .memberAppeared(let userID):
+            visibleMemberIDs.insert(userID)
+            visibleMembersSubject.send(visibleMemberIDs)
+        case .memberDisappeared(let userID):
+            visibleMemberIDs.remove(userID)
+            visibleMembersSubject.send(visibleMemberIDs)
         }
     }
     
     func stop() {
         hideLoadingIndicator(Self.setupMembersLoadingIndicatorIdentifier)
         hideLoadingIndicator(Self.updateStateLoadingIndicatorIdentifier)
+        // AGENT-PLATFORM (Brief 0072, ADR-0083)
+        presenceScope?.cancel()
+    }
+    
+    // MARK: - Presence
+    
+    // AGENT-PLATFORM (Brief 0072, ADR-0083): the joined members on screen
+    // are asked for as list rows; a scroll settles before the set is sent.
+    private func setupPresence() {
+        guard let presenceObserverService = userSession.presenceObserverService else { return }
+        let presenceScope = PresenceScope(service: presenceObserverService)
+        self.presenceScope = presenceScope
+        
+        visibleMembersSubject
+            .debounce(for: .milliseconds(250), scheduler: DispatchQueue.main)
+            .sink { [weak presenceScope] userIDs in presenceScope?.observe(userIDs) }
+            .store(in: &cancellables)
+        
+        presenceObserverService.presencePublisher
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] presences in self?.updatePresences(presences) }
+            .store(in: &cancellables)
+    }
+    
+    /// Only this room's members: another screen's users are no news here.
+    private func updatePresences(_ presences: [String: UserPresence]) {
+        let roomPresences = presences.filter { memberIDs.contains($0.key) }
+        if roomPresences != state.presences {
+            state.presences = roomPresences
+        }
     }
     
     // MARK: - Members
@@ -113,6 +156,13 @@ class RoomMembersListScreenViewModel: RoomMembersListScreenViewModelType, RoomMe
                                invitedMembers: roomMembersDetails.invitedMembers,
                                bannedMembers: roomMembersDetails.bannedMembers,
                                bindings: newBindings)
+            
+            // AGENT-PLATFORM (Brief 0072, ADR-0083): the state was rebuilt;
+            // the presence known so far carries over, for today's members.
+            memberIDs = Set(members.map(\.userID))
+            if let presences = userSession.presenceObserverService?.presencePublisher.value {
+                updatePresences(presences)
+            }
             
             if let powerLevels = roomProxy.infoPublisher.value.powerLevels {
                 self.state.canInviteUsers = powerLevels.canOwnUserInvite()

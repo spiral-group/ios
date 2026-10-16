@@ -38,10 +38,11 @@ private struct TimelineItemBubbleBackgroundModifier: ViewModifier {
         content
             .padding(insets)
             .background(color)
-            .cornerRadius(12, corners: roundedCorners)
+            // AGENT-PLATFORM: 12 -> 16 (ADR-0005 Apple/Telegram-reference bubbles)
+            .cornerRadius(16, corners: roundedCorners)
             .overlay {
                 if let borderColor {
-                    RoundedCornerShape(radius: 12, corners: roundedCorners)
+                    RoundedCornerShape(radius: 16, corners: roundedCorners)
                         .stroke(borderColor)
                 }
             }

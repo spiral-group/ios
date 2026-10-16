@@ -22,6 +22,8 @@ enum A11yIdentifiers {
     static let homeScreen = HomeScreen()
     static let loginScreen = LoginScreen()
     static let authenticationStartScreen = AuthenticationStartScreen()
+    static let invitePasteSheet = InvitePasteSheet() // AGENT-PLATFORM (Brief 0073).
+    static let invitePeopleScreen = InvitePeopleScreen() // AGENT-PLATFORM (Brief 0073).
     static let reportContent = ReportContent()
     static let joinRoomScreen = JoinRoomScreen()
     static let roomScreen = RoomScreen()
@@ -50,6 +52,27 @@ enum A11yIdentifiers {
     static let spaceAddRoomsScreen = SpaceAddRoomsScreen()
     static let spaceSettingsScreen = SpaceSettingsScreen()
     static let linkNewDeviceScreen = LinkNewDeviceScreen()
+    // AGENT-PLATFORM (decision 146): the screens the dev-stack E2E suite drives.
+    static let inviteWelcomeScreen = InviteWelcomeScreen()
+    static let notificationPermissionsScreen = NotificationPermissionsScreen()
+    static let aiConsentPromptScreen = AIConsentPromptScreen()
+    static let identityConfirmationScreen = IdentityConfirmationScreen()
+    static let blockedUsersScreen = BlockedUsersScreen()
+    static let yourDataScreen = YourDataScreen()
+    static let deactivateAccountScreen = DeactivateAccountScreen()
+    static let roomSelectionScreen = RoomSelectionScreen()
+    static let interactivePostCatalogScreen = InteractivePostCatalogScreen()
+    static let agentSpacesScreen = AgentSpacesScreen()
+    static let agentDetailScreen = AgentDetailScreen()
+    static let agentUsageScreen = AgentUsageScreen()
+    static let agentSheetScreen = AgentSheetScreen()
+    static let agentInRoomScreen = AgentInRoomScreen()
+    static let agentCapabilitiesScreen = AgentCapabilitiesScreen()
+    // AGENT-PLATFORM (decision 148): the coverage lane.
+    static let notificationsHubScreen = NotificationsHubScreen()
+    static let approvalDetailScreen = ApprovalDetailScreen()
+    static let advancedSettingsScreen = AdvancedSettingsScreen()
+    static let securitySettingsScreen = SecuritySettingsScreen() // AGENT-PLATFORM (decision 187)
     
     struct AlertInfo {
         let primaryButton = "alert_info-primary_button"
@@ -137,18 +160,54 @@ enum A11yIdentifiers {
         let signInWithQr = "authentication_start-sign_in_with_qr"
         let appVersion = "authentication_start-app_version"
         let hidden = "authentication_start-hidden"
+        // AGENT-PLATFORM (Brief 0073).
+        let invitedBanner = "authentication_start-invited_banner"
+        let createAccount = "authentication_start-create_account" // AGENT-PLATFORM (decision 146)
+    }
+    
+    // AGENT-PLATFORM (Brief 0073 / ADR-0008).
+    struct InvitePeopleScreen {
+        let link = "invite_people-link"
+        let share = "invite_people-share"
+        let copy = "invite_people-copy"
+        // AGENT-PLATFORM (decision 148): G5 of the dev-stack E2E suite.
+        let seats = "invite_people-seats"
+        func joinedUser(_ userID: String) -> String {
+            "invite_people-joined:\(userID)"
+        }
+    }
+    
+    // AGENT-PLATFORM (Brief 0073 / ADR-0008).
+    struct InvitePasteSheet {
+        let field = "invite_paste-field"
+        let use = "invite_paste-use"
+        let withoutInvite = "invite_paste-without"
+        let cancel = "invite_paste-cancel"
     }
     
     struct ReportContent {
         let ignoreUser = "report_content-ignore_user"
+        // AGENT-PLATFORM (decision 146).
+        let reason = "report_content-reason"
+        let send = "report_content-send"
+        let cancel = "report_content-cancel"
     }
     
     struct JoinRoomScreen {
         let join = "join-room_join"
+        // AGENT-PLATFORM (decision 146): an invite cell's buttons carry the
+        // cell's identifier; the invite's own screen has these.
+        let acceptInvite = "join-room_accept_invite"
+        let declineInvite = "join-room_decline_invite"
     }
     
     struct RoomScreen {
         let name = "room-name"
+        // AGENT-PLATFORM (Brief 0073; decision 148: one per notice kind, the wire name).
+        func spiralNotice(_ kind: String) -> String {
+            "room-spiral_notice:\(kind)"
+        }
+        
         let avatar = "room-avatar"
         let attachmentPickerPhotoLibrary = "room-attachment_picker_photo_library"
         let attachmentPickerDocuments = "room-attachment_picker_documents"
@@ -156,6 +215,8 @@ enum A11yIdentifiers {
         let attachmentPickerLocation = "room-attachment_picker_location"
         let attachmentPickerPoll = "room-attachment_picker_poll"
         let attachmentPickerTextFormatting = "room-attachment_picker_text_formatting"
+        let attachmentPickerInteractivePost = "room-attachment_picker_interactive_post" // AGENT-PLATFORM (decision 146)
+        let attachmentPickerAgentTools = "room-attachment_picker_agent_tools" // AGENT-PLATFORM (decision 146)
         let timelineItemActionMenu = "room-timeline_item_action_menu"
         let joinCall = "room-join_call"
         let scrollToBottom = "room-scroll_to_bottom"
@@ -189,6 +250,7 @@ enum A11yIdentifiers {
         
         struct TimelineItemActionMenuAction {
             let edit = "timeline_item_action_menu-edit"
+            let reportContent = "timeline_item_action_menu-report_content" // AGENT-PLATFORM (decision 146)
         }
     }
     
@@ -196,15 +258,21 @@ enum A11yIdentifiers {
         let addTopic = "room_details-add_topic"
         let avatar = "room_details-avatar"
         let people = "room_details-people"
+        let agents = "room_details-agents" // AGENT-PLATFORM (decision 192)
         let notifications = "room_details-notifications"
         let pollsHistory = "room_details-polls_history"
         let favourite = "room_details-favourite"
+        // AGENT-PLATFORM (decision 146).
+        let blockUser = "room_details-block_user"
+        let unblockUser = "room_details-unblock_user"
+        let reportRoom = "room_details-report_room"
     }
     
     struct RoomMemberDetailsScreen {
         let ignore = "room_member_details-ignore"
         let unignore = "room_member_details-unignore"
         let directChat = "room_member_details-direct_chat"
+        let eraseAssistantMemory = "room_member_details-erase_assistant_memory" // AGENT-PLATFORM (Brief 0078)
     }
     
     struct RoomNotificationSettingsScreen {
@@ -252,17 +320,26 @@ enum A11yIdentifiers {
     
     struct SettingsScreen {
         let done = "settings-done"
-        let account = "settings-account"
-        let secureBackup = "settings-secure_backup"
+        let invitePeople = "settings-invite_people" // AGENT-PLATFORM (Brief 0073).
+        let security = "settings-security" // AGENT-PLATFORM (decision 187).
+        let privacy = "settings-privacy" // AGENT-PLATFORM (decision 187).
+        let yourData = "settings-your_data" // AGENT-PLATFORM (decision 146).
+        let appearanceAndMedia = "settings-appearance_and_media" // AGENT-PLATFORM (decision 187).
+        let deleteAccount = "settings-delete_account" // AGENT-PLATFORM (decision 146).
         let notifications = "settings-notifications"
         let analytics = "settings-analytics"
-        let screenLock = "settings-screen_lock"
         let reportBug = "settings-report_bug"
         let about = "settings_about"
-        let blockedUsers = "settings_blocked-users"
-        let advancedSettings = "settings_advanced-settings"
         let developerOptions = "settings_developer-options"
         let logout = "settings-logout"
+    }
+    
+    // AGENT-PLATFORM (decision 187).
+    struct SecuritySettingsScreen {
+        let newPhrase = "security_settings-new_phrase"
+        let devices = "security_settings-devices"
+        let encryption = "security_settings-encryption"
+        let screenLock = "security_settings-screen_lock"
     }
     
     struct SoftLogoutScreen {
@@ -280,6 +357,7 @@ enum A11yIdentifiers {
         let closeStartChat = "start_chat-close"
         let createRoom = "start_chat-create_room"
         let inviteFriends = "start_chat-invite_friends"
+        let joinedViaInvite = "start_chat-joined_via_invite" // AGENT-PLATFORM (Brief 0073).
         let searchNoResults = "start_chat-search_no_results"
     }
     
@@ -358,5 +436,150 @@ enum A11yIdentifiers {
         let cancel = "link_new_device_screen-cancel"
         let mobileDevice = "link_new_device_screen-mobile_device"
         let desktopComputer = "link_new_device_screen-desktop_computer"
+    }
+    
+    // MARK: AGENT-PLATFORM (decision 146): the dev-stack E2E suite.
+    
+    struct InviteWelcomeScreen {
+        let text = "invite_welcome-text" // decision 148: G5
+        let message = "invite_welcome-message"
+        let later = "invite_welcome-later"
+    }
+    
+    struct NotificationPermissionsScreen {
+        let enable = "notification_permissions-enable"
+        let notNow = "notification_permissions-not_now"
+    }
+    
+    struct AIConsentPromptScreen {
+        let allow = "ai_consent_prompt-allow"
+        let notNow = "ai_consent_prompt-not_now"
+    }
+    
+    struct IdentityConfirmationScreen {
+        /// The Debug build's skip: a dev password account has a cross-signing
+        /// identity and no other device to confirm this one.
+        let skip = "identity_confirmation-skip"
+    }
+    
+    struct BlockedUsersScreen {
+        func user(_ userID: String) -> String {
+            "blocked_users-user:\(userID)"
+        }
+    }
+    
+    struct YourDataScreen {
+        let exportAccount = "your_data-export_account"
+    }
+    
+    struct DeactivateAccountScreen {
+        let delete = "deactivate_account-delete"
+    }
+    
+    struct RoomSelectionScreen {
+        let confirm = "room_selection-confirm"
+        func room(_ name: String) -> String {
+            "room_selection-room:\(name)"
+        }
+    }
+    
+    struct InteractivePostCatalogScreen {
+        let describeNew = "interactive_catalog-describe_new"
+        let currentTitle = "interactive_catalog-current_title"
+        let fillIn = "interactive_catalog-fill_in"
+        let publish = "interactive_catalog-publish"
+        let assistantNote = "interactive_catalog-assistant_note"
+        let cancel = "interactive_catalog-cancel"
+    }
+    
+    struct AgentSpacesScreen {
+        /// A load failure, on any agent-spaces screen that shows one.
+        let error = "agent_spaces-error"
+        let approvalsBell = "agent_spaces-approvals_bell" // AGENT-PLATFORM (decision 148)
+        let addMenu = "agent_spaces-add_menu"
+        let newCompany = "agent_spaces-new_company"
+        /// A space's section header.
+        func space(_ orgID: String) -> String {
+            "agent_spaces-space:\(orgID)"
+        }
+        
+        func editCompany(_ orgID: String) -> String {
+            "agent_spaces-edit_company:\(orgID)"
+        }
+        
+        func newAgent(_ orgID: String) -> String {
+            "agent_spaces-new_agent:\(orgID)"
+        }
+        
+        func agent(_ matrixUserID: String) -> String {
+            "agent_spaces-agent:\(matrixUserID)"
+        }
+    }
+    
+    struct AgentDetailScreen {
+        let message = "agent_detail-message"
+        let addToChat = "agent_detail-add_to_chat"
+        let activity = "agent_detail-activity"
+        let usage = "agent_detail-usage"
+        let edit = "agent_detail-edit"
+        // Archive is for role agents only (decision 153).
+        let archive = "agent_detail-archive"
+    }
+    
+    struct AgentUsageScreen {
+        let today = "agent_usage-today"
+    }
+    
+    struct AgentSheetScreen {
+        let addAgent = "agent_sheet-add_agent"
+        func agent(_ matrixUserID: String) -> String {
+            "agent_sheet-agent:\(matrixUserID)"
+        }
+    }
+    
+    struct AgentInRoomScreen {
+        let addTool = "agent_in_room-add_tool"
+        let remove = "agent_in_room-remove"
+    }
+    
+    struct AgentCapabilitiesScreen {
+        let list = "agent_capabilities-list"
+    }
+    
+    // MARK: AGENT-PLATFORM (decision 148): the coverage lane.
+    
+    struct NotificationsHubScreen {
+        /// A pinned "needs action" row, by its approval's or verification's id.
+        func item(_ subjectID: String) -> String {
+            "notifications_hub-item:\(subjectID)"
+        }
+        
+        /// A row of the activity feed, by its audit row's id.
+        func activity(_ id: String) -> String {
+            "notifications_hub-activity:\(id)"
+        }
+    }
+    
+    struct ApprovalDetailScreen {
+        /// The card's banner: `first_contact`, `cold_outreach` or `block_request`.
+        func kind(_ kind: String) -> String {
+            "approval_detail-kind:\(kind)"
+        }
+        
+        let approve = "approval_detail-approve"
+        let edit = "approval_detail-edit"
+        let reject = "approval_detail-reject"
+        let draftField = "approval_detail-draft_field"
+        let save = "approval_detail-save"
+        let cancelEdit = "approval_detail-cancel_edit"
+        let block = "approval_detail-block"
+        let dontBlock = "approval_detail-dont_block"
+        let done = "approval_detail-done"
+    }
+    
+    struct AdvancedSettingsScreen {
+        let aiConsent = "advanced_settings-ai_consent"
+        let aiConsentRetry = "advanced_settings-ai_consent_retry" // AGENT-PLATFORM (decision 150)
+        let blockedUsers = "advanced_settings-blocked_users" // AGENT-PLATFORM (decision 187)
     }
 }

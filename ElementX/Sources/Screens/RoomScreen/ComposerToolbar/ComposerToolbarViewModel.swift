@@ -214,6 +214,13 @@ final class ComposerToolbarViewModel: ComposerToolbarViewModelType, ComposerTool
         case .attach(let attachment):
             state.bindings.composerFocused = false
             actionsSubject.send(.attach(attachment))
+        case .presentAgentTools:
+            state.bindings.composerFocused = false
+            actionsSubject.send(.presentAgentTools)
+        // AGENT-PLATFORM (Brief 0066): «+ → Interactive post».
+        case .presentInteractivePostAgentPicker:
+            state.bindings.composerFocused = false
+            actionsSubject.send(.presentInteractivePostAgentPicker)
         case .handlePasteOrDrop(let providers):
             actionsSubject.send(.handlePasteOrDrop(providers: providers))
         case .enableTextFormatting:

@@ -13,6 +13,7 @@ import UserNotifications
 
 enum RoomFlowCoordinatorAction: Equatable {
     case presentCallScreen(roomProxy: JoinedRoomProxyProtocol, isVoiceCall: Bool)
+    case presentAIConsentSettings // AGENT-PLATFORM (decision 150)
     case verifyUser(userID: String)
     /// The requested room was actually a space. The room flow has been dismissed
     /// and a space flow should be started to continue.
@@ -46,6 +47,9 @@ enum RoomFlowCoordinatorEntryPoint: Hashable {
     case share(ShareExtensionPayload)
     /// The flow to change the the owner of the room
     case transferOwnership
+    /// AGENT-PLATFORM (decision 111): the room, then the post catalogue on
+    /// the template a catalogue link named.
+    case catalogTemplate(String)
     
     var isEventID: Bool {
         guard case .eventID = self else { return false }
@@ -94,6 +98,8 @@ class RoomFlowCoordinator: FlowCoordinatorProtocol {
     // periphery:ignore - retaining purpose
     private var spaceFlowCoordinator: SpaceFlowCoordinator?
     private var membersFlowCoordinator: RoomMembersFlowCoordinator?
+    // AGENT-PLATFORM: the agent-tools child flow (Brief 0036).
+    private var agentToolsFlowCoordinator: AgentToolsFlowCoordinator?
     
     private let stateMachine: StateMachine<State, Event> = .init(state: .initial)
     
@@ -204,10 +210,23 @@ class RoomFlowCoordinator: FlowCoordinatorProtocol {
                                       presentationAction: .share(payload),
                                       animated: animated)
             }
+        // AGENT-PLATFORM (decision 111): the `.share` shape — the chats tab
+        // asked which chat, and this is it.
+        case .catalogTemplate(let templateID, let roomID?) where roomID == self.roomID:
+            Task {
+                await handleRoomRoute(roomID: roomID,
+                                      via: [],
+                                      presentationAction: .catalogTemplate(templateID),
+                                      animated: animated)
+            }
+        case .catalogTemplate:
+            break // AGENT-PLATFORM: without this room it is the chats tab's.
         case .roomAlias, .childRoomAlias, .eventOnRoomAlias, .childEventOnRoomAlias:
             break // These are converted to a room ID route one level above.
-        case .accountProvisioningLink, .oAuthCallback, .roomList, .userProfile, .call, .settings, .chatBackupSettings, .search:
+        case .accountProvisioningLink, .oAuthCallback, .inviteLink, .roomList, .userProfile, .call, .settings, .chatBackupSettings, .search, .aiConsentSettings: // AGENT-PLATFORM: .inviteLink (Brief 0073), .aiConsentSettings (decision 150)
             break // These routes can't be handled.
+        case .approvalDetail, .verificationDetail, .publicProfile:
+            break // AGENT-PLATFORM: handled by AgentsTabFlowCoordinator, not here.
         case .transferOwnership(let roomID):
             guard self.roomID == roomID else { fatalError("Navigation route doesn't belong to this room flow.") }
             
@@ -453,8 +472,8 @@ class RoomFlowCoordinator: FlowCoordinatorProtocol {
                 }
                 presentPollForm(mode: mode, timelineController: timelineController)
                 
-            case (_, .presentResolveSendFailure(let failure, let sendHandle), .resolveSendFailure):
-                presentResolveSendFailure(failure: failure, sendHandle: sendHandle)
+            case (_, .presentResolveSendFailure(let failure, let resolver), .resolveSendFailure): // AGENT-PLATFORM: § 5.87
+                presentResolveSendFailure(failure: failure, resolver: resolver)
                 
             // Room Details
                 
@@ -516,6 +535,11 @@ class RoomFlowCoordinator: FlowCoordinatorProtocol {
                 startMembersFlow(entryPoint: entryPoint, animated: animated)
             case (.membersFlow, .stopMembersFlow, _):
                 membersFlowCoordinator = nil
+                
+            case (_, .startAgentToolsFlow(let entryPoint), .agentToolsFlow):
+                startAgentToolsFlow(entryPoint: entryPoint, animated: animated)
+            case (.agentToolsFlow, .stopAgentToolsFlow, _):
+                agentToolsFlowCoordinator = nil
                 
             case (_, .startChildFlow(let roomID, let via, let entryPoint), .presentingChild):
                 startChildFlow(for: roomID, via: via, entryPoint: entryPoint)
@@ -601,6 +625,8 @@ class RoomFlowCoordinator: FlowCoordinatorProtocol {
                                           userInfo: EventUserInfo(animated: animated, timelineController: timelineController))
                 case .share(.text(_, let text)):
                     roomScreenCoordinator?.shareText(text)
+                case .catalogTemplate(let templateID): // AGENT-PLATFORM (decision 111)
+                    Task { await presentInteractivePostCatalogForLink(templateID: templateID) }
                 case .thread(let rootEventID, let focusEvent):
                     if let focusEvent, let roomScreenCoordinator {
                         roomScreenCoordinator.focusOnEvent(.init(eventID: rootEventID, shouldSetPin: false))
@@ -646,6 +672,8 @@ class RoomFlowCoordinator: FlowCoordinatorProtocol {
                                   userInfo: EventUserInfo(animated: animated, timelineController: timelineController))
         case .thread(let rootEventID, let focusEvent):
             stateMachine.tryEvent(.presentThread(threadRootEventID: rootEventID, focusEventID: focusEvent?.eventID))
+        case .catalogTemplate(let templateID): // AGENT-PLATFORM (decision 111)
+            Task { await presentInteractivePostCatalogForLink(templateID: templateID) }
         case .share(.text), .eventFocus:
             break // These are both handled in the coordinator's init.
         case .none:
@@ -727,11 +755,17 @@ class RoomFlowCoordinator: FlowCoordinatorProtocol {
                     stateMachine.tryEvent(.presentMessageForwarding(forwardingItem: forwardingItem))
                 case .presentCallScreen(let isVoiceCall):
                     actionsSubject.send(.presentCallScreen(roomProxy: roomProxy, isVoiceCall: isVoiceCall))
+                case .presentAIConsentSettings: // AGENT-PLATFORM (decision 150)
+                    actionsSubject.send(.presentAIConsentSettings)
                 case .presentPinnedEventsTimeline:
                     stateMachine.tryEvent(.presentPinnedEventsTimeline)
-                case .presentResolveSendFailure(failure: let failure, sendHandle: let sendHandle):
-                    stateMachine.tryEvent(.presentResolveSendFailure(failure: failure,
-                                                                     sendHandle: sendHandle))
+                case .presentResolveSendFailure(failure: let failure, resolver: let resolver): // AGENT-PLATFORM: § 5.87
+                    // A sheet that cannot be shown now (another is up) must
+                    // still end the question, or a raw send waits for ever.
+                    if !stateMachine.tryEvent(.presentResolveSendFailure(failure: failure,
+                                                                         resolver: resolver)) {
+                        resolver.finished()
+                    }
                 case .presentKnockRequestsList:
                     stateMachine.tryEvent(.presentKnockRequestsListScreen)
                 case .presentThreadList:
@@ -742,13 +776,59 @@ class RoomFlowCoordinator: FlowCoordinatorProtocol {
                     stateMachine.tryEvent(.startChildFlow(roomID: roomID,
                                                           via: via,
                                                           entryPoint: .room))
+                case .presentAgentToolsEdit:
+                    stateMachine.tryEvent(.startAgentToolsFlow(entryPoint: .banner))
+                case .presentAgentToolsCreate:
+                    stateMachine.tryEvent(.startAgentToolsFlow(entryPoint: .composer))
+                case .presentInteractivePostAgentPicker:
+                    Task { await presentInteractivePostAgentPicker() }
+                case .presentInteractivePostEditor(let eventID, let post, let title):
+                    Task { await presentInteractivePostEditor(eventID: eventID, post: post, title: title) }
                 }
             }
             .store(in: &cancellables)
         
         return coordinator
     }
-    
+
+    // MARK: - Agent tools (Brief 0036 / ADR-0048)
+
+    /// AGENT-PLATFORM: start the agent-tools flow — the owner's surface for
+    /// arming / reading / disabling an agent's per-room tools, reached from the
+    /// composer "+" Agent item and the in-chat active-tools banner. Modelled on
+    /// `startMembersFlow`: a child flow coordinator owns the multi-screen
+    /// navigation + its own state machine; this only creates, subscribes to,
+    /// starts and retains it. On `.finished` the parent restores its previous
+    /// state and refreshes the banner (tools may have changed).
+    private func startAgentToolsFlow(entryPoint: AgentToolsFlowEntryPoint, animated: Bool) {
+        guard let agentPlatformService = userSession.agentPlatformService else {
+            MXLog.warning("RoomFlowCoordinator: no AgentPlatformService configured — cannot start agent-tools flow")
+            showErrorIndicator()
+            stateMachine.tryEvent(.stopAgentToolsFlow)
+            return
+        }
+
+        let flowCoordinator = AgentToolsFlowCoordinator(roomID: roomID,
+                                                        entryPoint: entryPoint,
+                                                        roomProxy: roomProxy,
+                                                        agentPlatformService: agentPlatformService,
+                                                        navigationStackCoordinator: navigationStackCoordinator,
+                                                        flowParameters: flowParameters)
+
+        flowCoordinator.actions.sink { [weak self] action in
+            guard let self else { return }
+            switch action {
+            case .finished:
+                roomScreenCoordinator?.refreshAgentToolsBanner()
+                stateMachine.tryEvent(.stopAgentToolsFlow)
+            }
+        }
+        .store(in: &cancellables)
+
+        flowCoordinator.start(animated: animated)
+        agentToolsFlowCoordinator = flowCoordinator
+    }
+
     private func presentThreadList(animated: Bool) async {
         let coordinator = RoomThreadListScreenCoordinator(parameters: .init(threadListServiceProxy: roomProxy.threadListService(),
                                                                             mediaProvider: userSession.mediaProvider))
@@ -837,9 +917,14 @@ class RoomFlowCoordinator: FlowCoordinatorProtocol {
                 stateMachine.tryEvent(.startMembersFlow(entryPoint: .roomMember(userID: userID)))
             case .presentMessageForwarding(let forwardingItem):
                 stateMachine.tryEvent(.presentMessageForwarding(forwardingItem: forwardingItem))
-            case .presentResolveSendFailure(let failure, let sendHandle):
-                stateMachine.tryEvent(.presentResolveSendFailure(failure: failure,
-                                                                 sendHandle: sendHandle))
+            case .presentResolveSendFailure(let failure, let resolver): // AGENT-PLATFORM: § 5.87
+                if !stateMachine.tryEvent(.presentResolveSendFailure(failure: failure,
+                                                                     resolver: resolver)) {
+                    resolver.finished()
+                }
+            case .interactivePostPublished:
+                // Published from an ordinary thread; the row's toast said so.
+                break
             }
         }
         .store(in: &cancellables)
@@ -953,6 +1038,8 @@ class RoomFlowCoordinator: FlowCoordinatorProtocol {
                 stateMachine.tryEvent(.dismissFlow)
             case .presentRoomMembersList:
                 stateMachine.tryEvent(.startMembersFlow(entryPoint: .roomMembersList))
+            case .presentAgents: // AGENT-PLATFORM (decision 192)
+                stateMachine.tryEvent(.startAgentToolsFlow(entryPoint: .composer))
             case .presentRoomDetailsEditScreen:
                 stateMachine.tryEvent(.presentRoomDetailsEditScreen)
             case .presentNotificationSettingsScreen:
@@ -1039,6 +1126,517 @@ class RoomFlowCoordinator: FlowCoordinatorProtocol {
         }
     }
     
+    // AGENT-PLATFORM (Brief 0066 step 6): "+" → Interactive post.
+    //
+    // Pick one of MY agents; in my DM with it, send the ROOT of a
+    // generation thread — an ordinary text ("Interactive post for «X»")
+    // carrying `com.spiral.interactive` OUTSIDE the text: the target room,
+    // its name, its members. Then open that thread in a SHEET over this
+    // room. The orchestrator recognises the key, not the prose: every
+    // message in the thread goes straight to the generator, the draft
+    // comes back into the thread with the target room on it, and
+    // "Publish" on the draft's row posts it THERE and closes the sheet.
+    // Like picking a video: choose, then send from where you were.
+    private func presentInteractivePostAgentPicker() async {
+        guard let agentPlatformService = userSession.agentPlatformService else {
+            showErrorIndicator()
+            return
+        }
+
+        let items: [AgentPickerItem]
+        switch await InteractivePostAgentChoice(agentPlatformService.listMyPersonalAgents()) {
+        case .agents(let agents):
+            items = agents
+        case .noAgents:
+            flowParameters.userIndicatorController.submitIndicator(.init(id: "spiral-no-agents",
+                                                                         type: .toast,
+                                                                         title: UntranslatedL10n.screenRoomInteractivePostNoAgents))
+            return
+        case .readFailed:
+            // AGENT-PLATFORM (agents-tab B11): a failed read is not "no agents"; «+» again retries.
+            flowParameters.userIndicatorController.submitIndicator(.init(id: "spiral-no-agents",
+                                                                         type: .toast,
+                                                                         title: UntranslatedL10n.screenRoomInteractivePostAgentsFailure,
+                                                                         icon: \.error))
+            return
+        }
+
+        // A choice of one is not a choice: straight to the catalogue.
+        if items.count == 1, let only = items.first {
+            await presentInteractivePostCatalog(agents: [only])
+            return
+        }
+
+        let coordinator = AgentPickerScreenCoordinator(parameters: .init(agents: items))
+
+        coordinator.actionsPublisher.sink { [weak self] action in
+            guard let self else { return }
+            switch action {
+            case .selectAgent(let item):
+                navigationStackCoordinator.setSheetCoordinator(nil)
+                Task { await self.presentInteractivePostThread(with: item) }
+            case .dismiss:
+                navigationStackCoordinator.setSheetCoordinator(nil)
+            }
+        }
+        .store(in: &cancellables)
+
+        let stackCoordinator = NavigationStackCoordinator()
+        stackCoordinator.setRootCoordinator(coordinator)
+        presentInteractivePostSheetCoordinator(stackCoordinator)
+    }
+
+    /// Every Interactive Post sheet goes up through here: the room's own
+    /// posts stop while it covers them, and start again when the last of our
+    /// sheets is gone (§ 5.80). A sheet replaced by the next one (picker →
+    /// thread) is torn down first, so the check waits a turn of the loop.
+    private func presentInteractivePostSheetCoordinator(_ stackCoordinator: NavigationStackCoordinator) {
+        roomScreenCoordinator?.setInteractivePostsCovered(true)
+        navigationStackCoordinator.setSheetCoordinator(stackCoordinator) { [weak self] in
+            DispatchQueue.main.async {
+                guard let self, self.navigationStackCoordinator.sheetCoordinator == nil else { return }
+                self.roomScreenCoordinator?.setInteractivePostsCovered(false)
+            }
+        }
+    }
+
+    /// A catalogue link (decisions 111, 129): the catalogue on its template,
+    /// for anyone. Browsing and Publish need no agent; the assistant's paths
+    /// show only for someone who has one, and a failed read of the agents is
+    /// not "no agents" — it only hides those paths. «+» keeps its own gate.
+    private func presentInteractivePostCatalogForLink(templateID: String) async {
+        var agents: [AgentPickerItem] = []
+        let assistant: InteractivePostCatalogAssistant
+        switch await userSession.agentPlatformService?.listMyPersonalAgents() {
+        case .success(let view):
+            agents = view.agents.map { AgentPickerItem(agentID: $0.id, matrixUserID: $0.matrixUserID, displayName: $0.displayName, activeToolCount: 0) }
+            assistant = if !agents.isEmpty {
+                .available
+            } else if view.provisioningStatus == .inProgress {
+                .settingUp
+            } else {
+                .none
+            }
+        case .failure(let error):
+            MXLog.error("[SpiralApp] catalogue link without the agents: \(error)")
+            assistant = .unknown
+        case nil:
+            assistant = .unknown
+        }
+        await presentInteractivePostCatalog(agents: agents, assistant: assistant, focusing: templateID)
+    }
+
+    /// The catalogue: describe a new one, or pick one of yours — a
+    /// generation thread in the DM with an agent — to change it or to
+    /// publish it HERE, in the room it was opened in (§ 5.56). «+» opens it
+    /// with its one agent; a catalogue link with all of them, or none.
+    private func presentInteractivePostCatalog(agents: [AgentPickerItem],
+                                               assistant: InteractivePostCatalogAssistant = .available,
+                                               focusing templateID: String? = nil) async {
+        let clientProxy = userSession.clientProxy
+        var dms: [JoinedRoomProxyProtocol] = []
+        for agent in agents {
+            if case .success(let existing?) = clientProxy.directRoomForUserID(agent.matrixUserID),
+               case .joined(let dm) = await clientProxy.roomForIdentifier(existing) {
+                dms.append(dm)
+            }
+        }
+
+        let roomName = roomProxy.infoPublisher.value.displayName ?? roomProxy.id
+        let room: JoinedRoomProxyProtocol = roomProxy
+        let mediaProvider = userSession.mediaProvider
+        let coordinator = InteractivePostCatalogScreenCoordinator(parameters: .init(roomName: roomName,
+                                                                                    catalogURL: flowParameters.appSettings.interactiveCatalogURL,
+                                                                                    dms: dms,
+                                                                                    ownUserID: roomProxy.ownUserID,
+                                                                                    initialTemplateID: templateID,
+                                                                                    assistant: assistant,
+                                                                                    loadMembers: {
+                                                                                        await SpiralAppPostSession.membersPayload(room.members() ?? [], mediaProvider: mediaProvider)
+                                                                                    }))
+        let stackCoordinator = NavigationStackCoordinator()
+        coordinator.actionsPublisher.sink { [weak self] action in
+            guard let self else { return }
+            switch action {
+            // A thread opens ON the catalogue, not instead of it: «back» then
+            // returns to the catalogue, as it did not when the catalogue was
+            // closed first and the thread opened as its own sheet (operator,
+            // 2026-09-25; § 5.61). Publishing closes the whole sheet.
+            case .startNew:
+                chooseAgent(from: agents, onto: stackCoordinator, above: coordinator) { [weak self] agent in
+                    Task { await self?.presentInteractivePostThread(with: agent, onto: stackCoordinator) }
+                }
+            case .openThread(let thread):
+                guard let dm = dms.first(where: { $0.id == thread.dmRoomID }) else { return }
+                let here = SpiralPublishRoom(id: roomProxy.id, name: roomName)
+                Task {
+                    await self.presentInteractivePostSheet(dm: dm,
+                                                           threadRootEventID: thread.id,
+                                                           targetRoomName: roomName,
+                                                           publishRoom: here,
+                                                           onto: stackCoordinator)
+                }
+            case .publishTemplate(let template):
+                navigationStackCoordinator.setSheetCoordinator(nil)
+                Task { await self.publishInteractiveTemplate(template, roomName: roomName) }
+            case .changeTemplate(let template):
+                chooseAgent(from: agents, onto: stackCoordinator, above: coordinator) { [weak self] agent in
+                    Task {
+                        guard let self, let seed = await self.seed(of: template) else { return }
+                        await self.presentInteractivePostThread(with: agent, seed: seed, onto: stackCoordinator)
+                    }
+                }
+            case .showAllThreads:
+                stackCoordinator.push(coordinator.threadsCoordinator)
+            case .cancel:
+                navigationStackCoordinator.setSheetCoordinator(nil)
+            }
+        }
+        .store(in: &cancellables)
+
+        // Not `coordinator.start()` here: `setRootCoordinator` starts it, and
+        // started twice it subscribed twice, so every action ran twice — the
+        // thread was pushed two deep and «back» took two taps (§ 5.63).
+        stackCoordinator.setRootCoordinator(coordinator)
+        presentInteractivePostSheetCoordinator(stackCoordinator)
+    }
+
+    /// The agent an assistant path of the catalogue runs with: the one, or —
+    /// only once that path is chosen — the one picked on the catalogue's
+    /// stack (decision 129: a ready template is shown before any question).
+    private func chooseAgent(from agents: [AgentPickerItem],
+                             onto stack: NavigationStackCoordinator,
+                             above catalogue: CoordinatorProtocol,
+                             then continuation: @escaping (AgentPickerItem) -> Void) {
+        if agents.count == 1, let only = agents.first {
+            continuation(only)
+            return
+        }
+        guard !agents.isEmpty else { return } // The catalogue shows no assistant path then.
+
+        let picker = AgentPickerScreenCoordinator(parameters: .init(agents: agents))
+        picker.actionsPublisher.sink { action in
+            stack.pop(to: catalogue, animated: false)
+            if case .selectAgent(let agent) = action {
+                continuation(agent)
+            }
+        }
+        .store(in: &cancellables)
+        stack.push(picker)
+    }
+
+    /// The root's content: `body` for any client, the request for ours —
+    /// with the app's language, which the thread speaks when the owner's
+    /// words do not say («Уно, играем до 500 очков» has no letter only
+    /// Russian has, and was answered in Ukrainian; § 5.60).
+    static func interactivePostRequestContent(targetRoomID: String,
+                                              targetRoomName: String,
+                                              members: [(userID: String, name: String)],
+                                              language: String = SpiralAppMount.appLanguage) -> [String: Any] {
+        ["msgtype": "m.text",
+         "body": UntranslatedL10n.screenRoomInteractivePostRequestBody(targetRoomName),
+         "com.spiral.interactive": ["v": 1,
+                                    "target_room_id": targetRoomID,
+                                    "target_room_name": targetRoomName,
+                                    "members": members.map { ["user_id": $0.userID, "name": $0.name] },
+                                    "language": language]]
+    }
+
+    /// The owner's agent when there is exactly one — the one that made the
+    /// post, then, and the one to change it with.
+    private func onlyPersonalAgent() async -> AgentPickerItem? {
+        guard let service = userSession.agentPlatformService,
+              case .success(let view) = await service.listMyPersonalAgents(),
+              view.agents.count == 1, let agent = view.agents.first else {
+            return nil
+        }
+        return AgentPickerItem(agentID: agent.id, matrixUserID: agent.matrixUserID, displayName: agent.displayName, activeToolCount: 0)
+    }
+
+    /// Code a thread starts from, instead of words (§ 5.56).
+    struct InteractiveSeed {
+        let title: String
+        let aspect: String
+        let source: String
+        /// What the agent asks beside Draft v1, when the template needs it.
+        var asks: String?
+    }
+
+    private func seed(of template: SpiralAppTemplate) async -> InteractiveSeed? {
+        showLoadingIndicator()
+        defer { hideLoadingIndicator() }
+        guard let files = await SpiralAppCatalog.files(of: template, from: flowParameters.appSettings.interactiveCatalogURL) else {
+            showErrorIndicator()
+            return nil
+        }
+        return InteractiveSeed(title: template.localizedTitle,
+                               aspect: template.aspect,
+                               source: files.source,
+                               asks: template.localizedAsk)
+    }
+
+    /// A catalogue template into this room, as is: no agent, no model (§ 5.56).
+    private func publishInteractiveTemplate(_ template: SpiralAppTemplate, roomName: String) async {
+        showLoadingIndicator()
+        defer { hideLoadingIndicator() }
+        guard let files = await SpiralAppCatalog.files(of: template, from: flowParameters.appSettings.interactiveCatalogURL) else {
+            showErrorIndicator()
+            return
+        }
+        let room: JoinedRoomProxyProtocol = roomProxy
+        let published = await SpiralAppPublisher.publish(template: files.manifestJSON,
+                                                         source: files.source,
+                                                         title: template.localizedTitle,
+                                                         into: room,
+                                                         clientProxy: userSession.clientProxy) { raw in
+            await self.sendRaw(raw, into: room, over: self.navigationStackCoordinator)
+        }
+        switch published {
+        case .success(let eventID):
+            MXLog.info("[SpiralApp] published template \(template.id) into \(roomProxy.id) as \(eventID)")
+            flowParameters.userIndicatorController.submitIndicator(.init(id: "spiral-published-into",
+                                                                         type: .toast,
+                                                                         title: UntranslatedL10n.screenRoomInteractiveDraftPublishedInto(roomName)))
+            // The post lands at the bottom of the chat, as a sent message
+            // does (§ 5.84); the sheet is already gone.
+            roomScreenCoordinator?.scrollToBottom()
+        case .failure(.send(.verifiedUser)):
+            break // The user said «not now» on the resolve sheet (§ 5.87).
+        case .failure(let error):
+            MXLog.error("[SpiralApp] publishing template \(template.id) failed: \(error)")
+            showErrorIndicator()
+        }
+    }
+
+    private func presentInteractivePostThread(with agent: AgentPickerItem,
+                                              seed: InteractiveSeed? = nil,
+                                              live: SpiralLivePost? = nil,
+                                              onto stack: NavigationStackCoordinator? = nil) async {
+        showLoadingIndicator()
+        defer { hideLoadingIndicator() }
+
+        let clientProxy = userSession.clientProxy
+        let dmRoomID: String
+        switch clientProxy.directRoomForUserID(agent.matrixUserID) {
+        case .success(let existing?):
+            dmRoomID = existing
+        default:
+            switch await clientProxy.createDirectRoom(with: agent.matrixUserID, expectedRoomName: agent.displayName) {
+            case .success(let created):
+                dmRoomID = created
+            case .failure(let error):
+                MXLog.error("[SpiralApp] could not open a DM with \(agent.matrixUserID): \(error)")
+                showErrorIndicator()
+                return
+            }
+        }
+        guard case .joined(let dm) = await clientProxy.roomForIdentifier(dmRoomID) else {
+            showErrorIndicator()
+            return
+        }
+
+        // Members, not messages — the chat's text stays on the phone. And
+        // people, not the agent: it is who the post is for (§ 5.64).
+        let members = await (roomProxy.members() ?? [])
+            .filter { $0.membership == .join && !SpiralAppPostSession.isAgent($0.userID) }
+            .map { (userID: $0.userID, name: $0.disambiguatedDisplayName ?? $0.displayName ?? $0.userID) }
+        let roomName = roomProxy.infoPublisher.value.displayName ?? roomProxy.id
+        let content = Self.interactivePostRequestContent(targetRoomID: roomProxy.id, targetRoomName: roomName, members: members)
+        guard let data = try? JSONSerialization.data(withJSONObject: content),
+              let json = String(data: data, encoding: .utf8) else {
+            showErrorIndicator()
+            return
+        }
+
+        let rootEventID: String
+        switch await sendRaw(json, into: dm, over: stack ?? navigationStackCoordinator) {
+        case .success(let eventID):
+            rootEventID = eventID
+        case .failure(.verifiedUser):
+            return // The user said «not now» on the resolve sheet (§ 5.87).
+        case .failure:
+            showErrorIndicator()
+            return
+        }
+
+        // The live post first, then the code: a seed the agent has to repair
+        // is then repaired knowing the post has been played (§ 5.55).
+        if let live,
+           let marker = live.markerContent(action: "editing",
+                                           body: UntranslatedL10n.screenRoomInteractivePostMarkerEditing(seed?.title ?? "", live.roomName),
+                                           threadRootEventID: rootEventID) {
+            _ = await dm.sendSpiralRawEventReturningEventID(type: "m.room.message", content: marker)
+        }
+        if let seed, let content = Self.seedContent(seed, threadRootEventID: rootEventID) {
+            _ = await dm.sendSpiralRawEventReturningEventID(type: "m.room.message", content: content)
+        }
+
+        await presentInteractivePostSheet(dm: dm, threadRootEventID: rootEventID, targetRoomName: roomName, onto: stack)
+    }
+
+    /// An Interactive Post's raw send (§ 5.87): when encryption refuses a
+    /// verified user's devices or identity, the resolve sheet asks the user
+    /// over `stack`, and the send is made again once they agree.
+    private func sendRaw(_ content: String,
+                         into room: JoinedRoomProxyProtocol,
+                         over stack: NavigationStackCoordinator) async -> Result<String, RoomProxyError> {
+        await RawSendResolution.send(roomProxy: room,
+                                     present: { failure, resolver in
+                                         // The modal spinner would sit over the sheet and take its taps.
+                                         hideLoadingIndicator()
+                                         presentResolveSendFailure(failure: failure, resolver: resolver, on: stack)
+                                     },
+                                     attempt: { await room.sendSpiralRawEventReturningEventID(type: "m.room.message", content: content) })
+    }
+
+    /// «📦 Starting from «…»» in the thread, carrying the code as
+    /// `com.spiral.seed`: the agent answers it with that code as Draft v1.
+    static func seedContent(_ seed: InteractiveSeed, threadRootEventID: String) -> String? {
+        let content: [String: Any] = [
+            "msgtype": "m.text",
+            "body": "📦 " + UntranslatedL10n.screenRoomInteractivePostSeed(seed.title),
+            "m.relates_to": ["rel_type": "m.thread",
+                             "event_id": threadRootEventID,
+                             "is_falling_back": true,
+                             "m.in_reply_to": ["event_id": threadRootEventID]],
+            "com.spiral.seed": ["title": seed.title, "aspect": seed.aspect, "source": seed.source]
+                .merging(seed.asks.map { ["asks": $0] } ?? [:]) { first, _ in first }
+        ]
+        guard let data = try? JSONSerialization.data(withJSONObject: content) else { return nil }
+        return String(data: data, encoding: .utf8)
+    }
+
+    /// «Change» on a published post: back to the thread it was made in (§ 5.55).
+    ///
+    /// The post's manifest names that thread (`origin`), inside what its
+    /// digest covers. A note goes into the thread first — «📌 Changing …» with
+    /// `com.spiral.live_post` — so the agent knows the post is live and keeps
+    /// its state, and the thread's drafts offer to update THIS post in place.
+    private func presentInteractivePostEditor(eventID: String, post: SpiralAppPost, title: String) async {
+        showLoadingIndicator()
+        defer { hideLoadingIndicator() }
+
+        let store = SpiralAppArtifactStore(mediaLoader: userSession.clientProxy.mediaLoader)
+        guard case .success(let artifact) = await store.artifact(for: post) else {
+            MXLog.error("[SpiralApp] could not load the artifact of \(eventID) to change it")
+            showErrorIndicator()
+            return
+        }
+        let roomName = roomProxy.infoPublisher.value.displayName ?? roomProxy.id
+        let live = SpiralLivePost(roomID: roomProxy.id, eventID: eventID, roomName: roomName)
+        guard let origin = artifact.manifest.origin else {
+            // Made before it knew its thread: start one from its own code,
+            // and its drafts update it all the same (§ 5.56).
+            guard let agent = await onlyPersonalAgent() else {
+                flowParameters.userIndicatorController.submitIndicator(.init(id: "spiral-no-origin",
+                                                                             type: .toast,
+                                                                             title: UntranslatedL10n.screenRoomInteractivePostNoOrigin))
+                return
+            }
+            let seed = InteractiveSeed(title: title,
+                                       aspect: artifact.manifest.aspect,
+                                       source: String(decoding: artifact.source, as: UTF8.self))
+            await presentInteractivePostThread(with: agent, seed: seed, live: live)
+            return
+        }
+        guard case .joined(let dm) = await userSession.clientProxy.roomForIdentifier(origin.roomID) else {
+            MXLog.error("[SpiralApp] the thread of \(eventID) is in \(origin.roomID), which this user is not in")
+            showErrorIndicator()
+            return
+        }
+
+        if let marker = live.markerContent(action: "editing",
+                                           body: UntranslatedL10n.screenRoomInteractivePostMarkerEditing(title, roomName),
+                                           threadRootEventID: origin.threadRootEventID) {
+            _ = await dm.sendSpiralRawEventReturningEventID(type: "m.room.message", content: marker)
+        }
+
+        await presentInteractivePostSheet(dm: dm, threadRootEventID: origin.threadRootEventID, targetRoomName: roomName)
+    }
+
+    /// The generation thread: pushed onto `stack` when the catalogue opened
+    /// it, so «back» returns there; else in a sheet of its own over this room.
+    private func presentInteractivePostSheet(dm: JoinedRoomProxyProtocol,
+                                             threadRootEventID: String,
+                                             targetRoomName: String,
+                                             publishRoom: SpiralPublishRoom? = nil,
+                                             onto stack: NavigationStackCoordinator? = nil) async {
+        let timelineItemFactory = RoomTimelineItemFactory(userID: userSession.clientProxy.userID,
+                                                          attributedStringBuilder: AttributedStringBuilder(mentionBuilder: MentionBuilder()),
+                                                          stateEventStringBuilder: RoomStateEventStringBuilder(userID: userSession.clientProxy.userID))
+
+        guard case let .success(timelineController) = await flowParameters.timelineControllerFactory.buildThreadTimelineController(threadRootEventID: threadRootEventID,
+                                                                                                                                   initialFocussedEventID: nil,
+                                                                                                                                   roomProxy: dm,
+                                                                                                                                   timelineItemFactory: timelineItemFactory,
+                                                                                                                                   mediaProvider: userSession.mediaProvider) else {
+            MXLog.error("[SpiralApp] could not build the generation thread's timeline")
+            showErrorIndicator()
+            return
+        }
+
+        let completionSuggestionService = CompletionSuggestionService(roomProxy: dm,
+                                                                      roomListPublisher: userSession.clientProxy.staticRoomSummaryProvider.roomListPublisher.eraseToAnyPublisher())
+        let composerDraftService = ComposerDraftService(roomProxy: dm,
+                                                        timelineItemfactory: timelineItemFactory,
+                                                        threadRootEventID: threadRootEventID)
+
+        let coordinator = ThreadTimelineScreenCoordinator(parameters: .init(userSession: userSession,
+                                                                            roomProxy: dm,
+                                                                            focussedEventID: nil,
+                                                                            timelineController: timelineController,
+                                                                            mediaPlayerProvider: MediaPlayerProvider(),
+                                                                            emojiProvider: flowParameters.emojiProvider,
+                                                                            linkMetadataProvider: flowParameters.linkMetadataProvider,
+                                                                            completionSuggestionService: completionSuggestionService,
+                                                                            appMediator: flowParameters.appMediator,
+                                                                            appSettings: flowParameters.appSettings,
+                                                                            analytics: flowParameters.analytics,
+                                                                            composerDraftService: composerDraftService,
+                                                                            timelineControllerFactory: flowParameters.timelineControllerFactory,
+                                                                            userIndicatorController: flowParameters.userIndicatorController,
+                                                                            spiralPublishRoom: publishRoom))
+
+        // The stack the thread is shown on: the catalogue's, or a sheet of
+        // its own.
+        let host = stack ?? NavigationStackCoordinator()
+
+        coordinator.actions.sink { [weak self, weak host] action in
+            guard let self else { return }
+            switch action {
+            case .presentResolveSendFailure(let failure, let resolver):
+                // § 5.87: a draft published raw, or a message of the
+                // thread's own that the queue wedged — over the thread.
+                guard let host else { return }
+                presentResolveSendFailure(failure: failure, resolver: resolver, on: host)
+            case .interactivePostPublished(let roomID):
+                navigationStackCoordinator.setSheetCoordinator(nil)
+                flowParameters.userIndicatorController.submitIndicator(.init(id: "spiral-published-into",
+                                                                             type: .toast,
+                                                                             title: UntranslatedL10n.screenRoomInteractiveDraftPublishedInto(targetRoomName)))
+                // Published into THIS room: it lands at the bottom, as a
+                // sent message does (§ 5.84).
+                if roomID == roomProxy.id {
+                    roomScreenCoordinator?.scrollToBottom()
+                }
+            case .presentRoomMemberDetails, .presentMessageForwarding, .presentReportContent, .presentEmojiPicker,
+                 .presentMediaUploadPicker, .presentMediaUploadPreviewScreen, .presentLocationPicker, .presentLocationViewer,
+                 .presentLiveLocationViewer, .presentPollForm:
+                // The generation thread is for words and drafts; the rest of
+                // a thread's surface is not offered from the sheet.
+                MXLog.info("[SpiralApp] generation sheet ignores \(action)")
+            }
+        }
+        .store(in: &cancellables)
+
+        if stack != nil {
+            host.push(coordinator)
+        } else {
+            host.setRootCoordinator(coordinator)
+            presentInteractivePostSheetCoordinator(host)
+        }
+    }
+
     private func presentReportContent(for itemID: TimelineItemIdentifier, from senderID: String) {
         guard let eventID = itemID.eventID else {
             fatalError()
@@ -1387,23 +1985,36 @@ class RoomFlowCoordinator: FlowCoordinatorProtocol {
         coordinator.start()
     }
     
-    private func presentResolveSendFailure(failure: TimelineItemSendFailure.VerifiedUser, sendHandle: SendHandleProxy) {
+    // AGENT-PLATFORM (Brief 0066 § 5.87): takes the resolver (was a send
+    // handle) and tells it when the sheet goes, so a raw send that waits on
+    // the user's answer learns it was cancelled.
+    private func presentResolveSendFailure(failure: TimelineItemSendFailure.VerifiedUser, resolver: VerifiedUserSendFailureResolver) {
+        presentResolveSendFailure(failure: failure, resolver: resolver, on: navigationStackCoordinator) { [weak self] in
+            self?.stateMachine.tryEvent(.dismissResolveSendFailure)
+        }
+    }
+    
+    /// AGENT-PLATFORM (§ 5.87): the same sheet on any stack — the
+    /// Interactive Post catalogue is a sheet of its own, and a failure that
+    /// happens in it is shown over it, outside the room's state machine.
+    private func presentResolveSendFailure(failure: TimelineItemSendFailure.VerifiedUser,
+                                           resolver: VerifiedUserSendFailureResolver,
+                                           on stack: NavigationStackCoordinator,
+                                           dismissed: @escaping () -> Void = { }) {
         let coordinator = ResolveVerifiedUserSendFailureScreenCoordinator(parameters: .init(failure: failure,
-                                                                                            sendHandle: sendHandle,
-                                                                                            roomProxy: roomProxy,
+                                                                                            resolver: resolver,
                                                                                             userIndicatorController: flowParameters.userIndicatorController))
-        coordinator.actionsPublisher.sink { [weak self] action in
-            guard let self else { return }
-            
+        coordinator.actionsPublisher.sink { [weak stack] action in
             switch action {
             case .dismiss:
-                navigationStackCoordinator.setSheetCoordinator(nil)
+                stack?.setSheetCoordinator(nil)
             }
         }
         .store(in: &cancellables)
         
-        navigationStackCoordinator.setSheetCoordinator(coordinator) { [weak self] in
-            self?.stateMachine.tryEvent(.dismissResolveSendFailure)
+        stack.setSheetCoordinator(coordinator) {
+            resolver.finished()
+            dismissed()
         }
     }
     
@@ -1538,6 +2149,8 @@ class RoomFlowCoordinator: FlowCoordinatorProtocol {
             switch action {
             case .presentCallScreen(let roomProxy, let isVoiceCall):
                 actionsSubject.send(.presentCallScreen(roomProxy: roomProxy, isVoiceCall: isVoiceCall))
+            case .presentAIConsentSettings: // AGENT-PLATFORM (decision 150)
+                actionsSubject.send(.presentAIConsentSettings)
             case .verifyUser(let userID):
                 actionsSubject.send(.verifyUser(userID: userID))
             case .continueWithSpaceFlow(let spaceRoomListProxy):
@@ -1560,6 +2173,8 @@ class RoomFlowCoordinator: FlowCoordinatorProtocol {
             coordinator.handleAppRoute(.share(payload), animated: true)
         case .transferOwnership:
             coordinator.handleAppRoute(.transferOwnership(roomID: roomID), animated: true)
+        case .catalogTemplate(let templateID): // AGENT-PLATFORM (decision 111)
+            coordinator.handleAppRoute(.catalogTemplate(templateID: templateID, roomID: roomID), animated: true)
         case .thread:
             fatalError("This entry point is not allowed for child flows")
         }
@@ -1648,6 +2263,8 @@ class RoomFlowCoordinator: FlowCoordinatorProtocol {
                 switch action {
                 case .presentCallScreen(let roomProxy, let isVoiceCall):
                     actionsSubject.send(.presentCallScreen(roomProxy: roomProxy, isVoiceCall: isVoiceCall))
+                case .presentAIConsentSettings: // AGENT-PLATFORM (decision 150)
+                    actionsSubject.send(.presentAIConsentSettings)
                 case .verifyUser(let userID):
                     actionsSubject.send(.verifyUser(userID: userID))
                 case .finished:
@@ -1674,6 +2291,8 @@ class RoomFlowCoordinator: FlowCoordinatorProtocol {
                 stateMachine.tryEvent(.stopMembersFlow)
             case .presentCallScreen(let roomProxy, let isVoiceCall):
                 actionsSubject.send(.presentCallScreen(roomProxy: roomProxy, isVoiceCall: isVoiceCall))
+            case .presentAIConsentSettings: // AGENT-PLATFORM (decision 150)
+                actionsSubject.send(.presentAIConsentSettings)
             case .verifyUser(let userID):
                 actionsSubject.send(.verifyUser(userID: userID))
             }

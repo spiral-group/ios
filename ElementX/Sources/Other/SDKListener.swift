@@ -226,6 +226,27 @@ nonisolated extension SDKListener: CallDeclineListener where T == String {
     }
 }
 
+// AGENT-PLATFORM (decision 157)
+nonisolated extension SDKListener: UnableToDecryptDelegate where T == UnableToDecryptInfo {
+    func onUtd(info: UnableToDecryptInfo) {
+        onUpdateClosure(info)
+    }
+}
+
+// AGENT-PLATFORM (Brief 0063)
+nonisolated extension SDKListener: MatrixRtcSessionListener where T == MatrixRtcSessionUpdate {
+    func onUpdate(update: MatrixRtcSessionUpdate) {
+        onUpdateClosure(update)
+    }
+}
+
+// AGENT-PLATFORM (Brief 0066)
+nonisolated extension SDKListener: SpiralEventListener where T == [SpiralObservedEvent] {
+    func onEvents(events: [SpiralObservedEvent]) {
+        onUpdateClosure(events)
+    }
+}
+
 nonisolated extension SDKListener: TypingNotificationsListener where T == [String] {
     func call(typingUserIds: [String]) {
         onUpdateClosure(typingUserIds)

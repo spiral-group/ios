@@ -20,6 +20,16 @@ class RoomMemberDetailsScreenViewModel: RoomMemberDetailsScreenViewModelType, Ro
     private var actionsSubject: PassthroughSubject<RoomMemberDetailsScreenViewModelAction, Never> = .init()
     
     private var roomMemberProxy: RoomMemberProxyProtocol?
+    // AGENT-PLATFORM (Brief 0072, ADR-0083)
+    private var presenceObservation: PresenceObservation?
+    // AGENT-PLATFORM (Brief 0078, ADR-0019 P5)
+    private let assistantMemoryEraser: AssistantMemoryEraser?
+    // AGENT-PLATFORM (decision 87)
+    private let agentBlocks: AgentBlocks?
+    /// Only the latest read's answer counts, and `.reading` lasts while any read is out.
+    private var agentBlocksReadGeneration = 0
+    private var agentBlocksReadsInFlight = 0
+    private var latestAgentBlocksOutcome = AgentBlocksRead.notRead
     
     var actions: AnyPublisher<RoomMemberDetailsScreenViewModelAction, Never> {
         actionsSubject.eraseToAnyPublisher()
@@ -34,11 +44,19 @@ class RoomMemberDetailsScreenViewModel: RoomMemberDetailsScreenViewModelType, Ro
         self.userSession = userSession
         self.userIndicatorController = userIndicatorController
         self.analytics = analytics
+        assistantMemoryEraser = userSession.agentPlatformService.map { // AGENT-PLATFORM (Brief 0078)
+            AssistantMemoryEraser(agentPlatformService: $0, userIndicatorController: userIndicatorController)
+        }
+        agentBlocks = userSession.agentPlatformService.map { // AGENT-PLATFORM (decision 87)
+            AgentBlocks(agentPlatformService: $0, userIndicatorController: userIndicatorController)
+        }
         
-        let initialViewState = RoomMemberDetailsScreenViewState(userID: userID, bindings: .init())
+        var initialViewState = RoomMemberDetailsScreenViewState(userID: userID, bindings: .init())
+        initialViewState.canEraseAssistantMemory = assistantMemoryEraser != nil // AGENT-PLATFORM (Brief 0078)
         
         super.init(initialViewState: initialViewState, mediaProvider: userSession.mediaProvider)
-        
+        loadOwnAgentsIfNeeded() // AGENT-PLATFORM (Brief 0078)
+
         showMemberLoadingIndicator()
         
         Task {
@@ -54,6 +72,13 @@ class RoomMemberDetailsScreenViewModel: RoomMemberDetailsScreenViewModelType, Ro
                 }
             }
             .store(in: &cancellables)
+        
+        // AGENT-PLATFORM (Brief 0072, ADR-0083)
+        presenceObservation = PresenceObservation(userID: userID,
+                                                  ownUserID: userSession.clientProxy.userID,
+                                                  service: userSession.presenceObserverService) { [weak self] presence in
+            self?.state.presence = presence
+        }
     }
     
     // MARK: - Public
@@ -63,14 +88,16 @@ class RoomMemberDetailsScreenViewModel: RoomMemberDetailsScreenViewModelType, Ro
         state.bindings.mediaPreviewItem = nil
         
         hideMemberLoadingIndicator()
+        // AGENT-PLATFORM (Brief 0072, ADR-0083)
+        presenceObservation?.cancel()
     }
     
     override func process(viewAction: RoomMemberDetailsScreenViewAction) {
         switch viewAction {
         case .showUnignoreAlert:
-            state.bindings.ignoreUserAlert = .init(action: .unignore)
+            state.bindings.ignoreUserAlert = .init(action: .unignore, mentionsAgents: agentBlocks != nil) // AGENT-PLATFORM (decision 98)
         case .showIgnoreAlert:
-            state.bindings.ignoreUserAlert = .init(action: .ignore)
+            state.bindings.ignoreUserAlert = .init(action: .ignore, mentionsAgents: agentBlocks != nil) // AGENT-PLATFORM (decision 98)
         case .ignoreConfirmed:
             Task { await ignoreUser() }
         case .unignoreConfirmed:
@@ -87,7 +114,102 @@ class RoomMemberDetailsScreenViewModel: RoomMemberDetailsScreenViewModelType, Ro
             actionsSubject.send(.verifyUser(userID: state.userID))
         case .withdrawVerification:
             Task { await userSession.clientProxy.withdrawUserIdentityVerification(state.userID) }
+        case .eraseAssistantMemory: // AGENT-PLATFORM (Brief 0078)
+            confirmEraseAssistantMemory()
+        case .unblockAgent(let agentID): // AGENT-PLATFORM (decision 87)
+            confirmUnblock(agentID: agentID)
+        case .appeared: // AGENT-PLATFORM (decision 87)
+            loadOwnAgentsIfNeeded()
+            readAgentBlocksIfOffered()
         }
+    }
+    
+    // MARK: - Assistant memory (AGENT-PLATFORM, Brief 0078, ADR-0019 P5)
+    
+    /// Only an agent's profile needs to know whether the agent is the person's own.
+    /// A failed read is read again on reappearing (decision 87), or one `nil` would
+    /// hide the erase and the blocks for the screen's life.
+    private func loadOwnAgentsIfNeeded() {
+        guard let assistantMemoryEraser, SpiralAppPostSession.isAgent(state.userID),
+              state.ownAgentMXIDs == nil, !state.isReadingOwnAgents else { return }
+        state.isReadingOwnAgents = true
+        Task { [weak self] in
+            let mxids = await assistantMemoryEraser.ownAgentMXIDs()
+            self?.state.ownAgentMXIDs = mxids
+            self?.state.isReadingOwnAgents = false
+            self?.loadAgentBlocksIfOffered()
+        }
+    }
+    
+    private func confirmEraseAssistantMemory() {
+        guard let assistantMemoryEraser, !state.isErasingAssistantMemory else { return }
+        let contactName = state.memberDetails?.name ?? state.userID
+        state.bindings.alertInfo = assistantMemoryEraser.confirmation(id: .eraseAssistantMemory, contactName: contactName) { [weak self] in
+            Task { await self?.eraseAssistantMemory(contactName: contactName) }
+        }
+    }
+    
+    private func eraseAssistantMemory(contactName: String) async {
+        guard let assistantMemoryEraser else { return }
+        state.isErasingAssistantMemory = true
+        defer { state.isErasingAssistantMemory = false }
+        await assistantMemoryEraser.erase(contactMXID: state.userID, contactName: contactName)
+    }
+    
+    // MARK: - Agent blocks (AGENT-PLATFORM, decision 87)
+    
+    /// On the profile's load and once the person's own agents are known, until
+    /// a read succeeds: after a failed one the next trigger reads again.
+    private func loadAgentBlocksIfOffered() {
+        guard state.agentBlocksRead != .read else { return }
+        readAgentBlocksIfOffered()
+    }
+    
+    /// A trigger's read, also on reappearing, under the erase's rule; none while a read is out.
+    private func readAgentBlocksIfOffered() {
+        guard let agentBlocks, state.showEraseAssistantMemorySection, state.agentBlocksRead != .reading else { return }
+        state.agentBlocksRead = .reading
+        Task { await readAgentBlocks(with: agentBlocks) }
+    }
+    
+    /// Only the latest read's answer counts: one that went out before an Unblock's
+    /// 204 can land after the read that followed it. A failed read keeps what is
+    /// shown: a blip never passes for "not blocked".
+    private func readAgentBlocks(with agentBlocks: AgentBlocks) async {
+        agentBlocksReadGeneration += 1
+        let generation = agentBlocksReadGeneration
+        agentBlocksReadsInFlight += 1
+        state.agentBlocksRead = .reading
+        let blocks = await agentBlocks.blocks(ofContact: state.userID)
+        agentBlocksReadsInFlight -= 1
+        if generation == agentBlocksReadGeneration {
+            if let blocks {
+                state.agentBlocks = blocks
+            }
+            latestAgentBlocksOutcome = blocks == nil ? .failed : .read
+        }
+        if agentBlocksReadsInFlight == 0 {
+            state.agentBlocksRead = latestAgentBlocksOutcome
+        }
+    }
+    
+    private func confirmUnblock(agentID: String) {
+        guard let agentBlocks, state.unblockingAgentID == nil,
+              let block = state.agentBlocks.first(where: { $0.agentID == agentID }) else { return }
+        let contactName = state.memberDetails?.name ?? state.userID
+        state.bindings.alertInfo = agentBlocks.confirmation(id: .unblockAgent, block: block, contactName: contactName) { [weak self] in
+            Task { await self?.unblock(block) }
+        }
+    }
+    
+    private func unblock(_ block: AgentContactBlock) async {
+        guard let agentBlocks else { return }
+        state.unblockingAgentID = block.agentID
+        defer { state.unblockingAgentID = nil }
+        guard await agentBlocks.unblock(block, contactMXID: state.userID) else { return }
+        state.agentBlocks.removeAll { $0.agentID == block.agentID }
+        // Even with a read out: this one starts after the 204, so its answer wins.
+        await readAgentBlocks(with: agentBlocks)
     }
     
     // MARK: - Private
@@ -98,6 +220,7 @@ class RoomMemberDetailsScreenViewModel: RoomMemberDetailsScreenViewModelType, Ro
             roomMemberProxy = member
             state.memberDetails = RoomMemberDetails(withProxy: member)
             state.isOwnMemberDetails = member.userID == roomProxy.ownUserID
+            loadAgentBlocksIfOffered() // AGENT-PLATFORM (decision 87)
             switch userSession.clientProxy.directRoomForUserID(member.userID) {
             case .success(let roomID):
                 state.dmRoomID = roomID
@@ -192,7 +315,7 @@ class RoomMemberDetailsScreenViewModel: RoomMemberDetailsScreenViewModelType, Ro
                                                 delay: .milliseconds(200))
         defer { userIndicatorController.retractIndicatorWithId(loadingIndicatorIdentifier) }
         
-        switch userSession.clientProxy.directRoomForUserID(roomMemberProxy.userID) {
+        switch userSession.clientProxy.directRoomOrPendingInviteForUserID(roomMemberProxy.userID) {
         case .success(let roomID):
             if let roomID {
                 actionsSubject.send(.openDirectChat(roomID: roomID))
@@ -240,6 +363,7 @@ class RoomMemberDetailsScreenViewModel: RoomMemberDetailsScreenViewModelType, Ro
             showErrorIndicator()
             return
         }
+        await NativeCallConfiguration.awaitFirstMembers(of: roomProxy) // AGENT-PLATFORM: a fresh proxy's members decide the call's scope.
         actionsSubject.send(.startCall(roomProxy: roomProxy, isVoiceCall: isVoiceCall))
     }
     

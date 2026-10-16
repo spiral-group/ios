@@ -15,6 +15,8 @@ class BlockedUsersScreenViewModel: BlockedUsersScreenViewModelType, BlockedUsers
     let hideProfiles: Bool
     let clientProxy: ClientProxyProtocol
     let userIndicatorController: UserIndicatorControllerProtocol
+    /// AGENT-PLATFORM (decision 98): an unblock here lifts the owner's block for their agents too.
+    private let mentionsAgents: Bool
     
     init(hideProfiles: Bool,
          userSession: UserSessionProtocol,
@@ -22,6 +24,7 @@ class BlockedUsersScreenViewModel: BlockedUsersScreenViewModelType, BlockedUsers
         self.hideProfiles = hideProfiles
         clientProxy = userSession.clientProxy
         self.userIndicatorController = userIndicatorController
+        mentionsAgents = userSession.agentPlatformService != nil
         
         let ignoredUsers = clientProxy.ignoredUsersPublisher.value?.map { UserProfile(userID: $0) }
         
@@ -46,7 +49,8 @@ class BlockedUsersScreenViewModel: BlockedUsersScreenViewModelType, BlockedUsers
         case .unblockUser(let user):
             state.bindings.alertInfo = .init(id: .unblock,
                                              title: L10n.screenBlockedUsersUnblockAlertTitle,
-                                             message: L10n.screenBlockedUsersUnblockAlertDescription,
+                                             message: mentionsAgents ? "\(L10n.screenBlockedUsersUnblockAlertDescription)\n\n\(OwnerBlocksSync.alertLine(for: false))"
+                                                 : L10n.screenBlockedUsersUnblockAlertDescription,
                                              primaryButton: .init(title: L10n.screenBlockedUsersUnblockAlertAction, role: .destructive) { [weak self] in
                                                  self?.unblockUser(user)
                                              },

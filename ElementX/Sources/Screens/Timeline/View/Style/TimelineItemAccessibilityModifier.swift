@@ -39,6 +39,32 @@ private struct TimelineItemAccessibilityModifier: ViewModifier {
                         action()
                     }
                 }
+        // AGENT-PLATFORM (Brief 0066, ADR-0007): a running app is a set of
+        // controls, so the row is a container and they stay reachable one at a
+        // time — the same shape as a gallery above, and as a poll's options.
+        //
+        // The case below replaces the whole subtree with a representation, and
+        // an Interactive Post took it for months: every button an app drew was
+        // collapsed into the post's own title, leaving a VoiceOver reader a row
+        // they could hear and not use. That was blamed on WebKit in the
+        // notebook. It was this.
+        //
+        // The label is what the post IS, announced on entering. What it
+        // currently SAYS is the app's own content, and is read by navigating
+        // into it.
+        case let timelineItem as InteractivePostRoomTimelineItem:
+            content
+                .accessibilityElement(children: .contain)
+                .accessibilityLabel { _ in
+                    Text(timelineItem.sender.displayName ?? timelineItem.sender.id)
+                    Text(UntranslatedL10n.a11ySpiralAppPost(timelineItem.body))
+                    Text(timelineItem.localizedSendInfo)
+                }
+                .accessibilityActions {
+                    Button(L10n.commonMessageActions) {
+                        action()
+                    }
+                }
         case let timelineItem as EventBasedTimelineItemProtocol:
             content
                 .accessibilityRepresentation {

@@ -67,8 +67,18 @@ nonisolated struct RoomMessageEventStringBuilder {
             }
         case .gallery(let content):
             message = buildGalleryMessage(for: style, content: content)
-        case .other(_, let body):
-            message = AttributedString(body)
+        // AGENT-PLATFORM (Brief 0066): a room whose newest event is an
+        // Interactive Post must not look empty. The title is what the post
+        // calls itself; `body` is the same text for clients that do not know
+        // the type, so either would do — the title is the one a reader was
+        // shown in the room.
+        case .interactivePost(let content):
+            message = buildMessage(for: style, caption: content.title, type: UntranslatedL10n.commonInteractivePost)
+        case .interactiveDraft(let content):
+            message = buildMessage(for: style, caption: content.title, type: UntranslatedL10n.commonInteractiveDraft)
+        // AGENT-PLATFORM (Brief 0073): a notice previews in the reader's language.
+        case .other(let msgtype, let body, let data):
+            message = AttributedString(SpiralNotice(msgtype: msgtype, data: data)?.plainText ?? body)
         }
         
         if style == .senderPrefixed {

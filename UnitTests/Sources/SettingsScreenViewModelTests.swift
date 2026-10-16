@@ -164,6 +164,37 @@ struct SettingsScreenViewModelTests {
         try await deferred.fulfill()
     }
     
+    // AGENT-PLATFORM (decision 187): Encryption moved into the Security hub;
+    // Element's recovery nudge stays visible on the hub's row.
+    @Test
+    mutating func securityRowCarriesTheRecoveryBadge() async throws {
+        setupViewModel(securityState: .init(verificationState: .verified, recoveryState: .disabled))
+        let badged = deferFulfillment(context.observe(\.viewState.showSecuritySectionBadge)) { $0 }
+        try await badged.fulfill()
+        
+        setupViewModel(securityState: .init(verificationState: .verified, recoveryState: .enabled))
+        try await Task.sleep(for: .milliseconds(100))
+        #expect(!context.viewState.showSecuritySectionBadge)
+    }
+    
+    // AGENT-PLATFORM (decision 187).
+    @Test
+    mutating func hubRowsOpenTheirScreens() async throws {
+        setupViewModel()
+        
+        let security = deferFulfillment(viewModel.actions) { $0.isSecurity }
+        context.send(viewAction: .security)
+        try await security.fulfill()
+        
+        let privacy = deferFulfillment(viewModel.actions) { $0.isPrivacy }
+        context.send(viewAction: .privacy)
+        try await privacy.fulfill()
+        
+        let appearance = deferFulfillment(viewModel.actions) { $0.isAppearanceAndMedia }
+        context.send(viewAction: .appearanceAndMedia)
+        try await appearance.fulfill()
+    }
+    
     @Test
     mutating func logout() async throws {
         setupViewModel()
@@ -175,9 +206,12 @@ struct SettingsScreenViewModelTests {
     
     // MARK: - Helpers
     
-    private mutating func setupViewModel(status: UserStatus = .init()) {
+    private mutating func setupViewModel(status: UserStatus = .init(),
+                                         securityState: SessionSecurityState = .init(verificationState: .verified, recoveryState: .enabled)) {
         clientProxy = ClientProxyMock(.init(userID: "", status: status))
-        viewModel = SettingsScreenViewModel(userSession: UserSessionMock(.init(clientProxy: clientProxy)),
+        let userSession = UserSessionMock(.init(clientProxy: clientProxy))
+        userSession.sessionSecurityStatePublisher = CurrentValueSubject(securityState).asCurrentValuePublisher()
+        viewModel = SettingsScreenViewModel(userSession: userSession,
                                             appSettings: AppSettings.volatile(),
                                             isBugReportServiceEnabled: true,
                                             isInSecondaryWindow: false,
@@ -224,6 +258,27 @@ private extension SettingsScreenViewModelAction {
     var isLogout: Bool {
         switch self {
         case .logout: true
+        default: false
+        }
+    }
+    
+    var isSecurity: Bool {
+        switch self {
+        case .security: true
+        default: false
+        }
+    }
+    
+    var isPrivacy: Bool {
+        switch self {
+        case .privacy: true
+        default: false
+        }
+    }
+    
+    var isAppearanceAndMedia: Bool {
+        switch self {
+        case .appearanceAndMedia: true
         default: false
         }
     }

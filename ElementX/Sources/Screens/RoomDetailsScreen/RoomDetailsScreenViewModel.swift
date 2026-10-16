@@ -38,6 +38,12 @@ class RoomDetailsScreenViewModel: RoomDetailsScreenViewModelType, RoomDetailsScr
     }
     
     private var actionsSubject: PassthroughSubject<RoomDetailsScreenViewModelAction, Never> = .init()
+    // AGENT-PLATFORM (Brief 0072, ADR-0083)
+    private var dmPresenceObservation: PresenceObservation?
+    // AGENT-PLATFORM (walk F2): the newest known block state of a person — a
+    // block's result or the ignored list — which a later members or room info
+    // update, built from a member read before it, must not undo.
+    private var knownIgnoreState: (userID: String, isIgnored: Bool)?
     
     var actions: AnyPublisher<RoomDetailsScreenViewModelAction, Never> {
         actionsSubject.eraseToAnyPublisher()
@@ -80,11 +86,11 @@ class RoomDetailsScreenViewModel: RoomDetailsScreenViewModelType, RoomDetailsScr
             }
             .store(in: &cancellables)
         
-        Task {
-            if case let .success(permalinkURL) = await roomProxy.matrixToPermalink() {
-                state.permalink = permalinkURL
-            }
-        }
+        // AGENT-PLATFORM (Brief 0060): spiral.md smart link, built
+        // synchronously from the room info we already hold (canonical
+        // alias preferred, room ID as the unbreakable fallback).
+        state.permalink = SpiralLink(roomID: roomProxy.id,
+                                     canonicalAlias: roomProxy.infoPublisher.value.canonicalAlias)?.webURL
         
         updateRoomInfo(roomProxy.infoPublisher.value)
         
@@ -93,6 +99,15 @@ class RoomDetailsScreenViewModel: RoomDetailsScreenViewModelType, RoomDetailsScr
         
         setupNotificationSettingsSubscription()
         fetchNotificationSettings()
+        
+        // AGENT-PLATFORM (decision 192): the agents in this chat.
+        if let agentPlatformService = userSession.agentPlatformService, !roomProxy.infoPublisher.value.isSpace {
+            state.showsAgentsRow = true
+            Task { [weak self] in
+                guard case .success(let roomTools) = await agentPlatformService.fetchRoomTools(roomID: roomProxy.id) else { return }
+                self?.state.agentsCount = roomTools.agents.count
+            }
+        }
     }
     
     // MARK: - Public
@@ -100,12 +115,17 @@ class RoomDetailsScreenViewModel: RoomDetailsScreenViewModelType, RoomDetailsScr
     func stop() {
         // Work around QLPreviewController dismissal issues, see the InteractiveQuickLookModifier.
         state.bindings.mediaPreviewItem = nil
+        // AGENT-PLATFORM (Brief 0072, ADR-0083): kept, cancelled — a late room
+        // info update must not start it again.
+        dmPresenceObservation?.cancel()
     }
     
     override func process(viewAction: RoomDetailsScreenViewAction) {
         switch viewAction {
         case .processTapPeople:
             actionsSubject.send(.requestMemberDetailsPresentation)
+        case .processTapAgents: // AGENT-PLATFORM (decision 192)
+            actionsSubject.send(.requestAgentsPresentation)
         case .processTapInvite:
             if let dmRecipient = state.dmRecipientInfo {
                 actionsSubject.send(.requestInviteToNewRoomPresentation(selectedInvitee: .init(member: dmRecipient.member)))
@@ -117,9 +137,9 @@ class RoomDetailsScreenViewModel: RoomDetailsScreenViewModelType, RoomDetailsScr
         case .confirmLeave:
             Task { await leaveRoom() }
         case .processTapIgnore:
-            state.bindings.ignoreUserRoomAlertItem = .init(action: .ignore)
+            state.bindings.ignoreUserRoomAlertItem = .init(action: .ignore, mentionsAgents: userSession.agentPlatformService != nil) // AGENT-PLATFORM (decision 98)
         case .processTapUnignore:
-            state.bindings.ignoreUserRoomAlertItem = .init(action: .unignore)
+            state.bindings.ignoreUserRoomAlertItem = .init(action: .unignore, mentionsAgents: userSession.agentPlatformService != nil) // AGENT-PLATFORM (decision 98)
         case .processTapEdit, .processTapAddTopic:
             actionsSubject.send(.requestEditDetailsPresentation)
         case .ignoreConfirmed:
@@ -261,6 +281,27 @@ class RoomDetailsScreenViewModel: RoomDetailsScreenViewModelType, RoomDetailsScr
                 Task { await self?.updateMemberIdentityVerificationStates() }
             }
             .store(in: &cancellables)
+        
+        // AGENT-PLATFORM (walk F2): a block or unblock made elsewhere (another
+        // device, Settings) shows here too. The current value is what the members
+        // were read with already.
+        userSession.clientProxy.ignoredUsersPublisher
+            .dropFirst()
+            .compactMap { $0 }
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] ignoredUserIDs in
+                guard let self, let userID = state.dmRecipientInfo?.member.id else { return }
+                setIgnored(ignoredUserIDs.contains(userID), for: userID)
+            }
+            .store(in: &cancellables)
+    }
+    
+    // AGENT-PLATFORM (walk F2)
+    private func setIgnored(_ isIgnored: Bool, for userID: String) {
+        knownIgnoreState = (userID, isIgnored)
+        guard var dmRecipientInfo = state.dmRecipientInfo, dmRecipientInfo.member.id == userID else { return }
+        dmRecipientInfo.member.isIgnored = isIgnored
+        state.dmRecipientInfo = dmRecipientInfo
     }
     
     private func updateRoomInfo(_ roomInfo: RoomInfoProxyProtocol) {
@@ -296,25 +337,54 @@ class RoomDetailsScreenViewModel: RoomDetailsScreenViewModelType, RoomDetailsScr
             state.canEditSecurityAndPrivacy = powerLevels.canOwnUserEditSecurityAndPrivacy(isSpace: roomInfo.isSpace,
                                                                                            joinRule: roomInfo.joinRule)
         }
+        
+        observeDMPresence(roomInfo.dmUserID)
+    }
+    
+    // AGENT-PLATFORM (Brief 0072, ADR-0083): the DM's other person — the one
+    // the room header and the room list show presence for.
+    private func observeDMPresence(_ dmUserID: String?) {
+        guard dmUserID != dmPresenceObservation?.userID else { return }
+        dmPresenceObservation = nil
+        state.dmRecipientPresence = nil
+        dmPresenceObservation = PresenceObservation(userID: dmUserID,
+                                                    ownUserID: roomProxy.ownUserID,
+                                                    service: userSession.presenceObserverService) { [weak self] presence in
+            self?.state.dmRecipientPresence = presence
+        }
     }
     
     private func fetchMembersIfNeeded() async {
         roomProxy.membersPublisher
+            .combineLatest(roomProxy.infoPublisher)
             .receive(on: DispatchQueue.main)
-            .sink { [weak self, ownUserID = roomProxy.ownUserID] members in
+            .sink { [weak self, ownUserID = roomProxy.ownUserID] members, roomInfo in
                 guard let self else { return }
                 
-                if let accountOwner = members.first(where: { $0.userID == ownUserID }) {
-                    self.state.accountOwner = .init(withProxy: accountOwner)
-                }
+                self.state.accountOwner = members.first { $0.userID == ownUserID }.map(RoomMemberDetails.init(withProxy:))
                 
-                guard roomProxy.infoPublisher.value.isDM else {
+                guard roomInfo.isDM else {
+                    self.state.dmRecipientInfo = nil
                     return
                 }
                 
-                if let dmRecipient = members.first(where: { $0.userID != ownUserID }) {
-                    self.state.dmRecipientInfo = .init(member: .init(withProxy: dmRecipient))
-                    
+                // AGENT-PLATFORM: Keep DM actions aligned with the hero shown in the room header.
+                // The SDK member iterator includes left members, including historical agents.
+                let activeRecipients = members.filter { $0.userID != ownUserID && $0.isActive }
+                let heroRecipient = roomInfo.heroes.count == 1
+                    ? activeRecipients.first { $0.userID == roomInfo.heroes[0].userId }
+                    : nil
+                let dmRecipient = heroRecipient ?? (activeRecipients.count == 1 ? activeRecipients[0] : nil)
+                self.state.dmRecipientInfo = dmRecipient.map { recipient in
+                    var member = RoomMemberDetails(withProxy: recipient)
+                    // AGENT-PLATFORM (walk F2): the member may predate the last block.
+                    if let knownIgnoreState = self.knownIgnoreState, knownIgnoreState.userID == member.id {
+                        member.isIgnored = knownIgnoreState.isIgnored
+                    }
+                    return .init(member: member)
+                }
+
+                if dmRecipient != nil {
                     Task { await self.updateMemberIdentityVerificationStates() }
                 }
             }
@@ -330,8 +400,10 @@ class RoomDetailsScreenViewModel: RoomDetailsScreenViewModelType, RoomDetailsScr
         }
         
         if roomProxy.infoPublisher.value.isDM {
-            if var dmRecipientInfo = state.dmRecipientInfo {
-                if case let .success(userIdentity) = await userSession.clientProxy.userIdentity(for: dmRecipientInfo.member.id, fallBackToServer: true) {
+            if let userID = state.dmRecipientInfo?.member.id {
+                if case let .success(userIdentity) = await userSession.clientProxy.userIdentity(for: userID, fallBackToServer: true),
+                   // AGENT-PLATFORM (walk F2): re-read after the await, which a block can finish during.
+                   var dmRecipientInfo = state.dmRecipientInfo, dmRecipientInfo.member.id == userID {
                     dmRecipientInfo.verificationState = userIdentity?.verificationState
                     state.dmRecipientInfo = dmRecipientInfo
                 }
@@ -445,10 +517,7 @@ class RoomDetailsScreenViewModel: RoomDetailsScreenViewModelType, RoomDetailsScr
         state.isProcessingIgnoreRequest = false
         switch result {
         case .success:
-            // Mutating the optional in place when built for Release crashes 🤷‍♂️
-            var dmRecipientInfo = state.dmRecipientInfo
-            dmRecipientInfo?.member.isIgnored = true
-            state.dmRecipientInfo = dmRecipientInfo
+            setIgnored(true, for: dmUserID) // AGENT-PLATFORM (walk F2)
         case .failure:
             state.bindings.alertInfo = .init(id: .unknown)
         }
@@ -466,10 +535,7 @@ class RoomDetailsScreenViewModel: RoomDetailsScreenViewModelType, RoomDetailsScr
         state.isProcessingIgnoreRequest = false
         switch result {
         case .success:
-            // Mutating the optional in place when built for Release crashes 🤷‍♂️
-            var dmRecipientInfo = state.dmRecipientInfo
-            dmRecipientInfo?.member.isIgnored = false
-            state.dmRecipientInfo = dmRecipientInfo
+            setIgnored(false, for: dmUserID) // AGENT-PLATFORM (walk F2)
         case .failure:
             state.bindings.alertInfo = .init(id: .unknown)
         }

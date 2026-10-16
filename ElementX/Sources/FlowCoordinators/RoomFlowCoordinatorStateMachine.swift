@@ -14,6 +14,8 @@ extension RoomFlowCoordinator {
         case eventFocus(FocusEvent)
         case share(ShareExtensionPayload)
         case thread(rootEventID: String, focusEvent: FocusEvent?)
+        /// AGENT-PLATFORM (decision 111): the post catalogue, on this template.
+        case catalogTemplate(String)
         
         var focusedEvent: FocusEvent? {
             switch self {
@@ -83,6 +85,8 @@ extension RoomFlowCoordinator {
         case spaceFlow(previousState: State)
         /// A members flow is in progress
         case membersFlow(previousState: State)
+        // AGENT-PLATFORM: the agent-tools flow is in progress (Brief 0036).
+        case agentToolsFlow(previousState: State)
     }
     
     struct EventUserInfo {
@@ -155,7 +159,7 @@ extension RoomFlowCoordinator {
         case presentPinnedEventsTimeline
         case dismissPinnedEventsTimeline
         
-        case presentResolveSendFailure(failure: TimelineItemSendFailure.VerifiedUser, sendHandle: SendHandleProxy)
+        case presentResolveSendFailure(failure: TimelineItemSendFailure.VerifiedUser, resolver: VerifiedUserSendFailureResolver) // AGENT-PLATFORM: § 5.87
         case dismissResolveSendFailure
         
         case startChildFlow(roomID: String, via: [String], entryPoint: RoomFlowCoordinatorEntryPoint)
@@ -184,6 +188,10 @@ extension RoomFlowCoordinator {
         
         case startMembersFlow(entryPoint: RoomMembersFlowCoordinatorEntryPoint)
         case stopMembersFlow
+        
+        // AGENT-PLATFORM: the agent-tools flow (Brief 0036).
+        case startAgentToolsFlow(entryPoint: AgentToolsFlowEntryPoint)
+        case stopAgentToolsFlow
     }
     
     // swiftlint:disable:next function_body_length
@@ -360,6 +368,11 @@ extension RoomFlowCoordinator {
             case (_, .startMembersFlow):
                 return .membersFlow(previousState: fromState)
             case (.membersFlow(let previousState), .stopMembersFlow):
+                return previousState
+                
+            case (_, .startAgentToolsFlow):
+                return .agentToolsFlow(previousState: fromState)
+            case (.agentToolsFlow(let previousState), .stopAgentToolsFlow):
                 return previousState
                 
             case (_, .startChildFlow(let roomID, _, _)):

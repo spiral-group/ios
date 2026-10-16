@@ -16,6 +16,7 @@ nonisolated enum MatrixEntityRegex: String {
     case uri
     case allUsers
     case legacyRoomID
+    case roomID // AGENT-PLATFORM (Brief 0063): room-version-12 IDs (Recents callback into a v12 room).
     
     var rawValue: String {
         switch self {
@@ -27,6 +28,11 @@ nonisolated enum MatrixEntityRegex: String {
             return "#[A-Z0-9._%#@=+-]+:" + MatrixEntityRegex.homeserver.rawValue
         case .legacyRoomID:
             return "![A-Z0-9_\\-\\/]+:" + MatrixEntityRegex.homeserver.rawValue
+        case .roomID:
+            // AGENT-PLATFORM (Brief 0063)
+            // From room version 12 (MSC4291) the ID is the create event's hash,
+            // so there is no homeserver part left to match on.
+            return "(" + MatrixEntityRegex.legacyRoomID.rawValue + "|![A-Z0-9_\\-+\\/=]+)"
         case .uri:
             return "matrix:(r|u|roomid)\\/[A-Z0-9\\-._~:/?#\\[\\]@!$&'()*+,;=%]*(?:\\?[A-Z0-9\\-._~:/?#\\[\\]@!$&'()*+,;=%]*)?"
         case .allUsers:
@@ -42,6 +48,7 @@ nonisolated enum MatrixEntityRegex: String {
     static let allUsersRegex = try! NSRegularExpression(pattern: MatrixEntityRegex.allUsers.rawValue)
     static let linkRegex = try! NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue)
     static let legacyRoomIDRegex = try! NSRegularExpression(pattern: MatrixEntityRegex.legacyRoomID.rawValue, options: .caseInsensitive)
+    static let roomIDRegex = try! NSRegularExpression(pattern: MatrixEntityRegex.roomID.rawValue, options: .caseInsensitive) // AGENT-PLATFORM (Brief 0063)
     // swiftlint:enable force_try
     
     static func isMatrixHomeserver(_ homeserver: String) -> Bool {
@@ -70,6 +77,16 @@ nonisolated enum MatrixEntityRegex: String {
     
     static func isLegacyMatrixRoomID(_ roomID: String) -> Bool {
         guard let match = legacyRoomIDRegex.firstMatch(in: roomID) else {
+            return false
+        }
+        
+        return match.range.length == roomID.count
+    }
+    
+    // AGENT-PLATFORM (Brief 0063)
+    /// Whether the identifier is a room ID of any room version, legacy or not.
+    static func isMatrixRoomID(_ roomID: String) -> Bool {
+        guard let match = roomIDRegex.firstMatch(in: roomID) else {
             return false
         }
         

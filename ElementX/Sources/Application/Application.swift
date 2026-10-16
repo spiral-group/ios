@@ -19,6 +19,10 @@ struct Application: App {
     private var appCoordinator: AppCoordinatorProtocol!
     
     init() {
+        // AGENT-PLATFORM: the Spiral brand arrives via the recoloured
+        // compound-design-tokens fork (Brief 0032, sibling checkout at
+        // ../../compound-design-tokens) — the former SpiralBrandTheme runtime
+        // override was deleted; zero brand hex lives in app code.
         if ProcessInfo.isRunningUITests {
             appCoordinator = UITestsAppCoordinator(appDelegate: appDelegate)
         } else if ProcessInfo.isRunningUnitTests {
@@ -30,6 +34,12 @@ struct Application: App {
         }
         
         SceneDelegate.windowManager = appCoordinator.windowManager
+        // AGENT-PLATFORM (Brief 0063): start-call activities are routed through
+        // SceneDelegate (replaces upstream's `.onContinueUserActivity("INStartCallIntent")`
+        // below, which missed the deprecated INStartAudio/VideoCallIntent types).
+        SceneDelegate.userActivityHandler = { [weak appCoordinator] userActivity in
+            appCoordinator?.handleUserActivity(userActivity)
+        }
     }
     
     var body: some Scene {
@@ -51,9 +61,6 @@ struct Application: App {
                     // delivered as a browsing-web user activity rather than through `onOpenURL` 🤷‍♂️
                     guard let url = userActivity.webpageURL else { return }
                     openURL(url, isExternalURL: true)
-                }
-                .onContinueUserActivity("INStartCallIntent") { userActivity in
-                    appCoordinator.handleUserActivity(userActivity)
                 }
                 .task {
                     UserAgentBuilder.displayScale = displayScale
@@ -117,8 +124,19 @@ struct Application: App {
     
     private func openURL(_ url: URL, isExternalURL: Bool) {
         if !appCoordinator.handleDeepLink(url, isExternalURL: isExternalURL, windowType: nil) {
+            // AGENT-PLATFORM (security pass): our own scheme that no parser
+            // took (e.g. a stray `spiral://phrase-changed`) goes nowhere — the
+            // system would hand it straight back to this app, round and round.
+            guard !Self.isOwnScheme(url) else {
+                MXLog.info("Ignoring an unhandled \(url.scheme ?? "") URL")
+                return
+            }
             openURLInSystemBrowser(url)
         }
+    }
+    
+    static func isOwnScheme(_ url: URL, appScheme: String = InfoPlistReader.app.appScheme) -> Bool {
+        url.scheme?.lowercased() == appScheme.lowercased()
     }
     
     /// Hide the status bar so it doesn't interfere with the screenshot tests

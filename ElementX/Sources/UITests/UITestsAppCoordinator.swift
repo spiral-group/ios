@@ -148,30 +148,49 @@ class MockScreen: Identifiable {
         case .authenticationFlow, .provisionedAuthenticationFlow, .singleProviderAuthenticationFlow, .multipleProvidersAuthenticationFlow:
             let appSettings: AppSettings! = appSettings
             
-            if id == .singleProviderAuthenticationFlow || id == .multipleProvidersAuthenticationFlow {
-                let accountProviders = id == .singleProviderAuthenticationFlow ? ["example.com"] : ["guest.example.com", "example.com"]
-                appSettings.override(accountProviders: accountProviders,
-                                     allowOtherAccountProviders: false,
-                                     hideBrandChrome: false,
-                                     pushGatewayBaseURL: appSettings.pushGatewayBaseURL,
-                                     oAuthRedirectURL: appSettings.oAuthRedirectURL,
-                                     oAuthClientURIPath: appSettings.oAuthClientURIPath,
-                                     websiteURL: appSettings.websiteURL,
-                                     logoURL: appSettings.logoURL,
-                                     copyrightURL: appSettings.copyrightURL,
-                                     acceptableUseURL: appSettings.acceptableUseURL,
-                                     privacyURL: appSettings.privacyURL,
-                                     encryptionURL: appSettings.encryptionURL,
-                                     deviceVerificationURL: appSettings.deviceVerificationURL,
-                                     chatBackupDetailsURL: appSettings.chatBackupDetailsURL,
-                                     identityPinningViolationDetailsURL: appSettings.identityPinningViolationDetailsURL,
-                                     historySharingDetailsURL: appSettings.historySharingDetailsURL,
-                                     elementWebHosts: appSettings.elementWebHosts,
-                                     accountProvisioningHost: appSettings.accountProvisioningHost,
-                                     bugReportApplicationID: appSettings.bugReportApplicationID,
-                                     analyticsTermsURL: appSettings.analyticsTermsURL,
-                                     mapTilerConfiguration: AppSettings.bundledMapTilerConfiguration)
+            // AGENT-PLATFORM: the fork's production default is a single closed
+            // provider (spiral.md), which would make even the base
+            // `.authenticationFlow` skip server selection and go straight to
+            // OAuth. These UITests exercise the UPSTREAM auth shapes (server
+            // selection + password, single provider, multiple providers,
+            // provisioning), so each fixture explicitly sets the provider
+            // configuration it is testing rather than inheriting the closed
+            // default. The base + provisioned flows use the open upstream shape
+            // (`allowOtherAccountProviders: true`); a non-empty seed provider
+            // avoids the empty-list edge case in the settings consumers.
+            let accountProviders: [String]
+            let allowOtherAccountProviders: Bool
+            switch id {
+            case .singleProviderAuthenticationFlow:
+                accountProviders = ["example.com"]
+                allowOtherAccountProviders = false
+            case .multipleProvidersAuthenticationFlow:
+                accountProviders = ["guest.example.com", "example.com"]
+                allowOtherAccountProviders = false
+            default: // .authenticationFlow, .provisionedAuthenticationFlow
+                accountProviders = ["matrix.org"]
+                allowOtherAccountProviders = true
             }
+            appSettings.override(accountProviders: accountProviders,
+                                 allowOtherAccountProviders: allowOtherAccountProviders,
+                                 hideBrandChrome: false,
+                                 pushGatewayBaseURL: appSettings.pushGatewayBaseURL,
+                                 oAuthRedirectURL: appSettings.oAuthRedirectURL,
+                                 oAuthClientURIPath: appSettings.oAuthClientURIPath,
+                                 websiteURL: appSettings.websiteURL,
+                                 logoURL: appSettings.logoURL,
+                                 copyrightURL: appSettings.copyrightURL,
+                                 acceptableUseURL: appSettings.acceptableUseURL,
+                                 privacyURL: appSettings.privacyURL,
+                                 encryptionURL: appSettings.encryptionURL,
+                                 deviceVerificationURL: appSettings.deviceVerificationURL,
+                                 chatBackupDetailsURL: appSettings.chatBackupDetailsURL,
+                                 identityPinningViolationDetailsURL: appSettings.identityPinningViolationDetailsURL,
+                                 historySharingDetailsURL: appSettings.historySharingDetailsURL,
+                                 accountProvisioningHost: appSettings.accountProvisioningHost,
+                                 bugReportApplicationID: appSettings.bugReportApplicationID,
+                                 analyticsTermsURL: appSettings.analyticsTermsURL,
+                                 mapTilerConfiguration: AppSettings.bundledMapTilerConfiguration)
             
             let flowCoordinator = AuthenticationFlowCoordinator(authenticationService: AuthenticationService.mock,
                                                                 bugReportService: BugReportServiceMock(.init()),
@@ -647,7 +666,7 @@ class MockScreen: Identifiable {
                                                                                             appSettings: appSettings),
                                                              flowParameters: CommonFlowParameters(userSession: UserSessionMock(.init(clientProxy: clientProxy)),
                                                                                                   bugReportService: BugReportServiceMock(.init()),
-                                                                                                  elementCallService: ElementCallServiceMock(.init()),
+                                                                                                  callKitService: CallKitServiceMock(.init()),
                                                                                                   timelineControllerFactory: timelineControllerFactory,
                                                                                                   emojiProvider: EmojiProvider(appSettings: appSettings),
                                                                                                   linkMetadataProvider: LinkMetadataProvider(),
@@ -664,6 +683,14 @@ class MockScreen: Identifiable {
             retainedState.append(flowCoordinator)
             
             return nil
+        case .spiralTabBarBadge: // AGENT-PLATFORM (coverage walk F3): a tab with a badge, read by its accessibility value.
+            let chats = NavigationTabCoordinator<Int>.TabDetails(tag: 0, title: "Chats", icon: \.chat, selectedIcon: \.chatSolid)
+            let agents = NavigationTabCoordinator<Int>.TabDetails(tag: 1, title: "Agents", icon: \.host, selectedIcon: \.host)
+            agents.badgeCount = 3
+            let tabCoordinator = NavigationTabCoordinator<Int>()
+            tabCoordinator.setTabs([.init(coordinator: BlankFormCoordinator(), details: chats),
+                                    .init(coordinator: BlankFormCoordinator(), details: agents)])
+            return tabCoordinator
         case .roomMembersListScreenPendingInvites:
             let navigationStackCoordinator = NavigationStackCoordinator()
             let members: [RoomMemberProxyMock] = [.mockInvitedAlice, .mockBob, .mockCharlie]
@@ -672,6 +699,36 @@ class MockScreen: Identifiable {
                                                                                  userIndicatorController: userIndicatorController,
                                                                                  analytics: analytics))
             navigationStackCoordinator.setRootCoordinator(coordinator)
+            return navigationStackCoordinator
+        case .roomMembersFlowWithAssistant: // AGENT-PLATFORM (Brief 0078): the member sheet's path to the erase row.
+            // The sheet's dismissal racing the profile's push only exists
+            // with the animations a real user has.
+            UIView.setAnimationsEnabled(true)
+            let agentPlatformService = AgentPlatformServiceMock()
+            agentPlatformService.eraseAssistantMemoryAboutContactReturnValue = .success(.nothing)
+            let userSession = UserSessionMock(.init(clientProxy: ClientProxyMock(.init(userID: RoomMemberProxyMock.mockMe.userID))))
+            userSession.agentPlatformService = agentPlatformService
+            
+            let navigationStackCoordinator = NavigationStackCoordinator()
+            navigationStackCoordinator.setRootCoordinator(BlankFormCoordinator())
+            let flowCoordinator = RoomMembersFlowCoordinator(entryPoint: .roomMembersList,
+                                                             roomProxy: JoinedRoomProxyMock(.init(name: "test", members: [.mockMe, .mockAlice, .mockBob])),
+                                                             navigationStackCoordinator: navigationStackCoordinator,
+                                                             flowParameters: CommonFlowParameters(userSession: userSession,
+                                                                                                  bugReportService: BugReportServiceMock(.init()),
+                                                                                                  callKitService: CallKitServiceMock(.init()),
+                                                                                                  timelineControllerFactory: TimelineControllerFactoryMock(.init()),
+                                                                                                  emojiProvider: EmojiProvider(appSettings: appSettings),
+                                                                                                  linkMetadataProvider: LinkMetadataProvider(),
+                                                                                                  appMediator: AppMediatorMock(.init()),
+                                                                                                  appSettings: appSettings,
+                                                                                                  appHooks: AppHooks(),
+                                                                                                  analytics: analytics,
+                                                                                                  userIndicatorController: userIndicatorController,
+                                                                                                  notificationManager: NotificationManagerMock(),
+                                                                                                  stateMachineFactory: StateMachineFactory()))
+            retainedState.append(flowCoordinator)
+            flowCoordinator.start()
             return navigationStackCoordinator
         case .roomRolesAndPermissionsFlow:
             let navigationStackCoordinator = NavigationStackCoordinator()
@@ -699,7 +756,7 @@ class MockScreen: Identifiable {
                                                            navigationStackCoordinator: navigationStackCoordinator,
                                                            flowParameters: CommonFlowParameters(userSession: UserSessionMock(.init(clientProxy: clientProxy)),
                                                                                                 bugReportService: BugReportServiceMock(.init()),
-                                                                                                elementCallService: ElementCallServiceMock(.init()),
+                                                                                                callKitService: CallKitServiceMock(.init()),
                                                                                                 timelineControllerFactory: TimelineControllerFactoryMock(.init()),
                                                                                                 emojiProvider: EmojiProvider(appSettings: appSettings),
                                                                                                 linkMetadataProvider: LinkMetadataProvider(),
@@ -716,7 +773,7 @@ class MockScreen: Identifiable {
                     switch action {
                     case .finished(let roomID):
                         navigationRootCoordinator.setSheetCoordinator(nil)
-                    case .showRoomDirectory:
+                    case .showRoomDirectory, .showUserProfile: // AGENT-PLATFORM: .showUserProfile (Brief 0073)
                         break // The test doesn't cover this.
                     }
                 }
@@ -801,7 +858,7 @@ class MockScreen: Identifiable {
                                                                appLockService: appLockService,
                                                                flowParameters: CommonFlowParameters(userSession: UserSessionMock(.init(clientProxy: clientProxy)),
                                                                                                     bugReportService: BugReportServiceMock(.init()),
-                                                                                                    elementCallService: ElementCallServiceMock(.init()),
+                                                                                                    callKitService: CallKitServiceMock(.init()),
                                                                                                     timelineControllerFactory: TimelineControllerFactoryMock(.init()),
                                                                                                     emojiProvider: EmojiProvider(appSettings: appSettings),
                                                                                                     linkMetadataProvider: LinkMetadataProvider(),
@@ -856,7 +913,7 @@ class MockScreen: Identifiable {
             let flowCoordinator = ChatsTabFlowCoordinator(navigationSplitCoordinator: navigationSplitCoordinator,
                                                           flowParameters: CommonFlowParameters(userSession: UserSessionMock(.init(clientProxy: clientProxy)),
                                                                                                bugReportService: BugReportServiceMock(.init()),
-                                                                                               elementCallService: ElementCallServiceMock(.init()),
+                                                                                               callKitService: CallKitServiceMock(.init()),
                                                                                                timelineControllerFactory: TimelineControllerFactoryMock(.init(timelineController: timelineController)),
                                                                                                emojiProvider: EmojiProvider(appSettings: appSettings),
                                                                                                linkMetadataProvider: LinkMetadataProvider(),

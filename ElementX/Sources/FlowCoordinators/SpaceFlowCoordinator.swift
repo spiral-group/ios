@@ -12,6 +12,7 @@ import SwiftState
 
 enum SpaceFlowCoordinatorAction {
     case presentCallScreen(roomProxy: JoinedRoomProxyProtocol, isVoiceCall: Bool)
+    case presentAIConsentSettings // AGENT-PLATFORM (decision 150)
     case verifyUser(userID: String)
     case finished
 }
@@ -507,6 +508,8 @@ class SpaceFlowCoordinator: FlowCoordinatorProtocol {
                 switch action {
                 case .presentCallScreen(let roomProxy, let isVoiceCall):
                     actionsSubject.send(.presentCallScreen(roomProxy: roomProxy, isVoiceCall: isVoiceCall))
+                case .presentAIConsentSettings: // AGENT-PLATFORM (decision 150)
+                    actionsSubject.send(.presentAIConsentSettings)
                 case .verifyUser(let userID):
                     actionsSubject.send(.verifyUser(userID: userID))
                 case .finished:
@@ -532,6 +535,8 @@ class SpaceFlowCoordinator: FlowCoordinatorProtocol {
                 switch action {
                 case .presentCallScreen(let roomProxy, let isVoiceCall):
                     actionsSubject.send(.presentCallScreen(roomProxy: roomProxy, isVoiceCall: isVoiceCall))
+                case .presentAIConsentSettings: // AGENT-PLATFORM (decision 150)
+                    actionsSubject.send(.presentAIConsentSettings)
                 case .verifyUser(let userID):
                     actionsSubject.send(.verifyUser(userID: userID))
                 case .continueWithSpaceFlow(let spaceRoomListProxy):
@@ -560,6 +565,8 @@ class SpaceFlowCoordinator: FlowCoordinatorProtocol {
                 stateMachine.tryEvent(.stopMembersFlow)
             case .presentCallScreen(let roomProxy, let isVoiceCall):
                 actionsSubject.send(.presentCallScreen(roomProxy: roomProxy, isVoiceCall: isVoiceCall))
+            case .presentAIConsentSettings: // AGENT-PLATFORM (decision 150)
+                actionsSubject.send(.presentAIConsentSettings)
             case .verifyUser(let userID):
                 actionsSubject.send(.verifyUser(userID: userID))
             }
@@ -584,6 +591,8 @@ class SpaceFlowCoordinator: FlowCoordinatorProtocol {
                 }
             case .presentCallScreen(let roomProxy, let isVoiceCall):
                 actionsSubject.send(.presentCallScreen(roomProxy: roomProxy, isVoiceCall: isVoiceCall))
+            case .presentAIConsentSettings: // AGENT-PLATFORM (decision 150)
+                actionsSubject.send(.presentAIConsentSettings)
             case .verifyUser(userID: let userID):
                 actionsSubject.send(.verifyUser(userID: userID))
             }
@@ -629,6 +638,8 @@ class SpaceFlowCoordinator: FlowCoordinatorProtocol {
                 navigationStackCoordinator.setSheetCoordinator(nil)
             case .showRoomDirectory:
                 fatalError("Not implemented yet")
+            case .showUserProfile: // AGENT-PLATFORM (Brief 0073): the space picker has no invite row.
+                navigationStackCoordinator.setSheetCoordinator(nil)
             }
         }
         .store(in: &cancellables)

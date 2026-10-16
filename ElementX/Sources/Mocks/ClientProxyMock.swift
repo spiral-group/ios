@@ -80,6 +80,10 @@ extension ClientProxyMock {
         accountURLActionReturnValue = "https://matrix.org/account"
         canDeactivateAccount = false
         directRoomForUserIDReturnValue = .failure(.sdkError(ClientProxyMockError.generic))
+        // AGENT-PLATFORM (Brief 0073): «Message» follows whatever a test set for the DM.
+        directRoomOrPendingInviteForUserIDClosure = { [unowned self] userID in
+            directRoomForUserIDClosure?(userID) ?? directRoomForUserIDReturnValue
+        }
         createDirectRoomWithExpectedRoomNameReturnValue = .failure(.sdkError(ClientProxyMockError.generic))
         createRoomNameTopicAccessTypeIsSpaceUserIDsAvatarURLAliasLocalPartReturnValue = .failure(.sdkError(ClientProxyMockError.generic))
         canJoinRoomWithReturnValue = true

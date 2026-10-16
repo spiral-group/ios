@@ -75,7 +75,8 @@ struct RoomScreen: View {
             .topBanners([
                 TopBannerLayer(verticalBanners: [
                     TopBannerItem(pinnedItemsBanner, isVisible: context.viewState.shouldShowPinnedEventsBanner && !isVoiceOverEnabled),
-                    TopBannerItem(liveLocationBanner, isVisible: context.viewState.isSharingLiveLocation && !isVoiceOverEnabled)
+                    TopBannerItem(liveLocationBanner, isVisible: context.viewState.isSharingLiveLocation && !isVoiceOverEnabled),
+                    TopBannerItem(activeToolsBanner, isVisible: context.viewState.shouldShowActiveToolsBanner && !isVoiceOverEnabled)
                 ]),
                 // This can overlay on top of the stacked banners
                 TopBannerLayer(knockRequestsBanner, isVisible: context.viewState.shouldSeeKnockRequests)
@@ -85,13 +86,17 @@ struct RoomScreen: View {
                 // hides itself and the .overlay layout above would permanently obscure the top of
                 // the timeline. So whenever VoiceOver is enabled we use a safe area inset to
                 // vertically stack it above the timeline instead.
-                if context.viewState.shouldShowPinnedEventsBanner || context.viewState.isSharingLiveLocation, isVoiceOverEnabled {
+                // AGENT-PLATFORM (Brief 0044): the active-tools banner joins the stack.
+                if context.viewState.shouldShowPinnedEventsBanner || context.viewState.isSharingLiveLocation || context.viewState.shouldShowActiveToolsBanner, isVoiceOverEnabled {
                     VStack(spacing: 0) {
                         if context.viewState.shouldShowPinnedEventsBanner {
                             pinnedItemsBanner
                         }
                         if context.viewState.isSharingLiveLocation {
                             liveLocationBanner
+                        }
+                        if context.viewState.shouldShowActiveToolsBanner {
+                            activeToolsBanner
                         }
                     }
                 }
@@ -125,8 +130,7 @@ struct RoomScreen: View {
                     dismissMarkAsReadPill()
                 }
             }
-            .track(screen: .Room)
-            .sentryTrace("\(Self.self)")
+            .track(screen: .Room) // AGENT-PLATFORM (Brief 0078): no Sentry view tracing.
     }
     
     private var liveLocationBanner: some View {
@@ -141,6 +145,13 @@ struct RoomScreen: View {
         PinnedItemsBannerView(state: context.viewState.pinnedEventsBannerState,
                               onMainButtonTap: { context.send(viewAction: .tappedPinnedEventsBanner) },
                               onViewAllButtonTap: { context.send(viewAction: .viewAllPins) })
+    }
+
+    // AGENT-PLATFORM: the in-chat active-tools banner (Brief 0036).
+    private var activeToolsBanner: some View {
+        ToolsBannerView(state: context.viewState.activeToolsBannerState,
+                        onMainButtonTap: { context.send(viewAction: .rotateActiveToolsBanner) },
+                        onManageButtonTap: { context.send(viewAction: .tappedActiveToolsBanner) })
     }
     
     private var knockRequestsBanner: some View {
@@ -330,6 +341,9 @@ struct RoomScreen_Previews: PreviewProvider, TestablePreview {
     static let readOnlyViewModels = makeViewModels(canSendMessage: false)
     static let tombstonedViewModels = makeViewModels(hasSuccessor: true)
     static let composerViewModel = ComposerToolbarViewModel.mock()
+    // AGENT-PLATFORM (Brief 0063, G9): a live call to sit above the room in
+    // the production-composition preview below.
+    static let minimizedCallViewModel = NativeCallScreen_Previews.makeAgentViewModel()
     
     static var previews: some View {
         ElementNavigationStack {
@@ -354,6 +368,27 @@ struct RoomScreen_Previews: PreviewProvider, TestablePreview {
         }
         .previewDisplayName("Tombstoned")
         .snapshotPreferences(expect: tombstonedViewModels.room.context.$viewState.map(\.hasSuccessor))
+        
+        // AGENT-PLATFORM (Brief 0063, G9): the PRODUCTION composition — the
+        // minimized call bar stacked above a whole room, the way
+        // `NavigationTabCoordinator` lays the two out.
+        //
+        // This preview exists because its absence is what let the bar ship on
+        // top of the room's header twice. The bar had a preview and the room
+        // had a preview; neither could show the one thing that was wrong,
+        // which was how they sit TOGETHER. What this snapshot must prove is
+        // that the room's own navigation bar — its title and back button —
+        // is fully visible below the green, not behind it.
+        VStack(spacing: 0) {
+            NativeCallBar(context: minimizedCallViewModel.context)
+            
+            ElementNavigationStack {
+                RoomScreen(context: viewModels.room.context,
+                           timelineContext: viewModels.timeline.context,
+                           composerToolbar: ComposerToolbar(context: composerViewModel.context))
+            }
+        }
+        .previewDisplayName("Minimized call over room")
     }
     
     static func makeViewModels(canSendMessage: Bool = true, hasSuccessor: Bool = false) -> ViewModels {

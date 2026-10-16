@@ -40,6 +40,12 @@ extension TimelineProxyMock {
             let provider = TimelineItemProviderMock()
             provider.paginationState = .init(backward: configuration.timelineStartReached ? .endReached : .idle, forward: .endReached)
             provider.membershipChangePublisher = PassthroughSubject().eraseToAnyPublisher()
+            // AGENT-PLATFORM (Brief 0044): the tools banner subscribes to
+            // the live timeline provider's items + updatePublisher, so the
+            // non-auto-updating mock must supply safe empty defaults or
+            // any RoomScreenViewModel test crashes on nil.
+            provider.itemProxies = []
+            provider.updatePublisher = Empty().eraseToAnyPublisher()
             timelineItemProvider = provider
         }
     }

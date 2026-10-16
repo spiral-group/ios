@@ -15,8 +15,11 @@ struct DeactivateAccountScreen: View {
     var body: some View {
         Form {
             infoSection
-            eraseDataSection
-            passwordSection
+            // AGENT-PLATFORM (Brief 0078): a Spiral account always erases and has no password.
+            if !context.viewState.isSpiralAccount {
+                eraseDataSection
+                passwordSection
+            }
         }
         .compoundList()
         .safeAreaInset(edge: .bottom) {
@@ -24,7 +27,8 @@ struct DeactivateAccountScreen: View {
                 context.send(viewAction: .deactivate)
             }
             .buttonStyle(.compound(.primary))
-            .disabled(context.password.isEmpty)
+            .disabled(!context.viewState.isSpiralAccount && context.password.isEmpty) // AGENT-PLATFORM (Brief 0078)
+            .accessibilityIdentifier(A11yIdentifiers.deactivateAccountScreen.delete) // AGENT-PLATFORM (decision 146)
             .padding(16)
             .background(Color.compound.bgSubtleSecondaryLevel0.ignoresSafeArea())
         }
@@ -42,11 +46,16 @@ struct DeactivateAccountScreen: View {
                     InfoItem(title: context.viewState.infoPoint1)
                     InfoItem(title: context.viewState.infoPoint2)
                     InfoItem(title: context.viewState.infoPoint3)
+                    if let infoPointAssistant = context.viewState.infoPointAssistant { // AGENT-PLATFORM (Brief 0078)
+                        InfoItem(title: infoPointAssistant)
+                    }
                     InfoItem(title: context.viewState.infoPoint4, isSuccess: true)
                 }
             }
             .foregroundColor(.compound.textSecondary)
             .font(.compound.bodyMD)
+            // AGENT-PLATFORM: a custom row has no insets, so the row's rounded corner clipped the first letter.
+            .padding(.horizontal, ListRowPadding.horizontal)
             .listRowBackground(Color.clear)
         })
     }
@@ -95,9 +104,16 @@ private struct InfoItem: View {
 struct DeactivateAccountScreen_Previews: PreviewProvider, TestablePreview {
     static let viewModel = DeactivateAccountScreenViewModel(clientProxy: ClientProxyMock(.init()),
                                                             userIndicatorController: UserIndicatorControllerMock())
+    // AGENT-PLATFORM (Brief 0078)
+    static let spiralViewModel = DeactivateAccountScreenViewModel(clientProxy: ClientProxyMock(.init()),
+                                                                  userIndicatorController: UserIndicatorControllerMock(),
+                                                                  spiralDeletion: .init(agentPlatformService: AgentPlatformServiceMock()))
     static var previews: some View {
         ElementNavigationStack {
             DeactivateAccountScreen(context: viewModel.context)
+        }
+        ElementNavigationStack {
+            DeactivateAccountScreen(context: spiralViewModel.context)
         }
     }
 }

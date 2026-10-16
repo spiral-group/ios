@@ -70,14 +70,23 @@ extension RoomSummaryProviderMock {
 }
 
 extension RoomSummary {
+    // AGENT-PLATFORM (Brief 0063): unread/notification knobs added so the
+    // `RoomSummary.needsAttention` badge tests can build summaries per case.
     static func mock(id: String,
                      name: String,
-                     canonicalAlias: String? = nil) -> RoomSummary {
+                     canonicalAlias: String? = nil,
+                     unreadMessagesCount: UInt = 0,
+                     unreadMentionsCount: UInt = 0,
+                     unreadNotificationsCount: UInt = 0,
+                     notificationMode: RoomNotificationModeProxy = .allMessages,
+                     isMarkedUnread: Bool = false,
+                     joinRequestType: RoomSummary.JoinRequestType? = nil,
+                     isDirect: Bool = false) -> RoomSummary {
         RoomSummary(room: RoomSDKMock(),
                     id: id,
-                    joinRequestType: nil,
+                    joinRequestType: joinRequestType,
                     name: name,
-                    isDirect: false,
+                    isDirect: isDirect,
                     isSpace: false,
                     avatarURL: nil,
                     heroes: [],
@@ -85,15 +94,15 @@ extension RoomSummary {
                     lastMessage: AttributedString("I do not wish to take the trouble to understand mysticism"),
                     lastMessageDate: .mock,
                     lastMessageState: nil,
-                    unreadMessagesCount: 0,
-                    unreadMentionsCount: 0,
-                    unreadNotificationsCount: 0,
-                    notificationMode: .allMessages,
+                    unreadMessagesCount: unreadMessagesCount,
+                    unreadMentionsCount: unreadMentionsCount,
+                    unreadNotificationsCount: unreadNotificationsCount,
+                    notificationMode: notificationMode,
                     canonicalAlias: canonicalAlias,
                     alternativeAliases: [],
                     hasOngoingCall: false,
                     activeCallIntent: nil,
-                    isMarkedUnread: false,
+                    isMarkedUnread: isMarkedUnread,
                     isFavourite: false,
                     isTombstoned: false)
     }

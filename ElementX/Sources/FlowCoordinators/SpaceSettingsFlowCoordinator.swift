@@ -12,6 +12,7 @@ import SwiftState
 enum SpaceSettingsFlowCoordinatorAction {
     case finished(leftRoom: Bool)
     case presentCallScreen(roomProxy: JoinedRoomProxyProtocol, isVoiceCall: Bool)
+    case presentAIConsentSettings // AGENT-PLATFORM (decision 150)
     case verifyUser(userID: String)
 }
 
@@ -235,7 +236,8 @@ final class SpaceSettingsFlowCoordinator: FlowCoordinatorProtocol {
                 stateMachine.tryEvent(.presentTransferOwnership)
             case .presentRecipientDetails, .presentNotificationSettingsScreen, .presentReportRoomScreen,
                  .presentInviteUsersScreen, .presentInviteToNewRoom, .presentPollsHistory, .presentCall,
-                 .presentPinnedEventsTimeline, .presentMediaEventsTimeline, .presentKnockingRequestsListScreen:
+                 .presentPinnedEventsTimeline, .presentMediaEventsTimeline, .presentKnockingRequestsListScreen,
+                 .presentAgents: // AGENT-PLATFORM (decision 192): a space has no «Агенты» row
                 fatalError("Not handled in the space context")
             }
         }
@@ -390,6 +392,8 @@ final class SpaceSettingsFlowCoordinator: FlowCoordinatorProtocol {
                 stateMachine.tryEvent(.stopMembersListFlow)
             case .presentCallScreen(let roomProxy, let isVoiceCall):
                 actionsSubject.send(.presentCallScreen(roomProxy: roomProxy, isVoiceCall: isVoiceCall))
+            case .presentAIConsentSettings: // AGENT-PLATFORM (decision 150)
+                actionsSubject.send(.presentAIConsentSettings)
             case .verifyUser(let userID):
                 actionsSubject.send(.verifyUser(userID: userID))
             }

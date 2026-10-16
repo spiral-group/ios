@@ -85,16 +85,14 @@ struct ResolveVerifiedUserSendFailureScreen_Previews: PreviewProvider, TestableP
     
     static func makeViewModel(failure: TimelineItemSendFailure.VerifiedUser) -> ResolveVerifiedUserSendFailureScreenViewModel {
         ResolveVerifiedUserSendFailureScreenViewModel(failure: failure,
-                                                      sendHandle: .mock,
-                                                      roomProxy: JoinedRoomProxyMock(.init()),
+                                                      resolver: .sendQueue(sendHandle: .mock, roomProxy: JoinedRoomProxyMock(.init())), // AGENT-PLATFORM: § 5.87
                                                       userIndicatorController: UserIndicatorControllerMock())
     }
 }
 
 struct ResolveVerifiedUserSendFailureScreenSheet_Previews: PreviewProvider {
     static let viewModel = ResolveVerifiedUserSendFailureScreenViewModel(failure: .changedIdentity(users: ["@alice:matrix.org"]),
-                                                                         sendHandle: .mock,
-                                                                         roomProxy: JoinedRoomProxyMock(.init()),
+                                                                         resolver: .sendQueue(sendHandle: .mock, roomProxy: JoinedRoomProxyMock(.init())), // AGENT-PLATFORM: § 5.87
                                                                          userIndicatorController: UserIndicatorControllerMock())
     
     static var previews: some View {

@@ -13,7 +13,7 @@ import SwiftUI
 struct CallInviteRoomTimelineView: View {
     var body: some View {
         Label {
-            Text(L10n.screenRoomTimelineLegacyCall)
+            Text(UntranslatedL10n.screenRoomTimelineLegacyCallSpiral) // AGENT-PLATFORM (App Review 5.2)
         } icon: {
             CompoundIcon(\.voiceCallSolid, size: .medium, relativeTo: .compound.bodyMD)
         }

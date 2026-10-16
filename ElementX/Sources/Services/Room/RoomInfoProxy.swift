@@ -105,6 +105,18 @@ nonisolated struct RoomInfoProxy: RoomInfoProxyProtocol {
     var joinedMembersCount: Int {
         Int(roomInfo.joinedMembersCount)
     }
+
+    // AGENT-PLATFORM (Brief 0063)
+    /// Service members (agents) the backend flagged via member hints
+    /// (`io.element.functional_members`, MSC4171);
+    /// excluded from the human topology so they don't turn a DM into a group.
+    var activeServiceMembersCount: Int {
+        Int(roomInfo.activeServiceMembersCount)
+    }
+
+    var serviceMembers: Set<String> {
+        Set(roomInfo.serviceMembers)
+    }
     
     // periphery:ignore - might be useful to have
     

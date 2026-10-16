@@ -97,3 +97,16 @@ custom_rules:
     severity: error
     included: "ElementX/Sources/.*\\.swift"
     excluded: "ElementNavigationStack.swift"
+
+  # AGENT-PLATFORM (Brief 0063 closeout): a call surface may read agent
+  # facts ONLY through `viewState.agents` (NativeCallAgentPresentation).
+  # Reading the owner-scoped REST snapshot or the raw claims as a live fact
+  # is the bug class behind the recording capsule, the language picker and
+  # the eternal "Leaving…" — three fixes in two days. The derive is the one
+  # place both inputs meet; `NativeCallAgentSurfaceReadsTests` checks the
+  # same rule from the test target.
+  native_call_agent_surface_reads:
+    regex: "(?<!viewModel\\.state)\\.(agentCenter|agentClaims)\\b|\\.live\\.(isAiring|isRecording|isSummaryArmed|isConversationActive|isLeaving|languages|style)\\b"
+    message: "Call surfaces read agent facts through viewState.agents / agent.shown (NativeCallAgentPresentation), never agentCenter/agentClaims/live."
+    severity: error
+    included: "ElementX/Sources/Screens/NativeCallScreen/(View/.*|NativeCallScreenModels)\\.swift"

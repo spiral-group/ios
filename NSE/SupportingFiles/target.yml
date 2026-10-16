@@ -81,6 +81,11 @@ targets:
         SWIFT_APPROACHABLE_CONCURRENCY: YES
         OTHER_SWIFT_FLAGS:
         - "-DIS_NSE"
+      configs:
+        # AGENT-PLATFORM: Xcode compilation caching, Debug (the test
+        # configuration) only; Release/archive builds stay uncached.
+        Debug:
+          COMPILATION_CACHE_ENABLE_CACHING: YES
 
     sources:
     - path: ../Sources
@@ -93,6 +98,10 @@ targets:
     - path: ../../ElementX/Sources/Application/Settings
     - path: ../../ElementX/Sources/Application/TargetConfiguration.swift
     - path: ../../ElementX/Sources/Generated/Strings.swift
+    # AGENT-PLATFORM: NSE needs UntranslatedL10n for the
+    # notification body polish in
+    # AgentPlatformNotificationDecorator (S171, I3 polish).
+    - path: ../../ElementX/Sources/Generated/Strings+Untranslated.swift
     - path: ../../ElementX/Sources/Other/Avatars.swift
     - path: ../../ElementX/Sources/Other/CurrentValuePublisher.swift
     - path: ../../ElementX/Sources/Other/ExpiringTaskRunner.swift
@@ -112,9 +121,30 @@ targets:
     - path: ../../ElementX/Sources/Other/Extensions/UTType.swift
     - path: ../../ElementX/Sources/Other/Extensions/CharacterSet.swift
     - path: ../../ElementX/Sources/Other/HTMLParsing
+    # AGENT-PLATFORM (Brief 0060): `PhishingDetector` (part of
+    # HTMLParsing above) recognises our own spiral.md smart links, so
+    # the NSE needs the codec too.
+    - path: ../../ElementX/Sources/Services/AgentPlatform/SpiralLink.swift
+    # AGENT-PLATFORM (Brief 0073): `RoomMessageEventStringBuilder` previews a
+    # client-rendered notice in the reader's language.
+    - path: ../../ElementX/Sources/Services/AgentPlatform/SpiralNotice.swift
+    # AGENT-PLATFORM (Brief 0073): `AppSettings.pendingInvite` is typed
+    # with these; the extensions never use them but compile AppSettings.
+    - path: ../../ElementX/Sources/Services/AgentPlatform/SpiralInviteLink.swift
+    - path: ../../ElementX/Sources/Services/AgentPlatform/PendingInvite.swift
     - path: ../../ElementX/Sources/Other/InfoPlistReader.swift
     - path: ../../ElementX/Sources/Other/Logging
     - path: ../../ElementX/Sources/Other/MatrixEntityRegex.swift
+    # AGENT-PLATFORM: target-portable parsers for approval-bot,
+    # verification-bot AND v2 action-proposal (owner-DM consent)
+    # event markers, shared between NSE (decorate path) and
+    # UnitTests (parser coverage). The three parsers are
+    # siblings — same shape, different marker key + version
+    # gating per family.
+    - path: ../../ElementX/Sources/Other/SpiralPushContentBuilder.swift
+    # AGENT-PLATFORM (Brief 0078): an approval push is worded by the
+    # escalation tag its payload names (`spiral.reason`).
+    - path: ../../ElementX/Sources/Services/AgentPlatform/ApprovalEscalation.swift
     - path: ../../ElementX/Sources/Other/NetworkMonitor/NetworkMonitorProtocol.swift
     - path: ../../ElementX/Sources/Other/Pills/PillUtilities.swift
     - path: ../../ElementX/Sources/Other/Pills/PlainMentionBuilder.swift
@@ -125,7 +155,7 @@ targets:
     - path: ../../ElementX/Sources/Services/AlertTones/NotificationTone.swift
     - path: ../../ElementX/Sources/Services/AlertTones/NotificationToneManager.swift
     - path: ../../ElementX/Sources/Services/AlertTones/NotificationToneManagerProtocol.swift
-    - path: ../../ElementX/Sources/Services/ElementCall/ElementCallServiceConstants.swift
+    - path: ../../ElementX/Sources/Services/CallKit/CallKitServiceConstants.swift
     - path: ../../ElementX/Sources/Services/Keychain/KeychainController.swift
     - path: ../../ElementX/Sources/Services/Keychain/KeychainControllerProtocol.swift
     - path: ../../ElementX/Sources/Services/Media/Provider

@@ -420,6 +420,28 @@ open class ClientSDKMock: MatrixRustSDK.Client, @unchecked Sendable {
         try await clearCachesSyncServiceClosure?(syncService)
     }
 
+    //MARK: - clearCallStatus
+
+    open var clearCallStatusThrowableError: Error?
+    private let clearCallStatusCallsCountLock = NSLock()
+    private var clearCallStatusUnderlyingCallsCount = 0
+    open var clearCallStatusCallsCount: Int {
+        get { clearCallStatusCallsCountLock.withLock { clearCallStatusUnderlyingCallsCount } }
+        set { clearCallStatusCallsCountLock.withLock { clearCallStatusUnderlyingCallsCount = newValue } }
+    }
+    open var clearCallStatusCalled: Bool {
+        return clearCallStatusCallsCount > 0
+    }
+    open var clearCallStatusClosure: (() async throws -> Void)?
+
+    open override func clearCallStatus() async throws {
+        if let error = clearCallStatusThrowableError {
+            throw error
+        }
+        clearCallStatusCallsCountLock.withLock { clearCallStatusUnderlyingCallsCount += 1 }
+        try await clearCallStatusClosure?()
+    }
+
     //MARK: - clearUserStatus
 
     open var clearUserStatusThrowableError: Error?
@@ -3005,6 +3027,42 @@ open class ClientSDKMock: MatrixRustSDK.Client, @unchecked Sendable {
         try await setAvatarUrlUrlClosure?(url)
     }
 
+    //MARK: - setCallStatus
+
+    open var setCallStatusCallThrowableError: Error?
+    private let setCallStatusCallCallsCountLock = NSLock()
+    private var setCallStatusCallUnderlyingCallsCount = 0
+    open var setCallStatusCallCallsCount: Int {
+        get { setCallStatusCallCallsCountLock.withLock { setCallStatusCallUnderlyingCallsCount } }
+        set { setCallStatusCallCallsCountLock.withLock { setCallStatusCallUnderlyingCallsCount = newValue } }
+    }
+    open var setCallStatusCallCalled: Bool {
+        return setCallStatusCallCallsCount > 0
+    }
+    private let setCallStatusCallReceivedCallLock = NSLock()
+    private var setCallStatusCallUnderlyingReceivedCall: UserCall?
+    open var setCallStatusCallReceivedCall: UserCall? {
+        get { setCallStatusCallReceivedCallLock.withLock { setCallStatusCallUnderlyingReceivedCall } }
+        set { setCallStatusCallReceivedCallLock.withLock { setCallStatusCallUnderlyingReceivedCall = newValue } }
+    }
+    private let setCallStatusCallReceivedInvocationsLock = NSLock()
+    private var setCallStatusCallUnderlyingReceivedInvocations: [UserCall] = []
+    open var setCallStatusCallReceivedInvocations: [UserCall] {
+        get { setCallStatusCallReceivedInvocationsLock.withLock { setCallStatusCallUnderlyingReceivedInvocations } }
+        set { setCallStatusCallReceivedInvocationsLock.withLock { setCallStatusCallUnderlyingReceivedInvocations = newValue } }
+    }
+    open var setCallStatusCallClosure: ((UserCall) async throws -> Void)?
+
+    open override func setCallStatus(call: UserCall) async throws {
+        if let error = setCallStatusCallThrowableError {
+            throw error
+        }
+        setCallStatusCallCallsCountLock.withLock { setCallStatusCallUnderlyingCallsCount += 1 }
+        setCallStatusCallReceivedCall = call
+        setCallStatusCallReceivedInvocationsLock.withLock { setCallStatusCallUnderlyingReceivedInvocations.append(call) }
+        try await setCallStatusCallClosure?(call)
+    }
+
     //MARK: - setContentScanner
 
     private let setContentScannerContentScannerCallsCountLock = NSLock()
@@ -4354,6 +4412,100 @@ open class ClientSDKMock: MatrixRustSDK.Client, @unchecked Sendable {
             return searchServiceReturnValue
         }
     }
+
+    //MARK: - uploadEncryptedMedia
+
+    open var uploadEncryptedMediaDataThrowableError: Error?
+    private let uploadEncryptedMediaDataCallsCountLock = NSLock()
+    private var uploadEncryptedMediaDataUnderlyingCallsCount = 0
+    open var uploadEncryptedMediaDataCallsCount: Int {
+        get { uploadEncryptedMediaDataCallsCountLock.withLock { uploadEncryptedMediaDataUnderlyingCallsCount } }
+        set { uploadEncryptedMediaDataCallsCountLock.withLock { uploadEncryptedMediaDataUnderlyingCallsCount = newValue } }
+    }
+    open var uploadEncryptedMediaDataCalled: Bool {
+        return uploadEncryptedMediaDataCallsCount > 0
+    }
+    private let uploadEncryptedMediaDataReceivedDataLock = NSLock()
+    private var uploadEncryptedMediaDataUnderlyingReceivedData: Data?
+    open var uploadEncryptedMediaDataReceivedData: Data? {
+        get { uploadEncryptedMediaDataReceivedDataLock.withLock { uploadEncryptedMediaDataUnderlyingReceivedData } }
+        set { uploadEncryptedMediaDataReceivedDataLock.withLock { uploadEncryptedMediaDataUnderlyingReceivedData = newValue } }
+    }
+    private let uploadEncryptedMediaDataReceivedInvocationsLock = NSLock()
+    private var uploadEncryptedMediaDataUnderlyingReceivedInvocations: [Data] = []
+    open var uploadEncryptedMediaDataReceivedInvocations: [Data] {
+        get { uploadEncryptedMediaDataReceivedInvocationsLock.withLock { uploadEncryptedMediaDataUnderlyingReceivedInvocations } }
+        set { uploadEncryptedMediaDataReceivedInvocationsLock.withLock { uploadEncryptedMediaDataUnderlyingReceivedInvocations = newValue } }
+    }
+
+    private let uploadEncryptedMediaDataReturnValueLock = NSLock()
+    open var uploadEncryptedMediaDataUnderlyingReturnValue: EncryptedUpload!
+    open var uploadEncryptedMediaDataReturnValue: EncryptedUpload! {
+        get { uploadEncryptedMediaDataReturnValueLock.withLock { uploadEncryptedMediaDataUnderlyingReturnValue } }
+        set { uploadEncryptedMediaDataReturnValueLock.withLock { uploadEncryptedMediaDataUnderlyingReturnValue = newValue } }
+    }
+    open var uploadEncryptedMediaDataClosure: ((Data) async throws -> EncryptedUpload)?
+
+    open override func uploadEncryptedMedia(data: Data) async throws -> EncryptedUpload {
+        if let error = uploadEncryptedMediaDataThrowableError {
+            throw error
+        }
+        uploadEncryptedMediaDataCallsCountLock.withLock { uploadEncryptedMediaDataUnderlyingCallsCount += 1 }
+        uploadEncryptedMediaDataReceivedData = data
+        uploadEncryptedMediaDataReceivedInvocationsLock.withLock { uploadEncryptedMediaDataUnderlyingReceivedInvocations.append(data) }
+        if let uploadEncryptedMediaDataClosure = uploadEncryptedMediaDataClosure {
+            return try await uploadEncryptedMediaDataClosure(data)
+        } else {
+            return uploadEncryptedMediaDataReturnValue
+        }
+    }
+
+    //MARK: - getUserPresence
+
+    open var getUserPresenceUserIdThrowableError: Error?
+    private let getUserPresenceUserIdCallsCountLock = NSLock()
+    private var getUserPresenceUserIdUnderlyingCallsCount = 0
+    open var getUserPresenceUserIdCallsCount: Int {
+        get { getUserPresenceUserIdCallsCountLock.withLock { getUserPresenceUserIdUnderlyingCallsCount } }
+        set { getUserPresenceUserIdCallsCountLock.withLock { getUserPresenceUserIdUnderlyingCallsCount = newValue } }
+    }
+    open var getUserPresenceUserIdCalled: Bool {
+        return getUserPresenceUserIdCallsCount > 0
+    }
+    private let getUserPresenceUserIdReceivedUserIdLock = NSLock()
+    private var getUserPresenceUserIdUnderlyingReceivedUserId: String?
+    open var getUserPresenceUserIdReceivedUserId: String? {
+        get { getUserPresenceUserIdReceivedUserIdLock.withLock { getUserPresenceUserIdUnderlyingReceivedUserId } }
+        set { getUserPresenceUserIdReceivedUserIdLock.withLock { getUserPresenceUserIdUnderlyingReceivedUserId = newValue } }
+    }
+    private let getUserPresenceUserIdReceivedInvocationsLock = NSLock()
+    private var getUserPresenceUserIdUnderlyingReceivedInvocations: [String] = []
+    open var getUserPresenceUserIdReceivedInvocations: [String] {
+        get { getUserPresenceUserIdReceivedInvocationsLock.withLock { getUserPresenceUserIdUnderlyingReceivedInvocations } }
+        set { getUserPresenceUserIdReceivedInvocationsLock.withLock { getUserPresenceUserIdUnderlyingReceivedInvocations = newValue } }
+    }
+
+    private let getUserPresenceUserIdReturnValueLock = NSLock()
+    open var getUserPresenceUserIdUnderlyingReturnValue: UserPresence!
+    open var getUserPresenceUserIdReturnValue: UserPresence! {
+        get { getUserPresenceUserIdReturnValueLock.withLock { getUserPresenceUserIdUnderlyingReturnValue } }
+        set { getUserPresenceUserIdReturnValueLock.withLock { getUserPresenceUserIdUnderlyingReturnValue = newValue } }
+    }
+    open var getUserPresenceUserIdClosure: ((String) async throws -> UserPresence)?
+
+    open override func getUserPresence(userId: String) async throws -> UserPresence {
+        if let error = getUserPresenceUserIdThrowableError {
+            throw error
+        }
+        getUserPresenceUserIdCallsCountLock.withLock { getUserPresenceUserIdUnderlyingCallsCount += 1 }
+        getUserPresenceUserIdReceivedUserId = userId
+        getUserPresenceUserIdReceivedInvocationsLock.withLock { getUserPresenceUserIdUnderlyingReceivedInvocations.append(userId) }
+        if let getUserPresenceUserIdClosure = getUserPresenceUserIdClosure {
+            return try await getUserPresenceUserIdClosure(userId)
+        } else {
+            return getUserPresenceUserIdReturnValue
+        }
+    }
 }
 open class ClientBuilderSDKMock: MatrixRustSDK.ClientBuilder, @unchecked Sendable {
     public init() {
@@ -5554,6 +5706,65 @@ open class ContentScannerSDKMock: MatrixRustSDK.ContentScanner, @unchecked Senda
         } else {
             return scanClientMediaSourceReturnValue
         }
+    }
+}
+open class ContinuationMessageSenderSDKMock: MatrixRustSDK.ContinuationMessageSender, @unchecked Sendable {
+    public init() {
+        super.init(noHandle: .init())
+    }
+
+    public required init(unsafeFromHandle handle: UInt64) {
+        fatalError("init(unsafeFromHandle:) has not been implemented")
+    }
+
+    fileprivate var handle: UInt64 {
+        get { return underlyingHandle }
+        set(value) { underlyingHandle = value }
+    }
+    fileprivate var underlyingHandle: UInt64!
+
+    //MARK: - cancel
+
+    open var cancelThrowableError: Error?
+    private let cancelCallsCountLock = NSLock()
+    private var cancelUnderlyingCallsCount = 0
+    open var cancelCallsCount: Int {
+        get { cancelCallsCountLock.withLock { cancelUnderlyingCallsCount } }
+        set { cancelCallsCountLock.withLock { cancelUnderlyingCallsCount = newValue } }
+    }
+    open var cancelCalled: Bool {
+        return cancelCallsCount > 0
+    }
+    open var cancelClosure: (() async throws -> Void)?
+
+    open override func cancel() async throws {
+        if let error = cancelThrowableError {
+            throw error
+        }
+        cancelCallsCountLock.withLock { cancelUnderlyingCallsCount += 1 }
+        try await cancelClosure?()
+    }
+
+    //MARK: - confirm
+
+    open var confirmThrowableError: Error?
+    private let confirmCallsCountLock = NSLock()
+    private var confirmUnderlyingCallsCount = 0
+    open var confirmCallsCount: Int {
+        get { confirmCallsCountLock.withLock { confirmUnderlyingCallsCount } }
+        set { confirmCallsCountLock.withLock { confirmUnderlyingCallsCount = newValue } }
+    }
+    open var confirmCalled: Bool {
+        return confirmCallsCount > 0
+    }
+    open var confirmClosure: (() async throws -> Void)?
+
+    open override func confirm() async throws {
+        if let error = confirmThrowableError {
+            throw error
+        }
+        confirmCallsCountLock.withLock { confirmUnderlyingCallsCount += 1 }
+        try await confirmClosure?()
     }
 }
 open class CrossSigningSecretsSDKMock: MatrixRustSDK.CrossSigningSecrets, @unchecked Sendable {
@@ -7617,6 +7828,311 @@ open class LoginWithQrCodeHandlerSDKMock: MatrixRustSDK.LoginWithQrCodeHandler, 
         try await scanQrCodeDataProgressListenerClosure?(qrCodeData, progressListener)
     }
 }
+open class MatrixRtcSessionSDKMock: MatrixRustSDK.MatrixRtcSession, @unchecked Sendable {
+    public init() {
+        super.init(noHandle: .init())
+    }
+
+    public required init(unsafeFromHandle handle: UInt64) {
+        fatalError("init(unsafeFromHandle:) has not been implemented")
+    }
+
+    fileprivate var handle: UInt64 {
+        get { return underlyingHandle }
+        set(value) { underlyingHandle = value }
+    }
+    fileprivate var underlyingHandle: UInt64!
+
+    //MARK: - isJoined
+
+    private let isJoinedCallsCountLock = NSLock()
+    private var isJoinedUnderlyingCallsCount = 0
+    open var isJoinedCallsCount: Int {
+        get { isJoinedCallsCountLock.withLock { isJoinedUnderlyingCallsCount } }
+        set { isJoinedCallsCountLock.withLock { isJoinedUnderlyingCallsCount = newValue } }
+    }
+    open var isJoinedCalled: Bool {
+        return isJoinedCallsCount > 0
+    }
+
+    private let isJoinedReturnValueLock = NSLock()
+    open var isJoinedUnderlyingReturnValue: Bool!
+    open var isJoinedReturnValue: Bool! {
+        get { isJoinedReturnValueLock.withLock { isJoinedUnderlyingReturnValue } }
+        set { isJoinedReturnValueLock.withLock { isJoinedUnderlyingReturnValue = newValue } }
+    }
+    open var isJoinedClosure: (() async -> Bool)?
+
+    open override func isJoined() async -> Bool {
+        isJoinedCallsCountLock.withLock { isJoinedUnderlyingCallsCount += 1 }
+        if let isJoinedClosure = isJoinedClosure {
+            return await isJoinedClosure()
+        } else {
+            return isJoinedReturnValue
+        }
+    }
+
+    //MARK: - join
+
+    open var joinConfigurationThrowableError: Error?
+    private let joinConfigurationCallsCountLock = NSLock()
+    private var joinConfigurationUnderlyingCallsCount = 0
+    open var joinConfigurationCallsCount: Int {
+        get { joinConfigurationCallsCountLock.withLock { joinConfigurationUnderlyingCallsCount } }
+        set { joinConfigurationCallsCountLock.withLock { joinConfigurationUnderlyingCallsCount = newValue } }
+    }
+    open var joinConfigurationCalled: Bool {
+        return joinConfigurationCallsCount > 0
+    }
+    private let joinConfigurationReceivedConfigurationLock = NSLock()
+    private var joinConfigurationUnderlyingReceivedConfiguration: MatrixRtcJoinConfiguration?
+    open var joinConfigurationReceivedConfiguration: MatrixRtcJoinConfiguration? {
+        get { joinConfigurationReceivedConfigurationLock.withLock { joinConfigurationUnderlyingReceivedConfiguration } }
+        set { joinConfigurationReceivedConfigurationLock.withLock { joinConfigurationUnderlyingReceivedConfiguration = newValue } }
+    }
+    private let joinConfigurationReceivedInvocationsLock = NSLock()
+    private var joinConfigurationUnderlyingReceivedInvocations: [MatrixRtcJoinConfiguration] = []
+    open var joinConfigurationReceivedInvocations: [MatrixRtcJoinConfiguration] {
+        get { joinConfigurationReceivedInvocationsLock.withLock { joinConfigurationUnderlyingReceivedInvocations } }
+        set { joinConfigurationReceivedInvocationsLock.withLock { joinConfigurationUnderlyingReceivedInvocations = newValue } }
+    }
+    open var joinConfigurationClosure: ((MatrixRtcJoinConfiguration) async throws -> Void)?
+
+    open override func join(configuration: MatrixRtcJoinConfiguration) async throws {
+        if let error = joinConfigurationThrowableError {
+            throw error
+        }
+        joinConfigurationCallsCountLock.withLock { joinConfigurationUnderlyingCallsCount += 1 }
+        joinConfigurationReceivedConfiguration = configuration
+        joinConfigurationReceivedInvocationsLock.withLock { joinConfigurationUnderlyingReceivedInvocations.append(configuration) }
+        try await joinConfigurationClosure?(configuration)
+    }
+
+    //MARK: - leave
+
+    open var leaveThrowableError: Error?
+    private let leaveCallsCountLock = NSLock()
+    private var leaveUnderlyingCallsCount = 0
+    open var leaveCallsCount: Int {
+        get { leaveCallsCountLock.withLock { leaveUnderlyingCallsCount } }
+        set { leaveCallsCountLock.withLock { leaveUnderlyingCallsCount = newValue } }
+    }
+    open var leaveCalled: Bool {
+        return leaveCallsCount > 0
+    }
+    open var leaveClosure: (() async throws -> Void)?
+
+    open override func leave() async throws {
+        if let error = leaveThrowableError {
+            throw error
+        }
+        leaveCallsCountLock.withLock { leaveUnderlyingCallsCount += 1 }
+        try await leaveClosure?()
+    }
+
+    //MARK: - memberships
+
+    open var membershipsThrowableError: Error?
+    private let membershipsCallsCountLock = NSLock()
+    private var membershipsUnderlyingCallsCount = 0
+    open var membershipsCallsCount: Int {
+        get { membershipsCallsCountLock.withLock { membershipsUnderlyingCallsCount } }
+        set { membershipsCallsCountLock.withLock { membershipsUnderlyingCallsCount = newValue } }
+    }
+    open var membershipsCalled: Bool {
+        return membershipsCallsCount > 0
+    }
+
+    private let membershipsReturnValueLock = NSLock()
+    open var membershipsUnderlyingReturnValue: [MatrixRtcMembership]!
+    open var membershipsReturnValue: [MatrixRtcMembership]! {
+        get { membershipsReturnValueLock.withLock { membershipsUnderlyingReturnValue } }
+        set { membershipsReturnValueLock.withLock { membershipsUnderlyingReturnValue = newValue } }
+    }
+    open var membershipsClosure: (() async throws -> [MatrixRtcMembership])?
+
+    open override func memberships() async throws -> [MatrixRtcMembership] {
+        if let error = membershipsThrowableError {
+            throw error
+        }
+        membershipsCallsCountLock.withLock { membershipsUnderlyingCallsCount += 1 }
+        if let membershipsClosure = membershipsClosure {
+            return try await membershipsClosure()
+        } else {
+            return membershipsReturnValue
+        }
+    }
+
+    //MARK: - ownIdentity
+
+    private let ownIdentityCallsCountLock = NSLock()
+    private var ownIdentityUnderlyingCallsCount = 0
+    open var ownIdentityCallsCount: Int {
+        get { ownIdentityCallsCountLock.withLock { ownIdentityUnderlyingCallsCount } }
+        set { ownIdentityCallsCountLock.withLock { ownIdentityUnderlyingCallsCount = newValue } }
+    }
+    open var ownIdentityCalled: Bool {
+        return ownIdentityCallsCount > 0
+    }
+
+    private let ownIdentityReturnValueLock = NSLock()
+    open var ownIdentityUnderlyingReturnValue: String!
+    open var ownIdentityReturnValue: String! {
+        get { ownIdentityReturnValueLock.withLock { ownIdentityUnderlyingReturnValue } }
+        set { ownIdentityReturnValueLock.withLock { ownIdentityUnderlyingReturnValue = newValue } }
+    }
+    open var ownIdentityClosure: (() -> String)?
+
+    open override func ownIdentity() -> String {
+        ownIdentityCallsCountLock.withLock { ownIdentityUnderlyingCallsCount += 1 }
+        if let ownIdentityClosure = ownIdentityClosure {
+            return ownIdentityClosure()
+        } else {
+            return ownIdentityReturnValue
+        }
+    }
+
+    //MARK: - rtcNotificationEventId
+
+    private let rtcNotificationEventIdCallsCountLock = NSLock()
+    private var rtcNotificationEventIdUnderlyingCallsCount = 0
+    open var rtcNotificationEventIdCallsCount: Int {
+        get { rtcNotificationEventIdCallsCountLock.withLock { rtcNotificationEventIdUnderlyingCallsCount } }
+        set { rtcNotificationEventIdCallsCountLock.withLock { rtcNotificationEventIdUnderlyingCallsCount = newValue } }
+    }
+    open var rtcNotificationEventIdCalled: Bool {
+        return rtcNotificationEventIdCallsCount > 0
+    }
+
+    private let rtcNotificationEventIdReturnValueLock = NSLock()
+    open var rtcNotificationEventIdUnderlyingReturnValue: String?
+    open var rtcNotificationEventIdReturnValue: String? {
+        get { rtcNotificationEventIdReturnValueLock.withLock { rtcNotificationEventIdUnderlyingReturnValue } }
+        set { rtcNotificationEventIdReturnValueLock.withLock { rtcNotificationEventIdUnderlyingReturnValue = newValue } }
+    }
+    open var rtcNotificationEventIdClosure: (() async -> String?)?
+
+    open override func rtcNotificationEventId() async -> String? {
+        rtcNotificationEventIdCallsCountLock.withLock { rtcNotificationEventIdUnderlyingCallsCount += 1 }
+        if let rtcNotificationEventIdClosure = rtcNotificationEventIdClosure {
+            return await rtcNotificationEventIdClosure()
+        } else {
+            return rtcNotificationEventIdReturnValue
+        }
+    }
+
+    //MARK: - subscribe
+
+    private let subscribeListenerCallsCountLock = NSLock()
+    private var subscribeListenerUnderlyingCallsCount = 0
+    open var subscribeListenerCallsCount: Int {
+        get { subscribeListenerCallsCountLock.withLock { subscribeListenerUnderlyingCallsCount } }
+        set { subscribeListenerCallsCountLock.withLock { subscribeListenerUnderlyingCallsCount = newValue } }
+    }
+    open var subscribeListenerCalled: Bool {
+        return subscribeListenerCallsCount > 0
+    }
+    private let subscribeListenerReceivedListenerLock = NSLock()
+    private var subscribeListenerUnderlyingReceivedListener: MatrixRtcSessionListener?
+    open var subscribeListenerReceivedListener: MatrixRtcSessionListener? {
+        get { subscribeListenerReceivedListenerLock.withLock { subscribeListenerUnderlyingReceivedListener } }
+        set { subscribeListenerReceivedListenerLock.withLock { subscribeListenerUnderlyingReceivedListener = newValue } }
+    }
+    private let subscribeListenerReceivedInvocationsLock = NSLock()
+    private var subscribeListenerUnderlyingReceivedInvocations: [MatrixRtcSessionListener] = []
+    open var subscribeListenerReceivedInvocations: [MatrixRtcSessionListener] {
+        get { subscribeListenerReceivedInvocationsLock.withLock { subscribeListenerUnderlyingReceivedInvocations } }
+        set { subscribeListenerReceivedInvocationsLock.withLock { subscribeListenerUnderlyingReceivedInvocations = newValue } }
+    }
+
+    private let subscribeListenerReturnValueLock = NSLock()
+    open var subscribeListenerUnderlyingReturnValue: TaskHandle!
+    open var subscribeListenerReturnValue: TaskHandle! {
+        get { subscribeListenerReturnValueLock.withLock { subscribeListenerUnderlyingReturnValue } }
+        set { subscribeListenerReturnValueLock.withLock { subscribeListenerUnderlyingReturnValue = newValue } }
+    }
+    open var subscribeListenerClosure: ((MatrixRtcSessionListener) -> TaskHandle)?
+
+    open override func subscribe(listener: MatrixRtcSessionListener) -> TaskHandle {
+        subscribeListenerCallsCountLock.withLock { subscribeListenerUnderlyingCallsCount += 1 }
+        subscribeListenerReceivedListener = listener
+        subscribeListenerReceivedInvocationsLock.withLock { subscribeListenerUnderlyingReceivedInvocations.append(listener) }
+        if let subscribeListenerClosure = subscribeListenerClosure {
+            return subscribeListenerClosure(listener)
+        } else {
+            return subscribeListenerReturnValue
+        }
+    }
+
+    //MARK: - transportCredentials
+
+    open var transportCredentialsThrowableError: Error?
+    private let transportCredentialsCallsCountLock = NSLock()
+    private var transportCredentialsUnderlyingCallsCount = 0
+    open var transportCredentialsCallsCount: Int {
+        get { transportCredentialsCallsCountLock.withLock { transportCredentialsUnderlyingCallsCount } }
+        set { transportCredentialsCallsCountLock.withLock { transportCredentialsUnderlyingCallsCount = newValue } }
+    }
+    open var transportCredentialsCalled: Bool {
+        return transportCredentialsCallsCount > 0
+    }
+
+    private let transportCredentialsReturnValueLock = NSLock()
+    open var transportCredentialsUnderlyingReturnValue: MatrixRtcTransportCredentials!
+    open var transportCredentialsReturnValue: MatrixRtcTransportCredentials! {
+        get { transportCredentialsReturnValueLock.withLock { transportCredentialsUnderlyingReturnValue } }
+        set { transportCredentialsReturnValueLock.withLock { transportCredentialsUnderlyingReturnValue = newValue } }
+    }
+    open var transportCredentialsClosure: (() async throws -> MatrixRtcTransportCredentials)?
+
+    open override func transportCredentials() async throws -> MatrixRtcTransportCredentials {
+        if let error = transportCredentialsThrowableError {
+            throw error
+        }
+        transportCredentialsCallsCountLock.withLock { transportCredentialsUnderlyingCallsCount += 1 }
+        if let transportCredentialsClosure = transportCredentialsClosure {
+            return try await transportCredentialsClosure()
+        } else {
+            return transportCredentialsReturnValue
+        }
+    }
+
+    //MARK: - updateCallIntent
+
+    open var updateCallIntentCallIntentThrowableError: Error?
+    private let updateCallIntentCallIntentCallsCountLock = NSLock()
+    private var updateCallIntentCallIntentUnderlyingCallsCount = 0
+    open var updateCallIntentCallIntentCallsCount: Int {
+        get { updateCallIntentCallIntentCallsCountLock.withLock { updateCallIntentCallIntentUnderlyingCallsCount } }
+        set { updateCallIntentCallIntentCallsCountLock.withLock { updateCallIntentCallIntentUnderlyingCallsCount = newValue } }
+    }
+    open var updateCallIntentCallIntentCalled: Bool {
+        return updateCallIntentCallIntentCallsCount > 0
+    }
+    private let updateCallIntentCallIntentReceivedCallIntentLock = NSLock()
+    private var updateCallIntentCallIntentUnderlyingReceivedCallIntent: MatrixRtcCallIntent?
+    open var updateCallIntentCallIntentReceivedCallIntent: MatrixRtcCallIntent? {
+        get { updateCallIntentCallIntentReceivedCallIntentLock.withLock { updateCallIntentCallIntentUnderlyingReceivedCallIntent } }
+        set { updateCallIntentCallIntentReceivedCallIntentLock.withLock { updateCallIntentCallIntentUnderlyingReceivedCallIntent = newValue } }
+    }
+    private let updateCallIntentCallIntentReceivedInvocationsLock = NSLock()
+    private var updateCallIntentCallIntentUnderlyingReceivedInvocations: [MatrixRtcCallIntent] = []
+    open var updateCallIntentCallIntentReceivedInvocations: [MatrixRtcCallIntent] {
+        get { updateCallIntentCallIntentReceivedInvocationsLock.withLock { updateCallIntentCallIntentUnderlyingReceivedInvocations } }
+        set { updateCallIntentCallIntentReceivedInvocationsLock.withLock { updateCallIntentCallIntentUnderlyingReceivedInvocations = newValue } }
+    }
+    open var updateCallIntentCallIntentClosure: ((MatrixRtcCallIntent) async throws -> Void)?
+
+    open override func updateCallIntent(callIntent: MatrixRtcCallIntent) async throws {
+        if let error = updateCallIntentCallIntentThrowableError {
+            throw error
+        }
+        updateCallIntentCallIntentCallsCountLock.withLock { updateCallIntentCallIntentUnderlyingCallsCount += 1 }
+        updateCallIntentCallIntentReceivedCallIntent = callIntent
+        updateCallIntentCallIntentReceivedInvocationsLock.withLock { updateCallIntentCallIntentUnderlyingReceivedInvocations.append(callIntent) }
+        try await updateCallIntentCallIntentClosure?(callIntent)
+    }
+}
 open class MediaFileHandleSDKMock: MatrixRustSDK.MediaFileHandle, @unchecked Sendable {
     public init() {
         super.init(noHandle: .init())
@@ -9045,6 +9561,39 @@ open class RoomSDKMock: MatrixRustSDK.Room, @unchecked Sendable {
     }
     fileprivate var underlyingHandle: UInt64!
 
+    //MARK: - matrixRtcSession
+
+    open var matrixRtcSessionThrowableError: Error?
+    private let matrixRtcSessionCallsCountLock = NSLock()
+    private var matrixRtcSessionUnderlyingCallsCount = 0
+    open var matrixRtcSessionCallsCount: Int {
+        get { matrixRtcSessionCallsCountLock.withLock { matrixRtcSessionUnderlyingCallsCount } }
+        set { matrixRtcSessionCallsCountLock.withLock { matrixRtcSessionUnderlyingCallsCount = newValue } }
+    }
+    open var matrixRtcSessionCalled: Bool {
+        return matrixRtcSessionCallsCount > 0
+    }
+
+    private let matrixRtcSessionReturnValueLock = NSLock()
+    open var matrixRtcSessionUnderlyingReturnValue: MatrixRtcSession!
+    open var matrixRtcSessionReturnValue: MatrixRtcSession! {
+        get { matrixRtcSessionReturnValueLock.withLock { matrixRtcSessionUnderlyingReturnValue } }
+        set { matrixRtcSessionReturnValueLock.withLock { matrixRtcSessionUnderlyingReturnValue = newValue } }
+    }
+    open var matrixRtcSessionClosure: (() throws -> MatrixRtcSession)?
+
+    open override func matrixRtcSession() throws -> MatrixRtcSession {
+        if let error = matrixRtcSessionThrowableError {
+            throw error
+        }
+        matrixRtcSessionCallsCountLock.withLock { matrixRtcSessionUnderlyingCallsCount += 1 }
+        if let matrixRtcSessionClosure = matrixRtcSessionClosure {
+            return try matrixRtcSessionClosure()
+        } else {
+            return matrixRtcSessionReturnValue
+        }
+    }
+
     //MARK: - activeMembersCount
 
     private let activeMembersCountCallsCountLock = NSLock()
@@ -10335,6 +10884,53 @@ open class RoomSDKMock: MatrixRustSDK.Room, @unchecked Sendable {
         }
     }
 
+    //MARK: - loadUserReceipt
+
+    open var loadUserReceiptReceiptTypeThreadUserIdThrowableError: Error?
+    private let loadUserReceiptReceiptTypeThreadUserIdCallsCountLock = NSLock()
+    private var loadUserReceiptReceiptTypeThreadUserIdUnderlyingCallsCount = 0
+    open var loadUserReceiptReceiptTypeThreadUserIdCallsCount: Int {
+        get { loadUserReceiptReceiptTypeThreadUserIdCallsCountLock.withLock { loadUserReceiptReceiptTypeThreadUserIdUnderlyingCallsCount } }
+        set { loadUserReceiptReceiptTypeThreadUserIdCallsCountLock.withLock { loadUserReceiptReceiptTypeThreadUserIdUnderlyingCallsCount = newValue } }
+    }
+    open var loadUserReceiptReceiptTypeThreadUserIdCalled: Bool {
+        return loadUserReceiptReceiptTypeThreadUserIdCallsCount > 0
+    }
+    private let loadUserReceiptReceiptTypeThreadUserIdReceivedArgumentsLock = NSLock()
+    private var loadUserReceiptReceiptTypeThreadUserIdUnderlyingReceivedArguments: (receiptType: ReceiptType, thread: ReceiptThread, userId: String)?
+    open var loadUserReceiptReceiptTypeThreadUserIdReceivedArguments: (receiptType: ReceiptType, thread: ReceiptThread, userId: String)? {
+        get { loadUserReceiptReceiptTypeThreadUserIdReceivedArgumentsLock.withLock { loadUserReceiptReceiptTypeThreadUserIdUnderlyingReceivedArguments } }
+        set { loadUserReceiptReceiptTypeThreadUserIdReceivedArgumentsLock.withLock { loadUserReceiptReceiptTypeThreadUserIdUnderlyingReceivedArguments = newValue } }
+    }
+    private let loadUserReceiptReceiptTypeThreadUserIdReceivedInvocationsLock = NSLock()
+    private var loadUserReceiptReceiptTypeThreadUserIdUnderlyingReceivedInvocations: [(receiptType: ReceiptType, thread: ReceiptThread, userId: String)] = []
+    open var loadUserReceiptReceiptTypeThreadUserIdReceivedInvocations: [(receiptType: ReceiptType, thread: ReceiptThread, userId: String)] {
+        get { loadUserReceiptReceiptTypeThreadUserIdReceivedInvocationsLock.withLock { loadUserReceiptReceiptTypeThreadUserIdUnderlyingReceivedInvocations } }
+        set { loadUserReceiptReceiptTypeThreadUserIdReceivedInvocationsLock.withLock { loadUserReceiptReceiptTypeThreadUserIdUnderlyingReceivedInvocations = newValue } }
+    }
+
+    private let loadUserReceiptReceiptTypeThreadUserIdReturnValueLock = NSLock()
+    open var loadUserReceiptReceiptTypeThreadUserIdUnderlyingReturnValue: UserReceipt?
+    open var loadUserReceiptReceiptTypeThreadUserIdReturnValue: UserReceipt? {
+        get { loadUserReceiptReceiptTypeThreadUserIdReturnValueLock.withLock { loadUserReceiptReceiptTypeThreadUserIdUnderlyingReturnValue } }
+        set { loadUserReceiptReceiptTypeThreadUserIdReturnValueLock.withLock { loadUserReceiptReceiptTypeThreadUserIdUnderlyingReturnValue = newValue } }
+    }
+    open var loadUserReceiptReceiptTypeThreadUserIdClosure: ((ReceiptType, ReceiptThread, String) async throws -> UserReceipt?)?
+
+    open override func loadUserReceipt(receiptType: ReceiptType, thread: ReceiptThread, userId: String) async throws -> UserReceipt? {
+        if let error = loadUserReceiptReceiptTypeThreadUserIdThrowableError {
+            throw error
+        }
+        loadUserReceiptReceiptTypeThreadUserIdCallsCountLock.withLock { loadUserReceiptReceiptTypeThreadUserIdUnderlyingCallsCount += 1 }
+        loadUserReceiptReceiptTypeThreadUserIdReceivedArguments = (receiptType: receiptType, thread: thread, userId: userId)
+        loadUserReceiptReceiptTypeThreadUserIdReceivedInvocationsLock.withLock { loadUserReceiptReceiptTypeThreadUserIdUnderlyingReceivedInvocations.append((receiptType: receiptType, thread: thread, userId: userId)) }
+        if let loadUserReceiptReceiptTypeThreadUserIdClosure = loadUserReceiptReceiptTypeThreadUserIdClosure {
+            return try await loadUserReceiptReceiptTypeThreadUserIdClosure(receiptType, thread, userId)
+        } else {
+            return loadUserReceiptReceiptTypeThreadUserIdReturnValue
+        }
+    }
+
     //MARK: - markAsFullyReadUnchecked
 
     open var markAsFullyReadUncheckedEventIdThrowableError: Error?
@@ -11333,6 +11929,42 @@ open class RoomSDKMock: MatrixRustSDK.Room, @unchecked Sendable {
         sendRawEventTypeContentReceivedArguments = (eventType: eventType, content: content)
         sendRawEventTypeContentReceivedInvocationsLock.withLock { sendRawEventTypeContentUnderlyingReceivedInvocations.append((eventType: eventType, content: content)) }
         try await sendRawEventTypeContentClosure?(eventType, content)
+    }
+
+    //MARK: - sendSingleReceipt
+
+    open var sendSingleReceiptReceiptTypeThreadEventIdThrowableError: Error?
+    private let sendSingleReceiptReceiptTypeThreadEventIdCallsCountLock = NSLock()
+    private var sendSingleReceiptReceiptTypeThreadEventIdUnderlyingCallsCount = 0
+    open var sendSingleReceiptReceiptTypeThreadEventIdCallsCount: Int {
+        get { sendSingleReceiptReceiptTypeThreadEventIdCallsCountLock.withLock { sendSingleReceiptReceiptTypeThreadEventIdUnderlyingCallsCount } }
+        set { sendSingleReceiptReceiptTypeThreadEventIdCallsCountLock.withLock { sendSingleReceiptReceiptTypeThreadEventIdUnderlyingCallsCount = newValue } }
+    }
+    open var sendSingleReceiptReceiptTypeThreadEventIdCalled: Bool {
+        return sendSingleReceiptReceiptTypeThreadEventIdCallsCount > 0
+    }
+    private let sendSingleReceiptReceiptTypeThreadEventIdReceivedArgumentsLock = NSLock()
+    private var sendSingleReceiptReceiptTypeThreadEventIdUnderlyingReceivedArguments: (receiptType: ReceiptType, thread: ReceiptThread, eventId: String)?
+    open var sendSingleReceiptReceiptTypeThreadEventIdReceivedArguments: (receiptType: ReceiptType, thread: ReceiptThread, eventId: String)? {
+        get { sendSingleReceiptReceiptTypeThreadEventIdReceivedArgumentsLock.withLock { sendSingleReceiptReceiptTypeThreadEventIdUnderlyingReceivedArguments } }
+        set { sendSingleReceiptReceiptTypeThreadEventIdReceivedArgumentsLock.withLock { sendSingleReceiptReceiptTypeThreadEventIdUnderlyingReceivedArguments = newValue } }
+    }
+    private let sendSingleReceiptReceiptTypeThreadEventIdReceivedInvocationsLock = NSLock()
+    private var sendSingleReceiptReceiptTypeThreadEventIdUnderlyingReceivedInvocations: [(receiptType: ReceiptType, thread: ReceiptThread, eventId: String)] = []
+    open var sendSingleReceiptReceiptTypeThreadEventIdReceivedInvocations: [(receiptType: ReceiptType, thread: ReceiptThread, eventId: String)] {
+        get { sendSingleReceiptReceiptTypeThreadEventIdReceivedInvocationsLock.withLock { sendSingleReceiptReceiptTypeThreadEventIdUnderlyingReceivedInvocations } }
+        set { sendSingleReceiptReceiptTypeThreadEventIdReceivedInvocationsLock.withLock { sendSingleReceiptReceiptTypeThreadEventIdUnderlyingReceivedInvocations = newValue } }
+    }
+    open var sendSingleReceiptReceiptTypeThreadEventIdClosure: ((ReceiptType, ReceiptThread, String) async throws -> Void)?
+
+    open override func sendSingleReceipt(receiptType: ReceiptType, thread: ReceiptThread, eventId: String) async throws {
+        if let error = sendSingleReceiptReceiptTypeThreadEventIdThrowableError {
+            throw error
+        }
+        sendSingleReceiptReceiptTypeThreadEventIdCallsCountLock.withLock { sendSingleReceiptReceiptTypeThreadEventIdUnderlyingCallsCount += 1 }
+        sendSingleReceiptReceiptTypeThreadEventIdReceivedArguments = (receiptType: receiptType, thread: thread, eventId: eventId)
+        sendSingleReceiptReceiptTypeThreadEventIdReceivedInvocationsLock.withLock { sendSingleReceiptReceiptTypeThreadEventIdUnderlyingReceivedInvocations.append((receiptType: receiptType, thread: thread, eventId: eventId)) }
+        try await sendSingleReceiptReceiptTypeThreadEventIdClosure?(receiptType, thread, eventId)
     }
 
     //MARK: - sendStateEventRaw
@@ -12513,6 +13145,252 @@ open class RoomSDKMock: MatrixRustSDK.Room, @unchecked Sendable {
         withdrawVerificationAndResendUserIdsSendHandleReceivedArguments = (userIds: userIds, sendHandle: sendHandle)
         withdrawVerificationAndResendUserIdsSendHandleReceivedInvocationsLock.withLock { withdrawVerificationAndResendUserIdsSendHandleUnderlyingReceivedInvocations.append((userIds: userIds, sendHandle: sendHandle)) }
         try await withdrawVerificationAndResendUserIdsSendHandleClosure?(userIds, sendHandle)
+    }
+
+    //MARK: - allowStateTypesAtDefaultLevel
+
+    open var allowStateTypesAtDefaultLevelEventTypesThrowableError: Error?
+    private let allowStateTypesAtDefaultLevelEventTypesCallsCountLock = NSLock()
+    private var allowStateTypesAtDefaultLevelEventTypesUnderlyingCallsCount = 0
+    open var allowStateTypesAtDefaultLevelEventTypesCallsCount: Int {
+        get { allowStateTypesAtDefaultLevelEventTypesCallsCountLock.withLock { allowStateTypesAtDefaultLevelEventTypesUnderlyingCallsCount } }
+        set { allowStateTypesAtDefaultLevelEventTypesCallsCountLock.withLock { allowStateTypesAtDefaultLevelEventTypesUnderlyingCallsCount = newValue } }
+    }
+    open var allowStateTypesAtDefaultLevelEventTypesCalled: Bool {
+        return allowStateTypesAtDefaultLevelEventTypesCallsCount > 0
+    }
+    private let allowStateTypesAtDefaultLevelEventTypesReceivedEventTypesLock = NSLock()
+    private var allowStateTypesAtDefaultLevelEventTypesUnderlyingReceivedEventTypes: [String]?
+    open var allowStateTypesAtDefaultLevelEventTypesReceivedEventTypes: [String]? {
+        get { allowStateTypesAtDefaultLevelEventTypesReceivedEventTypesLock.withLock { allowStateTypesAtDefaultLevelEventTypesUnderlyingReceivedEventTypes } }
+        set { allowStateTypesAtDefaultLevelEventTypesReceivedEventTypesLock.withLock { allowStateTypesAtDefaultLevelEventTypesUnderlyingReceivedEventTypes = newValue } }
+    }
+    private let allowStateTypesAtDefaultLevelEventTypesReceivedInvocationsLock = NSLock()
+    private var allowStateTypesAtDefaultLevelEventTypesUnderlyingReceivedInvocations: [[String]] = []
+    open var allowStateTypesAtDefaultLevelEventTypesReceivedInvocations: [[String]] {
+        get { allowStateTypesAtDefaultLevelEventTypesReceivedInvocationsLock.withLock { allowStateTypesAtDefaultLevelEventTypesUnderlyingReceivedInvocations } }
+        set { allowStateTypesAtDefaultLevelEventTypesReceivedInvocationsLock.withLock { allowStateTypesAtDefaultLevelEventTypesUnderlyingReceivedInvocations = newValue } }
+    }
+
+    private let allowStateTypesAtDefaultLevelEventTypesReturnValueLock = NSLock()
+    open var allowStateTypesAtDefaultLevelEventTypesUnderlyingReturnValue: Bool!
+    open var allowStateTypesAtDefaultLevelEventTypesReturnValue: Bool! {
+        get { allowStateTypesAtDefaultLevelEventTypesReturnValueLock.withLock { allowStateTypesAtDefaultLevelEventTypesUnderlyingReturnValue } }
+        set { allowStateTypesAtDefaultLevelEventTypesReturnValueLock.withLock { allowStateTypesAtDefaultLevelEventTypesUnderlyingReturnValue = newValue } }
+    }
+    open var allowStateTypesAtDefaultLevelEventTypesClosure: (([String]) async throws -> Bool)?
+
+    open override func allowStateTypesAtDefaultLevel(eventTypes: [String]) async throws -> Bool {
+        if let error = allowStateTypesAtDefaultLevelEventTypesThrowableError {
+            throw error
+        }
+        allowStateTypesAtDefaultLevelEventTypesCallsCountLock.withLock { allowStateTypesAtDefaultLevelEventTypesUnderlyingCallsCount += 1 }
+        allowStateTypesAtDefaultLevelEventTypesReceivedEventTypes = eventTypes
+        allowStateTypesAtDefaultLevelEventTypesReceivedInvocationsLock.withLock { allowStateTypesAtDefaultLevelEventTypesUnderlyingReceivedInvocations.append(eventTypes) }
+        if let allowStateTypesAtDefaultLevelEventTypesClosure = allowStateTypesAtDefaultLevelEventTypesClosure {
+            return try await allowStateTypesAtDefaultLevelEventTypesClosure(eventTypes)
+        } else {
+            return allowStateTypesAtDefaultLevelEventTypesReturnValue
+        }
+    }
+
+    //MARK: - ignoreDeviceTrust
+
+    open var ignoreDeviceTrustDevicesThrowableError: Error?
+    private let ignoreDeviceTrustDevicesCallsCountLock = NSLock()
+    private var ignoreDeviceTrustDevicesUnderlyingCallsCount = 0
+    open var ignoreDeviceTrustDevicesCallsCount: Int {
+        get { ignoreDeviceTrustDevicesCallsCountLock.withLock { ignoreDeviceTrustDevicesUnderlyingCallsCount } }
+        set { ignoreDeviceTrustDevicesCallsCountLock.withLock { ignoreDeviceTrustDevicesUnderlyingCallsCount = newValue } }
+    }
+    open var ignoreDeviceTrustDevicesCalled: Bool {
+        return ignoreDeviceTrustDevicesCallsCount > 0
+    }
+    private let ignoreDeviceTrustDevicesReceivedDevicesLock = NSLock()
+    private var ignoreDeviceTrustDevicesUnderlyingReceivedDevices: [String: [String]]?
+    open var ignoreDeviceTrustDevicesReceivedDevices: [String: [String]]? {
+        get { ignoreDeviceTrustDevicesReceivedDevicesLock.withLock { ignoreDeviceTrustDevicesUnderlyingReceivedDevices } }
+        set { ignoreDeviceTrustDevicesReceivedDevicesLock.withLock { ignoreDeviceTrustDevicesUnderlyingReceivedDevices = newValue } }
+    }
+    private let ignoreDeviceTrustDevicesReceivedInvocationsLock = NSLock()
+    private var ignoreDeviceTrustDevicesUnderlyingReceivedInvocations: [[String: [String]]] = []
+    open var ignoreDeviceTrustDevicesReceivedInvocations: [[String: [String]]] {
+        get { ignoreDeviceTrustDevicesReceivedInvocationsLock.withLock { ignoreDeviceTrustDevicesUnderlyingReceivedInvocations } }
+        set { ignoreDeviceTrustDevicesReceivedInvocationsLock.withLock { ignoreDeviceTrustDevicesUnderlyingReceivedInvocations = newValue } }
+    }
+    open var ignoreDeviceTrustDevicesClosure: (([String: [String]]) async throws -> Void)?
+
+    open override func ignoreDeviceTrust(devices: [String: [String]]) async throws {
+        if let error = ignoreDeviceTrustDevicesThrowableError {
+            throw error
+        }
+        ignoreDeviceTrustDevicesCallsCountLock.withLock { ignoreDeviceTrustDevicesUnderlyingCallsCount += 1 }
+        ignoreDeviceTrustDevicesReceivedDevices = devices
+        ignoreDeviceTrustDevicesReceivedInvocationsLock.withLock { ignoreDeviceTrustDevicesUnderlyingReceivedInvocations.append(devices) }
+        try await ignoreDeviceTrustDevicesClosure?(devices)
+    }
+
+    //MARK: - loadOrFetchEventWithRelations
+
+    open var loadOrFetchEventWithRelationsEventIdFilterThrowableError: Error?
+    private let loadOrFetchEventWithRelationsEventIdFilterCallsCountLock = NSLock()
+    private var loadOrFetchEventWithRelationsEventIdFilterUnderlyingCallsCount = 0
+    open var loadOrFetchEventWithRelationsEventIdFilterCallsCount: Int {
+        get { loadOrFetchEventWithRelationsEventIdFilterCallsCountLock.withLock { loadOrFetchEventWithRelationsEventIdFilterUnderlyingCallsCount } }
+        set { loadOrFetchEventWithRelationsEventIdFilterCallsCountLock.withLock { loadOrFetchEventWithRelationsEventIdFilterUnderlyingCallsCount = newValue } }
+    }
+    open var loadOrFetchEventWithRelationsEventIdFilterCalled: Bool {
+        return loadOrFetchEventWithRelationsEventIdFilterCallsCount > 0
+    }
+    private let loadOrFetchEventWithRelationsEventIdFilterReceivedArgumentsLock = NSLock()
+    private var loadOrFetchEventWithRelationsEventIdFilterUnderlyingReceivedArguments: (eventId: String, filter: RelationTypeFilter?)?
+    open var loadOrFetchEventWithRelationsEventIdFilterReceivedArguments: (eventId: String, filter: RelationTypeFilter?)? {
+        get { loadOrFetchEventWithRelationsEventIdFilterReceivedArgumentsLock.withLock { loadOrFetchEventWithRelationsEventIdFilterUnderlyingReceivedArguments } }
+        set { loadOrFetchEventWithRelationsEventIdFilterReceivedArgumentsLock.withLock { loadOrFetchEventWithRelationsEventIdFilterUnderlyingReceivedArguments = newValue } }
+    }
+    private let loadOrFetchEventWithRelationsEventIdFilterReceivedInvocationsLock = NSLock()
+    private var loadOrFetchEventWithRelationsEventIdFilterUnderlyingReceivedInvocations: [(eventId: String, filter: RelationTypeFilter?)] = []
+    open var loadOrFetchEventWithRelationsEventIdFilterReceivedInvocations: [(eventId: String, filter: RelationTypeFilter?)] {
+        get { loadOrFetchEventWithRelationsEventIdFilterReceivedInvocationsLock.withLock { loadOrFetchEventWithRelationsEventIdFilterUnderlyingReceivedInvocations } }
+        set { loadOrFetchEventWithRelationsEventIdFilterReceivedInvocationsLock.withLock { loadOrFetchEventWithRelationsEventIdFilterUnderlyingReceivedInvocations = newValue } }
+    }
+
+    private let loadOrFetchEventWithRelationsEventIdFilterReturnValueLock = NSLock()
+    open var loadOrFetchEventWithRelationsEventIdFilterUnderlyingReturnValue: EventWithRelations!
+    open var loadOrFetchEventWithRelationsEventIdFilterReturnValue: EventWithRelations! {
+        get { loadOrFetchEventWithRelationsEventIdFilterReturnValueLock.withLock { loadOrFetchEventWithRelationsEventIdFilterUnderlyingReturnValue } }
+        set { loadOrFetchEventWithRelationsEventIdFilterReturnValueLock.withLock { loadOrFetchEventWithRelationsEventIdFilterUnderlyingReturnValue = newValue } }
+    }
+    open var loadOrFetchEventWithRelationsEventIdFilterClosure: ((String, RelationTypeFilter?) async throws -> EventWithRelations)?
+
+    open override func loadOrFetchEventWithRelations(eventId: String, filter: RelationTypeFilter?) async throws -> EventWithRelations {
+        if let error = loadOrFetchEventWithRelationsEventIdFilterThrowableError {
+            throw error
+        }
+        loadOrFetchEventWithRelationsEventIdFilterCallsCountLock.withLock { loadOrFetchEventWithRelationsEventIdFilterUnderlyingCallsCount += 1 }
+        loadOrFetchEventWithRelationsEventIdFilterReceivedArguments = (eventId: eventId, filter: filter)
+        loadOrFetchEventWithRelationsEventIdFilterReceivedInvocationsLock.withLock { loadOrFetchEventWithRelationsEventIdFilterUnderlyingReceivedInvocations.append((eventId: eventId, filter: filter)) }
+        if let loadOrFetchEventWithRelationsEventIdFilterClosure = loadOrFetchEventWithRelationsEventIdFilterClosure {
+            return try await loadOrFetchEventWithRelationsEventIdFilterClosure(eventId, filter)
+        } else {
+            return loadOrFetchEventWithRelationsEventIdFilterReturnValue
+        }
+    }
+
+    //MARK: - sendRawReturningEventId
+
+    open var sendRawReturningEventIdEventTypeContentThrowableError: Error?
+    private let sendRawReturningEventIdEventTypeContentCallsCountLock = NSLock()
+    private var sendRawReturningEventIdEventTypeContentUnderlyingCallsCount = 0
+    open var sendRawReturningEventIdEventTypeContentCallsCount: Int {
+        get { sendRawReturningEventIdEventTypeContentCallsCountLock.withLock { sendRawReturningEventIdEventTypeContentUnderlyingCallsCount } }
+        set { sendRawReturningEventIdEventTypeContentCallsCountLock.withLock { sendRawReturningEventIdEventTypeContentUnderlyingCallsCount = newValue } }
+    }
+    open var sendRawReturningEventIdEventTypeContentCalled: Bool {
+        return sendRawReturningEventIdEventTypeContentCallsCount > 0
+    }
+    private let sendRawReturningEventIdEventTypeContentReceivedArgumentsLock = NSLock()
+    private var sendRawReturningEventIdEventTypeContentUnderlyingReceivedArguments: (eventType: String, content: String)?
+    open var sendRawReturningEventIdEventTypeContentReceivedArguments: (eventType: String, content: String)? {
+        get { sendRawReturningEventIdEventTypeContentReceivedArgumentsLock.withLock { sendRawReturningEventIdEventTypeContentUnderlyingReceivedArguments } }
+        set { sendRawReturningEventIdEventTypeContentReceivedArgumentsLock.withLock { sendRawReturningEventIdEventTypeContentUnderlyingReceivedArguments = newValue } }
+    }
+    private let sendRawReturningEventIdEventTypeContentReceivedInvocationsLock = NSLock()
+    private var sendRawReturningEventIdEventTypeContentUnderlyingReceivedInvocations: [(eventType: String, content: String)] = []
+    open var sendRawReturningEventIdEventTypeContentReceivedInvocations: [(eventType: String, content: String)] {
+        get { sendRawReturningEventIdEventTypeContentReceivedInvocationsLock.withLock { sendRawReturningEventIdEventTypeContentUnderlyingReceivedInvocations } }
+        set { sendRawReturningEventIdEventTypeContentReceivedInvocationsLock.withLock { sendRawReturningEventIdEventTypeContentUnderlyingReceivedInvocations = newValue } }
+    }
+
+    private let sendRawReturningEventIdEventTypeContentReturnValueLock = NSLock()
+    open var sendRawReturningEventIdEventTypeContentUnderlyingReturnValue: String!
+    open var sendRawReturningEventIdEventTypeContentReturnValue: String! {
+        get { sendRawReturningEventIdEventTypeContentReturnValueLock.withLock { sendRawReturningEventIdEventTypeContentUnderlyingReturnValue } }
+        set { sendRawReturningEventIdEventTypeContentReturnValueLock.withLock { sendRawReturningEventIdEventTypeContentUnderlyingReturnValue = newValue } }
+    }
+    open var sendRawReturningEventIdEventTypeContentClosure: ((String, String) async throws -> String)?
+
+    open override func sendRawReturningEventId(eventType: String, content: String) async throws -> String {
+        if let error = sendRawReturningEventIdEventTypeContentThrowableError {
+            throw error
+        }
+        sendRawReturningEventIdEventTypeContentCallsCountLock.withLock { sendRawReturningEventIdEventTypeContentUnderlyingCallsCount += 1 }
+        sendRawReturningEventIdEventTypeContentReceivedArguments = (eventType: eventType, content: content)
+        sendRawReturningEventIdEventTypeContentReceivedInvocationsLock.withLock { sendRawReturningEventIdEventTypeContentUnderlyingReceivedInvocations.append((eventType: eventType, content: content)) }
+        if let sendRawReturningEventIdEventTypeContentClosure = sendRawReturningEventIdEventTypeContentClosure {
+            return try await sendRawReturningEventIdEventTypeContentClosure(eventType, content)
+        } else {
+            return sendRawReturningEventIdEventTypeContentReturnValue
+        }
+    }
+
+    //MARK: - spiralEventObserver
+
+    open var spiralEventObserverThrowableError: Error?
+    private let spiralEventObserverCallsCountLock = NSLock()
+    private var spiralEventObserverUnderlyingCallsCount = 0
+    open var spiralEventObserverCallsCount: Int {
+        get { spiralEventObserverCallsCountLock.withLock { spiralEventObserverUnderlyingCallsCount } }
+        set { spiralEventObserverCallsCountLock.withLock { spiralEventObserverUnderlyingCallsCount = newValue } }
+    }
+    open var spiralEventObserverCalled: Bool {
+        return spiralEventObserverCallsCount > 0
+    }
+
+    private let spiralEventObserverReturnValueLock = NSLock()
+    open var spiralEventObserverUnderlyingReturnValue: SpiralEventObserver!
+    open var spiralEventObserverReturnValue: SpiralEventObserver! {
+        get { spiralEventObserverReturnValueLock.withLock { spiralEventObserverUnderlyingReturnValue } }
+        set { spiralEventObserverReturnValueLock.withLock { spiralEventObserverUnderlyingReturnValue = newValue } }
+    }
+    open var spiralEventObserverClosure: (() async throws -> SpiralEventObserver)?
+
+    open override func spiralEventObserver() async throws -> SpiralEventObserver {
+        if let error = spiralEventObserverThrowableError {
+            throw error
+        }
+        spiralEventObserverCallsCountLock.withLock { spiralEventObserverUnderlyingCallsCount += 1 }
+        if let spiralEventObserverClosure = spiralEventObserverClosure {
+            return try await spiralEventObserverClosure()
+        } else {
+            return spiralEventObserverReturnValue
+        }
+    }
+
+    //MARK: - withdrawVerification
+
+    open var withdrawVerificationUserIdsThrowableError: Error?
+    private let withdrawVerificationUserIdsCallsCountLock = NSLock()
+    private var withdrawVerificationUserIdsUnderlyingCallsCount = 0
+    open var withdrawVerificationUserIdsCallsCount: Int {
+        get { withdrawVerificationUserIdsCallsCountLock.withLock { withdrawVerificationUserIdsUnderlyingCallsCount } }
+        set { withdrawVerificationUserIdsCallsCountLock.withLock { withdrawVerificationUserIdsUnderlyingCallsCount = newValue } }
+    }
+    open var withdrawVerificationUserIdsCalled: Bool {
+        return withdrawVerificationUserIdsCallsCount > 0
+    }
+    private let withdrawVerificationUserIdsReceivedUserIdsLock = NSLock()
+    private var withdrawVerificationUserIdsUnderlyingReceivedUserIds: [String]?
+    open var withdrawVerificationUserIdsReceivedUserIds: [String]? {
+        get { withdrawVerificationUserIdsReceivedUserIdsLock.withLock { withdrawVerificationUserIdsUnderlyingReceivedUserIds } }
+        set { withdrawVerificationUserIdsReceivedUserIdsLock.withLock { withdrawVerificationUserIdsUnderlyingReceivedUserIds = newValue } }
+    }
+    private let withdrawVerificationUserIdsReceivedInvocationsLock = NSLock()
+    private var withdrawVerificationUserIdsUnderlyingReceivedInvocations: [[String]] = []
+    open var withdrawVerificationUserIdsReceivedInvocations: [[String]] {
+        get { withdrawVerificationUserIdsReceivedInvocationsLock.withLock { withdrawVerificationUserIdsUnderlyingReceivedInvocations } }
+        set { withdrawVerificationUserIdsReceivedInvocationsLock.withLock { withdrawVerificationUserIdsUnderlyingReceivedInvocations = newValue } }
+    }
+    open var withdrawVerificationUserIdsClosure: (([String]) async throws -> Void)?
+
+    open override func withdrawVerification(userIds: [String]) async throws {
+        if let error = withdrawVerificationUserIdsThrowableError {
+            throw error
+        }
+        withdrawVerificationUserIdsCallsCountLock.withLock { withdrawVerificationUserIdsUnderlyingCallsCount += 1 }
+        withdrawVerificationUserIdsReceivedUserIds = userIds
+        withdrawVerificationUserIdsReceivedInvocationsLock.withLock { withdrawVerificationUserIdsUnderlyingReceivedInvocations.append(userIds) }
+        try await withdrawVerificationUserIdsClosure?(userIds)
     }
 }
 open class RoomDirectorySearchSDKMock: MatrixRustSDK.RoomDirectorySearch, @unchecked Sendable {
@@ -15891,6 +16769,68 @@ open class SpanSDKMock: MatrixRustSDK.Span, @unchecked Sendable {
             return isNoneClosure()
         } else {
             return isNoneReturnValue
+        }
+    }
+}
+open class SpiralEventObserverSDKMock: MatrixRustSDK.SpiralEventObserver, @unchecked Sendable {
+    public init() {
+        super.init(noHandle: .init())
+    }
+
+    public required init(unsafeFromHandle handle: UInt64) {
+        fatalError("init(unsafeFromHandle:) has not been implemented")
+    }
+
+    fileprivate var handle: UInt64 {
+        get { return underlyingHandle }
+        set(value) { underlyingHandle = value }
+    }
+    fileprivate var underlyingHandle: UInt64!
+
+    //MARK: - subscribe
+
+    open var subscribeEventTypesListenerThrowableError: Error?
+    private let subscribeEventTypesListenerCallsCountLock = NSLock()
+    private var subscribeEventTypesListenerUnderlyingCallsCount = 0
+    open var subscribeEventTypesListenerCallsCount: Int {
+        get { subscribeEventTypesListenerCallsCountLock.withLock { subscribeEventTypesListenerUnderlyingCallsCount } }
+        set { subscribeEventTypesListenerCallsCountLock.withLock { subscribeEventTypesListenerUnderlyingCallsCount = newValue } }
+    }
+    open var subscribeEventTypesListenerCalled: Bool {
+        return subscribeEventTypesListenerCallsCount > 0
+    }
+    private let subscribeEventTypesListenerReceivedArgumentsLock = NSLock()
+    private var subscribeEventTypesListenerUnderlyingReceivedArguments: (eventTypes: [String], listener: SpiralEventListener)?
+    open var subscribeEventTypesListenerReceivedArguments: (eventTypes: [String], listener: SpiralEventListener)? {
+        get { subscribeEventTypesListenerReceivedArgumentsLock.withLock { subscribeEventTypesListenerUnderlyingReceivedArguments } }
+        set { subscribeEventTypesListenerReceivedArgumentsLock.withLock { subscribeEventTypesListenerUnderlyingReceivedArguments = newValue } }
+    }
+    private let subscribeEventTypesListenerReceivedInvocationsLock = NSLock()
+    private var subscribeEventTypesListenerUnderlyingReceivedInvocations: [(eventTypes: [String], listener: SpiralEventListener)] = []
+    open var subscribeEventTypesListenerReceivedInvocations: [(eventTypes: [String], listener: SpiralEventListener)] {
+        get { subscribeEventTypesListenerReceivedInvocationsLock.withLock { subscribeEventTypesListenerUnderlyingReceivedInvocations } }
+        set { subscribeEventTypesListenerReceivedInvocationsLock.withLock { subscribeEventTypesListenerUnderlyingReceivedInvocations = newValue } }
+    }
+
+    private let subscribeEventTypesListenerReturnValueLock = NSLock()
+    open var subscribeEventTypesListenerUnderlyingReturnValue: TaskHandle!
+    open var subscribeEventTypesListenerReturnValue: TaskHandle! {
+        get { subscribeEventTypesListenerReturnValueLock.withLock { subscribeEventTypesListenerUnderlyingReturnValue } }
+        set { subscribeEventTypesListenerReturnValueLock.withLock { subscribeEventTypesListenerUnderlyingReturnValue = newValue } }
+    }
+    open var subscribeEventTypesListenerClosure: (([String], SpiralEventListener) async throws -> TaskHandle)?
+
+    open override func subscribe(eventTypes: [String], listener: SpiralEventListener) async throws -> TaskHandle {
+        if let error = subscribeEventTypesListenerThrowableError {
+            throw error
+        }
+        subscribeEventTypesListenerCallsCountLock.withLock { subscribeEventTypesListenerUnderlyingCallsCount += 1 }
+        subscribeEventTypesListenerReceivedArguments = (eventTypes: eventTypes, listener: listener)
+        subscribeEventTypesListenerReceivedInvocationsLock.withLock { subscribeEventTypesListenerUnderlyingReceivedInvocations.append((eventTypes: eventTypes, listener: listener)) }
+        if let subscribeEventTypesListenerClosure = subscribeEventTypesListenerClosure {
+            return try await subscribeEventTypesListenerClosure(eventTypes, listener)
+        } else {
+            return subscribeEventTypesListenerReturnValue
         }
     }
 }

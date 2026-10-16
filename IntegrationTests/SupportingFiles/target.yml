@@ -37,7 +37,7 @@ targets:
     - package: Kingfisher
     - package: SwiftState
     - package: GZIP
-    - package: Sentry
+    # AGENT-PLATFORM (Brief 0078): no Sentry.
     - package: Collections
 
     info:

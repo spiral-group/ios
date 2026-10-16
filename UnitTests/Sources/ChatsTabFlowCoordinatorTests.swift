@@ -7,6 +7,8 @@
 //
 
 import Combine
+
+// AGENT-PLATFORM (Brief 0067): `CallKitServiceMock` replaces the retired `ElementCallServiceMock`.
 @testable import ElementX
 import Foundation
 import Testing
@@ -18,6 +20,7 @@ struct ChatsTabFlowCoordinatorTests {
     var chatsTabFlowCoordinator: ChatsTabFlowCoordinator!
     var splitCoordinator: NavigationSplitCoordinator!
     var notificationManager: NotificationManagerMock!
+    var userIndicatorController: UserIndicatorControllerMock! // AGENT-PLATFORM (decision 111)
     let stateMachineFactory = PublishedStateMachineFactory()
     
     var detailCoordinator: CoordinatorProtocol? {
@@ -29,7 +32,8 @@ struct ChatsTabFlowCoordinatorTests {
     }
     
     init() async throws {
-        let appSettings = AppSettings.volatile()
+        // AGENT-PLATFORM (decision 111): a catalogue on disk for the catalogue links.
+        let appSettings = try AppSettings.volatile(catalogURL: AppSettings.catalogueFixture(index: SpiralAppCatalogTests.index))
         
         clientProxy = ClientProxyMock(.init(userID: "hi@bob", roomSummaryProvider: RoomSummaryProviderMock(.init(state: .loaded(.mockRooms)))))
         timelineControllerFactory = TimelineControllerFactoryMock(.init())
@@ -37,10 +41,11 @@ struct ChatsTabFlowCoordinatorTests {
         splitCoordinator = NavigationSplitCoordinator(placeholderCoordinator: PlaceholderScreenCoordinator(hideBrandChrome: false))
         
         notificationManager = NotificationManagerMock()
+        userIndicatorController = UserIndicatorControllerMock()
         
         let flowParameters = CommonFlowParameters(userSession: UserSessionMock(.init(clientProxy: clientProxy)),
                                                   bugReportService: BugReportServiceMock(.init()),
-                                                  elementCallService: ElementCallServiceMock(.init()),
+                                                  callKitService: CallKitServiceMock(.init()),
                                                   timelineControllerFactory: timelineControllerFactory,
                                                   emojiProvider: EmojiProvider(appSettings: appSettings),
                                                   linkMetadataProvider: LinkMetadataProvider(),
@@ -48,7 +53,7 @@ struct ChatsTabFlowCoordinatorTests {
                                                   appSettings: appSettings,
                                                   appHooks: AppHooks(),
                                                   analytics: AnalyticsServiceMock(.init()),
-                                                  userIndicatorController: UserIndicatorControllerMock(),
+                                                  userIndicatorController: userIndicatorController,
                                                   notificationManager: notificationManager,
                                                   stateMachineFactory: stateMachineFactory)
         chatsTabFlowCoordinator = ChatsTabFlowCoordinator(navigationSplitCoordinator: splitCoordinator,
@@ -290,6 +295,73 @@ struct ChatsTabFlowCoordinatorTests {
         
         #expect(detailNavigationStack?.rootCoordinator is RoomScreenCoordinator)
         #expect(splitCoordinator.sheetCoordinator == nil, "The media upload sheet shouldn't be shown when sharing text.")
+    }
+    
+    // MARK: - AGENT-PLATFORM: catalogue links (decision 111)
+    
+    /// A template the catalogue has asks which chat it goes to; the chat
+    /// picked opens with the catalogue link as its entry point.
+    @Test
+    mutating func aCatalogueLinkAsksWhichChat() async throws {
+        let deferredSheet = deferFulfillment(splitCoordinator.observe(\.sheetCoordinatorID)) { $0 != nil }
+        try await process(route: .catalogTemplate(templateID: "poll", roomID: nil), expectedState: .catalogRoomList(templateID: "poll"))
+        try await deferredSheet.fulfill()
+        #expect((splitCoordinator.sheetCoordinator as? NavigationStackCoordinator)?.rootCoordinator is RoomSelectionScreenCoordinator)
+        
+        // What the picker's confirm sends, once the picker is gone.
+        let deferredDismissal = deferFulfillment(stateMachineFactory.chatsTabFlowStatePublisher) { $0 == .roomList(detailState: nil) }
+        splitCoordinator.setSheetCoordinator(nil)
+        try await deferredDismissal.fulfill()
+        try await process(route: .catalogTemplate(templateID: "poll", roomID: "2"), expectedState: .roomList(detailState: .room(roomID: "2")))
+        #expect(detailNavigationStack?.rootCoordinator is RoomScreenCoordinator)
+    }
+    
+    /// Gone from the catalogue: a toast, no picker.
+    @Test
+    mutating func aLinkToATemplateTheCatalogueLacksAsksNothing() async throws {
+        try await processCatalogueLinkExpectingToast(templateID: "nosuch", toast: UntranslatedL10n.screenRoomInteractivePostLinkNotInCatalogue)
+    }
+    
+    /// For a runtime this build predates: update, not gone (decision 96).
+    @Test
+    mutating func aLinkToATemplateForANewerBuildAsksForAnUpdate() async throws {
+        try await processCatalogueLinkExpectingToast(templateID: "later", toast: UntranslatedL10n.screenRoomInteractivePostLinkNeedsUpdate)
+    }
+    
+    // MARK: - AGENT-PLATFORM: dead alias links (re-walk R8)
+    
+    /// A `/c/` link to an alias no chat holds says so, the way a dead
+    /// catalogue link does — not silence, and not "unknown error".
+    @Test
+    mutating func aLinkToAnAliasNobodyHoldsSaysSo() async throws {
+        clientProxy.resolveRoomAliasReturnValue = .failure(.failedResolvingRoomAlias)
+        try await processExpectingToast(route: .roomAlias("#nope:spiral.md"), toast: UntranslatedL10n.screenRoomAliasLinkNotFound)
+    }
+    
+    /// A lookup that failed is not a dead link.
+    @Test
+    mutating func aFailedAliasLookupIsAnError() async throws {
+        clientProxy.resolveRoomAliasReturnValue = .failure(.sdkError(ClientProxyMockError.generic))
+        try await processExpectingToast(route: .roomAlias("#room:spiral.md"), toast: L10n.errorUnknown)
+    }
+    
+    private func processCatalogueLinkExpectingToast(templateID: String, toast: String) async throws {
+        try await processExpectingToast(route: .catalogTemplate(templateID: templateID, roomID: nil), toast: toast)
+    }
+    
+    private func processExpectingToast(route: AppRoute, toast: String) async throws {
+        let titles = PassthroughSubject<String, Never>()
+        userIndicatorController.submitIndicatorDelayClosure = { indicator, _ in titles.send(indicator.title) }
+        var states: [ChatsTabFlowCoordinatorStateMachine.State] = []
+        let cancellable = stateMachineFactory.chatsTabFlowStatePublisher.sink { states.append($0) }
+        defer { cancellable.cancel() }
+        let deferredToast = deferFulfillment(titles) { $0 == toast }
+        
+        chatsTabFlowCoordinator.handleAppRoute(route, animated: true)
+        try await deferredToast.fulfill()
+        
+        #expect(states.isEmpty, "no chat picker, no room")
+        #expect(splitCoordinator.sheetCoordinator == nil)
     }
     
     // MARK: - Private

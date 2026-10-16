@@ -210,6 +210,78 @@ class JoinedRoomProxy: JoinedRoomProxyProtocol {
         }
     }
     
+    // MARK: - AGENT-PLATFORM (Brief 0066, ADR-0007): Interactive Posts
+    
+    func loadSpiralAppRelations(for eventID: String) async -> Result<[String], RoomProxyError> {
+        do {
+            let result = try await room.loadOrFetchEventWithRelations(eventId: eventID, filter: .reference)
+            return .success(result.relationsJson)
+        } catch {
+            MXLog.error("Failed fetching relations for the event with id: \(eventID) with error: \(error)")
+            return .failure(.sdkError(error))
+        }
+    }
+    
+    func subscribeToSpiralEvents(types: [String],
+                                 listener: SpiralEventListener) async -> Result<TaskHandle, RoomProxyError> {
+        do {
+            let observer = try await room.spiralEventObserver()
+            let handle = try await observer.subscribe(eventTypes: types, listener: listener)
+            return .success(handle)
+        } catch {
+            MXLog.error("Failed subscribing to \(types) with error: \(error)")
+            return .failure(.sdkError(error))
+        }
+    }
+    
+    func sendSpiralRawEvent(type: String, content: String) async -> Result<Void, RoomProxyError> {
+        await sendSpiralRawEventReturningEventID(type: type, content: content).map { _ in }
+    }
+
+    func sendSpiralRawEventReturningEventID(type: String, content: String) async -> Result<String, RoomProxyError> {
+        do {
+            return try await .success(room.sendRawReturningEventId(eventType: type, content: content))
+        } catch let error as RawSendError {
+            // § 5.87: the refusals a send-queue item would wedge on, typed by
+            // the SDK, so the user can be asked rather than told «error».
+            switch error {
+            case .InsecureDevices(let userDeviceMap):
+                MXLog.warning("A \(type) event was refused: unsigned devices of verified users \(userDeviceMap)")
+                return .failure(.verifiedUser(.hasUnsignedDevice(devices: userDeviceMap)))
+            case .IdentityViolations(let users):
+                MXLog.warning("A \(type) event was refused: verified users with a new identity \(users)")
+                return .failure(.verifiedUser(.changedIdentity(users: users)))
+            case .CrossVerificationRequired, .Generic:
+                MXLog.error("Failed sending a \(type) event with error: \(error)")
+                return .failure(.sdkError(error))
+            }
+        } catch {
+            MXLog.error("Failed sending a \(type) event with error: \(error)")
+            return .failure(.sdkError(error))
+        }
+    }
+
+    // AGENT-PLATFORM (§ 5.87): a refused raw send's answers, without the queue's resend.
+    func ignoreDeviceTrust(devices: [String: [String]]) async -> Result<Void, RoomProxyError> {
+        do {
+            try await room.ignoreDeviceTrust(devices: devices)
+            return .success(())
+        } catch {
+            MXLog.error("Failed ignoring the trust of \(devices) with error: \(error)")
+            return .failure(.sdkError(error))
+        }
+    }
+
+    func withdrawVerification(userIDs: [String]) async -> Result<Void, RoomProxyError> {
+        do {
+            try await room.withdrawVerification(userIds: userIDs)
+            return .success(())
+        } catch {
+            MXLog.error("Failed withdrawing the verification of \(userIDs) with error: \(error)")
+            return .failure(.sdkError(error))
+        }
+    }
+    
     func messageFilteredTimeline(focus: TimelineFocus,
                                  allowedMessageTypes: [TimelineAllowedMessageType],
                                  presentation: TimelineKind.MediaPresentation) async -> Result<any TimelineProxyProtocol, RoomProxyError> {
@@ -365,10 +437,33 @@ class JoinedRoomProxy: JoinedRoomProxyProtocol {
     func invite(userID: String) async -> Result<Void, RoomProxyError> {
         do {
             MXLog.info("Inviting user \(userID)")
-            return try await .success(room.inviteUserById(userId: userID))
+            try await room.inviteUserById(userId: userID)
         } catch {
             MXLog.error("Failed inviting user \(userID) with error: \(error)")
             return .failure(.sdkError(error))
+        }
+        // AGENT-PLATFORM (Brief 0066 § 5.88): adding an agent lets it keep its
+        // own two state rows here — granted by this person's client, now,
+        // rather than by the platform acting as the room's admin later.
+        if SpiralAgentRoomGrants.isLocalAgent(userID, ownUserID: ownUserID) {
+            await grantAgentStateTypes(to: userID)
+        }
+        return .success(())
+    }
+
+    /// AGENT-PLATFORM (§ 5.88): best-effort — the invite stands either way.
+    /// Without the grant the agent's tools still reach the room as a
+    /// message-like fallback, and only the member hint is missing.
+    private func grantAgentStateTypes(to agentID: String) async {
+        do {
+            let granted = try await room.allowStateTypesAtDefaultLevel(eventTypes: SpiralAgentRoomGrants.stateTypes)
+            if granted {
+                MXLog.info("[SpiralAgent] \(agentID) may keep its state rows in \(id)")
+            } else {
+                MXLog.info("[SpiralAgent] \(agentID) added to \(id); this user may not change its power levels")
+            }
+        } catch {
+            MXLog.error("[SpiralAgent] granting \(agentID) its state rows in \(id) failed: \(error)")
         }
     }
     
@@ -616,10 +711,21 @@ class JoinedRoomProxy: JoinedRoomProxyProtocol {
         }
     }
     
-    // MARK: - Element Call
+    // MARK: - Calls
     
-    func elementCallWidgetDriver(deviceID: String) -> ElementCallWidgetDriverProtocol {
-        ElementCallWidgetDriver(room: room, deviceID: deviceID)
+    // AGENT-PLATFORM (Brief 0063)
+    func matrixRTCSession() -> Result<MatrixRTCSessionProtocol, RoomProxyError> {
+        guard let room = room as? Room else {
+            MXLog.error("Cannot build a MatrixRTC session for a room without an SDK handle")
+            return .failure(.invalidURL)
+        }
+        
+        do {
+            return try .success(MatrixRTCSessionProxy(session: room.matrixRtcSession()))
+        } catch {
+            MXLog.error("Failed building the MatrixRTC session: \(error)")
+            return .failure(.sdkError(error))
+        }
     }
     
     func declineCall(notificationID: String) async -> Result<Void, RoomProxyError> {

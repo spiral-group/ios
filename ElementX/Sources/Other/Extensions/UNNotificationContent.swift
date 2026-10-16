@@ -33,6 +33,29 @@ nonisolated extension UNNotificationContent {
     var unreadCount: Int? {
         userInfo[NotificationConstants.UserInfoKey.unreadCount] as? Int
     }
+
+    // AGENT-PLATFORM: the approval a Spiral direct push names
+    // (`{spiral: {kind: "approval", id}}`, set by
+    // `SpiralPushContentBuilder`). Drives the tap-deep-link path: a
+    // tap routes to `ApprovalDetailScreen` rather than the standard
+    // room-list jump.
+    @objc var agentApprovalID: String? {
+        userInfo[NotificationConstants.UserInfoKey.agentApprovalIdentifier] as? String
+    }
+
+    // AGENT-PLATFORM: the verification a Spiral direct push names
+    // (`{spiral: {kind: "verification", id}}`, set by
+    // `SpiralPushContentBuilder`). A tap routes to
+    // `VerificationDetailScreen`. No inline actions (see
+    // Category.verification doc-comment for rationale).
+    @objc var agentVerificationID: String? {
+        userInfo[NotificationConstants.UserInfoKey.agentVerificationIdentifier] as? String
+    }
+
+    // AGENT-PLATFORM (Brief 0066, § 5.82): the post a game's ping was made in.
+    @objc var spiralPostEventID: String? {
+        userInfo[NotificationConstants.UserInfoKey.spiralPostEventIdentifier] as? String
+    }
 }
 
 nonisolated extension UNMutableNotificationContent {
@@ -69,6 +92,36 @@ nonisolated extension UNMutableNotificationContent {
         }
         set {
             userInfo[NotificationConstants.UserInfoKey.threadRootEventIdentifier] = newValue
+        }
+    }
+
+    // AGENT-PLATFORM: setter for the NSE decorator path.
+    override var agentApprovalID: String? {
+        get {
+            userInfo[NotificationConstants.UserInfoKey.agentApprovalIdentifier] as? String
+        }
+        set {
+            userInfo[NotificationConstants.UserInfoKey.agentApprovalIdentifier] = newValue
+        }
+    }
+
+    // AGENT-PLATFORM: setter for the NSE decorator path (S157.a).
+    override var agentVerificationID: String? {
+        get {
+            userInfo[NotificationConstants.UserInfoKey.agentVerificationIdentifier] as? String
+        }
+        set {
+            userInfo[NotificationConstants.UserInfoKey.agentVerificationIdentifier] = newValue
+        }
+    }
+
+    // AGENT-PLATFORM (Brief 0066, § 5.82): set by the NSE for a game's ping.
+    override var spiralPostEventID: String? {
+        get {
+            userInfo[NotificationConstants.UserInfoKey.spiralPostEventIdentifier] as? String
+        }
+        set {
+            userInfo[NotificationConstants.UserInfoKey.spiralPostEventIdentifier] = newValue
         }
     }
 }

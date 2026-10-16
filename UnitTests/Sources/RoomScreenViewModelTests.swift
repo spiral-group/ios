@@ -302,6 +302,23 @@ final class RoomScreenViewModelTests {
         // Then the call button should remain visible shown.
         #expect(viewModel.state.shouldShowCallButton)
     }
+
+    // AGENT-PLATFORM (Brief 0063): native voice call routing.
+    @Test
+    func directTaggedGroupCanStartNativeVoiceCall() {
+        let roomProxyMock = JoinedRoomProxyMock(.init(isDirect: true, hasOngoingCall: false))
+        let viewModel = RoomScreenViewModel(userSession: UserSessionMock(.init()),
+                                            roomProxy: roomProxyMock,
+                                            initialSelectedPinnedEventID: nil,
+                                            ongoingCallRoomIDPublisher: .init(.init(nil)),
+                                            appSettings: appSettings,
+                                            appHooks: AppHooks(),
+                                            analyticsService: AnalyticsServiceMock(.init()),
+                                            userIndicatorController: UserIndicatorControllerMock())
+
+        #expect(!viewModel.state.isDM)
+        #expect(viewModel.state.canStartGroupVoiceCall)
+    }
     
     @Test
     func roomFullyRead() async {

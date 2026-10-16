@@ -108,6 +108,7 @@ struct LiveLocationOwnInfoUpdate: Equatable {
 
 // sourcery: AutoMockable
 protocol ClientProxyProtocol: AnyObject {
+    /// AGENT-PLATFORM (decision 157): delivers on the main actor.
     var actionsPublisher: AnyPublisher<ClientProxyAction, Never> { get }
     
     var loadingStatePublisher: CurrentValuePublisher<ClientProxyLoadingState, Never> { get }
@@ -186,6 +187,11 @@ protocol ClientProxyProtocol: AnyObject {
     
     func directRoomForUserID(_ userID: String) -> Result<String?, ClientProxyError>
     
+    /// AGENT-PLATFORM (Brief 0073): for «Message» only — a joined DM, else a
+    /// pending DM invite from `userID`, so both people tapping «Message» get
+    /// one room. Calls and member state keep using ``directRoomForUserID(_:)``.
+    func directRoomOrPendingInviteForUserID(_ userID: String) -> Result<String?, ClientProxyError>
+    
     func createDirectRoom(with userID: String, expectedRoomName: String?) async -> Result<String, ClientProxyError>
     
     func createRoom(name: String?,
@@ -207,6 +213,11 @@ protocol ClientProxyProtocol: AnyObject {
     func canJoinRoom(with rules: [AllowRule]) -> Bool
     
     func uploadMedia(_ media: MediaInfo) async -> Result<String, ClientProxyError>
+    
+    // AGENT-PLATFORM (Brief 0066 step 6): encrypt-and-upload for an
+    // Interactive Post's artifact. Returns the `mxc` and the `EncryptedFile`
+    // JSON the post's `file` carries.
+    func uploadEncryptedMedia(_ data: Data) async -> Result<EncryptedUpload, ClientProxyError>
     
     func roomForIdentifier(_ identifier: String) async -> RoomProxyType?
     
@@ -299,4 +310,15 @@ protocol ClientProxyProtocol: AnyObject {
     /// Configures the client-owned presence used by future sync requests and shared with clones and notification children.
     /// When `sendImmediately` is `true` this also asks the SDK to send a direct presence update.
     func configurePresence(_ presence: ClientProxyPresence, sendImmediately: Bool) async -> Result<Void, ClientProxyError>
+    
+    // AGENT-PLATFORM (Brief 0072, ADR-0083): another user's presence, read once
+    // (`GET /presence/{userId}/status`). `.forbiddenAccess` when the server
+    // refuses: no shared room, or no such user.
+    func userPresence(for userID: String) async -> Result<UserPresence, ClientProxyError>
+    
+    // AGENT-PLATFORM (Brief 0072, ADR-0084): global account data as raw JSON,
+    // for the few types the platform defines (`com.spiral.presence`). The read
+    // is the synced copy — the whole event — or nil when never synced.
+    func accountData(eventType: String) async -> Result<String?, ClientProxyError>
+    func setAccountData(eventType: String, content: String) async -> Result<Void, ClientProxyError>
 }

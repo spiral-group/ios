@@ -120,7 +120,12 @@ class AuthenticationService: AuthenticationServiceProtocol {
                                                          loginHint: loginHint,
                                                          deviceId: nil,
                                                          additionalScopes: nil)
-            return .success(OAuthAuthorizationDataProxy(underlyingData: oAuthData))
+            // AGENT-PLATFORM (Brief 0073 / ADR-0008): the invitation rides
+            // along to identity-login as `spiral_invite` — on registration
+            // only; a sign-in has no seat to take.
+            return .success(OAuthAuthorizationDataProxy(underlyingData: oAuthData,
+                                                        inviteToken: flow == .register ? appSettings.pendingInvite?.token : nil,
+                                                        isRegistration: flow == .register))
         } catch {
             MXLog.error("Failed to get URL for OAuth login: \(error)")
             return .failure(.oAuthError(.urlFailure))

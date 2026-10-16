@@ -83,13 +83,15 @@ class EncryptionSettingsFlowCoordinator: FlowCoordinatorProtocol {
         MXLog.info("Handling app route: \(appRoute)")
         
         switch appRoute {
-        case .accountProvisioningLink, .oAuthCallback:
+        case .accountProvisioningLink, .oAuthCallback, .inviteLink: // AGENT-PLATFORM: .inviteLink (Brief 0073)
             break // We always ignore these flows when logged in.
         case .roomList, .room, .roomAlias, .childRoom, .childRoomAlias,
              .roomDetails, .roomMemberDetails, .userProfile, .thread,
              .event, .eventOnRoomAlias, .childEvent, .childEventOnRoomAlias,
              .call, .settings, .share, .transferOwnership,
-             .search:
+             .search,
+             .approvalDetail, .verificationDetail, .publicProfile,
+             .catalogTemplate, .aiConsentSettings: // AGENT-PLATFORM: not handled here.
             // These routes aren't in this flow so clear the entire stack.
             clearRoute(animated: animated)
         case .chatBackupSettings:

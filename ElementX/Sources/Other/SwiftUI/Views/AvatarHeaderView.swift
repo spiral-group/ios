@@ -33,6 +33,8 @@ struct AvatarHeaderView<Footer: View>: View {
     private let mediaProvider: MediaProviderProtocol?
     private var onAvatarTap: ((URL) -> Void)?
     @ViewBuilder private var footer: () -> Footer
+    // AGENT-PLATFORM (Brief 0072, ADR-0083): see `presence(_:)`.
+    private var presence: UserPresence?
     
     init(room: RoomDetails,
          avatarSize: Avatars.Size,
@@ -139,9 +141,19 @@ struct AvatarHeaderView<Footer: View>: View {
                   footer: footer)
     }
     
+    // AGENT-PLATFORM (Brief 0072, ADR-0083): the person's presence — the dot
+    // on the avatar and «online / last seen …» under the name.
+    func presence(_ presence: UserPresence?) -> Self {
+        var view = self
+        view.presence = presence
+        return view
+    }
+    
     var body: some View {
         VStack(spacing: 24) {
             avatar
+                // AGENT-PLATFORM (Brief 0072, ADR-0083)
+                .presenceBadge(isOnline: presence?.isOnline ?? false, avatarSize: avatarSize.value, announced: false)
             
             VStack(spacing: 12) {
                 Text(title)
@@ -149,6 +161,19 @@ struct AvatarHeaderView<Footer: View>: View {
                     .font(.compound.headingMDBold)
                     .multilineTextAlignment(.center)
                     .textSelection(.enabled)
+                
+                // AGENT-PLATFORM (Brief 0072, ADR-0083): the minutes move
+                // without a new answer.
+                if let presence {
+                    SwiftUI.TimelineView(.everyMinute) { context in
+                        if let status = presence.statusText(now: context.date) {
+                            Text(status)
+                                .foregroundStyle(presence.isOnline ? Color.compound.textActionAccent : Color.compound.textSecondary)
+                                .font(.compound.bodyMD)
+                                .multilineTextAlignment(.center)
+                        }
+                    }
+                }
                 
                 if let displayedStatus = status?.displayed {
                     HStack(spacing: 6) {
@@ -300,11 +325,15 @@ struct AvatarHeaderView_Previews: PreviewProvider, TestablePreview {
             AvatarHeaderView(member: RoomMemberDetails(withProxy: RoomMemberProxyMock.mockAlice),
                              avatarSize: .room(on: .details),
                              mediaProvider: MediaProviderMock(.init())) { Text("") }
+                // AGENT-PLATFORM (Brief 0072, ADR-0083, ADR-0084)
+                .presence(.init(userID: "@alice:matrix.org", state: .online, lastActiveAgo: 2, currentlyActive: true, receivedAt: .now))
             
             AvatarHeaderView(member: RoomMemberDetails(withProxy: RoomMemberProxyMock.mockBob),
                              isVerified: true,
                              avatarSize: .room(on: .details),
                              mediaProvider: MediaProviderMock(.init())) { Text("") }
+                .presence(.init(userID: "@bob:matrix.org", state: .offline, lastActiveAgo: nil, currentlyActive: false,
+                                lastSeenBucket: .withinMonth, receivedAt: .now))
             
             AvatarHeaderView(member: RoomMemberDetails(withProxy: RoomMemberProxyMock.mockErin),
                              isVerified: false,

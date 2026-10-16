@@ -13,6 +13,7 @@ typealias RoomSelectionScreenViewModelType = StateStoreViewModel<RoomSelectionSc
 
 class RoomSelectionScreenViewModel: RoomSelectionScreenViewModelType, RoomSelectionScreenViewModelProtocol {
     private let roomSummaryProvider: RoomSummaryProviderProtocol
+    private let roomFilter: (RoomSummary) -> Bool // AGENT-PLATFORM (Agents tab step B)
     
     private var actionsSubject: PassthroughSubject<RoomSelectionScreenViewModelAction, Never> = .init()
     
@@ -21,10 +22,22 @@ class RoomSelectionScreenViewModel: RoomSelectionScreenViewModelType, RoomSelect
     }
     
     init(userSession: UserSessionProtocol,
-         roomSummaryProvider: RoomSummaryProviderProtocol) {
+         roomSummaryProvider: RoomSummaryProviderProtocol,
+         confirmTitle: String = L10n.actionShare, // AGENT-PLATFORM (decision 111)
+         roomFilter: @escaping (RoomSummary) -> Bool = { _ in true },
+         emptyState: RoomSelectionScreenEmptyState? = nil) { // AGENT-PLATFORM
         self.roomSummaryProvider = roomSummaryProvider
+        self.roomFilter = roomFilter
         
-        super.init(initialViewState: RoomSelectionScreenViewState(), mediaProvider: userSession.mediaProvider)
+        super.init(initialViewState: RoomSelectionScreenViewState(confirmTitle: confirmTitle, emptyState: emptyState), mediaProvider: userSession.mediaProvider)
+        
+        state.isListLoaded = roomSummaryProvider.statePublisher.value.isLoaded // AGENT-PLATFORM
+        roomSummaryProvider.statePublisher
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] providerState in
+                self?.state.isListLoaded = providerState.isLoaded
+            }
+            .store(in: &cancellables)
         
         roomSummaryProvider.roomListPublisher
             .receive(on: DispatchQueue.main)
@@ -77,7 +90,7 @@ class RoomSelectionScreenViewModel: RoomSelectionScreenViewModelType, RoomSelect
     private func updateRooms() {
         var rooms = [RoomSelectionRoom]()
         
-        for summary in roomSummaryProvider.roomListPublisher.value {
+        for summary in roomSummaryProvider.roomListPublisher.value where roomFilter(summary) {
             rooms.append(.init(id: summary.id,
                                title: summary.name,
                                description: summary.roomListDescription,

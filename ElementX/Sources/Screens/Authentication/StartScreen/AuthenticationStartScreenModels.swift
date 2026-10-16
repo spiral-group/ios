@@ -33,11 +33,24 @@ struct AuthenticationStartScreenViewState: BindableState {
     
     let hideBrandChrome: Bool
     
+    // AGENT-PLATFORM (ADR-0008): invite-only hides «Continue without an invitation».
+    let registrationRequiresInvite: Bool
+    
+    // AGENT-PLATFORM (Brief 0073 / ADR-0008): the invitation the person
+    // arrived with, if any — drives the "invited by" banner.
+    var pendingInvite: PendingInvite?
+    /// What the server said about the invitation the person pasted.
+    var pastedInviteError: String?
+    var isCheckingPastedInvite = false
+    
     var bindings = AuthenticationStartScreenViewStateBindings()
     
     var loginButtonTitle: String {
-        if let serverName {
-            L10n.screenOnboardingSignInTo(serverName)
+        if serverName != nil {
+            // AGENT-PLATFORM (ADR-0005 auth v2): a public single-server
+            // messenger never surfaces the homeserver domain — plain
+            // "Sign in" instead of upstream's "Sign in to <server>".
+            UntranslatedL10n.screenStartSignIn
         } else if showQRCodeLoginButton {
             L10n.screenOnboardingSignInManually
         } else {
@@ -49,6 +62,10 @@ struct AuthenticationStartScreenViewState: BindableState {
 struct AuthenticationStartScreenViewStateBindings {
     var alertInfo: AlertInfo<AuthenticationStartScreenAlertType>?
     var showClassicAppBackupInstructions = false
+    // AGENT-PLATFORM (Brief 0073): «Have an invitation?», shown when
+    // Create account is tapped without one.
+    var showInvitePasteSheet = false
+    var pastedInviteText = ""
 }
 
 enum AuthenticationStartScreenAlertType {
@@ -69,4 +86,9 @@ enum AuthenticationStartScreenViewAction {
     case otherOptions(ClassicAppAccount)
     case closeOtherOptions(ClassicAppAccount)
     case openClassicApp
+    
+    // AGENT-PLATFORM (Brief 0073 / ADR-0008): the invitation screen behind
+    // Create account — check the pasted one, or go on without it.
+    case usePastedInvite
+    case registerWithoutInvite
 }

@@ -26,7 +26,7 @@ enum TimelineViewModelAction {
     case displayMediaPreview(TimelineMediaPreviewViewModel)
     case displayLocation(StaticLocationData)
     case displayLiveLocation(sender: TimelineItemSender, initialLiveLocationShare: LiveLocationShare)
-    case displayResolveSendFailure(failure: TimelineItemSendFailure.VerifiedUser, sendHandle: SendHandleProxy)
+    case displayResolveSendFailure(failure: TimelineItemSendFailure.VerifiedUser, resolver: VerifiedUserSendFailureResolver) // AGENT-PLATFORM: § 5.87, was `sendHandle`
     case displayThread(itemID: TimelineItemIdentifier)
     case composer(action: TimelineComposerAction)
     case hasScrolled(direction: ScrollDirection)
@@ -34,6 +34,14 @@ enum TimelineViewModelAction {
     case displayRoom(roomID: String, via: [String])
     case displayMediaDetails(item: EventBasedMessageTimelineItemProtocol)
     case presentCallScreen(isVoiceCall: Bool)
+    // AGENT-PLATFORM (Brief 0066 step 6): a draft was published into
+    // `roomID` — the generation sheet closes on it.
+    case interactivePostPublished(roomID: String)
+    // AGENT-PLATFORM (decision 150): the AI consent notice's button. An action,
+    // not a URL: no link in a message can produce it.
+    case displayAIConsentSettings
+    // AGENT-PLATFORM (§ 5.55): change a published post from its thread.
+    case editInteractivePost(eventID: String, post: SpiralAppPost, title: String)
 }
 
 enum TimelineViewPollAction {
@@ -55,6 +63,12 @@ enum TimelineViewAction {
     case mediaTapped(itemID: TimelineItemIdentifier)
     case galleryItemTapped(GalleryItemID)
     case itemSendInfoTapped(itemID: TimelineItemIdentifier)
+    // AGENT-PLATFORM (Brief 0066 step 6): the owner publishes a generated
+    // draft — pack, hash, encrypt, upload, send `com.spiral.app` — here,
+    // in this room, as themselves. Forwarding takes it anywhere else.
+    case publishInteractiveDraft(itemID: TimelineItemIdentifier)
+    /// A live post's thread, choosing a new post over updating it.
+    case publishInteractiveDraftAsNew(itemID: TimelineItemIdentifier)
     case toggleReaction(key: String, itemID: TimelineItemIdentifier)
     case sendReadReceiptIfNeeded(TimelineItemIdentifier)
     case paginateBackwards
@@ -92,6 +106,7 @@ enum TimelineViewAction {
     
     case displayPredecessorRoom
     case joinActiveCall(isVoiceCall: Bool)
+    case openAIConsentSettings // AGENT-PLATFORM (decision 150)
 }
 
 enum TimelineComposerAction {
@@ -135,6 +150,13 @@ struct TimelineViewState: BindableState {
     /// It's updated from the room info, so it's faster than using the timeline
     var pinnedEventIDs: Set<String> = []
     
+    /// AGENT-PLATFORM (Brief 0066): who owns the Interactive Posts' web views.
+    ///
+    /// Held here rather than by the rows because rows are recycled table cells
+    /// — see `SpiralAppHostRegistry`. Optional so previews and mocks, which
+    /// have no session to run an app against, simply draw the quiet card.
+    var spiralAppHosts: SpiralAppHostRegistry?
+
     /// A closure providing the associated audio player state for an item in the timeline.
     var audioPlayerStateProvider: (@MainActor (_ itemId: TimelineItemIdentifier) -> AudioPlayerState?)?
     
@@ -143,6 +165,35 @@ struct TimelineViewState: BindableState {
     
     /// A closure that returns the associated room name give its id
     var roomNameForIDResolver: (@MainActor (String) -> String?)?
+    
+    /// The people of a room, as `members.basic.read` answers them — nil
+    /// for this timeline's room. A draft previews with the people of the
+    /// room it is FOR, not the thread's.
+    var spiralMembersResolver: (@MainActor (String?) async -> [String: Any])?
+    
+    /// AGENT-PLATFORM (decision 38): a person's name from their profile, for a
+    /// notice naming someone who is not in this room. Nil in previews and mocks.
+    var spiralDisplayNameResolver: (@MainActor (String) async -> String?)?
+
+    /// AGENT-PLATFORM (decision 150): whether the reader allowed third-party
+    /// AI — nil when unknown (no platform, a failed read). Nil in previews.
+    var spiralAIConsentResolver: (@MainActor () async -> Bool?)?
+    
+    /// The published post this thread's drafts update, read off the newest
+    /// `com.spiral.live_post` marker in it (§ 5.55). Nil anywhere else.
+    var spiralLivePost: SpiralLivePost?
+    
+    /// Set when the thread was opened from the catalogue in another room:
+    /// its drafts publish THERE (§ 5.56).
+    var spiralPublishRoom: SpiralPublishRoom?
+    
+    /// The live post a draft here updates — none when the thread was opened
+    /// to publish into a room other than the live post's.
+    var spiralUpdatableLivePost: SpiralLivePost? {
+        guard let live = spiralLivePost else { return nil }
+        if let room = spiralPublishRoom, room.id != live.roomID { return nil }
+        return live
+    }
     
     /// A closure that returns the associated room name give its alias
     var roomNameForAliasResolver: (@MainActor (String) -> String?)?
@@ -180,6 +231,8 @@ struct TimelineViewStateBindings {
     var alertInfo: AlertInfo<TimelineAlertInfoType>?
     
     var debugInfo: TimelineItemDebugInfo?
+    /// AGENT-PLATFORM (Brief 0066 step 6): a draft's module, shown from the menu.
+    var draftCode: InteractiveDraftCode?
     
     var actionMenuInfo: TimelineItemActionMenuInfo?
     

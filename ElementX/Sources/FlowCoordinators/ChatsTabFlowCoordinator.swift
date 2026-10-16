@@ -17,6 +17,7 @@ enum ChatsTabFlowCoordinatorAction {
     case showChatBackupSettings
     case sessionVerification(SessionVerificationScreenFlow)
     case showCallScreen(roomProxy: JoinedRoomProxyProtocol, isVoiceCall: Bool)
+    case showAIConsentSettings // AGENT-PLATFORM (decision 150)
     case hideCallScreenOverlay
     case logout
 }
@@ -103,7 +104,7 @@ class ChatsTabFlowCoordinator: FlowCoordinatorProtocol {
         case .roomAlias(let alias):
             switch await userSession.clientProxy.resolveRoomAlias(alias) {
             case .success(let resolved): await asyncHandleAppRoute(.room(roomID: resolved.roomId, via: resolved.servers), animated: animated)
-            case .failure: showFailureIndicator()
+            case .failure(let error): showAliasFailure(error) // AGENT-PLATFORM (re-walk R8)
             }
         case .childRoom(let roomID, let via):
             if let roomFlowCoordinator {
@@ -114,7 +115,7 @@ class ChatsTabFlowCoordinator: FlowCoordinatorProtocol {
         case .childRoomAlias(let alias):
             switch await userSession.clientProxy.resolveRoomAlias(alias) {
             case .success(let resolved): await asyncHandleAppRoute(.childRoom(roomID: resolved.roomId, via: resolved.servers), animated: animated)
-            case .failure: showFailureIndicator()
+            case .failure(let error): showAliasFailure(error) // AGENT-PLATFORM (re-walk R8)
             }
             
         case .roomDetails(let roomID):
@@ -138,7 +139,7 @@ class ChatsTabFlowCoordinator: FlowCoordinatorProtocol {
         case .eventOnRoomAlias(let eventID, let alias):
             switch await userSession.clientProxy.resolveRoomAlias(alias) {
             case .success(let resolved): await asyncHandleAppRoute(.event(eventID: eventID, roomID: resolved.roomId, via: resolved.servers), animated: animated)
-            case .failure: showFailureIndicator()
+            case .failure(let error): showAliasFailure(error) // AGENT-PLATFORM (re-walk R8)
             }
             
         case .childEvent:
@@ -146,7 +147,7 @@ class ChatsTabFlowCoordinator: FlowCoordinatorProtocol {
         case .childEventOnRoomAlias(let eventID, let alias):
             switch await userSession.clientProxy.resolveRoomAlias(alias) {
             case .success(let resolved): await asyncHandleAppRoute(.childEvent(eventID: eventID, roomID: resolved.roomId, via: resolved.servers), animated: animated)
-            case .failure: showFailureIndicator()
+            case .failure(let error): showAliasFailure(error) // AGENT-PLATFORM (re-walk R8)
             }
             
         case .userProfile(let userID):
@@ -168,8 +169,15 @@ class ChatsTabFlowCoordinator: FlowCoordinatorProtocol {
             }
         case .chatBackupSettings:
             actionsSubject.send(.showChatBackupSettings)
-        case .accountProvisioningLink, .oAuthCallback, .settings, .call, .search:
+        case .catalogTemplate(let templateID, let roomID?): // AGENT-PLATFORM (decision 111)
+            stateMachine.processEvent(.selectRoom(roomID: roomID, via: [], entryPoint: .catalogTemplate(templateID)),
+                                      userInfo: .init(animated: animated))
+        case .catalogTemplate(let templateID, nil):
+            await handleCatalogLink(templateID: templateID, animated: animated)
+        case .accountProvisioningLink, .oAuthCallback, .inviteLink, .settings, .call, .search, .aiConsentSettings: // AGENT-PLATFORM: .inviteLink (Brief 0073), .aiConsentSettings (decision 150)
             break // These routes cannot be handled.
+        case .approvalDetail, .verificationDetail, .publicProfile:
+            break // AGENT-PLATFORM: handled by AgentsTabFlowCoordinator.
         }
     }
     
@@ -274,6 +282,12 @@ class ChatsTabFlowCoordinator: FlowCoordinatorProtocol {
             case (.shareExtensionRoomList, .dismissedShareExtensionRoomList, .roomList):
                 dismissRoomSelectionScreen()
                 
+            // AGENT-PLATFORM (decision 111): the share picker's shape, for a catalogue link.
+            case (.roomList(let roomListSelectedRoomID), .showCatalogRoomList, .catalogRoomList(let templateID)):
+                presentCatalogRoomSelectionScreen(templateID: templateID, clearingRoom: roomListSelectedRoomID != nil, animated: animated)
+            case (.catalogRoomList, .dismissedCatalogRoomList, .roomList):
+                dismissRoomSelectionScreen()
+                
             default:
                 fatalError("Unknown transition: \(context)")
             }
@@ -311,6 +325,7 @@ class ChatsTabFlowCoordinator: FlowCoordinatorProtocol {
             case .roomDetails: .roomDetails(roomID: roomID)
             case .eventID(let eventID): .event(eventID: eventID, roomID: roomID, via: via) // ignored.
             case .share(let payload): .share(payload)
+            case .catalogTemplate(let templateID): .catalogTemplate(templateID: templateID, roomID: roomID) // AGENT-PLATFORM (decision 111)
             case .transferOwnership: .transferOwnership(roomID: roomID)
             case .thread(let rootEventID, let focusEventID): .thread(roomID: roomID, threadRootEventID: rootEventID, focusEventID: focusEventID)
             }
@@ -341,6 +356,10 @@ class ChatsTabFlowCoordinator: FlowCoordinatorProtocol {
                     Task {
                         let roomSummaries = self.userSession.clientProxy.staticRoomSummaryProvider.roomListPublisher.value
                         await self.flowParameters.notificationManager.removeDeliveredNotificationsForFullyReadRooms(roomSummaries)
+                        // AGENT-PLATFORM: the badge follows the same truth as
+                        // the dots, so reading a room clears it here rather
+                        // than waiting for a push that may never come.
+                        await self.flowParameters.notificationManager.updateBadgeCount(with: roomSummaries)
                     }
                 default:
                     break
@@ -533,6 +552,8 @@ class ChatsTabFlowCoordinator: FlowCoordinatorProtocol {
             switch action {
             case .presentCallScreen(let roomProxy, let isVoiceCall):
                 actionsSubject.send(.showCallScreen(roomProxy: roomProxy, isVoiceCall: isVoiceCall))
+            case .presentAIConsentSettings: // AGENT-PLATFORM (decision 150)
+                actionsSubject.send(.showAIConsentSettings)
             case .verifyUser(let userID):
                 actionsSubject.send(.sessionVerification(.userInitiator(userID: userID)))
             case .continueWithSpaceFlow(let spaceRoomListProxy):
@@ -561,6 +582,8 @@ class ChatsTabFlowCoordinator: FlowCoordinatorProtocol {
             coordinator.handleAppRoute(.roomDetails(roomID: roomID), animated: animated)
         case .share(let payload):
             coordinator.handleAppRoute(.share(payload), animated: animated)
+        case .catalogTemplate(let templateID): // AGENT-PLATFORM (decision 111)
+            coordinator.handleAppRoute(.catalogTemplate(templateID: templateID, roomID: roomID), animated: animated)
         case .transferOwnership:
             coordinator.handleAppRoute(.transferOwnership(roomID: roomID), animated: animated)
         case .thread(let rootEventID, let focusEventID):
@@ -595,6 +618,8 @@ class ChatsTabFlowCoordinator: FlowCoordinatorProtocol {
                 switch action {
                 case .presentCallScreen(let roomProxy, let isVoiceCall):
                     actionsSubject.send(.showCallScreen(roomProxy: roomProxy, isVoiceCall: isVoiceCall))
+                case .presentAIConsentSettings: // AGENT-PLATFORM (decision 150)
+                    actionsSubject.send(.showAIConsentSettings)
                 case .verifyUser(let userID):
                     actionsSubject.send(.sessionVerification(.userInitiator(userID: userID)))
                 case .finished:
@@ -644,6 +669,9 @@ class ChatsTabFlowCoordinator: FlowCoordinatorProtocol {
                 case .showRoomDirectory:
                     navigationSplitCoordinator.setSheetCoordinator(nil)
                     stateMachine.processEvent(.showRoomDirectorySearchScreen)
+                case .showUserProfile(let userID): // AGENT-PLATFORM (Brief 0073).
+                    navigationSplitCoordinator.setSheetCoordinator(nil)
+                    handleAppRoute(.userProfile(userID: userID), animated: true)
                 }
             }
             .store(in: &cancellables)
@@ -817,6 +845,82 @@ class ChatsTabFlowCoordinator: FlowCoordinatorProtocol {
     
     private func dismissRoomSelectionScreen() {
         navigationSplitCoordinator.setSheetCoordinator(nil)
+    }
+    
+    // MARK: Catalogue links (AGENT-PLATFORM, decision 111)
+    
+    /// A template the catalogue has asks which chat it goes to; one it
+    /// doesn't have, or that this build can't run, says so and asks nothing.
+    private func handleCatalogLink(templateID: String, animated: Bool) async {
+        switch await SpiralAppCatalog.resolve(templateID, from: flowParameters.appSettings.interactiveCatalogURL) {
+        case .template:
+            stateMachine.processEvent(.showCatalogRoomList(templateID: templateID), userInfo: .init(animated: animated))
+        case .needsNewerApp:
+            MXLog.info("[SpiralApp] catalogue link to \(templateID) needs a newer build")
+            showLinkIndicator(title: UntranslatedL10n.screenRoomInteractivePostLinkNeedsUpdate)
+        case .unknown:
+            MXLog.info("[SpiralApp] catalogue link to \(templateID), which the catalogue doesn't list")
+            showLinkIndicator(title: UntranslatedL10n.screenRoomInteractivePostLinkNotInCatalogue)
+        case .unavailable:
+            MXLog.error("[SpiralApp] catalogue unavailable for a link to \(templateID)")
+            showFailureIndicator()
+        }
+    }
+    
+    /// As the share picker does, a chat on screen is closed first.
+    private func presentCatalogRoomSelectionScreen(templateID: String, clearingRoom: Bool, animated: Bool) {
+        Task {
+            if clearingRoom {
+                clearRoute(animated: animated)
+                try? await Task.sleep(for: .seconds(1.5))
+            }
+            presentCatalogRoomSelectionScreen(templateID: templateID, animated: animated)
+        }
+    }
+    
+    private func presentCatalogRoomSelectionScreen(templateID: String, animated: Bool) {
+        let stackCoordinator = NavigationStackCoordinator()
+        let coordinator = RoomSelectionScreenCoordinator(parameters: .init(userSession: userSession,
+                                                                           roomSummaryProvider: userSession.clientProxy.alternateRoomSummaryProvider,
+                                                                           confirmTitle: L10n.actionContinue))
+        
+        coordinator.actionsPublisher.sink { [weak self] action in
+            guard let self else { return }
+            
+            switch action {
+            case .dismiss:
+                navigationSplitCoordinator.setSheetCoordinator(nil)
+            case .confirm(let roomID):
+                navigationSplitCoordinator.setSheetCoordinator(nil)
+                stateMachine.processEvent(.selectRoom(roomID: roomID, via: [], entryPoint: .catalogTemplate(templateID)),
+                                          userInfo: .init(animated: animated))
+            }
+        }
+        .store(in: &cancellables)
+        
+        stackCoordinator.setRootCoordinator(coordinator)
+        
+        navigationSplitCoordinator.setSheetCoordinator(stackCoordinator, animated: animated) { [weak self] in
+            self?.stateMachine.processEvent(.dismissedCatalogRoomList)
+        }
+    }
+    
+    /// AGENT-PLATFORM (re-walk R8): an alias nobody holds is a dead link,
+    /// said the way a catalogue link to a gone template is; any other failure
+    /// is an error.
+    private func showAliasFailure(_ error: ClientProxyError) {
+        if case .failedResolvingRoomAlias = error {
+            showLinkIndicator(title: UntranslatedL10n.screenRoomAliasLinkNotFound)
+        } else {
+            showFailureIndicator()
+        }
+    }
+    
+    /// AGENT-PLATFORM: a link the app can't open, said in its own words.
+    private func showLinkIndicator(title: String) {
+        flowParameters.userIndicatorController.submitIndicator(UserIndicator(id: Self.failureIndicatorIdentifier,
+                                                                             type: .toast,
+                                                                             title: title))
     }
     
     // MARK: Toasts and loading indicators

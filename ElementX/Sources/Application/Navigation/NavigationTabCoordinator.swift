@@ -28,6 +28,12 @@ import SwiftUI
         let isSearch: Bool
         var badgeCount = 0
         
+        // AGENT-PLATFORM (coverage walk F3): the badge itself is not in the accessibility
+        // tree; the tab's value carries the count for VoiceOver and UI tests.
+        var badgeAccessibilityValue: String? {
+            badgeCount > 0 ? UntranslatedL10n.a11yTabBadgeCount(badgeCount) : nil
+        }
+        
         /// Provide the tab's split coordinator in here to have the tab bar automatically hidden
         /// when pushing a child into the split view's details on iPhone/compact iPad.
         weak var navigationSplitCoordinator: NavigationSplitCoordinator?
@@ -226,7 +232,8 @@ import SwiftUI
     }
     
     enum OverlayPresentationMode { case fullScreen, minimized }
-    fileprivate var overlayPresentationMode: OverlayPresentationMode = .minimized
+    // AGENT-PLATFORM: readable, so a test can see a call route return to its screen.
+    fileprivate(set) var overlayPresentationMode: OverlayPresentationMode = .minimized
     
     /// Present an overlay on top of the tab view
     /// - Parameters:
@@ -305,7 +312,18 @@ extension EnvironmentValues {
     /// when the split becomes compact, hides the rail but then has enough space to become regular and so
     /// attempts to show the rail etc.
     @Entry var tabViewHorizontalSizeClass: UserInterfaceSizeClass?
+
+    // AGENT-PLATFORM (Brief 0063, native call UI G9): whether the overlay is
+    // currently minimized. A self-minimizing overlay reads it to render its
+    // compact bar instead of being hidden entirely.
+    @Entry var isOverlayMinimized = false
 }
+
+// AGENT-PLATFORM (Brief 0063, native call UI G9): an overlay coordinator that
+// renders its own minimized representation — a call bar — instead of being
+// faded out. Hiding a native call entirely would also hide a running
+// recording, which is a disclosure regression, not a cosmetic one.
+protocol SelfMinimizingOverlayCoordinator: CoordinatorProtocol { }
 
 private struct NavigationTabCoordinatorView<Tag: Hashable>: View {
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
@@ -318,6 +336,40 @@ private struct NavigationTabCoordinatorView<Tag: Hashable>: View {
     @State private var isRailVisible = true
     
     var body: some View {
+        // AGENT-PLATFORM (Brief 0063, G9): the minimized call bar is a
+        // physical SIBLING of the app, stacked above it, so the app is
+        // literally shorter while a call is minimized.
+        //
+        // A `.safeAreaInset` here was not enough. The tabs host SwiftUI
+        // `NavigationStack`s, which are backed by `UINavigationController`s,
+        // and a navigation bar positions itself from the WINDOW's safe area —
+        // not from a SwiftUI inset applied outside it. So the app laid out
+        // below the bar while the room's own navigation bar kept drawing at
+        // the top, underneath the green (found on a device, and again after
+        // the inset "fix"). Shrinking the container is the only version of
+        // this that a nested navigation controller cannot ignore.
+        VStack(spacing: 0) {
+            minimizedOverlayBar
+
+            appContent
+        }
+    }
+
+    /// The bar a self-minimizing overlay draws for itself. Kept separate from
+    /// the app content so the two are siblings in one stack rather than one
+    /// being an inset or an overlay on the other.
+    @ViewBuilder
+    private var minimizedOverlayBar: some View {
+        if let coordinator = navigationTabCoordinator.overlayModule?.coordinator,
+           navigationTabCoordinator.overlayPresentationMode == .minimized,
+           coordinator is SelfMinimizingOverlayCoordinator {
+            coordinator.toPresentable()
+                .environment(\.isOverlayMinimized, true)
+                .transition(.move(edge: .top).combined(with: .opacity))
+        }
+    }
+
+    private var appContent: some View {
         tabView
             .environment(\.tabViewHorizontalSizeClass, horizontalSizeClass)
             .sheet(item: $navigationTabCoordinator.sheetModule) { module in
@@ -332,9 +384,16 @@ private struct NavigationTabCoordinatorView<Tag: Hashable>: View {
             .overlay {
                 Group {
                     if let coordinator = navigationTabCoordinator.overlayModule?.coordinator {
-                        coordinator.toPresentable()
-                            .opacity(navigationTabCoordinator.overlayPresentationMode == .minimized ? 0 : 1)
-                            .transition(.opacity)
+                        let isMinimized = navigationTabCoordinator.overlayPresentationMode == .minimized
+                        // The self-minimizing overlay is drawn by the sibling
+                        // bar above while minimized; a PiP-style overlay stays
+                        // mounted here invisibly so its media keeps running.
+                        if !(isMinimized && coordinator is SelfMinimizingOverlayCoordinator) {
+                            coordinator.toPresentable()
+                                .opacity(isMinimized ? 0 : 1)
+                                .environment(\.isOverlayMinimized, isMinimized)
+                                .transition(.opacity)
+                        }
                     }
                 }
                 .animation(.elementDefault, value: navigationTabCoordinator.overlayPresentationMode)
@@ -411,6 +470,7 @@ private struct NavigationTabCoordinatorView<Tag: Hashable>: View {
                     }
                 }
                 .badge(module.details.badgeCount)
+                .accessibilityValue(module.details.badgeAccessibilityValue ?? "", isEnabled: module.details.badgeAccessibilityValue != nil) // AGENT-PLATFORM (coverage walk F3)
             }
         }
         .backportTabBarMinimizeBehaviorOnScrollDown()
@@ -451,6 +511,7 @@ struct TabRailView<Tag: Hashable>: View {
                     }
                     .buttonStyle(TabButtonStyle(isSelected: isSelected))
                     .accessibilityAddTraits(isSelected ? .isSelected : [])
+                    .accessibilityValue(module.details.badgeAccessibilityValue ?? "", isEnabled: module.details.badgeAccessibilityValue != nil) // AGENT-PLATFORM (coverage walk F3)
                     .badge(10) // TODO: Check if this works.
                 }
             }

@@ -44,7 +44,51 @@ final class NotificationManager: NSObject, NotificationManagerProtocol {
                                                     actions: [],
                                                     intentIdentifiers: [],
                                                     options: [])
-        notificationCenter.setNotificationCategories([messageCategory, inviteCategory])
+
+        // AGENT-PLATFORM: an approval's push. A tap opens the card;
+        // the inline Approve / Reject run in the main app's
+        // background-launched process (no NSE, no background
+        // URLSession — see LEARNING.md L154-4 for the rationale).
+        //
+        // `.authenticationRequired`: device must be unlocked before
+        // the action body runs, even if the user has actions
+        // visible on the lock screen. The button itself shows up
+        // pre-unlock; tapping it defers execution until Face ID /
+        // passcode succeeds. Matches Element Classic's choice
+        // (`PushNotificationService.m:54`) for write-mutating
+        // actions.
+        //
+        // `.destructive`: red colour treatment for Reject only.
+        let approveAction = UNNotificationAction(identifier: NotificationConstants.Action.approvalApprove,
+                                                 title: UntranslatedL10n.actionApprovalApprove,
+                                                 options: [.authenticationRequired])
+        let rejectAction = UNNotificationAction(identifier: NotificationConstants.Action.approvalReject,
+                                                title: UntranslatedL10n.actionApprovalReject,
+                                                options: [.authenticationRequired, .destructive])
+        let approvalCategory = UNNotificationCategory(identifier: NotificationConstants.Category.approval,
+                                                      actions: [approveAction, rejectAction],
+                                                      intentIdentifiers: [],
+                                                      options: [])
+
+        // AGENT-PLATFORM: Brief 0041 C6 — the verification family was the
+        // only marker category NOT registered (tap-only by design — strict
+        // SAS forbids inline decisions, DECISIONS S157.a — but the category
+        // must still be known to the system so its default-tap routing and
+        // future thread grouping behave like its two siblings).
+        let verificationCategory = UNNotificationCategory(identifier: NotificationConstants.Category.verification,
+                                                          actions: [],
+                                                          intentIdentifiers: [],
+                                                          options: [])
+
+        // AGENT-PLATFORM: operator question 88 — a request to block someone
+        // is tap-to-review only: the card says whom it blocks before the
+        // owner decides, so the lock screen offers no Approve or Reject.
+        let blockRequestCategory = UNNotificationCategory(identifier: NotificationConstants.Category.blockRequest,
+                                                          actions: [],
+                                                          intentIdentifiers: [],
+                                                          options: [])
+
+        notificationCenter.setNotificationCategories([messageCategory, inviteCategory, approvalCategory, verificationCategory, blockRequestCategory])
         notificationCenter.delegate = self
         
         notificationsEnabled = appSettings.enableNotifications
@@ -85,7 +129,21 @@ final class NotificationManager: NSObject, NotificationManagerProtocol {
         guard let userSession else {
             return false
         }
-        return await setPusher(with: deviceToken, clientProxy: userSession.clientProxy)
+        let pusherSet = await setPusher(with: deviceToken, clientProxy: userSession.clientProxy)
+        // AGENT-PLATFORM (Brief 0043, ADR-0057): mirror the device into
+        // the Spiral push registry so the orchestrator can notify this
+        // device directly (no Matrix carrier event). Best-effort — the
+        // hub/SSE reconciles when a push is lost.
+        if pusherSet, let agentPlatformService = userSession.agentPlatformService {
+            switch await agentPlatformService.registerPushDevice(pushkey: deviceToken.base64EncodedString(),
+                                                                 appID: appSettings.pusherAppID) {
+            case .success:
+                MXLog.info("Spiral push device registered")
+            case .failure(let error):
+                MXLog.error("Spiral push device registration failed: \(error)")
+            }
+        }
+        return pusherSet
     }
     
     func setUserSession(_ userSession: UserSessionProtocol?) {
@@ -134,6 +192,37 @@ final class NotificationManager: NSObject, NotificationManagerProtocol {
             .filter { $0.request.content.roomID == roomID }
             .map(\.request.identifier)
         notificationCenter.removeDeliveredNotifications(withIdentifiers: notificationsIdentifiers)
+    }
+    
+    /// Recompute the app icon badge from what the user would actually see in
+    /// the room list.
+    ///
+    /// AGENT-PLATFORM. The badge had exactly two writers — the NSE, which
+    /// copied the homeserver's push count on every notification, and logout,
+    /// which zeroed it. Nothing recomputed it when the truth changed: reading
+    /// every room left the number sitting there until the *next* push
+    /// happened to carry a different one. Verified on a device: the server's
+    /// count for the account was 0 while the icon showed 1, and minutes
+    /// earlier it had been the reverse.
+    ///
+    /// The server's number is also not the same quantity the UI shows. In an
+    /// encrypted room the homeserver can only match the blanket "encrypted
+    /// event" push rule, so it counts events the client deliberately hides —
+    /// call notices, agent control flips, reactions — while the room list
+    /// counts only what it renders. Deriving from `RoomSummary` here means
+    /// the badge answers the same question the dots answer.
+    func updateBadgeCount(with rooms: [RoomSummary]) async {
+        let seenInvites = appSettings.seenInvites
+        let visibility = appSettings.roomListActivityVisibility
+        let count = rooms.filter { $0.needsAttention(activityVisibility: visibility, seenInvites: seenInvites) }.count
+        
+        do {
+            try await notificationCenter.setBadgeCount(count)
+        } catch {
+            // Nothing actionable: the badge simply keeps its previous value
+            // until the next recompute, which is the next sync update.
+            MXLog.warning("Failed updating the badge count: \(error)")
+        }
     }
     
     func removeDeliveredNotificationsForFullyReadRooms(_ rooms: [RoomSummary]) async {
@@ -242,6 +331,19 @@ extension NotificationManager: UNUserNotificationCenterDelegate {
             await delegate?.handleInlineReply(self,
                                               content: response.notification.request.content,
                                               replyText: response.userText)
+        // AGENT-PLATFORM: approval action taps land here, in the
+        // main app's UNUserNotificationCenterDelegate. The handler
+        // runs in the main process even when the app was suspended
+        // or not running (iOS background-launches us). See
+        // LEARNING.md L154-4 for why we don't need NSE for this.
+        case NotificationConstants.Action.approvalApprove:
+            await delegate?.handleApprovalAction(self,
+                                                 content: response.notification.request.content,
+                                                 decision: .approve)
+        case NotificationConstants.Action.approvalReject:
+            await delegate?.handleApprovalAction(self,
+                                                 content: response.notification.request.content,
+                                                 decision: .reject)
         case UNNotificationDefaultActionIdentifier:
             await delegate?.notificationTapped(content: response.notification.request.content)
         default:

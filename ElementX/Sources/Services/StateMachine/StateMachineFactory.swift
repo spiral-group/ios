@@ -14,6 +14,8 @@ protocol StateMachineFactoryProtocol {
     func makeUserSessionFlowStateMachine(state: UserSessionFlowCoordinator.State) -> StateMachine<UserSessionFlowCoordinator.State, UserSessionFlowCoordinator.Event>
     func makeChatsTabFlowStateMachine() -> ChatsTabFlowCoordinatorStateMachine
     func makeMembersFlowStateMachine(state: RoomMembersFlowCoordinator.State) -> StateMachine<RoomMembersFlowCoordinator.State, RoomMembersFlowCoordinator.Event>
+    // AGENT-PLATFORM: Agent Platform feature (Brief 0036 / ADR-0048).
+    func makeAgentToolsFlowStateMachine(state: AgentToolsFlowStateMachine.State) -> AgentToolsFlowStateMachine
 }
 
 struct StateMachineFactory: StateMachineFactoryProtocol {
@@ -26,6 +28,10 @@ struct StateMachineFactory: StateMachineFactoryProtocol {
     }
     
     func makeMembersFlowStateMachine(state: RoomMembersFlowCoordinator.State) -> StateMachine<RoomMembersFlowCoordinator.State, RoomMembersFlowCoordinator.Event> {
+        .init(state: state)
+    }
+    
+    func makeAgentToolsFlowStateMachine(state: AgentToolsFlowStateMachine.State) -> AgentToolsFlowStateMachine {
         .init(state: state)
     }
 }
@@ -62,6 +68,16 @@ class PublishedStateMachineFactory: StateMachineFactoryProtocol {
     func makeMembersFlowStateMachine(state: RoomMembersFlowCoordinator.State) -> StateMachine<RoomMembersFlowCoordinator.State, RoomMembersFlowCoordinator.Event> {
         let stateMachine = baseFactory.makeMembersFlowStateMachine(state: state)
         stateMachine.addAnyHandler(.any => .any) { [weak self] in self?.membersFlowStatePublisher.send($0.toState) }
+        return stateMachine
+    }
+    
+    // MARK: AgentToolsFlowCoordinator
+    
+    let agentToolsFlowStatePublisher = PassthroughSubject<AgentToolsFlowStateMachine.State, Never>()
+    
+    func makeAgentToolsFlowStateMachine(state: AgentToolsFlowStateMachine.State) -> AgentToolsFlowStateMachine {
+        let stateMachine = baseFactory.makeAgentToolsFlowStateMachine(state: state)
+        stateMachine.addTransitionHandler { [weak self] in self?.agentToolsFlowStatePublisher.send($0.toState) }
         return stateMachine
     }
 }

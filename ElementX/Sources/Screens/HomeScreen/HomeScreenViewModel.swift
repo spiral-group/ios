@@ -58,6 +58,16 @@ class HomeScreenViewModel: HomeScreenViewModelType, HomeScreenViewModelProtocol 
             .weakAssign(to: \.state.userProfile, on: self)
             .store(in: &cancellables)
         
+        // AGENT-PLATFORM (Brief 0072, ADR-0083): the online dot on DM rows.
+        // The service polls the DMs on screen (`updateVisibleItemRange` tells
+        // it which); a change re-derives the rows, identity by room id, so
+        // only the changed rows redraw.
+        userSession.presenceObserverService?.presencePublisher
+            .dropFirst()
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in self?.updateRooms() }
+            .store(in: &cancellables)
+        
         userSession.sessionSecurityStatePublisher
             .receive(on: DispatchQueue.main)
             .sink { [weak self] securityState in
@@ -196,6 +206,13 @@ class HomeScreenViewModel: HomeScreenViewModelType, HomeScreenViewModelProtocol 
             appSettings.hasSeenNewSoundBanner = true
         case .updateVisibleItemRange(let range):
             roomSummaryProvider?.updateVisibleRange(range)
+            // AGENT-PLATFORM (Brief 0072, ADR-0083): the DMs on screen are the
+            // ones whose presence is worth asking for.
+            let rooms = state.rooms
+            let lower = max(0, min(range.lowerBound, rooms.count))
+            let upper = max(lower, min(range.upperBound, rooms.count))
+            userSession.presenceObserverService?.setObserved(Set(rooms[lower..<upper].compactMap(\.dmUserID)),
+                                                              scope: "homeScreen")
         case .startChat:
             actionsSubject.send(.presentStartChatScreen)
         case .spaceFilters:
@@ -358,11 +375,14 @@ class HomeScreenViewModel: HomeScreenViewModelType, HomeScreenViewModelProtocol 
         
         var rooms = [HomeScreenRoom]()
         let seenInvites = appSettings.seenInvites
+        // AGENT-PLATFORM (Brief 0072, ADR-0083)
+        let presences = userSession.presenceObserverService?.presencePublisher.value ?? [:]
         
         for summary in roomSummaryProvider.roomListPublisher.value {
             let room = HomeScreenRoom(summary: summary,
                                       roomListActivityVisibility: appSettings.roomListActivityVisibility,
-                                      seenInvites: seenInvites)
+                                      seenInvites: seenInvites,
+                                      presences: presences)
             rooms.append(room)
         }
         

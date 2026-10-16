@@ -20,6 +20,8 @@ enum TimelineInteractionHandlerAction {
     
     case showActionMenu(TimelineItemActionMenuInfo)
     case showDebugInfo(TimelineItemDebugInfo)
+    case showDraftCode(InteractiveDraftCode)
+    case editInteractivePost(eventID: String, post: SpiralAppPost, title: String)
     
     case displayAudioRecorderPermissionError
     case displayErrorToast(String)
@@ -155,14 +157,15 @@ class TimelineInteractionHandler {
                 return
             }
             
-            Task {
-                guard case let .success(permalinkURL) = await roomProxy.matrixToEventPermalink(eventID) else {
-                    actionsSubject.send(.displayErrorToast(L10n.errorFailedCreatingThePermalink))
-                    return
-                }
-                
-                UIPasteboard.general.url = permalinkURL
+            // AGENT-PLATFORM (Brief 0060): spiral.md message smart link.
+            // Always room-ID based — an alias can be re-pointed, an
+            // event permalink must keep resolving.
+            guard let permalinkURL = SpiralLink(roomID: roomProxy.id, eventID: eventID)?.webURL else {
+                actionsSubject.send(.displayErrorToast(L10n.errorFailedCreatingThePermalink))
+                return
             }
+            
+            UIPasteboard.general.url = permalinkURL
         case .redact:
             break // Handled above, before the timeline item is looked up.
         case .reply:
@@ -176,6 +179,8 @@ class TimelineInteractionHandler {
             actionsSubject.send(.displayThread(itemID: eventTimelineItem.id))
         case .forward(let itemID):
             actionsSubject.send(.displayMessageForwarding(itemID: itemID))
+        case .viewDraftCode, .editInteractivePost:
+            handleInteractivePostAction(action, for: eventTimelineItem)
         case .viewSource:
             let debugInfo = timelineController.debugInfo(for: eventTimelineItem.id)
             MXLog.info("Showing debug info for \(eventTimelineItem.id)")
@@ -592,6 +597,12 @@ class TimelineInteractionHandler {
             return .init(type: .message(messageItem.contentType), isThread: messageItem.properties.isThreaded)
         case let pollItem as PollRoomTimelineItem:
             return .init(type: .poll(question: pollItem.poll.question), isThread: false)
+        // AGENT-PLATFORM (Brief 0066): the chip above the composer says what
+        // you are answering, so a post has to say it is one. The fallback
+        // below would show its title as plain text, which reads as a quote of
+        // something somebody typed.
+        case let post as InteractivePostRoomTimelineItem:
+            return .init(type: .interactivePost(title: post.body), isThread: post.properties.isThreaded)
         default:
             return .init(type: .message(.text(.init(body: item.body))), isThread: false)
         }
@@ -668,4 +679,22 @@ class TimelineInteractionHandler {
 private struct ReplyInfo {
     let type: TimelineEventContent
     let isThread: Bool
+}
+
+// AGENT-PLATFORM (Brief 0066): the Interactive Post items' own menu actions.
+extension TimelineInteractionHandler {
+    func handleInteractivePostAction(_ action: TimelineItemMenuAction, for item: EventBasedTimelineItemProtocol) {
+        switch action {
+        case .viewDraftCode:
+            if let draft = item as? InteractiveDraftRoomTimelineItem {
+                actionsSubject.send(.showDraftCode(.init(title: draft.draft.title, source: draft.draft.source)))
+            }
+        case .editInteractivePost:
+            if let post = item as? InteractivePostRoomTimelineItem, let eventID = post.id.eventID {
+                actionsSubject.send(.editInteractivePost(eventID: eventID, post: post.post, title: post.body))
+            }
+        default:
+            break
+        }
+    }
 }

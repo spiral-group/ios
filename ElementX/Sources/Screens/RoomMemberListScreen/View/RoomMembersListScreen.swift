@@ -73,8 +73,23 @@ struct RoomMembersListScreen: View {
                 LazyVStack(alignment: .leading, spacing: 0) {
                     ForEach(entries, id: \.member.id) { entry in
                         ListRow(kind: .custom {
-                            RoomMembersListScreenMemberCell(listEntry: entry, isLast: entries.last == entry, context: context)
+                            RoomMembersListScreenMemberCell(listEntry: entry,
+                                                            isLast: entries.last == entry,
+                                                            context: context,
+                                                            presence: section == .joined ? context.viewState.presences[entry.member.id] : nil)
                         })
+                        // AGENT-PLATFORM (Brief 0072, ADR-0083): a joined
+                        // member's row on screen is whose presence is asked for.
+                        .onAppear {
+                            if section == .joined {
+                                context.send(viewAction: .memberAppeared(userID: entry.member.id))
+                            }
+                        }
+                        .onDisappear {
+                            if section == .joined {
+                                context.send(viewAction: .memberDisappeared(userID: entry.member.id))
+                            }
+                        }
                     }
                 }
                 .background(.compound.bgCanvasDefaultLevel1)

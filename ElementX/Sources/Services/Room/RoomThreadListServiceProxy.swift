@@ -96,7 +96,15 @@ class RoomThreadListProxy: RoomThreadListServiceProxyProtocol {
             nil
         }
         
-        return .init(sender: sender, timestamp: timestamp, message: message)
+        // AGENT-PLATFORM (Brief 0066, § 5.56): «Yours» names a generation thread by its draft.
+        var draftTitle: String?
+        if case .msgLike(let msgLike) = threadListItemEvent.content,
+           case .message(let messageContent) = msgLike.kind,
+           case .interactiveDraft(let draft) = messageContent.msgType {
+            draftTitle = draft.title
+        }
+        
+        return .init(sender: sender, timestamp: timestamp, message: message, interactiveDraftTitle: draftTitle)
     }
 }
 

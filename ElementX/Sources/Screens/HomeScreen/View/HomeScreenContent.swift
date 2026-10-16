@@ -7,7 +7,6 @@
 //
 
 import Compound
-import SentrySwiftUI
 import SwiftUI
 
 struct HomeScreenContent: View {
@@ -17,8 +16,7 @@ struct HomeScreenContent: View {
     @State private var topSectionHeight: CGFloat = 0
     
     var body: some View {
-        roomList
-            .sentryTrace("\(Self.self)")
+        roomList // AGENT-PLATFORM (Brief 0078): no Sentry view tracing.
     }
     
     private var roomList: some View {

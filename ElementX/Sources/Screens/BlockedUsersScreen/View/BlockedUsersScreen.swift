@@ -38,6 +38,7 @@ struct BlockedUsersScreen: View {
                                            icon: avatar(for: user)),
                             details: .isWaiting(context.viewState.processingUserID == user.id),
                             kind: .button { context.send(viewAction: .unblockUser(user)) })
+                        .accessibilityIdentifier(A11yIdentifiers.blockedUsersScreen.user(user.id)) // AGENT-PLATFORM (decision 146)
                 }
             }
         }

@@ -12,16 +12,13 @@ import MatrixRustSDK
 import Testing
 
 /// Just for API sanity checking, they're already properly tested in the SDK/Ruma
+///
+/// AGENT-PLATFORM (Brief 0060 / ADR-0072): the matrix.to *generation*
+/// coverage was removed together with its last product call site — we
+/// only ever build `spiral.md` links now (`SpiralLinkTests`). Inbound
+/// matrix.to *parsing* stays covered below because the mautrix bridges
+/// keep emitting matrix.to links inside message HTML.
 struct PermalinkTests {
-    @Test
-    func userIdentifierPermalink() throws {
-        let invalidUserId = "This1sN0tV4lid!@#$%^&*()"
-        #expect(throws: (any Error).self) { try matrixToUserPermalink(userId: invalidUserId) }
-        
-        let validUserId = "@abcdefghijklmnopqrstuvwxyz1234567890._-=/:matrix.org"
-        #expect(try matrixToUserPermalink(userId: validUserId) == "https://matrix.to/#/@abcdefghijklmnopqrstuvwxyz1234567890._-=%2F:matrix.org")
-    }
-    
     @Test
     func permalinkDetection() {
         var url: URL = "https://www.matrix.org"

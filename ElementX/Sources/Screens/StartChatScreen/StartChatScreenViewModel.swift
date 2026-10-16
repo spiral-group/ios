@@ -45,6 +45,18 @@ class StartChatScreenViewModel: StartChatScreenViewModelType, StartChatScreenVie
                 state.usersSection = .init(type: .suggestions, users: suggestedUsers)
             }
         }
+        
+        // AGENT-PLATFORM (Brief 0073 / ADR-0008).
+        Task { await loadMyInvite() }
+    }
+    
+    // MARK: - Invite links (Brief 0073 / ADR-0008)
+    
+    private func loadMyInvite() async {
+        guard let service = userSession.agentPlatformService else { return }
+        if case .success(let invite) = await service.fetchMyInvite() {
+            state.myInvite = invite
+        }
     }
     
     // MARK: - Public
@@ -58,7 +70,7 @@ class StartChatScreenViewModel: StartChatScreenViewModelType, StartChatScreenVie
         case .selectUser(let user):
             showLoadingIndicator(delay: .milliseconds(200))
             
-            let currentDirectRoom = userSession.clientProxy.directRoomForUserID(user.id)
+            let currentDirectRoom = userSession.clientProxy.directRoomOrPendingInviteForUserID(user.id)
             switch currentDirectRoom {
             case .success(.some(let roomId)):
                 hideLoadingIndicator()
@@ -84,6 +96,8 @@ class StartChatScreenViewModel: StartChatScreenViewModelType, StartChatScreenVie
             joinRoomByAddress()
         case .openRoomDirectorySearch:
             actionsSubject.send(.openRoomDirectorySearch)
+        case .invitePeople:
+            actionsSubject.send(.invitePeople)
         }
     }
     
