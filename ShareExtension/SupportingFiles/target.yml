@@ -78,7 +78,7 @@ targets:
         MARKETING_VERSION: $(MARKETING_VERSION)
         CURRENT_PROJECT_VERSION: $(CURRENT_PROJECT_VERSION)
         DEVELOPMENT_TEAM: $(DEVELOPMENT_TEAM)
-        SWIFT_VERSION: 6.2
+        SWIFT_VERSION: 6
         SWIFT_APPROACHABLE_CONCURRENCY: YES
       configs:
         # AGENT-PLATFORM: Xcode compilation caching, Debug (the test
@@ -89,12 +89,17 @@ targets:
     sources:
     - path: ../Sources
     - path: ../SupportingFiles
+      # AGENT-PLATFORM (Brief 0083 L1b, decision 302): the XcodeGen manifest is
+      # not a resource; shipped, it put upstream's target names in the bundle.
+      excludes:
+        - target.yml
     - path: ../../ElementX/Sources/ShareExtension
     - path: ../../ElementX/Sources/AppHooks/AppHooks.swift
     - path: ../../ElementX/Sources/AppHooks/Hooks/TracingHook.swift
-    - path: ../../ElementX/Sources/AppHooks/Hooks/ClientBuilderHook.swift
-    - path: ../../ElementX/Sources/AppHooks/Hooks/RemoteSettingsHook.swift
-    - path: ../../Secrets/Secrets.swift
+    - path: ../../ElementX/Sources/AppHooks/Hooks/ClientFactoryHook.swift
+    # AGENT-PLATFORM (Brief 0083 L1b): no RemoteSettingsHook.swift (Element Pro's check).
+    - path: ../../ElementX/Sources/AppHooks/Hooks/UserSessionHook.swift
+    - path: ../../Components/Secrets/Secrets.swift
     - path: ../../ElementX/Sources/Application/Settings
     # AGENT-PLATFORM (Brief 0073): `AppSettings.pendingInvite` is typed
     # with these; `SpiralInviteLink` needs the `SpiralLink.serverName`
@@ -103,6 +108,9 @@ targets:
     - path: ../../ElementX/Sources/Services/AgentPlatform/SpiralInviteLink.swift
     - path: ../../ElementX/Sources/Services/AgentPlatform/PendingInvite.swift
     - path: ../../ElementX/Sources/Application/TargetConfiguration.swift
+    - path: ../../ElementX/Sources/Generated/Strings.swift
+    # AGENT-PLATFORM (App Review 5.2): NotificationTone's default label is Spiral's own string.
+    - path: ../../ElementX/Sources/Generated/Strings+Untranslated.swift
     - path: ../../ElementX/Sources/Services/AlertTones/NotificationTone.swift
     - path: ../../ElementX/Sources/Services/Keychain/KeychainController.swift
     - path: ../../ElementX/Sources/Services/Keychain/KeychainControllerProtocol.swift

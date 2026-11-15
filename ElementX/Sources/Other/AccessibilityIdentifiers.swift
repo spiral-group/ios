@@ -20,6 +20,7 @@ enum A11yIdentifiers {
     static let encryptionResetScreen = EncryptionResetScreen()
     static let encryptionResetPasswordScreen = EncryptionResetPasswordScreen()
     static let homeScreen = HomeScreen()
+    static let homeTabs = HomeTabs()
     static let loginScreen = LoginScreen()
     static let authenticationStartScreen = AuthenticationStartScreen()
     static let invitePasteSheet = InvitePasteSheet() // AGENT-PLATFORM (Brief 0073).
@@ -50,6 +51,7 @@ enum A11yIdentifiers {
     static let spacesScreen = SpacesScreen()
     static let spaceScreen = SpaceScreen()
     static let spaceAddRoomsScreen = SpaceAddRoomsScreen()
+    static let searchScreen = SearchScreen()
     static let spaceSettingsScreen = SpaceSettingsScreen()
     static let linkNewDeviceScreen = LinkNewDeviceScreen()
     // AGENT-PLATFORM (decision 146): the screens the dev-stack E2E suite drives.
@@ -62,12 +64,13 @@ enum A11yIdentifiers {
     static let deactivateAccountScreen = DeactivateAccountScreen()
     static let roomSelectionScreen = RoomSelectionScreen()
     static let interactivePostCatalogScreen = InteractivePostCatalogScreen()
+    static let mediaViewer = MediaViewer() // AGENT-PLATFORM (Brief 0083, question 398)
     static let agentSpacesScreen = AgentSpacesScreen()
     static let agentDetailScreen = AgentDetailScreen()
     static let agentUsageScreen = AgentUsageScreen()
     static let agentSheetScreen = AgentSheetScreen()
     static let agentInRoomScreen = AgentInRoomScreen()
-    static let agentCapabilitiesScreen = AgentCapabilitiesScreen()
+    static let addToolScreen = AddToolScreen()
     // AGENT-PLATFORM (decision 148): the coverage lane.
     static let notificationsHubScreen = NotificationsHubScreen()
     static let approvalDetailScreen = ApprovalDetailScreen()
@@ -141,6 +144,12 @@ enum A11yIdentifiers {
         func roomName(_ name: String) -> String {
             "\(roomNamePrefix):\(name)"
         }
+    }
+    
+    struct HomeTabs {
+        let chats = "home_tabs-chats"
+        let spaces = "home_tabs-spaces"
+        let agents = "home_tabs-agents" // AGENT-PLATFORM: the Agents tab.
     }
     
     struct InviteUsersScreen {
@@ -226,6 +235,7 @@ enum A11yIdentifiers {
         
         let messageComposer = "room-message_composer"
         let sendButton = "room-send_button"
+        let sendInfo = "room-send_info"
         
         let composerToolbar = ComposerToolbar()
         
@@ -319,13 +329,15 @@ enum A11yIdentifiers {
     }
     
     struct SettingsScreen {
-        let done = "settings-done"
         let invitePeople = "settings-invite_people" // AGENT-PLATFORM (Brief 0073).
         let security = "settings-security" // AGENT-PLATFORM (decision 187).
         let privacy = "settings-privacy" // AGENT-PLATFORM (decision 187).
         let yourData = "settings-your_data" // AGENT-PLATFORM (decision 146).
         let appearanceAndMedia = "settings-appearance_and_media" // AGENT-PLATFORM (decision 187).
         let deleteAccount = "settings-delete_account" // AGENT-PLATFORM (decision 146).
+        let account = "settings-account"
+        let addAccount = "settings-add_account"
+        let secureBackup = "settings-secure_backup"
         let notifications = "settings-notifications"
         let analytics = "settings-analytics"
         let reportBug = "settings-report_bug"
@@ -403,6 +415,11 @@ enum A11yIdentifiers {
     
     struct RoomMembersListScreen {
         let invite = "room_members_list_screen-invite"
+        
+        let roomMemberPrefix = "room_members_list_screen-member"
+        func member(_ userID: String) -> String {
+            "\(roomMemberPrefix):\(userID)"
+        }
     }
     
     struct ManageRoomMemberSheet {
@@ -418,14 +435,17 @@ enum A11yIdentifiers {
     
     struct SpaceScreen {
         let moreMenu = "space_screen-more_menu"
-        let createRoom = "space_screen-create_room"
-        let addExistingRooms = "space_screen-add_existing_rooms"
-        let viewMembers = "space_screen-view_members"
-        let settings = "space_screen-settings"
     }
     
     struct SpaceAddRoomsScreen {
         let cancel = "space_add_rooms_screen-cancel"
+    }
+    
+    struct SearchScreen {
+        let roomNamePrefix = "search_screen-room_name"
+        func roomName(_ name: String) -> String {
+            "\(roomNamePrefix):\(name)"
+        }
     }
     
     struct SpaceSettingsScreen {
@@ -483,13 +503,36 @@ enum A11yIdentifiers {
         }
     }
     
+    struct MediaViewer {
+        let info = "media_viewer-info"
+    }
+    
     struct InteractivePostCatalogScreen {
+        let yours = "interactive_catalog-yours"
+        let search = "interactive_catalog-search"
+        let noResults = "interactive_catalog-no_results"
+        let pagePosition = "interactive_catalog-page_position"
+        let introductionDone = "interactive_catalog-introduction_done"
+        let newCard = "interactive_catalog-new_card"
+        let newDots = "interactive_catalog-new_dots"
+        let facts = "interactive_catalog-facts"
         let describeNew = "interactive_catalog-describe_new"
         let currentTitle = "interactive_catalog-current_title"
         let fillIn = "interactive_catalog-fill_in"
         let publish = "interactive_catalog-publish"
+        let changeFirst = "interactive_catalog-change_first"
         let assistantNote = "interactive_catalog-assistant_note"
+        let createAgent = "interactive_catalog-create_agent"
+        let retryAgents = "interactive_catalog-retry_agents"
         let cancel = "interactive_catalog-cancel"
+
+        func card(_ templateID: String) -> String {
+            "interactive_catalog-card:\(templateID)"
+        }
+
+        func section(_ sectionID: String) -> String {
+            "interactive_catalog-section:\(sectionID)"
+        }
     }
     
     struct AgentSpacesScreen {
@@ -527,23 +570,39 @@ enum A11yIdentifiers {
     }
     
     struct AgentUsageScreen {
-        let today = "agent_usage-today"
+        let week = "agent_usage-week"
     }
     
     struct AgentSheetScreen {
         let addAgent = "agent_sheet-add_agent"
+        let addTool = "agent_sheet-add_tool"
         func agent(_ matrixUserID: String) -> String {
             "agent_sheet-agent:\(matrixUserID)"
+        }
+        
+        func agentMenu(_ matrixUserID: String) -> String {
+            "agent_sheet-agent_menu:\(matrixUserID)"
+        }
+        
+        func tool(_ id: String) -> String {
+            "agent_sheet-tool:\(id)"
+        }
+        
+        func quickAdd(_ kind: String) -> String {
+            "agent_sheet-quick_add:\(kind)"
         }
     }
     
     struct AgentInRoomScreen {
+        let openChat = "agent_in_room-open_chat"
         let addTool = "agent_in_room-add_tool"
         let remove = "agent_in_room-remove"
     }
     
-    struct AgentCapabilitiesScreen {
-        let list = "agent_capabilities-list"
+    struct AddToolScreen {
+        func kind(_ kind: String) -> String {
+            "add_tool-kind:\(kind)"
+        }
     }
     
     // MARK: AGENT-PLATFORM (decision 148): the coverage lane.

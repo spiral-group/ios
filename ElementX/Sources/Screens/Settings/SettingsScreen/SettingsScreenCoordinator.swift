@@ -11,14 +11,12 @@ import SwiftUI
 
 struct SettingsScreenCoordinatorParameters {
     let userSession: UserSessionProtocol
-    let appSettings: AppSettings
     let isBugReportServiceEnabled: Bool
     let isInSecondaryWindow: Bool
     let userIndicatorController: UserIndicatorControllerProtocol
 }
 
 enum SettingsScreenCoordinatorAction {
-    case dismiss
     case userDetails
     case userStatusEmojiPicker(EmojiPickerScreenContinuation)
     case invitePeople // AGENT-PLATFORM (Brief 0073).
@@ -50,7 +48,6 @@ final class SettingsScreenCoordinator: CoordinatorProtocol {
     
     init(parameters: SettingsScreenCoordinatorParameters) {
         viewModel = SettingsScreenViewModel(userSession: parameters.userSession,
-                                            appSettings: parameters.appSettings,
                                             isBugReportServiceEnabled: parameters.isBugReportServiceEnabled,
                                             isInSecondaryWindow: parameters.isInSecondaryWindow,
                                             userIndicatorController: parameters.userIndicatorController)
@@ -60,8 +57,7 @@ final class SettingsScreenCoordinator: CoordinatorProtocol {
                 guard let self else { return }
                 
                 switch action {
-                case .close:
-                    actionsSubject.send(.dismiss)
+                    
                 case .userDetails:
                     actionsSubject.send(.userDetails)
                 case let .userStatusEmojiPicker(continuation):

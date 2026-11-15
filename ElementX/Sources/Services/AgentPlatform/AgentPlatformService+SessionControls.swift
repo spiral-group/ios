@@ -82,20 +82,13 @@ nonisolated extension AgentPlatformService {
         }
     }
 
-    func voiceControlsCatalog(agentID: String) async -> Result<VoiceControlsCatalog, VoiceControlsError> {
+    /// ADR-0094 A.8: the voice-translation catalog for any signed-in user, independent of any agent.
+    func voiceLanguages() async -> Result<[VoiceControlsCatalogLanguage], VoiceControlsError> {
         await controlsCall {
-            let response = try await self.client.underlying.getAgentControlsCatalog(.init(path: .init(id: agentID)))
+            let response = try await self.client.underlying.getVoiceLanguages(.init())
             switch response {
             case .ok(let ok):
-                let body = try ok.body.json
-                let languages = body.voiceTranslationLanguages.map {
-                    VoiceControlsCatalogLanguage(code: $0.code, label: $0.displayName)
-                }
-                return .success(VoiceControlsCatalog(voiceTranslationLanguages: languages))
-            case .forbidden:
-                return .failure(.unavailable("forbidden"))
-            case .badRequest:
-                return .failure(.unavailable("status 400"))
+                return try .success(ok.body.json.languages.map { VoiceControlsCatalogLanguage(code: $0.code, label: $0.displayName) })
             case .unauthorized:
                 return .failure(.unauthorized)
             case .internalServerError:
@@ -108,47 +101,29 @@ nonisolated extension AgentPlatformService {
 
     // MARK: - Writes
 
+    /// An enabling write (ADR-0094 A.2): turning translation on, changing its language, «Продолжить».
     func setVoiceTranslation(sessionID: String,
                              params: VoiceTranslationParams,
                              revision: Int32) async -> Result<VoiceControlsState, VoiceControlsError> {
-        await controlsCall {
+        await enablingCall {
             let body = try Components.Schemas.SetControlRequest(params: Self.translationParamsObject(params),
                                                                 revision: revision,
                                                                 state: "enabled")
             let response = try await self.client.underlying.putSessionControl(.init(path: .init(sessionId: sessionID,
                                                                                                 control: "translation"),
                                                                                     body: .json(body)))
-            return try Self.mapSetControlResponse(response)
+            return try Self.mapSetControlResponse(response, serviceUnavailableRetryDelay: self.serviceUnavailableRetryDelay)
         }
     }
 
-    /// Wire shape of the backend's `SessionControlParams` (tagged like
-    /// `ToolParams`): `{"kind": "translation", "style": …,
-    /// "directions": [{"speaker_scope": …, "target_languages": […]}]}`.
-    /// One direction per booth (Brief 0062). The `speaker_scope` value
-    /// follows the serde form of `AudienceScope`: unit scopes are bare
-    /// strings, member scopes are `{"<scope>": {"members": […]}}`.
-    private static func translationParamsObject(_ params: VoiceTranslationParams) throws -> OpenAPIObjectContainer {
-        // `any Sendable`: the resolved swift-openapi-runtime under Swift 6.2
-        // types `unvalidatedValue` as Sendable — plain `Any` no longer compiles.
-        func scopeWire(_ booth: VoiceTranslationBooth) -> any Sendable {
-            switch booth.speakerScope {
-            case "specific_senders", "everyone_except":
-                return [booth.speakerScope: ["members": booth.speakerMembers]]
-            default:
-                return booth.speakerScope
-            }
+    /// `SessionControlParams` `kind: translation` (A.2): exactly one of `for_language` and `pocket`.
+    static func translationParamsObject(_ params: VoiceTranslationParams) throws -> OpenAPIObjectContainer {
+        switch params {
+        case .forLanguage(let language):
+            try OpenAPIObjectContainer(unvalidatedValue: ["kind": "translation", "for_language": language])
+        case .pocket(let first, let second):
+            try OpenAPIObjectContainer(unvalidatedValue: ["kind": "translation", "pocket": [first, second]])
         }
-        return try OpenAPIObjectContainer(unvalidatedValue: [
-            "kind": "translation",
-            "style": params.style,
-            "directions": params.booths.map { booth in
-                [
-                    "speaker_scope": scopeWire(booth),
-                    "target_languages": booth.targetLanguages
-                ] as [String: any Sendable]
-            }
-        ])
     }
 
     func disableVoiceTranslation(sessionID: String,
@@ -160,75 +135,8 @@ nonisolated extension AgentPlatformService {
             let response = try await self.client.underlying.putSessionControl(.init(path: .init(sessionId: sessionID,
                                                                                                 control: "translation"),
                                                                                     body: .json(body)))
-            return try Self.mapSetControlResponse(response)
+            return try Self.mapSetControlResponse(response, serviceUnavailableRetryDelay: self.serviceUnavailableRetryDelay)
         }
-    }
-
-    func clearVoiceTranslationOverride(sessionID: String) async -> Result<VoiceControlsState, VoiceControlsError> {
-        await controlsCall {
-            let response = try await self.client.underlying.deleteSessionControl(.init(path: .init(sessionId: sessionID,
-                                                                                                   control: "translation")))
-            switch response {
-            case .ok(let ok):
-                return try .success(Self.controlsState(from: ok.body.json.controls))
-            case .forbidden:
-                return .failure(.unavailable("forbidden"))
-            case .notFound:
-                return .failure(.gone)
-            case .gone:
-                return .failure(.gone)
-            case .badRequest:
-                return .failure(.unavailable("status 400"))
-            case .unauthorized:
-                return .failure(.unauthorized)
-            case .unprocessableContent:
-                return .failure(.unavailable("status 422"))
-            case .internalServerError:
-                return .failure(.unavailable("status 500"))
-            case .undocumented(statusCode: let code, _):
-                return .failure(.unavailable("status \(code)"))
-            }
-        }
-    }
-
-    func saveVoiceTranslationAsRoomDefault(sessionID: String) async -> Result<Void, VoiceControlsError> {
-        await controlsCall {
-            let response = try await self.client.underlying.postSaveAsRoomDefault(.init(path: .init(sessionId: sessionID,
-                                                                                                    control: "translation")))
-            switch response {
-            case .ok:
-                return .success(())
-            case .forbidden:
-                return .failure(.unavailable("forbidden"))
-            case .notFound, .gone:
-                return .failure(.gone)
-            case .conflict(let conflict):
-                // The promotion is refused like an arm (ADR-0088): no room
-                // under the cap, or two directions are the same tool.
-                if let refusal = Self.toolRefusal(try? conflict.body.applicationProblemJson) {
-                    return .failure(.toolRefused(refusal))
-                }
-                return .failure(.unavailable("status 409"))
-            case .unprocessableContent(let rejection):
-                let problem = try? rejection.body.applicationProblemJson
-                if let refusal = Self.toolRefusal(problem) {
-                    return .failure(.toolRefused(refusal))
-                }
-                return .failure(.rejected(problem?.detail ?? "nothing to save — no active override"))
-            case .badRequest:
-                return .failure(.unavailable("status 400"))
-            case .unauthorized:
-                return .failure(.unauthorized)
-            case .internalServerError:
-                return .failure(.unavailable("status 500"))
-            case .undocumented(statusCode: let code, _):
-                return .failure(.unavailable("status \(code)"))
-            }
-        }
-    }
-
-    private static func toolRefusal(_ problem: Components.Schemas.ProblemDetails?) -> RoomToolRefusal? {
-        problem.flatMap { RoomToolRefusal(problemType: $0._type, detail: $0.detail) }
     }
 
     // MARK: - Brief 0055: attach / end / artifact disable
@@ -236,7 +144,7 @@ nonisolated extension AgentPlatformService {
     func attachVoiceAgent(agentID: String,
                           roomID: String,
                           params: VoiceAttachParams) async -> Result<String, VoiceControlsError> {
-        await controlsCall {
+        await enablingCall {
             // WYSIWYG: the sheet's toggles are the whole truth for this
             // call, so every control is sent EXPLICITLY (translation off
             // = `disabled`, not "inherit whatever Tools say").
@@ -270,7 +178,7 @@ nonisolated extension AgentPlatformService {
                 if problem?._type == AgentPlatformError.agentPausedTypeURI {
                     return .failure(.agentPaused)
                 }
-                return .failure(.conflict)
+                return .failure(Self.recordingCovered(problem) ?? .conflict)
             case .badRequest:
                 return .failure(.rejected("bad request"))
             case .forbidden:
@@ -278,10 +186,6 @@ nonisolated extension AgentPlatformService {
             case .unauthorized:
                 return .failure(.unauthorized)
             case .unprocessableContent(let rejection):
-                // Brief 0062 — the attach 422 now also carries the
-                // booth conflict (ADR-0075 D3): surface the RFC 7807
-                // detail verbatim (it names the covering agent)
-                // instead of assuming the join-failure copy.
                 let problem = try? rejection.body.applicationProblemJson
                 let detail = problem?.detail
                     ?? "the agent could not join this room — invite it first"
@@ -291,11 +195,13 @@ nonisolated extension AgentPlatformService {
                 if problem?._type == VoiceControlsError.inviteRequiredTypeURI {
                     return .failure(.inviteRequired(detail))
                 }
-                return .failure(.rejected(Self.stripBoothConflictMarker(detail)))
+                return .failure(Self.translationRefusal(problem) ?? .rejected(detail))
             case .unsupportedMediaType:
                 return .failure(.unavailable("status 415"))
             case .internalServerError:
                 return .failure(.unavailable("status 500"))
+            case .serviceUnavailable:
+                return .failure(.serviceUnavailable(retryAfter: self.serviceUnavailableRetryDelay))
             case .undocumented(statusCode: let code, _):
                 return .failure(.unavailable("status \(code)"))
             }
@@ -334,6 +240,59 @@ nonisolated extension AgentPlatformService {
         }
     }
 
+    func voiceSessionProgress(sessionID: String) async -> Result<VoiceSessionProgress, VoiceControlsError> {
+        await controlsCall {
+            let response = try await self.client.underlying.fetchSessionHandler(.init(path: .init(sessionId: sessionID)))
+            switch response {
+            case .ok(let ok):
+                let session = try ok.body.json
+                if let reason = session.endReason ?? (session.state == "ended" ? "" : nil) {
+                    return .success(.ended(VoiceSessionEndReason(wire: reason, category: session.category)))
+                }
+                switch session.state {
+                case "active": return .success(.active)
+                case "ending": return .success(.ending)
+                default: return .success(.joining)
+                }
+            case .notFound:
+                return .failure(.gone)
+            case .forbidden:
+                return .failure(.unavailable("forbidden"))
+            case .unauthorized:
+                return .failure(.unauthorized)
+            case .badRequest:
+                return .failure(.unavailable("status 400"))
+            case .internalServerError:
+                return .failure(.unavailable("status 500"))
+            case .undocumented(statusCode: let code, _):
+                return .failure(.unavailable("status \(code)"))
+            }
+        }
+    }
+
+    func voiceJoinCheck(agentID: String, roomID: String) async -> Result<VoiceJoinCheckReason, VoiceControlsError> {
+        await controlsCall {
+            let response = try await self.client.underlying.joinCheckHandler(.init(path: .init(id: agentID),
+                                                                                   query: .init(roomId: roomID)))
+            switch response {
+            case .ok(let ok):
+                return try .success(VoiceJoinCheckReason(wire: ok.body.json.reason))
+            case .forbidden:
+                return .failure(.unavailable("forbidden"))
+            case .unauthorized:
+                return .failure(.unauthorized)
+            case .badRequest:
+                return .failure(.unavailable("status 400"))
+            case .serviceUnavailable:
+                return .failure(.unavailable("status 503"))
+            case .internalServerError:
+                return .failure(.unavailable("status 500"))
+            case .undocumented(statusCode: let code, _):
+                return .failure(.unavailable("status \(code)"))
+            }
+        }
+    }
+
     /// Turn an on/off session control on or off mid-call. Recording and
     /// summary were disable-only until Brief 0059 (stopping a recording left
     /// no way back); every switch shares this one write.
@@ -348,13 +307,14 @@ nonisolated extension AgentPlatformService {
             let response = try await self.client.underlying.putSessionControl(.init(path: .init(sessionId: sessionID,
                                                                                                 control: control.rawValue),
                                                                                     body: .json(body)))
-            return try Self.mapSetControlResponse(response)
+            return try Self.mapSetControlResponse(response, serviceUnavailableRetryDelay: self.serviceUnavailableRetryDelay)
         }
     }
 
     // MARK: - Mapping
 
-    private static func mapSetControlResponse(_ response: Operations.PutSessionControl.Output) throws -> Result<VoiceControlsState, VoiceControlsError> {
+    private static func mapSetControlResponse(_ response: Operations.PutSessionControl.Output,
+                                              serviceUnavailableRetryDelay: Duration) throws -> Result<VoiceControlsState, VoiceControlsError> {
         switch response {
         case .ok(let ok):
             return try .success(controlsState(from: ok.body.json.controls))
@@ -363,28 +323,17 @@ nonisolated extension AgentPlatformService {
         case .notFound:
             return .failure(.gone)
         case .conflict(let conflict):
-            // Brief 0062 — two DIFFERENT 409s share this status: the CAS
-            // revision conflict (widget reloads + retries) and the ADR-0075
-            // booth conflict (another agent covers a claimed speaker — the
-            // user must change the config, not retry).
-            //
-            // Told apart by the backend's stable `type` URI (audit A8-4),
-            // the same way the invite-only refusal already is. It used to be
-            // a substring search in the human `detail`, which made a copy
-            // edit on the backend able to silently turn "change your
-            // configuration" into "reload and retry".
-            let problem = try? conflict.body.applicationProblemJson
-            if problem?._type == VoiceControlsError.boothConflictTypeURI {
-                let detail = problem?.detail ?? "another agent already covers this speaker"
-                return .failure(.rejected(Self.stripBoothConflictMarker(detail)))
-            }
-            return .failure(.conflict)
+            // A recording someone else's assistant already makes (question 404); else the stale revision, the one 409
+            // a translation write has left (ADR-0094 A.2): re-read and retry.
+            return .failure(recordingCovered(try? conflict.body.applicationProblemJson) ?? .conflict)
         case .gone:
             return .failure(.gone)
         case .unprocessableContent(let rejection):
-            let detail = (try? rejection.body.applicationProblemJson.detail)
-                ?? "the request was rejected — reload and try again"
-            return .failure(.rejected(detail))
+            let problem = try? rejection.body.applicationProblemJson
+            let detail = problem?.detail ?? "the request was rejected — reload and try again"
+            return .failure(translationRefusal(problem) ?? .rejected(detail))
+        case .serviceUnavailable:
+            return .failure(.serviceUnavailable(retryAfter: serviceUnavailableRetryDelay))
         case .badRequest:
             return .failure(.unavailable("status 400"))
         case .unauthorized:
@@ -398,27 +347,35 @@ nonisolated extension AgentPlatformService {
         }
     }
 
-    /// The backend's booth-conflict detail is
-    /// `…: [booth-conflict agent=…] <human copy>` — show only the
-    /// human copy (the marker is a wire discriminator, not UI text).
-    private static func stripBoothConflictMarker(_ detail: String) -> String {
-        guard let markerRange = detail.range(of: "[booth-conflict") else { return detail }
-        let tail = detail[markerRange.lowerBound...]
-        guard let close = tail.range(of: "] ") else { return detail }
-        return String(tail[close.upperBound...])
+    /// The two typed 422s of an enabling translation write (ADR-0094 A.2); nil for any other.
+    private static func translationRefusal(_ problem: Components.Schemas.ProblemDetails?) -> VoiceControlsError? {
+        switch problem?._type {
+        case VoiceControlsError.translationPausedTypeURI:
+            .translationPaused(.init(reason: .init(wire: problem?.reason), pauseUntil: problem?.pauseUntil))
+        case VoiceControlsError.intentUnavailableTypeURI:
+            .intentUnavailable(roomKind: problem?.roomKind ?? "unknown")
+        default:
+            nil
+        }
+    }
+
+    /// `409 /errors/recording-covered` (question 404), by its type alone: either name may be null; nil for any other 409.
+    private static func recordingCovered(_ problem: Components.Schemas.ProblemDetails?) -> VoiceControlsError? {
+        guard problem?._type == VoiceControlsError.recordingCoveredTypeURI else { return nil }
+        return .recordingCovered(VoiceRecordingCover(agentMxid: problem?.recordingAgent, ownerMxid: problem?.recordingOwner))
     }
 
     private static func controlsState(from response: Components.Schemas.SessionControlsResponse) -> VoiceControlsState {
-        // Brief 0062 — pass the booth list through verbatim; the panel
-        // edits exactly what the engine runs.
-        let booths = response.effective.booths.map {
-            VoiceTranslationBooth(speakerScope: $0.speakerScope,
-                                  speakerMembers: $0.speakerMembers,
-                                  targetLanguages: $0.targetLanguages)
-        }
-        let effective = VoiceControlsEffective(source: response.effective.source,
-                                               style: response.effective.style,
-                                               booths: booths)
+        let view = response.effective
+        let effective = VoiceControlsEffective(source: view.source,
+                                               style: view.style,
+                                               forLanguage: view.forLanguage,
+                                               pocket: view.pocket,
+                                               lanes: view.lanes.compactMap { VoiceTranslationLane(speaker: $0.speaker, input: $0.input, language: $0.language) },
+                                               isStandby: view.standby,
+                                               stoppedReason: view.stoppedReason.map(VoiceTranslationStopReason.init(wire:)),
+                                               isSyncing: view.syncing,
+                                               pause: .init(paused: view.paused, pauseUntil: view.pauseUntil))
         let override = response.overrides
             .first { $0.control == "translation" }
             .map { VoiceControlsOverride(state: $0.state, revision: $0.revision) }
@@ -441,8 +398,17 @@ nonisolated extension AgentPlatformService {
                                   artifacts: artifacts,
                                   conversation: VoiceConversationState(active: response.conversation.active,
                                                                        available: response.conversation.available,
-                                                                       revision: response.conversation.revision),
-                                  canSaveAsRoomDefault: response.canSaveAsRoomDefault)
+                                                                       revision: response.conversation.revision))
+    }
+
+    /// An enabling write (ADR-0094 A.2): a 503 means the call's participants couldn't be read and nothing was
+    /// written, so the same request goes once more after `Retry-After`. The caller keeps its spinner meanwhile.
+    private func enablingCall<Value>(_ operation: () async throws -> Result<Value, VoiceControlsError>) async -> Result<Value, VoiceControlsError> {
+        let first = await controlsCall(operation)
+        guard case .failure(.serviceUnavailable(let retryAfter)) = first else { return first }
+        MXLog.info("Voice translation write: participants unreadable, retrying once after \(retryAfter)")
+        try? await Task.sleep(for: retryAfter)
+        return await controlsCall(operation)
     }
 
     /// Same stale-MAS-token retry as `withUnauthorizedRetry` — a 401 gets

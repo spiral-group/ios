@@ -27,7 +27,8 @@ class LanguagePickerScreenViewModel: LanguagePickerScreenViewModelType, Language
 
     init(languages: [AgentLanguage], selectedCode: String) {
         super.init(initialViewState: LanguagePickerScreenViewState(languages: languages,
-                                                                   selectedCode: selectedCode))
+                                                                   selectedCode: selectedCode,
+                                                                   keyboardLanguages: SuggestedLanguages.keyboardLanguages))
     }
 
     override func process(viewAction: LanguagePickerScreenViewAction) {

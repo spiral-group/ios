@@ -27,6 +27,11 @@ import Foundation
 nonisolated struct NativeCallDerivationInputs: Equatable {
     /// MatrixRTC memberships — the roster's source of truth.
     var memberships: [MatrixRTCParticipant] = []
+    /// Identities whose call membership ended during this call while their media is still on the SFU (bug S2):
+    /// a kicked assistant's runtime takes a moment to hang up. Folded in by `departedIdentities(previous:inputs:)`.
+    var departedIdentities: Set<String> = []
+    /// The person on a group's stage (question 383), whose camera deserves the top layer.
+    var stagedUserID: String?
     /// Identities whose media key arrived (E2EE readiness).
     var identitiesWithKeys: Set<String> = []
     /// Identities whose frames stopped decrypting AFTER a key arrived —
@@ -62,7 +67,7 @@ nonisolated struct NativeCallDerivationInputs: Equatable {
     /// Agent MXIDs from the room's member hints (live, not a snapshot).
     var serviceMembers: Set<String> = []
     /// The user's personal listening switch (client-only, per call).
-    var listeningChoice: NativeCallListeningChoice = .translation
+    var listeningChoice: NativeCallListeningChoice = .original
     /// Brief 0066 rev. 2 — the one piece of HISTORY the ducking rule
     /// needs: simultaneous lanes that have aired on this device. A covered
     /// speaker with a lane in here, no lane airing and their voice on the
@@ -70,7 +75,79 @@ nonisolated struct NativeCallDerivationInputs: Equatable {
     /// The session maintains it through `NativeCallStateDerivation.lanesSeenLive`
     /// on every input write; the derivation itself stays pure.
     var lanesSeenLive: Set<NativeCallLaneKey> = []
+    /// The other piece of history (2026-11-12): how long each covered speaker has spoken in this coverage while none of
+    /// their lanes into it has aired here. Folded in by the session through `NativeCallStateDerivation.unairedCoverage`.
+    var unairedCoverage: [NativeCallCoverageKey: NativeCallUnairedCoverage] = [:]
     var isRoomEncrypted = false
+}
+
+/// One coverage: `speaker` heard in translation into `language`. A new language, or coverage that ends and comes back,
+/// is a new key, so its speech is counted from zero.
+nonisolated struct NativeCallCoverageKey: Hashable {
+    let speaker: String
+    let language: String
+}
+
+/// Static ducking's release (operator, 2026-11-12): a covered speaker none of whose lanes into your language has ever
+/// aired here is heard in full once they've spoken `releaseSpeech` within the coverage. Their declared language is wrong
+/// (a Russian UI, Ukrainian speech: the lane into Ukrainian exists, the model stays silent), so ducking them would leave
+/// nothing in their place. Speech, not wall time: a long pause releases nobody. Sticky until a lane of theirs airs; from
+/// then on ducking is as before and the falter rule applies. Not a failure: no UI says it.
+nonisolated struct NativeCallUnairedCoverage: Equatable {
+    /// A real foreign speaker's lane airs within about 2.5 s of their first word.
+    static let releaseSpeech: TimeInterval = 4
+    /// A lane airs for them only within this long of their own speech: an agent voicing someone else while their lane
+    /// sits published unmuted isn't their translation.
+    static let airingAfterSpeech: TimeInterval = 6
+    /// …and only once it has aired this long: the runtime publishes a lane unmuted for a beat before muting it.
+    static let airingMinimum: TimeInterval = 0.5
+
+    /// Speech in spans already ended.
+    private(set) var spoken: TimeInterval = 0
+    /// The start of the span going on now.
+    private(set) var speakingSince: Date?
+    private(set) var lastSpokeAt: Date?
+    /// Their lane's airing, counted as their speech is.
+    private(set) var aired: TimeInterval = 0
+    private(set) var airingSince: Date?
+    private(set) var hasAired = false
+    private(set) var isReleased = false
+
+    /// `isAiring`: a lane of theirs into this language unmuted with its agent speaking, in this look.
+    mutating func update(isSpeaking: Bool, isAiring: Bool, now: Date) {
+        guard !hasAired else { return }
+        if isSpeaking {
+            lastSpokeAt = now
+        }
+        let isTheirs = isAiring && lastSpokeAt.map { now.timeIntervalSince($0) <= Self.airingAfterSpeech } == true
+        if isTheirs {
+            airingSince = airingSince ?? now
+        } else if let since = airingSince {
+            aired += now.timeIntervalSince(since)
+            airingSince = nil
+        }
+        if aired + (airingSince.map { now.timeIntervalSince($0) } ?? 0) >= Self.airingMinimum {
+            hasAired = true
+            isReleased = false
+            speakingSince = nil
+            return
+        }
+        if let since = speakingSince, !isSpeaking {
+            spoken += now.timeIntervalSince(since)
+            speakingSince = nil
+        } else if speakingSince == nil, isSpeaking {
+            speakingSince = now
+        }
+        if spoken + (speakingSince.map { now.timeIntervalSince($0) } ?? 0) >= Self.releaseSpeech {
+            isReleased = true
+        }
+    }
+
+    /// When a speaker still talking crosses the threshold: the session looks again then.
+    var releaseDate: Date? {
+        guard !hasAired, !isReleased, let speakingSince else { return nil }
+        return speakingSince.addingTimeInterval(Self.releaseSpeech - spoken)
+    }
 }
 
 /// One simultaneous lane, `lt:<language>:<speaker>` published by an agent,
@@ -111,18 +188,25 @@ nonisolated struct NativeCallSubscriptionPlan: Equatable {
     /// — kept moving. Found on a device, 2026-08-21.
     let publications: Set<NativeCallTrackKey>
     let channel: NativeCallListeningChannel
-    /// Publications the agent's own state document no longer claims. They
-    /// are never subscribed: a stale lane is either audible nonsense or, in
-    /// `.everything`, a second voice over the raw microphone.
+    /// Translation publications their publisher's own state document doesn't
+    /// list (ADR-0094 A.6): a stale lane, or a name anyone can publish. They
+    /// are never subscribed: a stale lane is either audible nonsense or, in a
+    /// listened language, a second voice over the raw microphone, and a
+    /// forged one would be heard as someone's translation.
     let staleTranslationTracks: Set<NativeCallTrackKey>
     /// Brief 0066 rev. 2 — speakers this device hears in translation
     /// (covered by a live Live-style claim) minus those whose translation
-    /// has faltered: exactly whose raw microphones are quiet right now.
+    /// has faltered, and minus those none of whose lanes aired after 4 s of
+    /// their speech (2026-11-12): exactly whose raw microphones are quiet
+    /// right now.
     let duckedSpeakers: Set<String>
     /// Identities whose video this device wants to receive. Video is
     /// expensive, so it is subscribed for what is actually on screen — in a
     /// 1:1 that is simply every authorized peer.
     let visibleVideoIdentities: Set<String>
+    /// The staged person's devices in a group (question 383): the top layer for them, the lowest for the strip.
+    /// Empty without a stage, and the quality follows the number of videos instead.
+    let stagedVideoIdentities: Set<String>
     let userIDByIdentity: [String: String]
     let ownUserID: String
 
@@ -155,7 +239,7 @@ nonisolated struct NativeCallSubscriptionPlan: Equatable {
     /// asked for the voices) and for consecutive (nobody is covered).
     var originalDucking: NativeCallOriginalDucking {
         var identitiesBySpeaker: [String: Set<String>] = [:]
-        for (identity, userID) in userIDByIdentity where channel == .everything && duckedSpeakers.contains(userID) {
+        for (identity, userID) in userIDByIdentity where channel.language != nil && duckedSpeakers.contains(userID) {
             identitiesBySpeaker[userID, default: []].insert(identity)
         }
         return NativeCallOriginalDucking(floor: NativeCallListening.originalGain, identitiesBySpeaker: identitiesBySpeaker)
@@ -262,7 +346,8 @@ nonisolated enum NativeCallStateDerivation {
     /// The whole derived state, in four named passes. Each pass is a pure
     /// function of the inputs plus the previous pass's result, so a reader
     /// can follow one concern at a time and the compiler keeps them honest.
-    static func derive(_ inputs: NativeCallDerivationInputs) -> NativeCallDerivedState {
+    static func derive(_ allInputs: NativeCallDerivationInputs) -> NativeCallDerivedState {
+        let inputs = withoutDeparted(allInputs)
         let membershipsByIdentity = Dictionary(inputs.memberships.map { ($0.identity, $0) }) { _, latest in latest }
         let ownUserID = membershipsByIdentity[inputs.ownIdentity]?.userID
             ?? userID(fromIdentity: inputs.ownIdentity)
@@ -297,9 +382,15 @@ nonisolated enum NativeCallStateDerivation {
                                         translatedSpeakers: Set(listening.translatedSpeakers.keys))
         // Presence reads who is AUTHORIZED, not who is subscribed: a call we
         // hold still has its people in it.
-        let presence = derivePresence(inputs,
+        // Presence reads the departed's media too, as before bug S2: a call
+        // membership can blip (a spuriously fired delayed leave, re-published
+        // a moment later), and that must not end a call whose peer is still
+        // talking on the SFU.
+        let presence = derivePresence(allInputs,
                                       membershipsByIdentity: membershipsByIdentity,
-                                      agentUserIDs: agentUserIDs,
+                                      agentUserIDs: allInputs.departedIdentities.isEmpty
+                                          ? agentUserIDs
+                                          : Self.agentUserIDs(allInputs, membershipsByIdentity: membershipsByIdentity, ownUserID: ownUserID),
                                       authorized: authorized,
                                       ownUserID: ownUserID)
         let videoTiles = deriveVideoTiles(inputs, participants: participants)
@@ -323,6 +414,16 @@ nonisolated enum NativeCallStateDerivation {
     }
 
     // MARK: - Passes
+
+    /// Bug S2: someone whose call membership ended is out of the call at once, though their client takes a
+    /// moment to leave the SFU. Every pass but presence reads the remaining media only.
+    private static func withoutDeparted(_ inputs: NativeCallDerivationInputs) -> NativeCallDerivationInputs {
+        guard !inputs.departedIdentities.isEmpty else { return inputs }
+        var inputs = inputs
+        inputs.transportParticipants.removeAll { inputs.departedIdentities.contains($0.identity) }
+        inputs.transportTracks.removeAll { inputs.departedIdentities.contains($0.identity) }
+        return inputs
+    }
 
     /// The union of the room's service members, every member the call
     /// scope's agent rule names (`NativeCallConfiguration.isAgent`) and
@@ -352,49 +453,37 @@ nonisolated enum NativeCallStateDerivation {
 
     /// What the call's agents actually produce right now.
     ///
-    /// The agent's `spiral.agent.state` document (ADR-0071 D8, the same
-    /// contract the Element Call fork reads) is the canonical live
-    /// translation truth — every device sees it, it changes with every
-    /// applied reconfigure, and it leaves with the agent. It WINS over the
-    /// track snapshot per publishing agent: a publication the document does
-    /// not claim is STALE (the lane ended, the SFU has not torn the track
-    /// down yet). Staleness is resolved ONCE, here, and every later pass
-    /// reads the survivors — applying the document to the picker alone left
-    /// a disabled lane subscribed and audible over the raw microphone.
+    /// The agent's `spiral.agent.state` document (ADR-0071 D8, ADR-0094 A.6)
+    /// is the canonical live translation truth — every device sees it, it
+    /// changes with every applied reconfigure, and it leaves with the agent.
+    /// A translation publication is trusted only when the publisher's own
+    /// document lists its lane `(speaker, voice, language)`: a track name
+    /// proves nothing (anyone in the call can publish `lt:uk:@victim` and be
+    /// heard as the victim's translation), and a lane its document drops is
+    /// stale (the SFU has not torn the track down yet). A lane its agent
+    /// hasn't listed yet is simply not playable yet. Resolved ONCE, here, and
+    /// every later pass reads the survivors.
     private static func deriveTranslation(_ inputs: NativeCallDerivationInputs) -> Translation {
-        var intent = [String: [String]]()
+        var claims = [String: SpiralAgentStateReader.TranslationClaim]()
         for participant in inputs.transportParticipants {
-            if let languages = SpiralAgentStateReader.translationLanguages(attributes: participant.attributes) {
-                intent[participant.identity] = languages
+            if let claim = SpiralAgentStateReader.agentClaim(attributes: participant.attributes) {
+                claims[participant.identity] = claim.translation
             }
         }
-        let audioTracks = inputs.transportTracks.filter { $0.kind == .audio }
-        let staleTracks = Set(audioTracks.filter { track in
-            guard let languages = intent[track.identity],
-                  let language = NativeCallListening.translationLanguage(trackName: track.name) else { return false }
-            return !languages.contains(language)
-        }.map { NativeCallTrackKey(identity: $0.identity, trackID: $0.trackID, name: $0.name) })
-        // Both sides are already base tags (the reader and the track-name
-        // parser normalise on the way in), so this is a like-for-like
-        // comparison — an `en-US` claim no longer mutes an `lt:en:` lane.
-        let liveTracks = audioTracks.filter { track in
-            !staleTracks.contains(.init(identity: track.identity, trackID: track.trackID, name: track.name))
+        func key(_ track: NativeCallTransportTrack) -> NativeCallTrackKey {
+            NativeCallTrackKey(identity: track.identity, trackID: track.trackID, name: track.name)
         }
-        // A publisher with no valid document keeps its tracks as the truth: a
-        // human, or an agent whose document did not land. The runtime
-        // publishes it through LiveKit's server API before any track, but
-        // fail-soft (`publish_agent_state_attributes`: no API key, or a
-        // failed call, skips it and the audio goes on), so an agent's lanes
-        // can be live with no document.
-        let undocumentedTrackNames = liveTracks
-            .filter { intent[$0.identity] == nil }
-            .map(\.name)
-        let produced = Set(intent.values.joined())
-            .union(NativeCallListening.producedLanguages(trackNames: undocumentedTrackNames))
+        let audioTracks = inputs.transportTracks.filter { $0.kind == .audio }
+        let unlistedTracks = Set(audioTracks.filter { track in
+            NativeCallListening.isTranslationTrack(trackName: track.name)
+                && !NativeCallListening.isListed(trackName: track.name, in: claims[track.identity])
+        }.map(key))
+        let liveTracks = audioTracks.filter { !unlistedTracks.contains(key($0)) }
+        let intent = claims.mapValues(\.producedLanguages)
 
-        return Translation(staleTracks: staleTracks,
+        return Translation(staleTracks: unlistedTracks,
                            liveTracks: liveTracks,
-                           producedLanguages: produced.sorted(),
+                           producedLanguages: Set(intent.values.joined()).sorted(),
                            claimedLanguagesByIdentity: intent)
     }
 
@@ -437,7 +526,7 @@ nonisolated enum NativeCallStateDerivation {
         listening.producedLanguages = translation.producedLanguages
         listening.channel = NativeCallListening.channel(choice: inputs.listeningChoice,
                                                         producedLanguages: translation.producedLanguages)
-        guard listening.channel == .everything else { return listening }
+        guard let language = listening.channel.language else { return listening }
 
         // Who this device hears in translation is what the documents CLAIM,
         // not which lanes flow: the claim reaches every device the moment
@@ -445,12 +534,12 @@ nonisolated enum NativeCallStateDerivation {
         // voiced frame. Only remote humans can be covered — an `anyone`
         // booth names the agents too, and the local user is nobody's remote
         // microphone.
-        let remoteHumans = Set(inputs.memberships.map(\.userID)
-            + inputs.transportParticipants.map { membershipsByIdentity[$0.identity]?.userID ?? userID(fromIdentity: $0.identity) })
-            .subtracting(agentUserIDs)
-            .subtracting([ownUserID])
-        listening.translatedSpeakers = NativeCallListening.translatedSpeakers(speakers: remoteHumans,
-                                                                              claims: claims.documents.values)
+        listening.translatedSpeakers = coveredSpeakers(inputs,
+                                                       claims: claims,
+                                                       membershipsByIdentity: membershipsByIdentity,
+                                                       agentUserIDs: agentUserIDs,
+                                                       ownUserID: ownUserID,
+                                                       language: language)
 
         // Fail audible: a covered speaker who is on the air with no lane of
         // theirs airing, though one has aired on this device before (the
@@ -467,7 +556,62 @@ nonisolated enum NativeCallStateDerivation {
         listening.falteredAgents = Set(faltered.map { lane in
             membershipsByIdentity[lane.agentIdentity]?.userID ?? userID(fromIdentity: lane.agentIdentity)
         })
+        // Never aired after `releaseSpeech` of their speech: heard in full, and nothing says so (2026-11-12).
+        listening.unairedSpeakers = Set(listening.translatedSpeakers.filter { speaker, language in
+            inputs.unairedCoverage[.init(speaker: speaker, language: language)]?.isReleased == true
+        }.keys)
         return listening
+    }
+
+    private static func coveredSpeakers(_ inputs: NativeCallDerivationInputs,
+                                        claims: NativeCallAgentClaims,
+                                        membershipsByIdentity: [String: MatrixRTCParticipant],
+                                        agentUserIDs: Set<String>,
+                                        ownUserID: String,
+                                        language: String) -> [String: String] {
+        let remoteHumans = Set(inputs.memberships.map(\.userID)
+            + inputs.transportParticipants.map { membershipsByIdentity[$0.identity]?.userID ?? userID(fromIdentity: $0.identity) })
+            .subtracting(agentUserIDs)
+            .subtracting([ownUserID])
+        return NativeCallListening.translatedSpeakers(speakers: remoteHumans, claims: claims.documents.values, language: language)
+    }
+
+    /// The speech memory the session carries between input writes, beside `lanesSeenLive` (run after it, on the same
+    /// pending inputs): an entry per coverage this device hears, its speaker's own speaking signal counted while none of
+    /// their lanes into it has aired here. A coverage that ends is forgotten, so one that comes back starts from zero.
+    static func unairedCoverage(previous: [NativeCallCoverageKey: NativeCallUnairedCoverage],
+                                inputs allInputs: NativeCallDerivationInputs,
+                                now: Date) -> [NativeCallCoverageKey: NativeCallUnairedCoverage] {
+        let inputs = withoutDeparted(allInputs)
+        let translation = deriveTranslation(inputs)
+        guard let language = NativeCallListening.channel(choice: inputs.listeningChoice,
+                                                         producedLanguages: translation.producedLanguages).language else { return [:] }
+        let membershipsByIdentity = Dictionary(inputs.memberships.map { ($0.identity, $0) }) { _, latest in latest }
+        let ownUserID = membershipsByIdentity[inputs.ownIdentity]?.userID ?? userID(fromIdentity: inputs.ownIdentity)
+        let covered = coveredSpeakers(inputs,
+                                      claims: deriveAgentClaims(inputs, membershipsByIdentity: membershipsByIdentity),
+                                      membershipsByIdentity: membershipsByIdentity,
+                                      agentUserIDs: agentUserIDs(inputs, membershipsByIdentity: membershipsByIdentity, ownUserID: ownUserID),
+                                      ownUserID: ownUserID,
+                                      language: language)
+        let speaking = Set(inputs.transportParticipants.filter(\.isSpeaking).map {
+            membershipsByIdentity[$0.identity]?.userID ?? userID(fromIdentity: $0.identity)
+        })
+        // Airing as the lane memory joins it — unmuted, its agent audibly speaking — and then judged against the
+        // speaker's own speech by `NativeCallUnairedCoverage`.
+        let speakingAgents = Set(inputs.transportParticipants.filter(\.isSpeaking).map(\.identity))
+        let aired = Set(airingLanes(translation.liveTracks)
+            .filter { speakingAgents.contains($0.agentIdentity) }
+            .map { NativeCallCoverageKey(speaker: $0.speaker, language: $0.language) })
+
+        var next: [NativeCallCoverageKey: NativeCallUnairedCoverage] = [:]
+        for (speaker, language) in covered {
+            let key = NativeCallCoverageKey(speaker: speaker, language: language)
+            var coverage = previous[key] ?? NativeCallUnairedCoverage()
+            coverage.update(isSpeaking: speaking.contains(speaker), isAiring: aired.contains(key), now: now)
+            next[key] = coverage
+        }
+        return next
     }
 
     /// Simultaneous lanes this device is receiving right now: subscribed,
@@ -480,6 +624,18 @@ nonisolated enum NativeCallStateDerivation {
                       let speaker = NativeCallListening.translationSpeaker(trackName: track.name) else { return nil }
                 return NativeCallLaneKey(agentIdentity: track.identity, language: language, speaker: speaker)
             })
+    }
+
+    /// Bug S2: the identities whose call membership ended while their media lingers on the SFU. The SDK counts
+    /// only joined members of the room, so a kick takes the assistant's membership out at once; its LiveKit
+    /// participant stays until its runtime hangs up, and an agent kind on the SFU is otherwise shown before its
+    /// membership arrives. A membership that comes back, or media that leaves the SFU, ends the entry.
+    static func departedIdentities(previous: NativeCallDerivationInputs,
+                                   inputs: NativeCallDerivationInputs) -> Set<String> {
+        let current = Set(inputs.memberships.map(\.identity))
+        let ended = Set(previous.memberships.map(\.identity)).subtracting(current)
+        let onTransport = Set(inputs.transportParticipants.map(\.identity))
+        return previous.departedIdentities.union(ended).subtracting(current).intersection(onTransport)
     }
 
     /// The lane memory the session carries between input writes (see
@@ -512,7 +668,7 @@ nonisolated enum NativeCallStateDerivation {
 
         var memory = previous.filter { lane in
             guard participantsByIdentity[lane.agentIdentity] != nil,
-                  claimedLanguages[lane.agentIdentity]?.contains(lane.language) ?? true else { return false }
+                  claimedLanguages[lane.agentIdentity]?.contains(lane.language) == true else { return false }
             let trackName = "\(NativeCallListening.translationTrackPrefix)\(lane.language):\(lane.speaker)"
             let isUnsubscribedHere = unsubscribed.contains { $0.identity == lane.agentIdentity && $0.name == trackName }
             guard !isUnsubscribedHere else { return false }
@@ -568,8 +724,13 @@ nonisolated enum NativeCallStateDerivation {
                                           publications: publications,
                                           channel: listening.channel,
                                           staleTranslationTracks: translation.staleTracks,
-                                          duckedSpeakers: Set(listening.translatedSpeakers.keys).subtracting(listening.falteredSpeakers),
+                                          duckedSpeakers: Set(listening.translatedSpeakers.keys)
+                                              .subtracting(listening.falteredSpeakers)
+                                              .subtracting(listening.unairedSpeakers),
                                           visibleVideoIdentities: visibleVideoIdentities,
+                                          stagedVideoIdentities: inputs.stagedUserID.map { staged in
+                                              visibleVideoIdentities.filter { userIDByIdentity[$0] == staged }
+                                          } ?? [],
                                           userIDByIdentity: userIDByIdentity,
                                           ownUserID: ownUserID)
     }

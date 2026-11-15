@@ -7,6 +7,7 @@
 //
 
 import Compound
+import SpiralTokens // AGENT-PLATFORM (Brief 0083)
 import SwiftUI
 
 struct JoinRoomScreen: View {
@@ -320,7 +321,7 @@ private struct InviterView: View {
             LoadableAvatarImage(url: shouldHideAvatar ? nil : inviter.avatarURL,
                                 name: inviter.displayName,
                                 contentID: inviter.id,
-                                avatarSize: .custom(52),
+                                avatarSize: .custom(SpiralAvatarSize.medium), // AGENT-PLATFORM (Brief 0083, decision 300b)
                                 mediaProvider: mediaProvider)
                 .accessibilityHidden(true)
             
@@ -404,8 +405,6 @@ struct JoinRoomScreenPreviewWrapper: Identifiable {
         self.isSpace = isSpace
         self.customPreviewName = customPreviewName
         
-        let appSettings = AppSettings.volatile()
-        
         let clientProxy = ClientProxyMock(.init(hideInviteAvatars: hideInviteAvatars))
         clientProxy.canJoinRoomWithReturnValue = canJoinRoom
         
@@ -457,7 +456,6 @@ struct JoinRoomScreenPreviewWrapper: Identifiable {
         }
         
         viewModel = JoinRoomScreenViewModel(source: source,
-                                            appSettings: appSettings,
                                             userSession: UserSessionMock(.init(clientProxy: clientProxy)),
                                             userIndicatorController: UserIndicatorControllerMock())
     }

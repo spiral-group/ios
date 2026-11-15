@@ -24,8 +24,10 @@ struct VoiceMessageRecordingButton: View {
     private let impactFeedbackGenerator = UIImpactFeedbackGenerator()
     
     private var recordIconColour: Color {
-        guard isEnabled else { return .compound.iconDisabled }
-        return Compound.supportsGlass ? .compound.iconPrimary : .compound.iconSecondary
+        guard isEnabled else { return .compound.textDisabled } // AGENT-PLATFORM: Spiral's iconDisabled is #E5E5EA in light mode
+        // AGENT-PLATFORM (Brief 0083): grey inside the field, as Messages draws it, and on glass what the placeholder is:
+        // the picture's blue leaves the icon's grey at 2.87:1.
+        return Compound.supportsGlass ? SpiralComposerMetrics.chatPlaceholder : .compound.iconSecondary
     }
     
     var body: some View {
@@ -39,19 +41,21 @@ struct VoiceMessageRecordingButton: View {
             }
         } label: {
             switch mode {
+            // AGENT-PLATFORM (Brief 0083): the field's action, inside its trailing end. The microphone is a glyph without
+            // a disc, and stop a white square on red as a recording's control is in iOS. They were 44 pt glass discs.
             case .idle:
-                CompoundIcon(Compound.supportsGlass ? \.micOnSolid : \.micOn,
-                             size: .medium,
-                             relativeTo: .compound.headingLG)
-                    .foregroundColor(recordIconColour)
-                    .scaledPadding(Compound.supportsGlass ? 10 : 6, relativeTo: .compound.headingLG)
-            case .recording:
-                CompoundIcon(\.stopSolid,
+                CompoundIcon(\.micOn,
                              size: Compound.supportsGlass ? .medium : .small,
                              relativeTo: .compound.headingLG)
+                    .foregroundColor(recordIconColour)
+                    .spiralComposerAction()
+            case .recording:
+                CompoundIcon(\.stopSolid,
+                             size: .small,
+                             relativeTo: .compound.headingLG)
                     .foregroundColor(.compound.iconOnSolidPrimary)
-                    .scaledPadding(Compound.supportsGlass ? 10 : 8, relativeTo: .compound.headingLG)
-                    .background(.compound.bgActionPrimaryRest, in: .circle)
+                    .spiralComposerAction()
+                    .background(.compound.bgCriticalPrimary, in: .circle)
                     .compositingGroup()
             }
         }
@@ -60,24 +64,11 @@ struct VoiceMessageRecordingButton: View {
     }
 }
 
+// AGENT-PLATFORM (Brief 0083): the field's glass is the button's surface, so it has none of its own.
 private struct VoiceMessageRecordingButtonStyle: ButtonStyle {
-    @Environment(\.isEnabled) private var isEnabled
-    
     func makeBody(configuration: Configuration) -> some View {
-        if #available(iOS 26, *) {
-            if isEnabled {
-                configuration.label
-                    .snapshotableGlassEffect(.regular.interactive(),
-                                             snapshotBackground: .compound.bgSubtleSecondary,
-                                             in: .circle)
-            } else {
-                configuration.label
-                    .background(.compound.bgSubtlePrimary, in: .circle)
-            }
-        } else {
-            configuration.label
-                .opacity(configuration.isPressed ? 0.6 : 1)
-        }
+        configuration.label
+            .opacity(configuration.isPressed ? 0.6 : 1)
     }
 }
 

@@ -7,6 +7,7 @@
 //
 
 import Combine
+import MatrixRustSDK
 import SwiftUI
 
 typealias LoginScreenViewModelType = StateStoreViewModelV2<LoginScreenViewState, LoginScreenViewAction>
@@ -14,20 +15,18 @@ typealias LoginScreenViewModelType = StateStoreViewModelV2<LoginScreenViewState,
 class LoginScreenViewModel: LoginScreenViewModelType, LoginScreenViewModelProtocol {
     private let authenticationService: AuthenticationServiceProtocol
     private let userIndicatorController: UserIndicatorControllerProtocol
-    private let appSettings: AppSettings
     
     private var actionsSubject: PassthroughSubject<LoginScreenViewModelAction, Never> = .init()
     var actions: AnyPublisher<LoginScreenViewModelAction, Never> {
         actionsSubject.eraseToAnyPublisher()
     }
     
+    // AGENT-PLATFORM (Brief 0083 L1b): no appSettings, it only held Element Pro's App Store URL.
     init(authenticationService: AuthenticationServiceProtocol,
          loginHint: String?,
-         userIndicatorController: UserIndicatorControllerProtocol,
-         appSettings: AppSettings) {
+         userIndicatorController: UserIndicatorControllerProtocol) {
         self.authenticationService = authenticationService
         self.userIndicatorController = userIndicatorController
-        self.appSettings = appSettings
         
         let username = switch loginHint {
         case .some(let hint) where hint.hasPrefix("mxid:"): String(hint.dropFirst(5)) // MSC4198
@@ -66,9 +65,7 @@ class LoginScreenViewModel: LoginScreenViewModelType, LoginScreenViewModelProtoc
     private func parseUsername() {
         let username = state.bindings.username
         
-        guard MatrixEntityRegex.isMatrixUserIdentifier(username) else { return }
-        
-        let homeserverDomain = String(username.split(separator: ":")[1])
+        guard let homeserverDomain = try? serverNameFromUserId(userId: username) else { return }
         
         startLoading(isInteractionBlocking: false)
         
@@ -144,16 +141,7 @@ class LoginScreenViewModel: LoginScreenViewModelType, LoginScreenViewModelProtoc
             
             // Clear out the invalid username to avoid an attempted login to matrix.org
             state.bindings.username = ""
-        case .elementProRequired(let serverName):
-            state.bindings.alertInfo = AlertInfo(id: .elementProAlert,
-                                                 title: L10n.screenChangeServerErrorElementProRequiredTitle,
-                                                 message: L10n.screenChangeServerErrorElementProRequiredMessage(serverName),
-                                                 primaryButton: .init(title: L10n.screenChangeServerErrorElementProRequiredActionIos) {
-                                                     UIApplication.shared.open(self.appSettings.elementProAppStoreURL)
-                                                 },
-                                                 secondaryButton: .init(title: L10n.actionCancel, role: .cancel, action: nil))
-            // Clear out the invalid username to avoid an attempted login to matrix.org
-            state.bindings.username = ""
+        // AGENT-PLATFORM (Brief 0083 L1b): no "Element Pro required" alert.
         case .sessionTokenRefreshNotSupported:
             state.bindings.alertInfo = AlertInfo(id: .refreshTokenAlert,
                                                  title: L10n.commonServerNotSupported,

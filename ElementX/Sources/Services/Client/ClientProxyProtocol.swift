@@ -74,13 +74,15 @@ enum CreateRoomAccessType: Equatable {
 /// This struct represents the configuration that we are using to register the application through Pusher to Sygnal
 /// using the Matrix Rust SDK, more info here:
 /// https://github.com/matrix-org/sygnal
-struct PusherConfiguration {
+struct PusherConfiguration: Equatable {
     let identifiers: PusherIdentifiers
     let kind: PusherKind
     let appDisplayName: String
     let deviceDisplayName: String
     let profileTag: String?
     let lang: String
+    /// Whether to keep the pushers of the other accounts using the same pushkey on this device.
+    let append: Bool
 }
 
 enum SessionVerificationState {
@@ -138,6 +140,9 @@ protocol ClientProxyProtocol: AnyObject {
     
     var pusherNotificationClientIdentifier: String? { get }
     
+    /// The total number of unread notifications across all joined, non-muted rooms, as computed by the SDK.
+    var totalUnreadNotifications: UInt64 { get }
+    
     var mediaLoader: MediaLoaderProtocol { get }
     
     var contentScanner: ContentScannerProxyProtocol? { get }
@@ -146,7 +151,7 @@ protocol ClientProxyProtocol: AnyObject {
     
     /// Used for listing rooms that shouldn't be affected by the main `roomSummaryProvider` filtering
     /// But can still be filtered by queries, since this may be shared across multiple views, remember to reset
-    /// The filtering state when you are done with it
+    /// The filtering state when you are done with it. Only lists joined rooms.
     var alternateRoomSummaryProvider: RoomSummaryProviderProtocol { get }
     
     /// Used for listing rooms, can't be filtered nor its state observed
@@ -169,6 +174,8 @@ protocol ClientProxyProtocol: AnyObject {
     var isReportRoomSupported: Bool { get async }
     var isLiveKitRTCSupported: Bool { get async }
     
+    // AGENT-PLATFORM (Brief 0067): no `makeNativeCallTransport` — upstream's ElementCall package is not linked.
+    
     var isLoginWithQRCodeSupported: Bool { get async }
     
     var maxMediaUploadSize: Result<UInt, ClientProxyError> { get async }
@@ -180,6 +187,12 @@ protocol ClientProxyProtocol: AnyObject {
     func resumeServices() async
     
     func pauseServices() async
+    
+    func startSearchBackfill(strategy: SearchBackfillStrategy)
+    
+    func stopSearchBackfill()
+    
+    var isSearchBackfillRunning: Bool { get }
     
     func expireSyncSessions() async
     
@@ -240,16 +253,26 @@ protocol ClientProxyProtocol: AnyObject {
     func removeUserAvatar() async -> Result<Void, ClientProxyError>
     func isUserStatusSupported() async -> Result<Bool, ClientProxyError>
     func setUserStatus(_ status: UserStatus.Raw) async -> Result<Void, ClientProxyError>
-    func removeUserStatus() async -> Result<Void, ClientProxyError>
-    func removeCallStatus() async -> Result<Void, ClientProxyError>
+    /// Removes both the `m.status` and `m.call` fields from the user's profile.
+    func clearUserStatus() async -> Result<Void, ClientProxyError>
+    
+    // AGENT-PLATFORM: feed (Brief 0082, decision 284): the own bio, the MSC4133 profile field
+    // `FeedBio.fieldName`. `false` when the server doesn't allow the field or the check fails.
+    func canSetUserBio() async -> Bool
+    /// `nil` only when no bio is set; a failed read is a failure, never `nil`.
+    func userBio() async -> Result<String?, ClientProxyError>
+    func setUserBio(_ bio: String) async -> Result<Void, ClientProxyError>
+    func removeUserBio() async -> Result<Void, ClientProxyError>
     
     func linkNewDeviceService() -> LinkNewDeviceServiceProtocol
     
-    func deactivateAccount(password: String?, eraseData: Bool) async -> Result<Void, ClientProxyError>
+    func deactivateAccount(password: String, eraseData: Bool) async -> Result<Void, ClientProxyError>
     
     func logout() async
     
     func setPusher(with configuration: PusherConfiguration) async throws
+    
+    func deletePusher(with identifiers: PusherIdentifiers) async throws
     
     func searchUsers(searchTerm: String, limit: UInt) async -> Result<SearchUsersResults, ClientProxyError>
     
@@ -271,6 +294,10 @@ protocol ClientProxyProtocol: AnyObject {
     
     func fetchMediaPreviewConfiguration() async -> Result<MediaPreviewConfig?, ClientProxyError>
     
+    // AGENT-PLATFORM (Brief 0082): the platform refused the access token.
+    /// Makes one authenticated request, so the SDK refreshes an expired access token and saves it.
+    func refreshAccessTokenIfExpired() async
+    
     // MARK: - Ignored users
     
     func ignoreUser(_ userID: String) async -> Result<Void, ClientProxyError>
@@ -281,7 +308,9 @@ protocol ClientProxyProtocol: AnyObject {
     
     func trackRecentlyVisitedRoom(_ roomID: String) async -> Result<Void, ClientProxyError>
     
-    func recentlyVisitedRooms(filter: @Sendable (JoinedRoomProxyProtocol) -> Bool) async -> [JoinedRoomProxyProtocol]
+    /// The identifiers of the rooms the user visited most recently, newest first.
+    func recentlyVisitedRoomIDs() async -> Result<[String], ClientProxyError>
+    func recentlyVisitedRooms(filter: @Sendable (JoinedRoomProxyProtocol) async -> Bool) async -> [JoinedRoomProxyProtocol]
     func recentConversationCounterparts() async -> [UserProfile]
     
     // MARK: - Crypto

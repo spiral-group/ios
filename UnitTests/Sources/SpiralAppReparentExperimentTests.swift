@@ -14,7 +14,7 @@
 // colour, a snapshot before and after a reparent.
 //
 
-@testable import ElementX
+@testable import Spiral
 import Testing
 import UIKit
 import WebKit
@@ -124,6 +124,99 @@ struct SpiralAppReparentExperimentTests {
         }
     }
 
+    /// The stand-in is taken in `willMove(toWindow:)` and the view is gone a
+    /// moment later, so the picture has to survive that. A web view with no
+    /// window is reported to leave a snapshot unanswered.
+    @Test
+    func aSnapshotTakenJustBeforeLeavingAWindowStillArrives() async throws {
+        let webView = WKWebView(frame: CGRect(x: 0, y: 0, width: 200, height: 200))
+        let delegate = LoadWatcher()
+        webView.navigationDelegate = delegate
+        let window = Self.makeVisibleWindow()
+        window.rootViewController?.view.addSubview(webView)
+        webView.loadHTMLString("<body style='margin:0;background:#ff0000'></body>", baseURL: nil)
+        try await delegate.waitForLoad()
+        try await Task.sleep(for: .milliseconds(300))
+
+        let configuration = WKSnapshotConfiguration()
+        configuration.rect = CGRect(x: 0, y: 0, width: 20, height: 20)
+        configuration.afterScreenUpdates = false
+        let start = ContinuousClock.now
+        var result: UIImage?
+        var hasAnswered = false
+        webView.takeSnapshot(with: configuration) { image, _ in
+            result = image
+            hasAnswered = true
+        }
+        let cost = start.duration(to: .now)
+        webView.removeFromSuperview()
+
+        let deadline = ContinuousClock.now + .seconds(2)
+        while !hasAnswered, ContinuousClock.now < deadline {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+
+        MXLog.info("[experiment] takeSnapshot held the main thread \(cost), answered: \(hasAnswered)")
+        let image = try #require(result, "no picture came back once the view had left its window")
+        #expect(try pixel(of: image) == .red)
+    }
+
+    /// The app's only way to pause a post without a shell release. WebKit
+    /// counts a web view in a window as visible however far it has scrolled,
+    /// so this is what taking it out of the window has to buy.
+    @Test
+    func aPageOutOfAnyWindowStopsItsAnimationFrames() async throws {
+        let (webView, window) = try await Self.countingAnimationFrames()
+        let parent = try #require(window.rootViewController?.view)
+        let running = try await Self.framesCounted(by: webView)
+        try await Task.sleep(for: .milliseconds(500))
+        let frameRate = try await Self.framesCounted(by: webView) - running
+        #expect(frameRate > 5, "the page never animated, so this proves nothing: \(frameRate)")
+
+        webView.removeFromSuperview()
+        try await Task.sleep(for: .milliseconds(100))
+        parent.addSubview(webView)
+        let before = try await Self.framesCounted(by: webView)
+        webView.removeFromSuperview()
+        try await Task.sleep(for: .seconds(1))
+        parent.addSubview(webView)
+        let gained = try await Self.framesCounted(by: webView) - before
+
+        MXLog.info("[experiment] in a window \(frameRate) frames in 0.5 s; out of one \(gained) in 1 s")
+        #expect(gained < frameRate, "a page out of any window went on animating: \(gained) frames in 1 s")
+    }
+
+    /// The audit's open question, recorded rather than asserted: it is
+    /// WebKit's to change, and the registry doesn't rely on it.
+    @Test
+    func whatHidingAWebViewDoesToItsAnimationFrames() async throws {
+        let (webView, _) = try await Self.countingAnimationFrames()
+        let before = try await Self.framesCounted(by: webView)
+
+        webView.isHidden = true
+        try await Task.sleep(for: .seconds(1))
+        let hiddenState = try await webView.evaluateJavaScript("document.visibilityState") as? String
+        let gained = try await Self.framesCounted(by: webView) - before
+
+        MXLog.info("[experiment] hidden: document is \(hiddenState ?? "?"), \(gained) frames in 1 s")
+    }
+
+    private static func countingAnimationFrames() async throws -> (WKWebView, UIWindow) {
+        let webView = WKWebView(frame: CGRect(x: 0, y: 0, width: 200, height: 200))
+        let delegate = LoadWatcher()
+        webView.navigationDelegate = delegate
+        let window = makeVisibleWindow()
+        window.rootViewController?.view.addSubview(webView)
+        webView.loadHTMLString("<script>window.frames_=0;(function t(){frames_++;requestAnimationFrame(t)})()</script>", baseURL: nil)
+        try await delegate.waitForLoad()
+        try await Task.sleep(for: .milliseconds(300))
+        return (webView, window)
+    }
+
+    private static func framesCounted(by webView: WKWebView) async throws -> Int {
+        try await webView.evaluateJavaScript("frames_") as? Int ?? 0
+    }
+
     /// What the web view is actually showing, read from its own snapshot.
     private func snapshot(of webView: WKWebView) async throws -> Pixel {
         let configuration = WKSnapshotConfiguration()
@@ -140,6 +233,10 @@ struct SpiralAppReparentExperimentTests {
             }
         }
 
+        return try pixel(of: image)
+    }
+
+    private func pixel(of image: UIImage) throws -> Pixel {
         guard let cgImage = image.cgImage,
               let data = cgImage.dataProvider?.data,
               let bytes = CFDataGetBytePtr(data) else {

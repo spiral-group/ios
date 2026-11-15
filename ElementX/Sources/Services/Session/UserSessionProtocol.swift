@@ -21,12 +21,15 @@ struct SessionSecurityState: Equatable {
 // sourcery: AutoMockable
 protocol UserSessionProtocol: Sendable {
     var clientProxy: ClientProxyProtocol { get }
+    var userSettings: UserSettings { get }
+    var userHooks: UserHooks { get }
+    
     var mediaProvider: MediaProviderProtocol { get }
     var voiceMessageMediaManager: VoiceMessageMediaManagerProtocol { get }
-    var liveLocationManager: LiveLocationManagerProtocol { get }
-    
+    var liveLocationService: LiveLocationServiceProtocol { get }
     /// Scans media content, `nil` when no content scanner is configured for the server.
     var contentScannerService: ContentScannerServiceProtocol? { get }
+    var notificationService: NotificationServiceProtocol { get }
     
     var sessionSecurityStatePublisher: CurrentValuePublisher<SessionSecurityState, Never> { get }
     
@@ -46,13 +49,16 @@ protocol UserSessionProtocol: Sendable {
     // UI-tests app coordinator + the existing mock generator.
     var agentPlatformService: AgentPlatformServiceProtocol? { get }
 
-    // AGENT-PLATFORM: long-lived SSE subscription to
-    // `/api/v1/approvals/stream`. UserSession-scope per
-    // DECISIONS.md ("ApprovalsStreamService lives at UserSession
-    // scope"). Same optionality contract as `agentPlatformService`
-    // — nil if the bridge couldn't build. Lifecycle managed by
-    // `AppCoordinator` foreground/background hooks (S151+).
-    var approvalsStreamService: ApprovalsStreamServiceProtocol? { get }
+    // AGENT-PLATFORM: platform sync (decision 289): the Agents tab's store,
+    // one per session, fed by the session's sync stream. `nil` with
+    // `agentPlatformService`.
+    var agentsStore: AgentsStore? { get }
+
+    // AGENT-PLATFORM: platform sync (decision 289): the feed's store and the
+    // session's one stream feeding both stores, started and stopped by the
+    // session flow. `nil` with `agentPlatformService`.
+    var feedStore: FeedStore? { get }
+    var platformSync: PlatformSync? { get }
     
     // AGENT-PLATFORM (Brief 0072, ADR-0083): who is online, for the DM
     // header and the room list. Session-scoped so two screens share one

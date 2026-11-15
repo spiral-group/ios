@@ -7,7 +7,7 @@
 //
 
 import Combine
-@testable import ElementX
+@testable import Spiral
 import Testing
 
 @MainActor
@@ -16,15 +16,17 @@ final class CreateRoomScreenViewModelTests {
     var clientProxy: ClientProxyMock!
     var spaceService: SpaceServiceProxyMock!
     var userSession: UserSessionMock!
+    var appMediator: AppMediatorMock!
+    var userIndicatorController: UserIndicatorControllerMock!
     
-    private let appSettings: AppSettings
+    private let userSettings: UserSettings
     
     var context: CreateRoomScreenViewModel.Context {
         viewModel.context
     }
     
     init() {
-        appSettings = AppSettings.volatile()
+        userSettings = UserSettings.mock()
     }
     
     isolated deinit {
@@ -32,6 +34,8 @@ final class CreateRoomScreenViewModelTests {
         clientProxy = nil
         spaceService = nil
         userSession = nil
+        userIndicatorController = nil
+        appMediator = nil
     }
     
     @Test
@@ -41,6 +45,29 @@ final class CreateRoomScreenViewModelTests {
         #expect(context.selectedSpace == nil)
         #expect(context.viewState.availableAccessTypes == [.public, .askToJoin, .private])
         #expect(context.viewState.canSelectSpace)
+    }
+    
+    // AGENT-PLATFORM (decision 301): no space picker while spaces are hidden.
+    @Test
+    func noSpaceSelectionWhenSpacesAreHidden() async throws {
+        setup(spacesEnabled: false)
+        #expect(!context.viewState.canSelectSpace)
+        #expect(context.selectedSpace == nil)
+        #expect(context.viewState.availableAccessTypes == [.public, .askToJoin, .private])
+        
+        // The editable spaces are never read for the picker.
+        await Task.yield()
+        #expect(!spaceService.editableSpacesCalled)
+        #expect(context.viewState.editableSpaces.isEmpty)
+    }
+    
+    // AGENT-PLATFORM (decision 301): a room created from a space's own screen still goes into that space.
+    @Test
+    func aPreselectedSpaceIsKeptWhenSpacesAreHidden() {
+        let space = SpaceServiceRoom.mock(isSpace: true, joinRule: .invite)
+        setup(spacesSelectionMode: .editableSpacesList(preSelectedSpace: space), spacesEnabled: false)
+        #expect(context.viewState.canSelectSpace)
+        #expect(context.selectedSpace?.id == space.id)
     }
     
     @Test
@@ -84,15 +111,15 @@ final class CreateRoomScreenViewModelTests {
                                             userID: "@a:b.com",
                                             spaceServiceConfiguration: .init(spaceRoomLists: ["1": .init()])))
         clientProxy.roomForIdentifierClosure = { roomID in .joined(JoinedRoomProxyMock(.init(id: roomID))) }
-        userSession = UserSessionMock(.init(clientProxy: clientProxy))
-        appSettings.knockingEnabled = true
+        userSession = UserSessionMock(.init(clientProxy: clientProxy, userSettings: userSettings))
+        userSettings.app.knockingEnabled = true
         let viewModel = CreateRoomScreenViewModel(isSpace: true,
                                                   spaceSelectionMode: .none,
                                                   shouldShowCancelButton: false,
                                                   userSession: userSession,
+                                                  appMediator: AppMediatorMock(.init()),
                                                   analytics: AnalyticsServiceMock(.init()),
-                                                  userIndicatorController: UserIndicatorControllerMock(),
-                                                  appSettings: appSettings)
+                                                  userIndicatorController: UserIndicatorControllerMock())
         self.viewModel = viewModel
         
         // Given a form with a blank topic.
@@ -327,22 +354,54 @@ final class CreateRoomScreenViewModelTests {
         #expect(context.viewState.canSelectSpace)
     }
     
-    private func setup(isSpace: Bool = false, spacesSelectionMode: CreateRoomScreenSpaceSelectionMode = .editableSpacesList(preSelectedSpace: nil)) {
+    @Test
+    func cameraPickerOpensWhenTheCameraIsAvailable() async throws {
+        setup()
+        
+        let deferred = deferFulfillment(viewModel.actions) { action in
+            guard case .displayCameraPicker = action else { return false }
+            return true
+        }
+        context.send(viewAction: .displayCameraPicker)
+        try await deferred.fulfill()
+    }
+    
+    @Test
+    func cameraPickerShowsAnErrorWhenTheCameraIsUnavailable() async throws {
+        setup()
+        appMediator.isCameraAvailable = false
+        
+        let deferredFailure = deferFailure(viewModel.actions, timeout: .seconds(1)) { action in
+            guard case .displayCameraPicker = action else { return false }
+            return true
+        }
+        context.send(viewAction: .displayCameraPicker)
+        try await deferredFailure.fulfill()
+        
+        #expect(userIndicatorController.submitIndicatorDelayReceivedArguments?.indicator.title == L10n.errorCameraUnavailable)
+    }
+    
+    private func setup(isSpace: Bool = false,
+                       spacesSelectionMode: CreateRoomScreenSpaceSelectionMode = .editableSpacesList(preSelectedSpace: nil),
+                       spacesEnabled: Bool = true) {
         spaceService = SpaceServiceProxyMock(.init(editableSpaces: .mockJoinedSpaces2,
                                                    spaceRoomLists: ["1": .init()]))
         clientProxy = ClientProxyMock(.init(userIDServerName: "matrix.org",
                                             userID: "@a:b.com"))
         clientProxy.spaceService = spaceService
         clientProxy.roomForIdentifierClosure = { roomID in .joined(JoinedRoomProxyMock(.init(id: roomID))) }
-        userSession = UserSessionMock(.init(clientProxy: clientProxy))
-        appSettings.knockingEnabled = true
+        userSession = UserSessionMock(.init(clientProxy: clientProxy, userSettings: userSettings))
+        userSettings.app.knockingEnabled = true
+        userSettings.app.spacesEnabled = spacesEnabled // AGENT-PLATFORM (decision 301)
+        userIndicatorController = UserIndicatorControllerMock()
+        appMediator = AppMediatorMock(.init())
         let viewModel = CreateRoomScreenViewModel(isSpace: isSpace,
                                                   spaceSelectionMode: spacesSelectionMode,
                                                   shouldShowCancelButton: false,
                                                   userSession: userSession,
+                                                  appMediator: appMediator,
                                                   analytics: AnalyticsServiceMock(.init()),
-                                                  userIndicatorController: UserIndicatorControllerMock(),
-                                                  appSettings: appSettings)
+                                                  userIndicatorController: userIndicatorController)
         self.viewModel = viewModel
     }
 }

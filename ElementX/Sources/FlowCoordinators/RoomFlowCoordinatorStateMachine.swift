@@ -49,7 +49,7 @@ extension RoomFlowCoordinator {
         case initial
         case joinRoomScreen
         case room
-        case threadList
+        case threadList(previousState: State) // AGENT-PLATFORM (Brief 0083, decision 344): from the room's details.
         case thread(threadRootEventID: String, previousState: State)
         case roomDetails(isRoot: Bool)
         case roomDetailsEditScreen
@@ -60,7 +60,7 @@ extension RoomFlowCoordinator {
         case mediaUploadPreview(mediaURLs: [URL], caption: NSAttributedString?, previousState: State)
         case emojiPicker(selectedEmojis: Set<String>, previousState: State)
         case mapNavigator(previousState: State)
-        case messageForwarding(forwardingItem: MessageForwardingItem, previousState: State)
+        case messageForwarding(forwardingPayload: MessageForwardingPayload, previousState: State)
         case reportContent(itemID: TimelineItemIdentifier, senderID: String, previousState: State)
         case pollForm(previousState: State)
         case pollsHistory
@@ -87,6 +87,8 @@ extension RoomFlowCoordinator {
         case membersFlow(previousState: State)
         // AGENT-PLATFORM: the agent-tools flow is in progress (Brief 0036).
         case agentToolsFlow(previousState: State)
+        /// AGENT-PLATFORM (Brief 0083, question 359): one of the owner's rows of an agent's page.
+        case agentRowFlow(previousState: State)
     }
     
     struct EventUserInfo {
@@ -144,7 +146,7 @@ extension RoomFlowCoordinator {
         case presentMapNavigator(interactionMode: LocationSharingInteractionMode)
         case dismissMapNavigator
         
-        case presentMessageForwarding(forwardingItem: MessageForwardingItem)
+        case presentMessageForwarding(forwardingPayload: MessageForwardingPayload)
         case dismissMessageForwarding
         
         case presentPollForm(mode: PollFormMode)
@@ -190,8 +192,11 @@ extension RoomFlowCoordinator {
         case stopMembersFlow
         
         // AGENT-PLATFORM: the agent-tools flow (Brief 0036).
-        case startAgentToolsFlow(entryPoint: AgentToolsFlowEntryPoint)
+        case startAgentToolsFlow
         case stopAgentToolsFlow
+        /// AGENT-PLATFORM (Brief 0083, question 359)
+        case startAgentRowFlow(row: AgentPageRow, card: AgentSpaceAgentCard)
+        case stopAgentRowFlow
     }
     
     // swiftlint:disable:next function_body_length
@@ -216,10 +221,10 @@ extension RoomFlowCoordinator {
             case (.room, .presentEmojiPicker(let selectedEmojis)):
                 return .emojiPicker(selectedEmojis: selectedEmojis, previousState: fromState)
                 
-            case (.room, .presentMessageForwarding(let forwardingItem)):
-                return .messageForwarding(forwardingItem: forwardingItem, previousState: fromState)
-            case (.mediaEventsTimeline, .presentMessageForwarding(forwardingItem: let forwardingItem)):
-                return .messageForwarding(forwardingItem: forwardingItem, previousState: fromState)
+            case (.room, .presentMessageForwarding(let forwardingPayload)):
+                return .messageForwarding(forwardingPayload: forwardingPayload, previousState: fromState)
+            case (.mediaEventsTimeline, .presentMessageForwarding(forwardingPayload: let forwardingPayload)):
+                return .messageForwarding(forwardingPayload: forwardingPayload, previousState: fromState)
                 
             case (.room, .presentMapNavigator):
                 return .mapNavigator(previousState: fromState)
@@ -238,10 +243,10 @@ extension RoomFlowCoordinator {
                 return previousState
                 
             // Thread List
-            case (.room, .presentThreadList):
-                return .threadList
-            case (.threadList, .dismissThreadList):
-                return .room
+            case (.roomDetails, .presentThreadList): // AGENT-PLATFORM (Brief 0083, decision 344): only the details' row opens it.
+                return .threadList(previousState: fromState)
+            case (.threadList(let previousState), .dismissThreadList):
+                return previousState
             case (.threadList, .presentThread(let threadRootEventID, _)):
                 return .thread(threadRootEventID: threadRootEventID, previousState: fromState)
                 
@@ -265,8 +270,8 @@ extension RoomFlowCoordinator {
             case (.thread, .presentEmojiPicker(let selectedEmojis)):
                 return .emojiPicker(selectedEmojis: selectedEmojis, previousState: fromState)
                 
-            case (.thread, .presentMessageForwarding(let forwardingItem)):
-                return .messageForwarding(forwardingItem: forwardingItem, previousState: fromState)
+            case (.thread, .presentMessageForwarding(let forwardingPayload)):
+                return .messageForwarding(forwardingPayload: forwardingPayload, previousState: fromState)
                 
             case (.thread, .presentMapNavigator):
                 return .mapNavigator(previousState: fromState)
@@ -373,6 +378,11 @@ extension RoomFlowCoordinator {
             case (_, .startAgentToolsFlow):
                 return .agentToolsFlow(previousState: fromState)
             case (.agentToolsFlow(let previousState), .stopAgentToolsFlow):
+                return previousState
+                
+            case (_, .startAgentRowFlow): // AGENT-PLATFORM (Brief 0083, question 359)
+                return .agentRowFlow(previousState: fromState)
+            case (.agentRowFlow(let previousState), .stopAgentRowFlow):
                 return previousState
                 
             case (_, .startChildFlow(let roomID, _, _)):

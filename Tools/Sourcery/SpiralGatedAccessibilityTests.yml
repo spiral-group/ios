@@ -1,0 +1,13 @@
+# Copyright 2026 the Spiral authors. AGPL-3.0-or-later.
+#
+# AGENT-PLATFORM (Brief 0083 L1c): the previews AccessibilityTests audits with
+# Spiral's stricter gate, those that conform to SpiralGatedPreview. Runs in the
+# AccessibilityTests target's own phase: that target doesn't import the app, so
+# it can compile before the app target's Sourcery phases have run.
+sources:
+  include:
+    - ../../ElementX
+templates:
+  - SpiralGatedAccessibilityTests.stencil
+output:
+  ../../AccessibilityTests/Sources/GeneratedSpiralGatedAccessibilityTests.swift

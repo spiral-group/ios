@@ -6,7 +6,7 @@
 // Please see LICENSE files in the repository root for full details.
 //
 
-@testable import ElementX
+@testable import Spiral
 import Testing
 
 @MainActor
@@ -23,7 +23,7 @@ final class AnalyticsSettingsScreenViewModelTests {
         client.isRunning = false
         analytics = AnalyticsService(client: client, appSettings: appSettings)
         
-        viewModel = AnalyticsSettingsScreenViewModel(appSettings: appSettings,
+        viewModel = AnalyticsSettingsScreenViewModel(userSettings: appSettings.userSettings(for: "@me:matrix.org"),
                                                      analytics: analytics)
         context = viewModel.context
     }

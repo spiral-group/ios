@@ -30,6 +30,11 @@
 //     controller's `updateRestorationToken(...)` already update the
 //     stored token. The bridge's next lookup transparently sees
 //     the fresh value.
+//   * A token lives five minutes, and the platform can refuse an
+//     expired one before the SDK has refreshed it (the next sync's
+//     own 401 can be half a minute away). After a platform 401,
+//     `refreshedAccessToken(replacing:)` asks the SDK to refresh
+//     now, one refresh at a time (Brief 0082 E2E, FD5).
 //   * Logout / session swap: `ClientProxy` is deallocated, the
 //     weak reference goes nil, and the bridge returns nil tokens
 //     → REST calls go out unauthenticated → 401 → host triggers
@@ -68,6 +73,8 @@ import MatrixRustSDK
 final class MatrixSDKAuthBridge: AuthTokenProviding {
     private let resolveClientProxy: () -> ClientProxyProtocol?
     private let resolveKeychain: () -> KeychainControllerProtocol?
+    /// The refresh in flight: the requests a token refused all wait on one.
+    private var refresh: Task<String?, Never>?
 
     init(clientProxy: ClientProxyProtocol, keychainController: any KeychainControllerProtocol) {
         // Box the weak references inside ref-types so they survive
@@ -81,6 +88,35 @@ final class MatrixSDKAuthBridge: AuthTokenProviding {
     }
 
     func currentAccessToken() async -> String? {
+        keychainToken()
+    }
+    
+    func refreshedAccessToken(replacing rejected: String) async -> String? {
+        if let token = keychainToken(), token != rejected {
+            return token
+        }
+        let refresh = refresh ?? startRefresh()
+        let token = await refresh.value
+        guard let token, token != rejected else {
+            MXLog.info("AgentPlatform auth bridge: no newer access token after a 401")
+            return nil
+        }
+        return token
+    }
+    
+    private func startRefresh() -> Task<String?, Never> {
+        let task = Task { [weak self] () -> String? in
+            guard let self else { return nil }
+            defer { refresh = nil }
+            guard let proxy = resolveClientProxy() else { return nil }
+            await proxy.refreshAccessTokenIfExpired()
+            return keychainToken()
+        }
+        refresh = task
+        return task
+    }
+    
+    private func keychainToken() -> String? {
         guard let proxy = resolveClientProxy() else {
             // ClientProxy was deallocated (logout / session swap).
             // Returning nil tells the AuthMiddleware to send the

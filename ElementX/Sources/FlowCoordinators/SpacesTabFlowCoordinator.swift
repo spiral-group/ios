@@ -14,6 +14,8 @@ enum SpacesTabFlowCoordinatorAction {
     case showSettings
     case presentCallScreen(roomProxy: JoinedRoomProxyProtocol, isVoiceCall: Bool)
     case presentAIConsentSettings // AGENT-PLATFORM (decision 150)
+    /// The Agents tab, where the person's agent is or will be (question 412).
+    case presentAgentsTab
     case verifyUser(userID: String)
 }
 
@@ -184,6 +186,8 @@ class SpacesTabFlowCoordinator: FlowCoordinatorProtocol {
                     actionsSubject.send(.presentCallScreen(roomProxy: roomProxy, isVoiceCall: isVoiceCall))
                 case .presentAIConsentSettings: // AGENT-PLATFORM (decision 150)
                     actionsSubject.send(.presentAIConsentSettings)
+                case .presentAgentsTab: // AGENT-PLATFORM (question 412)
+                    actionsSubject.send(.presentAgentsTab)
                 case .verifyUser(let userID):
                     actionsSubject.send(.verifyUser(userID: userID))
                 case .finished:

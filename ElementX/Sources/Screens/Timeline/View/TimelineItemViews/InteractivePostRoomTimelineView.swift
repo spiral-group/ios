@@ -57,11 +57,27 @@ struct InteractivePostRoomTimelineView: View {
                                // Named so a reader can tell "this app has not
                                // started" from "this app has nothing to say" —
                                // or from "this app needs a newer app" (§ 5.70).
-                               cardSubtitle: !timelineItem.post.isRuntimeSupported ? UntranslatedL10n.spiralAppNeedsUpdate
-                                   : slot.summaryLine == nil ? UntranslatedL10n.spiralAppNotRunning : timelineItem.body,
+                               cardSubtitle: !timelineItem.post.isRuntimeSupported || slot.needsNewerApp ? UntranslatedL10n.spiralAppNeedsUpdate
+                                   : slot.couldNotStart ? L10n.errorUnknown
+                                   : slot.summaryLine == nil ? UntranslatedL10n.spiralAppNotRunning
+                                   : Self.lineAttribution(writer: slot.summaryWriter, author: timelineItem.sender.id) ?? timelineItem.body,
                                cardCountdown: slot.summaryCountdown,
                                accessibilityLabel: accessibilityLabel,
-                               onExpandedDismissed: { reclaimCount += 1 },
+                               // A reader who hid media hid this too.
+                               standIn: mayRunAutomatically ? slot.standIn : nil,
+                               onExpandedClosing: {
+                                   if let eventID = timelineItem.id.eventID {
+                                       registry?.viewerWillClose(eventID: eventID)
+                                   }
+                               },
+                               onExpandedDismissed: {
+                                   reclaimCount += 1
+                                   // Re-opening needs a new touch, not one
+                                   // from inside the viewer just closed.
+                                   if let eventID = timelineItem.id.eventID {
+                                       registry?.viewerDismissed(eventID: eventID)
+                                   }
+                               },
                                expandRequests: slot.expandRequests) {
                 // Always here, app or not: this is the row's surface, and its
                 // presence in a window is what tells the registry the post is
@@ -83,7 +99,9 @@ struct InteractivePostRoomTimelineView: View {
                     Color.clear
                 }
             } expanded: {
-                SpiralAppExpandedView(title: slot.summaryLine ?? timelineItem.body) {
+                SpiralAppExpandedView(title: timelineItem.body,
+                                      author: SpiralAppViewerAuthor(timelineItem.sender),
+                                      mediaProvider: context?.mediaProvider) {
                     SpiralAppSurfaceView(eventID: timelineItem.id.eventID,
                                          post: timelineItem.post,
                                          registry: registry,
@@ -96,6 +114,13 @@ struct InteractivePostRoomTimelineView: View {
 
     private var registry: SpiralAppHostRegistry? {
         context?.viewState.spiralAppHosts
+    }
+
+    /// «From X» when the card's line is not the author's (L1): any
+    /// member's action can write it, and the card is the post's face.
+    static func lineAttribution(writer: (id: String, name: String)?, author: String) -> String? {
+        guard let writer, writer.id != author else { return nil }
+        return UntranslatedL10n.spiralAppCardLineBy(writer.name)
     }
 
     /// What the post is, then what it says.

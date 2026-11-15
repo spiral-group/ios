@@ -8,10 +8,10 @@
 
 import Combine
 import Foundation
+import MatrixRustSDKMocks
 
 // AGENT-PLATFORM (Brief 0067): `CallKitServiceMock` replaces the retired `ElementCallServiceMock`.
-@testable import ElementX
-import MatrixRustSDKMocks
+@testable import Spiral
 import Testing
 
 @MainActor
@@ -22,11 +22,11 @@ final class RoomFlowCoordinatorTests {
     var navigationStackCoordinator: NavigationStackCoordinator!
     var cancellables = Set<AnyCancellable>()
     
-    private let appSettings: AppSettings
+    private let userSettings: UserSettings
     
     init() throws {
         // AGENT-PLATFORM (decision 111): the catalogue a link opens is on disk.
-        appSettings = try AppSettings.volatile(catalogURL: AppSettings.catalogueFixture(index: SpiralAppCatalogTests.index))
+        userSettings = try AppSettings.volatile(catalogURL: AppSettings.catalogueFixture(index: SpiralAppCatalogTests.index)).userSettings(for: "@me:matrix.org")
     }
     
     @Test
@@ -234,7 +234,7 @@ final class RoomFlowCoordinatorTests {
     
     @Test
     func threadedEventRoutes() async throws {
-        appSettings.threadsEnabled = true
+        userSettings.app.threadsEnabled = true
         setupRoomFlowCoordinator()
         
         // Navigate directly to the threaded event
@@ -416,6 +416,24 @@ final class RoomFlowCoordinatorTests {
         #expect(catalogue.assistant == assistant)
     }
     
+    /// «Create an agent» on a post the agent fills in: the catalogue closes and the Agents tab opens, where the
+    /// person's assistant is set up by the server — nothing in the app makes one to come back from (question 412).
+    @Test
+    func createAgentClosesTheCatalogueForTheAgentsTab() async throws {
+        setupRoomFlowCoordinator(agentsRead: .agents(count: 0, status: .idle))
+        let deferredSheet = deferFulfillment(navigationStackCoordinator.observe(\.sheetCoordinatorID)) { $0 != nil }
+        try await processExpectingNewRootCoordinator(route: .catalogTemplate(templateID: "poll", roomID: "1"))
+        try await deferredSheet.fulfill()
+        let catalogue = try #require((navigationStackCoordinator.sheetCoordinator as? NavigationStackCoordinator)?.rootCoordinator as? InteractivePostCatalogScreenCoordinator)
+        #expect(catalogue.assistant == .none)
+        
+        let deferredAction = deferFulfillment(roomFlowCoordinator.actions) { $0 == .presentAgentsTab }
+        let deferredClosed = deferFulfillment(navigationStackCoordinator.observe(\.sheetCoordinatorID)) { $0 == nil }
+        catalogue.viewModel.context.send(viewAction: .showAgents)
+        try await deferredAction.fulfill()
+        try await deferredClosed.fulfill()
+    }
+    
     /// Already in the room: the catalogue opens over it.
     @Test
     func aCatalogueLinkForTheRoomOnScreenOpensTheCatalogue() async throws {
@@ -452,7 +470,208 @@ final class RoomFlowCoordinatorTests {
         #expect(navigationStackCoordinator.stackCoordinators.first is SpaceScreenCoordinator)
     }
     
+    // AGENT-PLATFORM (Brief 0083, decision 344)
+    @Test
+    func theThreadListReturnsToTheDetailsAtTheRoot() async throws {
+        try setupThreadListRoom()
+        try await processExpectingNewRootCoordinator(route: .roomDetails(roomID: "1"))
+        
+        try await presentThreadList(expectedStackCount: 1)
+        #expect(roomFlowCoordinator.stateMachine.state == .threadList(previousState: .roomDetails(isRoot: true)))
+        
+        try await pop(expectedStackCount: 0)
+        #expect(roomFlowCoordinator.stateMachine.state == .roomDetails(isRoot: true))
+    }
+    
+    @Test
+    func theThreadListReturnsToTheDetailsOverTheRoom() async throws {
+        try setupThreadListRoom()
+        try await processExpectingNewRootCoordinator(route: .room(roomID: "1", via: []))
+        try await process(route: .roomDetails(roomID: "1"), expectedStackCount: 1)
+        
+        try await presentThreadList(expectedStackCount: 2)
+        #expect(roomFlowCoordinator.stateMachine.state == .threadList(previousState: .roomDetails(isRoot: false)))
+        
+        try await pop(expectedStackCount: 1)
+        #expect(roomFlowCoordinator.stateMachine.state == .roomDetails(isRoot: false))
+    }
+    
+    /// A notification for the room, with the details at the root: there's no room to pop back to, so it's presented.
+    @Test
+    func aRouteOverTheDetailsAtTheRootShowsTheRoom() async throws {
+        try setupThreadListRoom()
+        try await processExpectingNewRootCoordinator(route: .roomDetails(roomID: "1"))
+        try await presentThreadList(expectedStackCount: 1)
+        
+        try await processExpectingNewRootCoordinator(route: .room(roomID: "1", via: []))
+        
+        #expect(navigationStackCoordinator.rootCoordinator is RoomScreenCoordinator)
+        #expect(navigationStackCoordinator.stackCoordinators.isEmpty)
+        #expect(roomFlowCoordinator.stateMachine.state == .room)
+    }
+    
+    /// With the room at the root, the same route pops to it and keeps it.
+    @Test
+    func aRouteOverTheDetailsOverTheRoomKeepsTheRoom() async throws {
+        try setupThreadListRoom()
+        try await processExpectingNewRootCoordinator(route: .room(roomID: "1", via: []))
+        let roomCoordinator = navigationStackCoordinator.rootCoordinator
+        try await process(route: .roomDetails(roomID: "1"), expectedStackCount: 1)
+        try await presentThreadList(expectedStackCount: 2)
+        
+        try await process(route: .room(roomID: "1", via: []), expectedStackCount: 0)
+        
+        #expect(navigationStackCoordinator.rootCoordinator === roomCoordinator)
+        #expect(roomFlowCoordinator.stateMachine.state == .room)
+    }
+    
+    // AGENT-PLATFORM (Brief 0083, question 359)
+    @Test
+    func anAgentsRowReturnsToTheDetails() async throws {
+        try setupAgentRowRoom()
+        try await processExpectingNewRootCoordinator(route: .room(roomID: "1", via: []))
+        try await process(route: .roomDetails(roomID: "1"), expectedStackCount: 1)
+        
+        try await presentAgentRow(expectedStackCount: 2)
+        #expect(roomFlowCoordinator.stateMachine.state == .agentRowFlow(previousState: .roomDetails(isRoot: false)))
+        
+        try await pop(expectedStackCount: 1)
+        #expect(roomFlowCoordinator.stateMachine.state == .roomDetails(isRoot: false))
+    }
+    
+    /// A notification for the room over an agent's row: the row's end finds the flow already moved on.
+    @Test
+    func aRouteOverAnAgentsRowKeepsTheRoom() async throws {
+        try setupAgentRowRoom()
+        try await processExpectingNewRootCoordinator(route: .room(roomID: "1", via: []))
+        let roomCoordinator = navigationStackCoordinator.rootCoordinator
+        try await process(route: .roomDetails(roomID: "1"), expectedStackCount: 1)
+        try await presentAgentRow(expectedStackCount: 2)
+        
+        try await process(route: .room(roomID: "1", via: []), expectedStackCount: 0)
+        
+        #expect(navigationStackCoordinator.rootCoordinator === roomCoordinator)
+        #expect(roomFlowCoordinator.stateMachine.state == .room)
+    }
+    
+    /// An agent's «Open chat» for the room the row was opened from lands on that room, not on a second copy of it.
+    @Test
+    func openingThisRoomFromAnAgentsRowReturnsToTheRoom() async throws {
+        try setupAgentRowRoom()
+        try await processExpectingNewRootCoordinator(route: .room(roomID: "1", via: []))
+        let roomCoordinator = navigationStackCoordinator.rootCoordinator
+        try await process(route: .roomDetails(roomID: "1"), expectedStackCount: 1)
+        try await presentAgentRow(expectedStackCount: 2)
+        
+        #expect(roomFlowCoordinator.agentRowFlowCoordinator != nil)
+        
+        let deferred = deferFulfillment(navigationStackCoordinator.observe(\.stackCoordinators.count)) { $0 == 0 }
+        #expect(roomFlowCoordinator.showTimeline(ifRoomID: "1"))
+        try await deferred.fulfill()
+        
+        #expect(navigationStackCoordinator.rootCoordinator === roomCoordinator)
+        #expect(roomFlowCoordinator.stateMachine.state == .room)
+        // The route moved the state on before the row's screens went: the row's flow is let go all the same.
+        let end = Date().addingTimeInterval(1)
+        while roomFlowCoordinator.agentRowFlowCoordinator != nil, Date() < end {
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        #expect(roomFlowCoordinator.agentRowFlowCoordinator == nil)
+    }
+    
+    /// A child flow's timeline is one of the stack's screens: the ones over it go.
+    @Test
+    func openingThisRoomFromAnAgentsRowInAChildFlowReturnsToTheRoom() async throws {
+        try setupAgentRowRoom(asChildFlow: true)
+        navigationStackCoordinator.setRootCoordinator(BlankFormCoordinator())
+        try await process(route: .room(roomID: "1", via: []), expectedStackCount: 1)
+        let roomCoordinator = navigationStackCoordinator.stackCoordinators.first
+        try await process(route: .roomDetails(roomID: "1"), expectedStackCount: 2)
+        try await presentAgentRow(expectedStackCount: 3)
+        
+        let deferred = deferFulfillment(navigationStackCoordinator.observe(\.stackCoordinators.count)) { $0 == 1 }
+        #expect(roomFlowCoordinator.showTimeline(ifRoomID: "1"))
+        try await deferred.fulfill()
+        
+        #expect(navigationStackCoordinator.stackCoordinators.first === roomCoordinator)
+        #expect(navigationStackCoordinator.stackCoordinators.last is RoomScreenCoordinator)
+    }
+    
+    /// The "…" menu on the chat's tools: the sheet goes, and the agent's profile is the room's to show.
+    @Test
+    func theProfileFromTheToolsSheetOpensOnTheRoom() async throws {
+        try setupAgentRowRoom()
+        try await processExpectingNewRootCoordinator(route: .room(roomID: "1", via: []))
+        try await presentAgentToolsSheet()
+        
+        roomFlowCoordinator.handle(.presentProfile(userID: "@assistant:example.com"))
+        
+        guard case .membersFlow = roomFlowCoordinator.stateMachine.state else {
+            Issue.record("The agent's profile didn't open: \(roomFlowCoordinator.stateMachine.state)")
+            return
+        }
+    }
+    
+    /// Another room isn't this flow's to show.
+    @Test
+    func anotherRoomFromAnAgentsRowIsLeftAlone() async throws {
+        try setupAgentRowRoom()
+        try await processExpectingNewRootCoordinator(route: .room(roomID: "1", via: []))
+        try await process(route: .roomDetails(roomID: "1"), expectedStackCount: 1)
+        try await presentAgentRow(expectedStackCount: 2)
+        
+        #expect(!roomFlowCoordinator.showTimeline(ifRoomID: "2"))
+        #expect(navigationStackCoordinator.stackCoordinators.count == 2)
+    }
+    
     // MARK: - Private
+    
+    /// A flow whose details can open an own agent's row.
+    private func setupAgentRowRoom(asChildFlow: Bool = false) throws {
+        setupRoomFlowCoordinator(asChildFlow: asChildFlow, agentsRead: .agents(count: 1), hasAgentsStore: true)
+        
+        let roomProxy = JoinedRoomProxyMock(.init(id: "1"))
+        clientProxy.roomForIdentifierClosure = { _ in .joined(roomProxy) }
+    }
+    
+    /// Opens the agents sheet as the details' Agents row does.
+    private func presentAgentToolsSheet() async throws {
+        let previousSheetID = navigationStackCoordinator.sheetCoordinatorID
+        let deferred = deferFulfillment(navigationStackCoordinator.observe(\.sheetCoordinatorID)) { $0 != nil && $0 != previousSheetID }
+        roomFlowCoordinator.stateMachine.tryEvent(.startAgentToolsFlow)
+        try await deferred.fulfill()
+    }
+    
+    /// Opens Usage as the details' row does.
+    private func presentAgentRow(expectedStackCount: Int) async throws {
+        let deferred = deferFulfillment(navigationStackCoordinator.observe(\.stackCoordinators.count)) { $0 == expectedStackCount }
+        roomFlowCoordinator.stateMachine.tryEvent(.startAgentRowFlow(row: .usage, card: AgentProfileMock.assistant))
+        try await deferred.fulfill()
+        #expect(navigationStackCoordinator.stackCoordinators.last is AgentUsageScreenCoordinator)
+    }
+    
+    /// A flow whose room can open its thread list.
+    private func setupThreadListRoom() throws {
+        setupRoomFlowCoordinator()
+        
+        let roomProxy = JoinedRoomProxyMock(.init(id: "1"))
+        roomProxy.threadListServiceReturnValue = RoomThreadListServiceProxyMock(.init())
+        clientProxy.roomForIdentifierClosure = { _ in .joined(roomProxy) }
+    }
+    
+    /// Opens the list as the details' Threads row does.
+    private func presentThreadList(expectedStackCount: Int) async throws {
+        let deferred = deferFulfillment(navigationStackCoordinator.observe(\.stackCoordinators.count)) { $0 == expectedStackCount }
+        roomFlowCoordinator.stateMachine.tryEvent(.presentThreadList)
+        try await deferred.fulfill()
+        #expect(navigationStackCoordinator.stackCoordinators.last is RoomThreadListScreenCoordinator)
+    }
+    
+    private func pop(expectedStackCount: Int) async throws {
+        let deferred = deferFulfillment(navigationStackCoordinator.observe(\.stackCoordinators.count)) { $0 == expectedStackCount }
+        navigationStackCoordinator.pop()
+        try await deferred.fulfill()
+    }
     
     /// Handles the route and waits for the navigation stack's root coordinator to be replaced,
     /// which happens asynchronously after the route has been handled.
@@ -547,7 +766,7 @@ final class RoomFlowCoordinatorTests {
         }
     }
     
-    private func setupRoomFlowCoordinator(asChildFlow: Bool = false, roomType: RoomType? = nil, agentsRead: AgentsRead = .noPlatform) {
+    private func setupRoomFlowCoordinator(asChildFlow: Bool = false, roomType: RoomType? = nil, agentsRead: AgentsRead = .noPlatform, hasAgentsStore: Bool = false) {
         cancellables.removeAll()
         clientProxy = ClientProxyMock(.init(userID: "hi@bob",
                                             roomSummaryProvider: RoomSummaryProviderMock(.init(state: .loaded(.mockRooms))),
@@ -574,26 +793,28 @@ final class RoomFlowCoordinatorTests {
             "1"
         }
         
-        let userSession = UserSessionMock(.init(clientProxy: clientProxy))
+        let userSession = UserSessionMock(.init(clientProxy: clientProxy, userSettings: userSettings))
         if let read = agentsRead.result { // AGENT-PLATFORM (decisions 111, 129)
             let agentPlatformService = AgentPlatformServiceMock()
             agentPlatformService.listMyPersonalAgentsReturnValue = read
             agentPlatformService.fetchRoomToolsRoomIDReturnValue = .success(.init(roomID: roomID, agents: [])) // the room screen's tools banner
             userSession.agentPlatformService = agentPlatformService
+            if hasAgentsStore { // AGENT-PLATFORM (Brief 0083, question 359)
+                agentPlatformService.fetchAgentUsageAgentIDReturnValue = .failure(.serverError(status: 503))
+                userSession.agentsStore = AgentsStore(service: agentPlatformService, retryDelays: [])
+            }
         }
         
         let flowParameters = CommonFlowParameters(userSession: userSession,
+                                                  availableSessionsPublisher: .init([.init(userSession: userSession)]),
                                                   bugReportService: BugReportServiceMock(.init()),
                                                   callKitService: CallKitServiceMock(.init()),
                                                   timelineControllerFactory: timelineControllerFactory,
-                                                  emojiProvider: EmojiProvider(appSettings: appSettings),
+                                                  emojiProvider: EmojiProvider(userSettings: userSettings),
                                                   linkMetadataProvider: LinkMetadataProvider(),
                                                   appMediator: AppMediatorMock(.init()),
-                                                  appSettings: appSettings,
-                                                  appHooks: AppHooks(),
                                                   analytics: AnalyticsServiceMock(.init()),
                                                   userIndicatorController: UserIndicatorControllerMock(),
-                                                  notificationManager: NotificationManagerMock(),
                                                   stateMachineFactory: StateMachineFactory())
         
         roomFlowCoordinator = RoomFlowCoordinator(roomID: roomID,

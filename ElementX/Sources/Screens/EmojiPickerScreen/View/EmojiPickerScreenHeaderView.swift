@@ -12,9 +12,11 @@ struct EmojiPickerScreenHeaderView: View {
     let title: String
     
     var body: some View {
+        // AGENT-PLATFORM (Brief 0083): the emoji keyboard's category heading, small, grey and in capitals.
         Text(title)
-            .font(.compound.bodyMD.bold())
-            .foregroundColor(.compound.textPrimary)
+            .font(.compound.bodySMSemibold)
+            .foregroundColor(.compound.textSecondary)
+            .textCase(.uppercase)
             .frame(maxWidth: .infinity, alignment: .leading)
     }
 }

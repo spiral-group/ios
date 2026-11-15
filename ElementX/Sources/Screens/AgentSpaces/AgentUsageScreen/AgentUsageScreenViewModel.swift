@@ -5,7 +5,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial.
 // Please see LICENSE files in the repository root for full details.
 //
-// AGENT-PLATFORM: the agent's AI use against its daily limit (Brief 0079 3c).
+// AGENT-PLATFORM: the agent's AI use against its weekly limit (Brief 0079 3c, question 394).
 //
 
 import SwiftUI
@@ -14,14 +14,29 @@ typealias AgentUsageScreenViewModelType = StateStoreViewModelV2<AgentUsageScreen
 
 class AgentUsageScreenViewModel: AgentUsageScreenViewModelType, AgentUsageScreenViewModelProtocol {
     private let agentID: String
-    private let agentPlatformService: any AgentPlatformServiceProtocol
+    // AGENT-PLATFORM: platform sync (decision 289): `agent.usage` reads it again while shown.
+    private let store: AgentsStore
 
-    init(agentID: String, agentPlatformService: any AgentPlatformServiceProtocol) {
+    private var resource: AgentsResource {
+        .usage(agentID: agentID)
+    }
+
+    init(agentID: String, store: AgentsStore) {
         self.agentID = agentID
-        self.agentPlatformService = agentPlatformService
+        self.store = store
         super.init(initialViewState: AgentUsageScreenViewState())
 
-        Task { await load() }
+        render()
+        store.observe { [weak self] in
+            guard let self else { return false }
+            render()
+            return true
+        }
+        store.show(resource, by: self)
+    }
+
+    isolated deinit {
+        store.stopShowing(resource, by: self)
     }
 
     override func process(viewAction: AgentUsageScreenViewAction) {
@@ -29,23 +44,23 @@ class AgentUsageScreenViewModel: AgentUsageScreenViewModelType, AgentUsageScreen
 
         switch viewAction {
         case .retry:
-            state.loadState = .loading
-            Task { await load() }
-        case .refresh:
-            Task { await load() }
+            Task { await store.reread(resource) }
         }
     }
 
     // MARK: - Private
 
-    private func load() async {
-        switch await agentPlatformService.fetchAgentUsage(agentID: agentID) {
-        case .success(let usage):
-            state.loadState = .loaded(usage)
-        case .failure(let error):
-            MXLog.error("Failed to load the agent's usage: \(error)")
-            if case .loaded = state.loadState { return }
-            state.loadState = .failure
+    private func render() {
+        let loadState: AgentUsageScreenLoadState = switch store.readState(resource, \.usage) {
+        case .loading: .loading
+        case .loaded(let usage): .loaded(AgentLimitPage(usage: usage))
+        case .failed: .failure
+        }
+        if state.loadState != loadState {
+            state.loadState = loadState
+        }
+        if state.syncStatus != store.syncStatus {
+            state.syncStatus = store.syncStatus
         }
     }
 }

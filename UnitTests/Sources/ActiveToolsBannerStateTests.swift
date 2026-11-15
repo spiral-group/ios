@@ -9,8 +9,8 @@
 // and ActiveToolsBannerState rotates / preserves selection over them.
 
 import Compound
-@testable import ElementX
 import Foundation
+@testable import Spiral
 import SwiftUI
 import Testing
 
@@ -86,17 +86,17 @@ struct ActiveToolsBannerStateTests {
 
     @Test
     func iconResolvesFromToolKind() {
-        #expect(AgentCapability.icon(forToolKind: "translate") == \CompoundIcons.translate)
-        #expect(AgentCapability.icon(forToolKind: "live_translate") == \CompoundIcons.voiceCall)
-        #expect(AgentCapability.icon(forToolKind: "call_summary") == \CompoundIcons.document)
-        #expect(AgentCapability.icon(forToolKind: "call_recording") == \CompoundIcons.micOn)
+        #expect(ToolDisplayName.icon(forKind: "translate") == \CompoundIcons.translate)
+        #expect(ToolDisplayName.icon(forKind: "live_translate") == \CompoundIcons.voiceCall)
+        #expect(ToolDisplayName.icon(forKind: "call_summary") == \CompoundIcons.document)
+        #expect(ToolDisplayName.icon(forKind: "call_recording") == \CompoundIcons.micOn)
         // Unknown kind falls back to the translate icon.
-        #expect(AgentCapability.icon(forToolKind: "made_up") == \CompoundIcons.translate)
+        #expect(ToolDisplayName.icon(forKind: "made_up") == \CompoundIcons.extensions)
     }
 
     @Test
     func toolDisplayNameLocalizesEveryKind() {
-        // The call-artifact kinds aren't in ArmToolKind, so they must be
+        // The call-artifact kinds have names of their own, so they must be
         // resolved here too — never rendered as the raw "call_summary" tag.
         #expect(ToolDisplayName.name(forKind: "call_summary") == UntranslatedL10n.screenAgentCapabilitiesCallSummaryTitle)
         #expect(ToolDisplayName.name(forKind: "call_recording") == UntranslatedL10n.screenAgentCapabilitiesCallRecordingTitle)
@@ -114,9 +114,9 @@ struct ActiveToolsBannerStateTests {
     @Test
     func toolDisplayNameCoversEveryKnownToolKind() throws {
         // Guard against the regression that shipped call_summary/call_recording
-        // as raw tags: every kind AgentCapability knows about MUST resolve to a
+        // as raw tags: every kind AgentToolKind knows about MUST resolve to a
         // real localized name here, never the raw-tag fallback. Adding a new
-        // backend kind to AgentCapability.toolKinds without a name here fails
+        // backend kind to AgentToolKind without a name here fails
         // this test. Comparison is against the explicit L10n contract (the old
         // `!= kind.localizedCapitalized` proxy false-fails on English, where
         // fallback and genuine name legitimately coincide for one-word kinds).
@@ -131,7 +131,7 @@ struct ActiveToolsBannerStateTests {
             "call_summary": UntranslatedL10n.screenAgentCapabilitiesCallSummaryTitle,
             "call_recording": UntranslatedL10n.screenAgentCapabilitiesCallRecordingTitle
         ]
-        let knownKinds = AgentCapability.allCases.flatMap(\.toolKinds)
+        let knownKinds = AgentToolKind.allCases.map(\.rawValue)
         for kind in knownKinds {
             let expected = try #require(expectedNames[kind],
                                         "Tool kind '\(kind)' has no localized name in ToolDisplayName")

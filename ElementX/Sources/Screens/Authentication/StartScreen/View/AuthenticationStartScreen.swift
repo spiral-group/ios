@@ -7,27 +7,21 @@
 //
 
 import Compound
+import SpiralTokens // AGENT-PLATFORM (Brief 0083)
 import SwiftUI
 
 /// The screen shown at the beginning of the onboarding flow.
 struct AuthenticationStartScreen: View {
-    @Environment(\.verticalSizeClass) private var verticalSizeClass
-    
     @Bindable var context: AuthenticationStartScreenViewModel.Context
     
     var body: some View {
-        if case let .welcomeBack(classicAppAccount) = context.viewState.classicAppMode,
-           classicAppAccount.state.isServerSupported != false {
-            AuthenticationClassicAppAccountView(context: context, classicAppAccount: classicAppAccount)
-        } else {
-            standardContent
-        }
+        standardContent // AGENT-PLATFORM (Brief 0083 L1b): no Element Classic account view
     }
     
+    // AGENT-PLATFORM (Brief 0083, decision 308): Spiral's start. A small logo and the name sit top left, the
+    // sentence is the headline under them and the buttons are at the bottom. Nothing depends on the size class,
+    // so the snapshots show the phone's layout and a phone in landscape keeps the logo.
     var standardContent: some View {
-        // This view uses a GeometryReader instead of FullscreenDialog so its content takes the full
-        // height available (after taking the buttons out of the equation) in order for the logo
-        // and title to appear vertically centred and equally spaced within this content area.
         GeometryReader { geometry in
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
@@ -35,26 +29,26 @@ struct AuthenticationStartScreen: View {
                         .frame(height: UIConstants.spacerHeight(in: geometry))
                     
                     content
-                        .frame(width: geometry.size.width)
                         .accessibilityIdentifier(A11yIdentifiers.authenticationStartScreen.hidden)
                     
+                    Spacer(minLength: CompoundDesignTokens.space8X)
+                    
                     buttons
-                        .frame(width: geometry.size.width)
-                        .padding(.bottom, geometry.safeAreaInsets.bottom > 0 ? 0 : 16)
-                        .padding(.top, 8)
+                        .padding(.bottom, geometry.safeAreaInsets.bottom > 0 ? 0 : CompoundDesignTokens.space4X)
                     
                     Spacer()
                         .frame(height: UIConstants.spacerHeight(in: geometry))
                 }
+                .padding(.horizontal, CompoundDesignTokens.space6X)
                 .frame(minHeight: geometry.size.height)
+                .readableFrame()
             }
             .scrollBounceBehavior(.basedOnSize)
         }
         .background {
             AuthenticationStartScreenBackgroundImage()
         }
-        .navigationBarHidden(context.viewState.classicAppMode == nil)
-        .toolbar { toolbar }
+        .navigationBarHidden(true) // AGENT-PLATFORM (Brief 0083 L1b): the bar was only for Classic's other options
         .alert(item: $context.alertInfo)
         .sheet(isPresented: $context.showInvitePasteSheet) {
             // AGENT-PLATFORM (Brief 0073 / ADR-0008).
@@ -65,44 +59,48 @@ struct AuthenticationStartScreen: View {
         }
     }
     
+    // AGENT-PLATFORM (Brief 0083, decision 308): the brand row, then the welcome sentence as the headline.
     var content: some View {
-        VStack(spacing: 0) {
-            Spacer()
-            
-            if verticalSizeClass == .regular {
-                Spacer()
-                
-                AuthenticationStartLogo(hideBrandChrome: context.viewState.hideBrandChrome,
-                                        isOnGradient: !context.viewState.hideBrandChrome)
-            }
-            
-            Spacer()
+        VStack(alignment: .leading, spacing: 0) {
+            brand
+                .padding(.top, CompoundDesignTokens.space4X)
             
             if !context.viewState.hideBrandChrome {
-                // AGENT-PLATFORM (ADR-0005 auth v2): minimal Spiral copy —
-                // the product name + one sentence — instead of upstream's
-                // Element wordplay.
-                VStack(spacing: 8) {
-                    Text(InfoPlistReader.main.productionAppName)
-                        .font(.compound.headingLGBold)
-                        .foregroundColor(.compound.textPrimary)
-                        .multilineTextAlignment(.center)
-                        .accessibilityAddTraits(.isHeader)
-                    // AGENT-PLATFORM: Spiral welcome subtitle (fork-local copy).
-                    Text(UntranslatedL10n.screenStartWelcomeSubtitle)
-                        .font(.compound.bodyLG)
-                        .foregroundColor(.compound.textSecondary)
-                        .multilineTextAlignment(.center)
-                }
-                .padding()
-                .fixedSize(horizontal: false, vertical: true)
+                // AGENT-PLATFORM: Spiral welcome subtitle (fork-local copy).
+                Text(UntranslatedL10n.screenStartWelcomeSubtitle)
+                    .font(.compound.headingXLBold)
+                    .foregroundStyle(.compound.textPrimary)
+                    .padding(.top, CompoundDesignTokens.space20X)
             }
-            
-            Spacer()
         }
-        .padding(.bottom)
-        .padding(.horizontal, 16)
-        .readableFrame()
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+    
+    // AGENT-PLATFORM (Brief 0083, decision 308): the app's tile at the size of the name, without the shadow
+    // AuthenticationStartLogo gives the large tile.
+    var brand: some View {
+        HStack(spacing: CompoundDesignTokens.space3X) {
+            Image(asset: Asset.Images.appLogo)
+                .resizable()
+                .scaledToFit()
+                .scaledFrame(size: 40, relativeTo: .compound.headingMD)
+                .appLogoEdge() // AGENT-PLATFORM (Brief 0083, decision 370)
+                .accessibilityHidden(true)
+            
+            if !context.viewState.hideBrandChrome {
+                Text(InfoPlistReader.main.productionAppName)
+                    .font(.compound.headingMDBold)
+                    .foregroundStyle(.compound.textPrimary)
+                    .accessibilityAddTraits(.isHeader)
+                
+                // AGENT-PLATFORM (Brief 0084): never in a prod build.
+                if let screenMark = SpiralEnvironment.current.screenMark {
+                    Text(verbatim: screenMark)
+                        .font(.compound.bodySMSemibold)
+                        .foregroundStyle(.compound.textSecondary)
+                }
+            }
+        }
     }
     
     /// The main action buttons.
@@ -112,7 +110,8 @@ struct AuthenticationStartScreen: View {
         // linking) drops to a quiet tertiary at the bottom. Three buttons,
         // as Element X has; the invitation is asked for behind Create
         // account (Brief 0073).
-        VStack(spacing: 16) {
+        // AGENT-PLATFORM (Brief 0083, decisions 308 and 293): the second button is Compound's secondary, a quiet grey fill.
+        VStack(spacing: CompoundDesignTokens.space3X) {
             // AGENT-PLATFORM (Brief 0073 / ADR-0008): who is inviting.
             if let pendingInvite = context.viewState.pendingInvite {
                 invitedBanner(pendingInvite)
@@ -167,10 +166,8 @@ struct AuthenticationStartScreen: View {
                     developerOptionsButton
                         .scaledOffset(x: 32, y: -0.5, relativeTo: .compound.bodySM)
                 }
-                .padding(.top, 16)
+                .padding(.top, CompoundDesignTokens.space2X)
         }
-        .padding(.horizontal, verticalSizeClass == .compact ? 128 : 24)
-        .readableFrame()
     }
     
     // AGENT-PLATFORM (Brief 0073 / ADR-0008).
@@ -189,7 +186,8 @@ struct AuthenticationStartScreen: View {
             Spacer(minLength: 0)
         }
         .padding(16)
-        .background(.compound.bgSubtleSecondary, in: RoundedRectangle(cornerRadius: 14))
+        // AGENT-PLATFORM (Brief 0083): a list card's radius, as the identity screen's methods.
+        .background(.compound.bgSubtleSecondary, in: RoundedRectangle(cornerRadius: SpiralRadius.listCard, style: .continuous))
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier(A11yIdentifiers.authenticationStartScreen.invitedBanner)
     }
@@ -210,25 +208,13 @@ struct AuthenticationStartScreen: View {
             .accessibilityLabel(L10n.commonDeveloperOptions)
         }
     }
-    
-    @ToolbarContentBuilder
-    var toolbar: some ToolbarContent {
-        ToolbarItem(placement: .primaryAction) {
-            if case let .otherOptions(classicAppAccount) = context.viewState.classicAppMode {
-                ToolbarButton(role: .close) {
-                    context.send(viewAction: .closeOtherOptions(classicAppAccount))
-                }
-            }
-        }
-    }
 }
 
 // MARK: - Previews
 
-struct AuthenticationStartScreen_Previews: PreviewProvider, TestablePreview {
+// AGENT-PLATFORM (Brief 0083): opted in to Spiral's gates.
+struct AuthenticationStartScreen_Previews: PreviewProvider, TestablePreview, SpiralGatedPreview {
     static let viewModel = makeViewModel()
-    static let provisionedViewModel = makeViewModel(provisionedServerName: "example.com")
-    static let classicAppViewModel = makeViewModel(hasClassicAppAccount: true)
     static let invitedViewModel = makeViewModel(pendingInvite: .init(token: "Qz8Hf72Kd91",
                                                                       inviterDisplayName: "Andrii",
                                                                       inviterUserID: "@alice:spiral.md"))
@@ -236,36 +222,20 @@ struct AuthenticationStartScreen_Previews: PreviewProvider, TestablePreview {
     static var previews: some View {
         AuthenticationStartScreen(context: viewModel.context)
             .previewDisplayName("Default")
-        AuthenticationStartScreen(context: provisionedViewModel.context)
-            .previewDisplayName("Provisioned")
         AuthenticationStartScreen(context: invitedViewModel.context)
             .previewDisplayName("Invited")
-        
-        ElementNavigationStack {
-            AuthenticationStartScreen(context: classicAppViewModel.context)
-        }
-        .previewDisplayName("Classic App")
+        // AGENT-PLATFORM (Brief 0083 L1b): no "Provisioned" or "Classic App" preview.
     }
     
-    static func makeViewModel(provisionedServerName: String? = nil,
-                              hasClassicAppAccount: Bool = false,
-                              pendingInvite: PendingInvite? = nil,
+    static func makeViewModel(pendingInvite: PendingInvite? = nil,
                               registrationRequiresInvite: Bool = true) -> AuthenticationStartScreenViewModel {
-        let classicAppAccount = ClassicAppAccount.mockDan
-        classicAppAccount.state.isServerSupported = true
-        classicAppAccount.state.availableSecrets = .complete
-        let classicAppManager: ClassicAppManagerMock? = hasClassicAppAccount ? .init(.init(accounts: [classicAppAccount])) : nil
-        
         let appSettings = AppSettings.volatile()
         appSettings.pendingInvite = pendingInvite
         appSettings.registrationRequiresInvite = registrationRequiresInvite
         
-        return AuthenticationStartScreenViewModel(authenticationService: AuthenticationService.mock(classicAppManager: classicAppManager),
-                                                  provisioningParameters: provisionedServerName.map { .init(accountProvider: $0, loginHint: nil) },
+        return AuthenticationStartScreenViewModel(authenticationService: AuthenticationService.mock,
                                                   isBugReportServiceEnabled: true,
-                                                  appMediator: AppMediatorMock(),
                                                   appSettings: appSettings,
-                                                  mediaProvider: MediaProviderMock(.init()),
-                                                  userIndicatorController: UserIndicatorControllerMock())
+                                                  userIndicatorController: UserIndicatorControllerMock()) // AGENT-PLATFORM (Brief 0083 L1b)
     }
 }

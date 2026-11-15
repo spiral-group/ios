@@ -15,7 +15,10 @@ class AgentDetailScreenViewModel: AgentDetailScreenViewModelType, AgentDetailScr
     private let agentPlatformService: AgentPlatformServiceProtocol
     private let clientProxy: ClientProxyProtocol
     private let userIndicatorController: UserIndicatorControllerProtocol
-    private let approvalsStreamService: ApprovalsStreamServiceProtocol?
+    // AGENT-PLATFORM: platform sync (decision 289): the screen renders from the
+    // session's store, so a change from the stream shows here and in the list.
+    private let store: AgentsStore
+    private var hasReportedGone = false
     
     private let actionsSubject: PassthroughSubject<AgentDetailScreenViewModelAction, Never> = .init()
     var actionsPublisher: AnyPublisher<AgentDetailScreenViewModelAction, Never> {
@@ -27,16 +30,39 @@ class AgentDetailScreenViewModel: AgentDetailScreenViewModelType, AgentDetailScr
          clientProxy: ClientProxyProtocol,
          mediaProvider: MediaProviderProtocol,
          userIndicatorController: UserIndicatorControllerProtocol,
-         approvalsStreamService: ApprovalsStreamServiceProtocol?) {
+         store: AgentsStore) {
         self.agentPlatformService = agentPlatformService
         self.clientProxy = clientProxy
         self.userIndicatorController = userIndicatorController
-        self.approvalsStreamService = approvalsStreamService
+        self.store = store
         
         super.init(initialViewState: AgentDetailScreenViewState(selection: selection), mediaProvider: mediaProvider)
         
-        observePendingApprovals()
-        Task { await reload() }
+        state.ownerDMRoomID = AgentRoomLabel.ownerDMRoomID(agentMatrixUserID: selection.card.matrixUserID, clientProxy: clientProxy)
+        render()
+        store.observe { [weak self] in
+            guard let self else { return false }
+            render()
+            return true
+        }
+        for resource in shownResources {
+            store.show(resource, by: self)
+        }
+    }
+    
+    isolated deinit {
+        for resource in shownResources {
+            store.stopShowing(resource, by: self)
+        }
+    }
+    
+    /// The agent itself, its blocks (the count) and what waits for the owner; its card comes with the spaces.
+    private var shownResources: [AgentsResource] {
+        agentResources + [.needsAction]
+    }
+    
+    private var agentResources: [AgentsResource] {
+        [.agent(agentID: state.selection.card.agentID), .blocks(agentID: state.selection.card.agentID)]
     }
     
     // MARK: - Public
@@ -87,9 +113,6 @@ class AgentDetailScreenViewModel: AgentDetailScreenViewModelType, AgentDetailScr
             guard state.canArchive else { return }
             Task { await archive() }
         case .retry:
-            state.detailState = .loading
-            Task { await reload() }
-        case .refresh:
             Task { await reload() }
         }
     }
@@ -160,7 +183,7 @@ class AgentDetailScreenViewModel: AgentDetailScreenViewModelType, AgentDetailScr
     /// The pause applies at once; a failure says so quietly and the switch
     /// follows the server again.
     private func setPaused(_ isPaused: Bool) async {
-        guard let current = state.paused, current != isPaused, !state.isPausing else { return }
+        guard state.canWriteSwitches, state.paused != isPaused, !state.isPausing else { return }
         state.isPausing = true
         // Shown at once; the read after the write says what stuck.
         state.pendingPause = isPaused
@@ -179,7 +202,9 @@ class AgentDetailScreenViewModel: AgentDetailScreenViewModelType, AgentDetailScr
         }
 
         switch result {
-        case .success:
+        case .success(let readModel):
+            // S5: the Agents tab's row follows the answer at once.
+            store.agentEdited(readModel)
             actionsSubject.send(.changed)
         case .failure(let error):
             MXLog.error("Failed to set the pause of agent \(state.card.agentID): \(error)")
@@ -192,7 +217,7 @@ class AgentDetailScreenViewModel: AgentDetailScreenViewModelType, AgentDetailScr
     
     /// Like the pause: applied at once, the read after it says what stuck.
     private func setShowInSearch(_ isOn: Bool) async {
-        guard let current = state.showInSearch, current != isOn, !state.isWritingVisibility else { return }
+        guard state.canWriteSwitches, state.showInSearch != isOn, !state.isWritingVisibility else { return }
         state.isWritingVisibility = true
         state.pendingShowInSearch = isOn
         defer {
@@ -201,7 +226,9 @@ class AgentDetailScreenViewModel: AgentDetailScreenViewModelType, AgentDetailScr
         }
         
         switch await agentPlatformService.editAgent(agentID: state.card.agentID, patch: AgentEditPatch(visibility: isOn ? "public" : "private")) {
-        case .success:
+        case .success(let readModel):
+            // S5: the Agents tab's row follows the answer at once.
+            store.agentEdited(readModel)
             actionsSubject.send(.changed)
         case .failure(let error):
             MXLog.error("Failed to set the visibility of agent \(state.card.agentID): \(error)")
@@ -212,20 +239,73 @@ class AgentDetailScreenViewModel: AgentDetailScreenViewModelType, AgentDetailScr
         await reload()
     }
     
-    /// Follows the stream while the screen is shown. Only a seeded stream has
-    /// read what waits; before that it holds nothing, not zero.
-    private func observePendingApprovals() {
-        guard let approvalsStreamService else { return }
-        let agentID = state.card.agentID
-        // Reads only the stream inside the tracking: a write to `state` there would re-fire it.
-        let count = withObservationTracking {
-            approvalsStreamService.isSeeded ? approvalsStreamService.needsAction.count { item in
-                if case .approval(let approval) = item { approval.agentID == agentID } else { false }
-            } : nil
-        } onChange: { [weak self] in
-            Task { @MainActor [weak self] in self?.observePendingApprovals() }
+    /// What the store holds of this agent.
+    private func render() {
+        let agentID = state.selection.card.agentID
+        let liveCard = store.card(agentID: agentID)
+        if state.liveCard != liveCard {
+            state.liveCard = liveCard
         }
-        state.pendingApprovalsCount = count
+        renderCounts(agentID: agentID)
+        let detailState: AgentDetailScreenDetailState
+        switch store.readState(.agent(agentID: agentID), \.agent) {
+        case .loading:
+            detailState = .loading
+        case .failed(.notFound):
+            // Deleted elsewhere: the screen closes rather than show a stale header over a failure.
+            detailState = .failure
+            if !hasReportedGone {
+                hasReportedGone = true
+                actionsSubject.send(.gone)
+            }
+        case .failed:
+            detailState = .failure
+        case .loaded(let detail):
+            detailState = .loaded(detail.readModel, detail.rooms)
+            let deviceRoomNames = AgentRoomLabel.deviceRoomNames(of: detail.rooms, clientProxy: clientProxy)
+            if state.deviceRoomNames != deviceRoomNames {
+                state.deviceRoomNames = deviceRoomNames
+            }
+            // Contextual verification banner (artboard 0037-D): never read, it stays hidden.
+            if state.pendingVerifications != detail.pendingVerifications ?? [] {
+                state.pendingVerifications = detail.pendingVerifications ?? []
+            }
+        }
+        if state.detailState != detailState {
+            state.detailState = detailState
+        }
+        if state.syncStatus != store.syncStatus {
+            state.syncStatus = store.syncStatus
+        }
+    }
+    
+    /// What waits and who is blocked. What waits is `nil` until read, never a made-up `0`.
+    private func renderCounts(agentID: String) {
+        let pendingApprovalsCount = store.needsAction.map { items in
+            items.count { item in
+                if case .approval(let approval) = item { approval.agentID == agentID } else { false }
+            }
+        }
+        if state.pendingApprovalsCount != pendingApprovalsCount {
+            state.pendingApprovalsCount = pendingApprovalsCount
+        }
+        let isReadingPendingApprovals = isReading(.needsAction, \.needsAction)
+        if state.isReadingPendingApprovals != isReadingPendingApprovals {
+            state.isReadingPendingApprovals = isReadingPendingApprovals
+        }
+        // A failed read keeps the last count rather than showing none.
+        if case .blocks(let page)? = store.value(.blocks(agentID: agentID)), state.blockedCount != AgentBlockedCount(page: page) {
+            state.blockedCount = AgentBlockedCount(page: page)
+        }
+        let isReadingBlocked = isReading(.blocks(agentID: agentID), \.blocks)
+        if state.isReadingBlocked != isReadingBlocked {
+            state.isReadingBlocked = isReadingBlocked
+        }
+    }
+    
+    /// Nothing of it is held and no read has failed yet.
+    private func isReading<Value>(_ resource: AgentsResource, _ extract: (AgentsValue) -> Value?) -> Bool {
+        if case .loading = store.readState(resource, extract) { true } else { false }
     }
     
     private func showAddToChatFailure() {
@@ -251,37 +331,11 @@ class AgentDetailScreenViewModel: AgentDetailScreenViewModelType, AgentDetailScr
         }
     }
     
+    /// Reads the agent now, after the person's own change (a write here or deeper in the flow).
     func reload() async {
-        // Sequential awaits: Swift 6.2 strict checking forbids `async let`
-        // child tasks capturing the non-Sendable service existential.
-        let readModelResult = await agentPlatformService.fetchAgentReadModel(agentID: state.card.agentID)
-        let roomsResult = await agentPlatformService.fetchAgentRooms(agentID: state.card.agentID)
-        // Contextual verification banner (artboard 0037-D) — a failed
-        // fetch just leaves the banner hidden; never blocks the screen.
-        let verificationsResult = await agentPlatformService.listVerificationsForAgent(agentID: state.card.agentID)
-        
-        if case .success(let pending) = verificationsResult {
-            state.pendingVerifications = pending
-        }
-        // A failed read keeps the last count rather than showing none.
-        switch await agentPlatformService.listBlockedContacts(agentID: state.card.agentID, cursor: nil, limit: AgentBlockedScreenViewModel.pageSize) {
-        case .success(let page):
-            state.blockedCount = AgentBlockedCount(page: page)
-        case .failure(let error):
-            MXLog.error("Failed to count the blocks of agent \(state.card.agentID): \(error)")
-        }
-        
         state.ownerDMRoomID = AgentRoomLabel.ownerDMRoomID(agentMatrixUserID: state.card.matrixUserID, clientProxy: clientProxy)
-        
-        switch (readModelResult, roomsResult) {
-        case (.success(let readModel), .success(let rooms)):
-            state.detailState = .loaded(readModel, rooms)
-        case (.failure(let error), _), (_, .failure(let error)):
-            MXLog.error("Failed to load agent \(state.card.agentID): \(error)")
-            // Keep stale content when a refresh fails.
-            if case .loaded = state.detailState {} else {
-                state.detailState = .failure
-            }
+        for resource in agentResources {
+            await store.reread(resource)
         }
     }
 }

@@ -10,15 +10,15 @@
 //
 
 import Combine
-@testable import ElementX
 import Foundation
+@testable import Spiral
 import Testing
 
 @MainActor
 struct AddAgentPickerScreenViewModelTests {
     // MARK: - Helpers
 
-    /// A Personal space with the assistant and a company with a sales agent.
+    /// A Personal space with the assistant and a company with a sales agent, which stays hidden (396).
     private static func makeService(inRoomMXIDs: [String] = []) -> AgentPlatformServiceMock {
         let service = AgentPlatformServiceMock()
         service.listMyAgentSpacesReturnValue = .success(AgentSpacesDirectory(spaces: [
@@ -53,12 +53,12 @@ struct AddAgentPickerScreenViewModelTests {
     private nonisolated static func card(_ id: String, mxid: String, name: String, lifecycleState: String = "active") -> AgentSpaceAgentCard {
         AgentSpaceAgentCard(agentID: id, matrixUserID: mxid, displayName: name, avatarMXC: nil,
                             kind: id == "a1" ? "personal_assistant" : "sales", visibility: "private",
-                            lifecycleState: lifecycleState, presence: .online, roomCount: 0, activeToolCount: 0)
+                            lifecycleState: lifecycleState, roomCount: 0, activeToolCount: 0)
     }
 
     private static func makeViewModel(service: AgentPlatformServiceMock,
                                       roomProxy: JoinedRoomProxyProtocol) -> AddAgentPickerScreenViewModel {
-        AddAgentPickerScreenViewModel(roomID: "!r:host", roomProxy: roomProxy, agentPlatformService: service)
+        AddAgentPickerScreenViewModel(roomID: "!r:host", roomProxy: roomProxy, store: AgentsStore(service: service))
     }
 
     // MARK: - Display name
@@ -80,22 +80,21 @@ struct AddAgentPickerScreenViewModelTests {
 
         let agents = viewModel.context.viewState.agents
         #expect(agents.first { $0.agentID == "a1" }?.isInRoom == true) // alice in room
-        #expect(agents.first { $0.agentID == "a2" }?.isInRoom == false) // the company agent is addable
     }
 
-    /// Re-walk R1: a company the person owns is a space they act for, so its
-    /// agents are offered next to the Personal ones — one section per space.
+    /// Question 396: companies are hidden, so the picker offers the Personal space's agents alone, and a company the
+    /// directory still lists is not read.
     @Test
-    func appeared_listsEverySpaceTheCallerActsFor() async throws {
+    func appeared_listsThePersonalSpaceAlone() async throws {
         let service = Self.makeService()
         let viewModel = Self.makeViewModel(service: service, roomProxy: JoinedRoomProxyMock(.init()))
 
         try await Self.load(viewModel)
 
         let sections = viewModel.context.viewState.sections
-        #expect(sections.map(\.title) == [UntranslatedL10n.screenAgentSpacesKindPersonal, "Acme"])
-        #expect(sections.map { $0.agents.map(\.agentID) } == [["a1"], ["a2"]], "archived agents and empty spaces left out")
-        #expect(service.fetchAgentSpaceOrgIDReceivedInvocations == ["personal", "acme"], "a space without agents isn't read")
+        #expect(sections.map(\.title) == [UntranslatedL10n.screenAgentSpacesKindPersonal])
+        #expect(sections.map { $0.agents.map(\.agentID) } == [["a1"]])
+        #expect(service.fetchAgentSpaceOrgIDReceivedInvocations == ["personal"])
         #expect(service.listMyPersonalAgentsCalled == false)
     }
 
@@ -103,28 +102,125 @@ struct AddAgentPickerScreenViewModelTests {
     @Test
     func appeared_failedSpaceRead_failsInsteadOfHidingTheSpace() async throws {
         let service = Self.makeService()
-        service.fetchAgentSpaceOrgIDClosure = { orgID in
-            orgID == "personal"
-                ? .success(Self.space(orgID, kind: .solo, agents: [Self.card("a1", mxid: "@assistant-alice:host", name: "Assistant Alice")]))
-                : .failure(.serverError(status: 500))
-        }
+        service.fetchAgentSpaceOrgIDClosure = { _ in .failure(.serverError(status: 500)) }
         let viewModel = Self.makeViewModel(service: service, roomProxy: JoinedRoomProxyMock(.init()))
 
         let deferred = deferFulfillment(viewModel.context.observe(\.viewState.listState)) { $0 == .failed }
-        viewModel.context.send(viewAction: .appeared)
         try await deferred.fulfill()
     }
 
     private static func load(_ viewModel: AddAgentPickerScreenViewModel) async throws {
-        let deferred = deferFulfillment(viewModel.context.observe(\.viewState.listState)) { state in
-            if case .loaded = state { return true }
-            return false
+        let deferred = deferFulfillment(viewModel.context.observe(\.viewState)) { state in
+            if case .loaded = state.listState { state.isRoomRead } else { false }
         }
-        viewModel.context.send(viewAction: .appeared)
         try await deferred.fulfill()
     }
 
+    // MARK: - From the store
+
+    /// What the session holds shows at once, with no read of the spaces of its own.
+    @Test
+    func theSpacesInTheStoreShowAtInit() async {
+        let service = Self.makeService()
+        let store = AgentsStore(service: service)
+        await store.reread(.spaces)
+        let listReads = service.listMyAgentSpacesCallsCount
+
+        let viewModel = AddAgentPickerScreenViewModel(roomID: "!r:host", roomProxy: JoinedRoomProxyMock(.init()), store: store)
+
+        #expect(viewModel.context.viewState.agents.map(\.agentID) == ["a1"])
+        #expect(service.listMyAgentSpacesCallsCount == listReads)
+    }
+
+    /// The list shows, but what may already be in the chat isn't offered until the room has answered.
+    @Test
+    func noInviteBeforeTheRoomHasAnswered() async throws {
+        let service = Self.makeService()
+        let store = AgentsStore(service: service)
+        await store.reread(.spaces)
+        let answer = try #require(service.fetchRoomToolsRoomIDReturnValue)
+        let gate = RoomGate()
+        service.fetchRoomToolsRoomIDClosure = { _ in
+            await gate.wait()
+            return answer
+        }
+        let roomProxy = JoinedRoomProxyMock(.init())
+        roomProxy.inviteUserIDReturnValue = .success(())
+        let viewModel = AddAgentPickerScreenViewModel(roomID: "!r:host", roomProxy: roomProxy, store: store)
+
+        viewModel.context.send(viewAction: .invite(id: "a1"))
+        try? await Task.sleep(for: .milliseconds(50))
+        #expect(roomProxy.inviteUserIDCalled == false)
+        #expect(!viewModel.context.viewState.isRoomRead)
+
+        gate.open()
+        let read = deferFulfillment(viewModel.context.observe(\.viewState.isRoomRead)) { $0 }
+        try await read.fulfill()
+        let invited = deferFulfillment(viewModel.actionsPublisher) { if case .invited = $0 { true } else { false } }
+        viewModel.context.send(viewAction: .invite(id: "a1"))
+        try await invited.fulfill()
+    }
+
+    @Test
+    func retryReadsAgainWhatFailed() async throws {
+        let service = Self.makeService()
+        let answer = service.listMyAgentSpacesReturnValue
+        service.listMyAgentSpacesReturnValue = .failure(.serverError(status: 500))
+        let viewModel = Self.makeViewModel(service: service, roomProxy: JoinedRoomProxyMock(.init()))
+        let failed = deferFulfillment(viewModel.context.observe(\.viewState.listState)) { $0 == .failed }
+        try await failed.fulfill()
+
+        service.listMyAgentSpacesReturnValue = answer
+        let loaded = deferFulfillment(viewModel.context.observe(\.viewState.listState)) { if case .loaded = $0 { true } else { false } }
+        viewModel.context.send(viewAction: .retry)
+        try await loaded.fulfill()
+    }
+
     // MARK: - Invite
+
+    /// A failed read of the room's agents is not "none in the room": the room's own members still answer.
+    /// Taken for an answer, the picker offered an agent the chat's sheet was listing (357 item 8).
+    @Test
+    func appeared_failedRoomRead_marksTheRoomsOwnMembers() async throws {
+        let service = Self.makeService()
+        service.fetchRoomToolsRoomIDReturnValue = .failure(.serverError(status: 500))
+        let members = [RoomMemberProxyMock(with: .init(userID: "@assistant-alice:host", membership: .join)), .mockMe]
+        let viewModel = AddAgentPickerScreenViewModel(roomID: "!r:host",
+                                                      roomProxy: JoinedRoomProxyMock(.init(members: members)),
+                                                      store: AgentsStore(service: service))
+
+        try await Self.load(viewModel)
+
+        let agents = viewModel.context.viewState.agents
+        #expect(agents.first { $0.matrixUserID == "@assistant-alice:host" }?.isInRoom == true)
+    }
+
+    /// Neither answered: the screen says so, and never offers what may be in the chat.
+    @Test
+    func appeared_noReadOfTheRoom_fails() async throws {
+        let service = Self.makeService()
+        service.fetchRoomToolsRoomIDReturnValue = .failure(.serverError(status: 500))
+        let viewModel = AddAgentPickerScreenViewModel(roomID: "!r:host",
+                                                      roomProxy: JoinedRoomProxyMock(.init(members: [])),
+                                                      store: AgentsStore(service: service))
+
+        let deferred = deferFulfillment(viewModel.context.observe(\.viewState.listState)) { $0 == .failed }
+        try await deferred.fulfill()
+    }
+
+    /// The server lists joined agents only: an invited one is in the chat too.
+    @Test
+    func appeared_marksAnInvitedAgent() async throws {
+        let service = Self.makeService()
+        let members = [RoomMemberProxyMock(with: .init(userID: "@assistant-alice:host", membership: .invite)), .mockMe]
+        let viewModel = AddAgentPickerScreenViewModel(roomID: "!r:host",
+                                                      roomProxy: JoinedRoomProxyMock(.init(members: members)),
+                                                      store: AgentsStore(service: service))
+
+        try await Self.load(viewModel)
+
+        #expect(viewModel.context.viewState.agents.first { $0.matrixUserID == "@assistant-alice:host" }?.isInRoom == true)
+    }
 
     @Test
     func invite_success_emitsInvited() async throws {
@@ -133,25 +229,20 @@ struct AddAgentPickerScreenViewModelTests {
         roomProxy.inviteUserIDReturnValue = .success(())
         let viewModel = Self.makeViewModel(service: service, roomProxy: roomProxy)
 
-        let loaded = deferFulfillment(viewModel.context.observe(\.viewState.listState)) { state in
-            if case .loaded = state { return true }
-            return false
-        }
-        viewModel.context.send(viewAction: .appeared)
-        try await loaded.fulfill()
+        try await Self.load(viewModel)
 
         let deferred = deferFulfillment(viewModel.actionsPublisher) { action in
             // .invited now carries the full item (id + mxid + name) so the flow
             // can open the new agent's capabilities directly.
             if case .invited(let item) = action {
-                return item.agentID == "a2" && item.matrixUserID == "@agent-acme-sales:host"
+                return item.agentID == "a1" && item.matrixUserID == "@assistant-alice:host"
             }
             return false
         }
-        viewModel.context.send(viewAction: .invite(id: "a2"))
+        viewModel.context.send(viewAction: .invite(id: "a1"))
         try await deferred.fulfill()
 
-        #expect(roomProxy.inviteUserIDReceivedUserID == "@agent-acme-sales:host")
+        #expect(roomProxy.inviteUserIDReceivedUserID == "@assistant-alice:host")
     }
 
     @Test
@@ -161,15 +252,10 @@ struct AddAgentPickerScreenViewModelTests {
         roomProxy.inviteUserIDReturnValue = .failure(.sdkError(RoomProxyMockError.generic))
         let viewModel = Self.makeViewModel(service: service, roomProxy: roomProxy)
 
-        let loaded = deferFulfillment(viewModel.context.observe(\.viewState.listState)) { state in
-            if case .loaded = state { return true }
-            return false
-        }
-        viewModel.context.send(viewAction: .appeared)
-        try await loaded.fulfill()
+        try await Self.load(viewModel)
 
         let deferred = deferFulfillment(viewModel.context.observe(\.viewState.bindings.alertInfo)) { $0 != nil }
-        viewModel.context.send(viewAction: .invite(id: "a2"))
+        viewModel.context.send(viewAction: .invite(id: "a1"))
         try await deferred.fulfill()
         #expect(viewModel.context.viewState.bindings.alertInfo?.id == .inviteFailed)
     }
@@ -181,16 +267,28 @@ struct AddAgentPickerScreenViewModelTests {
         roomProxy.inviteUserIDReturnValue = .success(())
         let viewModel = Self.makeViewModel(service: service, roomProxy: roomProxy)
 
-        let loaded = deferFulfillment(viewModel.context.observe(\.viewState.listState)) { state in
-            if case .loaded = state { return true }
-            return false
-        }
-        viewModel.context.send(viewAction: .appeared)
-        try await loaded.fulfill()
+        try await Self.load(viewModel)
 
         // a1 is in the room → invite must not call the proxy.
         viewModel.context.send(viewAction: .invite(id: "a1"))
         try? await Task.sleep(for: .milliseconds(50))
         #expect(roomProxy.inviteUserIDCalled == false)
+    }
+}
+
+/// Holds a read until the test opens it.
+private final class RoomGate {
+    private var continuation: CheckedContinuation<Void, Never>?
+    private var isOpen = false
+
+    func wait() async {
+        guard !isOpen else { return }
+        await withCheckedContinuation { continuation = $0 }
+    }
+
+    func open() {
+        isOpen = true
+        continuation?.resume()
+        continuation = nil
     }
 }

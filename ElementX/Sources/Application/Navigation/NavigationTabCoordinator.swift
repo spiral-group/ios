@@ -21,11 +21,24 @@ import SwiftUI
         /// A unique tab that identifies the tab for selection.
         let tag: Tag
         let title: String
-        let icon: KeyPath<CompoundIcons, Image>
-        let selectedIcon: KeyPath<CompoundIcons, Image>
-        /// When `true` the tab is given the `.search` role, which on iOS 26 detaches it
-        /// into the trailing search button in the tab bar.
-        let isSearch: Bool
+        /// AGENT-PLATFORM (Brief 0083, decision 386): a Compound icon with its selected form, or one of Spiral's own
+        /// symbols, which the tab bar sizes and tints as it does the system's.
+        enum Glyph {
+            case compound(icon: KeyPath<CompoundIcons, Image>, selectedIcon: KeyPath<CompoundIcons, Image>)
+            case symbol(String)
+        }
+
+        let glyph: Glyph
+        // AGENT-PLATFORM (Brief 0083, question 343): the person's tab draws their avatar in place of the glyph.
+        var avatar: SpiralTabAvatar? {
+            didSet { avatarImages = [:] }
+        }
+        
+        /// The images rendered so far: a tab's label is rebuilt on every update, and a renderer is slow.
+        @ObservationIgnored private var avatarImages = [SpiralTabAvatar.Appearance: UIImage]()
+        /// The symbol drawn so far, per appearance (decision 386).
+        @ObservationIgnored private var symbolImages = [SpiralTabAvatar.Appearance: UIImage]()
+        let accessibilityIdentifier: String?
         var badgeCount = 0
         
         // AGENT-PLATFORM (coverage walk F3): the badge itself is not in the accessibility
@@ -38,12 +51,74 @@ import SwiftUI
         /// when pushing a child into the split view's details on iPhone/compact iPad.
         weak var navigationSplitCoordinator: NavigationSplitCoordinator?
         
-        init(tag: Tag, title: String, icon: KeyPath<CompoundIcons, Image>, selectedIcon: KeyPath<CompoundIcons, Image>, isSearch: Bool = false) {
+        init(tag: Tag, title: String, icon: KeyPath<CompoundIcons, Image>, selectedIcon: KeyPath<CompoundIcons, Image>, accessibilityIdentifier: String? = nil) {
             self.tag = tag
             self.title = title
-            self.icon = icon
-            self.selectedIcon = selectedIcon
-            self.isSearch = isSearch
+            glyph = .compound(icon: icon, selectedIcon: selectedIcon)
+            self.accessibilityIdentifier = accessibilityIdentifier
+        }
+
+        init(tag: Tag, title: String, symbol: String, accessibilityIdentifier: String? = nil) {
+            self.tag = tag
+            self.title = title
+            glyph = .symbol(symbol)
+            self.accessibilityIdentifier = accessibilityIdentifier
+        }
+        
+        // AGENT-PLATFORM (Brief 0083, question 343): a tab bar takes an image, so the avatar comes as one in its own colours.
+        @MainActor @ViewBuilder
+        func iconView(isSelected: Bool, colorScheme: ColorScheme, displayScale: CGFloat) -> some View {
+            if let image = avatarImage(for: .init(isSelected: isSelected, colorScheme: colorScheme, displayScale: displayScale)) {
+                Image(uiImage: image)
+                    .renderingMode(.original)
+            } else {
+                switch glyph {
+                case .compound(let icon, let selectedIcon):
+                    CompoundIcon(isSelected ? selectedIcon : icon)
+                case .symbol(let name):
+                    // Decision 386: the bar redraws any symbol it is given as a one-colour template, which flattens
+                    // its layers, so the symbol comes drawn: hierarchical, the lighter layer lighter, in the colour the
+                    // bar gives that state.
+                    if let image = symbolImage(named: name, for: .init(isSelected: isSelected, colorScheme: colorScheme, displayScale: displayScale)) {
+                        Image(uiImage: image)
+                            .renderingMode(.original)
+                    }
+                }
+            }
+        }
+        
+        /// The tab's symbol drawn hierarchically at the size the bar draws its symbols, in the bar's colours (`SpiralTabGlyph`).
+        @MainActor
+        private func symbolImage(named name: String, for appearance: SpiralTabAvatar.Appearance) -> UIImage? {
+            if let image = symbolImages[appearance] {
+                return image
+            }
+            let renderer = ImageRenderer(content: Image(name)
+                .symbolRenderingMode(.hierarchical)
+                .foregroundStyle(SpiralTabGlyph.color(isSelected: appearance.isSelected))
+                .font(.system(size: Self.symbolPointSize, weight: .medium))
+                .environment(\.colorScheme, appearance.colorScheme))
+            renderer.scale = appearance.displayScale
+            let image = renderer.uiImage?.withRenderingMode(.alwaysOriginal)
+            symbolImages[appearance] = image
+            return image
+        }
+
+        /// The point size the bar draws its symbols at (measured on iOS 26: 20 pt).
+        private static var symbolPointSize: CGFloat {
+            20
+        }
+
+        @MainActor
+        private func avatarImage(for appearance: SpiralTabAvatar.Appearance) -> UIImage? {
+            // AGENT-PLATFORM (Brief 0083): read first, so a pass served from the cache still depends on the avatar.
+            guard let avatar else { return nil }
+            if let image = avatarImages[appearance] {
+                return image
+            }
+            let image = avatar.image(for: appearance)
+            avatarImages[appearance] = image
+            return image
         }
         
         func barVisibility(in horizontalSizeClass: UserInterfaceSizeClass?) -> Visibility {
@@ -93,6 +168,11 @@ import SwiftUI
         tabModules.compactMap(\.module.coordinator)
     }
     
+    /// AGENT-PLATFORM (decision 301): the tabs' tags in display order; the bar and the iPad rail both draw `tabModules`.
+    var tabTags: [Tag] {
+        tabModules.map(\.details.tag)
+    }
+    
     /// Updates the displayed tabs with the provided array.
     func setTabs(_ tabs: [Tab], animated: Bool = true) {
         var transaction = Transaction()
@@ -106,16 +186,7 @@ import SwiftUI
     }
     
     /// The currently selected tab's tag.
-    var selectedTab: Tag? {
-        didSet {
-            if oldValue != selectedTab {
-                previousTab = oldValue
-            }
-        }
-    }
-    
-    /// The tab that was selected before the current one, used to return to it (e.g. cancelling search).
-    private(set) var previousTab: Tag?
+    var selectedTab: Tag?
     
     // MARK: Sheets
     
@@ -276,8 +347,64 @@ import SwiftUI
         }
     }
     
-    // MARK: - CoordinatorProtocol
+    // AGENT-PLATFORM (1.0.2, DEBT "a call under the sheet"): the overlay is drawn on the tab view, so every
+    // sheet and cover (this coordinator's, and its tabs' splits' and stacks') sits above it. A call closes
+    // the ones its owner lets go (the operator: the call wins); `spare` keeps the rest. A sheet's own
+    // sheets go with it.
+    enum OverlayCoveringModal { case sheet, fullScreenCover }
     
+    /// Dismisses the sheets and fullscreen covers presented over the tab view that `spare` doesn't keep, through
+    /// the same teardown as a swipe.
+    /// - Parameters:
+    ///   - spare: true for a modal that must stay above the overlay.
+    ///   - animated: whether the dismissals are animated.
+    func dismissModalsCoveringTheOverlay(sparing spare: (any CoordinatorProtocol, OverlayCoveringModal) -> Bool,
+                                         animated: Bool = true) {
+        var transaction = Transaction()
+        transaction.disablesAnimations = !animated
+        
+        withTransaction(transaction) {
+            if let sheetCoordinator, !spare(sheetCoordinator, .sheet) {
+                sheetModule = nil
+            }
+            if let fullScreenCoverCoordinator, !spare(fullScreenCoverCoordinator, .fullScreenCover) {
+                fullScreenCoverModule = nil
+            }
+            for coordinator in tabCoordinators {
+                switch coordinator {
+                case let split as NavigationSplitCoordinator:
+                    if let sheet = split.sheetCoordinator, !spare(sheet, .sheet) { split.setSheetCoordinator(nil) }
+                    if let cover = split.fullScreenCoverCoordinator, !spare(cover, .fullScreenCover) { split.setFullScreenCoverCoordinator(nil) }
+                case let stack as NavigationStackCoordinator:
+                    if let sheet = stack.sheetCoordinator, !spare(sheet, .sheet) { stack.setSheetCoordinator(nil) }
+                    if let cover = stack.fullScreenCoverCoordinator, !spare(cover, .fullScreenCover) { stack.setFullScreenCoverCoordinator(nil) }
+                default:
+                    break
+                }
+            }
+        }
+    }
+    
+    /// Whether a modal shows a screen marked ``HoldsItsModalAboveACall``, anywhere in it or in the modals it
+    /// presents itself. A stack's own `isInteractiveDismissDisabled` doesn't count: the post catalogue sets it
+    /// against a gesture clash inside a post (question 412), not to keep anything, and a call closes it.
+    static func modalRefusesToBeClosedByACall(_ coordinator: any CoordinatorProtocol) -> Bool {
+        switch coordinator {
+        case is HoldsItsModalAboveACall:
+            return true
+        case let stack as NavigationStackCoordinator:
+            let shown = [stack.rootCoordinator, stack.sheetCoordinator, stack.fullScreenCoverCoordinator].compactMap(\.self) + stack.stackCoordinators
+            return shown.contains { modalRefusesToBeClosedByACall($0) }
+        case let split as NavigationSplitCoordinator:
+            let shown = [split.sidebarCoordinator, split.detailCoordinator, split.sheetCoordinator, split.fullScreenCoverCoordinator].compactMap(\.self)
+            return shown.contains { modalRefusesToBeClosedByACall($0) }
+        default:
+            return false
+        }
+    }
+    
+    // MARK: - CoordinatorProtocol
+
     /// No idea if this is particuarly needed for the TabView but we do this for the NavigationStackCoordinator and NavigationSplitCoordinator so it
     /// doesn't seem to harm to also do it here.
     func stop() {
@@ -325,15 +452,22 @@ extension EnvironmentValues {
 // recording, which is a disclosure regression, not a cosmetic one.
 protocol SelfMinimizingOverlayCoordinator: CoordinatorProtocol { }
 
+// AGENT-PLATFORM (1.0.2, DEBT "a call under the sheet"): a screen its person can't swipe away (a recovery key
+// to note down, a PIN being set, a device-owner check holding a continuation). A call doesn't close the modal
+// that shows it; the call stays under it, as a gate wins over a call.
+protocol HoldsItsModalAboveACall: CoordinatorProtocol { }
+
 private struct NavigationTabCoordinatorView<Tag: Hashable>: View {
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @Environment(\.colorScheme) private var colorScheme // AGENT-PLATFORM (Brief 0083, question 343)
+    @Environment(\.displayScale) private var displayScale // AGENT-PLATFORM (Brief 0083, question 343)
     
     @Bindable var navigationTabCoordinator: NavigationTabCoordinator<Tag>
     
     @State private var standardAppearance = UITabBarAppearance()
     @State private var window: UIWindow?
     @State private var isFullScreen = true
-    @State private var isRailVisible = true
+    @State private var railBackgroundColor: Color = .compound.bgCanvasDefault
     
     var body: some View {
         // AGENT-PLATFORM (Brief 0063, G9): the minimized call bar is a
@@ -410,23 +544,26 @@ private struct NavigationTabCoordinatorView<Tag: Hashable>: View {
         }
     }
     
-    /// The column visibility of the split coordinator for the currently selected tab, if any.
-    private var selectedTabSplitColumnVisibility: NavigationSplitViewVisibility {
-        let selectedTabDetails = navigationTabCoordinator.tabModules
-            .first { $0.details.tag == navigationTabCoordinator.selectedTab }?.details
-        return selectedTabDetails?.navigationSplitCoordinator?.columnVisibility ?? .all
-    }
-    
     var tabRailLayout: some View {
+        // The rail is always shown. Removing it hands its width back to the split view, which then has
+        // room for its sidebar again, which shows the rail, ad infinitum. Keeping it means the split's
+        // width never depends on it and the two can't drive each other.
         HStack(spacing: 0) {
-            if isRailVisible {
-                TabRailView(navigationTabCoordinator: navigationTabCoordinator, isFullScreen: isFullScreen)
-            }
+            TabRailView(navigationTabCoordinator: navigationTabCoordinator, isFullScreen: isFullScreen)
+                .background(railBackgroundColor.ignoresSafeArea())
+                .animation(.easeInOut(duration: 0.4).disabledDuringTests(), value: railBackgroundColor)
+                .overlay(alignment: .trailing) { NavigationSidebarDivider() }
+                .zIndex(1)
             
             if let module = navigationTabCoordinator.tabModules.first(where: { $0.details.tag == navigationTabCoordinator.selectedTab }) {
                 module.coordinator?.toPresentable()
                     .id(module.id)
             }
+        }
+        // Match the rail's background to the colour of the split view's detail (or the root if there isn't a split).
+        .onPreferenceChange(CompoundBackgroundPreferenceKey.self) { background in
+            guard #unavailable(iOS 27) else { return } // The background is only necessary for iOS 26's inset sidebar.
+            railBackgroundColor = background?.colorValue ?? .compound.bgCanvasDefault
         }
         .introspect(.window, on: .supportedVersions) { window in
             guard self.window !== window else { return }
@@ -445,20 +582,12 @@ private struct NavigationTabCoordinatorView<Tag: Hashable>: View {
                 isFullScreen = newValue
             }
         }
-        .onChange(of: selectedTabSplitColumnVisibility, initial: true) {
-            // The rail consumes width, which feeds back into the split's column visibility (not the
-            // same as flattening everything into the single stack), creating an observation tracking
-            // feedback loop that locks up the app while resizing.
-            //
-            // Use a stored value (instead of a computed value) that is updated on the next run loop to break the loop.
-            DispatchQueue.main.async { isRailVisible = selectedTabSplitColumnVisibility != .detailOnly }
-        }
     }
     
     var tabViewLayout: some View {
         TabView(selection: $navigationTabCoordinator.selectedTab) {
             ForEach(navigationTabCoordinator.tabModules) { module in
-                Tab(value: module.details.tag, role: module.details.isSearch ? .search : nil) {
+                Tab(value: module.details.tag) {
                     module.coordinator?.toPresentable()
                         .id(module.id)
                         .toolbar(module.details.barVisibility(in: horizontalSizeClass), for: .tabBar)
@@ -466,27 +595,79 @@ private struct NavigationTabCoordinatorView<Tag: Hashable>: View {
                     Label {
                         Text(module.details.title)
                     } icon: {
-                        CompoundIcon(module.details.tag == navigationTabCoordinator.selectedTab ? module.details.selectedIcon : module.details.icon)
+                        // AGENT-PLATFORM (Brief 0083, question 343)
+                        module.details.iconView(isSelected: module.details.tag == navigationTabCoordinator.selectedTab,
+                                                colorScheme: colorScheme,
+                                                displayScale: displayScale)
                     }
                 }
                 .badge(module.details.badgeCount)
                 .accessibilityValue(module.details.badgeAccessibilityValue ?? "", isEnabled: module.details.badgeAccessibilityValue != nil) // AGENT-PLATFORM (coverage walk F3)
+                .accessibilityIdentifier(module.details.accessibilityIdentifier ?? "")
             }
         }
         .backportTabBarMinimizeBehaviorOnScrollDown()
-        .introspect(.tabView, on: .supportedVersions, customize: configureAppearance)
+        .introspect(.tabView, on: .supportedVersions, customize: configure)
     }
     
-    private func configureAppearance(_ tabBarController: UITabBarController) {
+    private func configure(_ tabBarController: UITabBarController) {
         standardAppearance.configureWithDefaultBackground()
-        standardAppearance.stackedLayoutAppearance.normal.badgeBackgroundColor = .compound.iconAccentPrimary // iPhone Portrait
-        standardAppearance.compactInlineLayoutAppearance.normal.badgeBackgroundColor = .compound.iconAccentPrimary // iPhone Landscape
-        standardAppearance.inlineLayoutAppearance.normal.badgeBackgroundColor = .compound.iconAccentPrimary // iPadOS 17 (doesn't work for 18+)
+        // AGENT-PLATFORM (decision 306): the filled blue under the badge's white count (4.81:1; #0A84FF was 3.65:1 in dark).
+        standardAppearance.stackedLayoutAppearance.normal.badgeBackgroundColor = .compound.bgAccentRest // iPhone Portrait
+        standardAppearance.compactInlineLayoutAppearance.normal.badgeBackgroundColor = .compound.bgAccentRest // iPhone Landscape
+        standardAppearance.inlineLayoutAppearance.normal.badgeBackgroundColor = .compound.bgAccentRest // iPadOS 17 (doesn't work for 18+)
+        // AGENT-PLATFORM (Brief 0083): the selected state's too, on every layout. On iPhone (iOS 27 and 18.6) the app's
+        // selected badge already took the normal colour; only the audit's preview window kept the system red (DECISIONS).
+        standardAppearance.stackedLayoutAppearance.selected.badgeBackgroundColor = .compound.bgAccentRest
+        standardAppearance.compactInlineLayoutAppearance.selected.badgeBackgroundColor = .compound.bgAccentRest
+        standardAppearance.inlineLayoutAppearance.selected.badgeBackgroundColor = .compound.bgAccentRest
+        // AGENT-PLATFORM (Brief 0083, decision 310): before Liquid Glass the selected title is white in dark and its
+        // icon stays blue, as the storyboard draws it; the blue title read 3.9:1 over rows under the translucent bar.
+        if #unavailable(iOS 26) {
+            let selectedTitle: [NSAttributedString.Key: Any] = [.foregroundColor: Self.preGlassSelectedTitleColor]
+            standardAppearance.stackedLayoutAppearance.selected.titleTextAttributes = selectedTitle
+            standardAppearance.compactInlineLayoutAppearance.selected.titleTextAttributes = selectedTitle
+            standardAppearance.inlineLayoutAppearance.selected.titleTextAttributes = selectedTitle
+        }
         tabBarController.tabBar.standardAppearance = standardAppearance
+        
+        // AGENT-PLATFORM (Brief 0082 E2E): on iOS 27 a tab bar button copies its `UITab`'s identifier only
+        // when the button is configured, which can be before SwiftUI has written the `Tab`'s identifier and
+        // then never again: the E2E scenarios FD1, FD3, FD8 and FD10 found no Feed tab for 30 s. Each update
+        // gives the identifier to the tab and to its buttons, found by title (unique per tab bar).
+        let identifiers = navigationTabCoordinator.tabModules.reduce(into: [String: String]()) { identifiers, module in
+            identifiers[module.details.title] = module.details.accessibilityIdentifier
+        }
+        for tab in tabBarController.tabs {
+            if let identifier = identifiers[tab.title] {
+                tab.accessibilityIdentifier = identifier
+            }
+        }
+        Self.applyIdentifiers(identifiers, toButtonsIn: tabBarController.tabBar)
+    }
+    
+    // AGENT-PLATFORM (Brief 0083, decision 310): light keeps the tint's blue, dark takes the primary text colour.
+    private static var preGlassSelectedTitleColor: UIColor {
+        UIColor { traits in
+            traits.userInterfaceStyle == .dark ? .compound.textPrimary : .compound.textActionAccent
+        }
+    }
+    
+    /// The tab bar's buttons are UIKit's own views; each is labelled with its tab's title.
+    private static func applyIdentifiers(_ identifiers: [String: String], toButtonsIn view: UIView) {
+        if view is UIControl, let label = view.accessibilityLabel, let identifier = identifiers[label] {
+            view.accessibilityIdentifier = identifier
+        }
+        for subview in view.subviews {
+            applyIdentifiers(identifiers, toButtonsIn: subview)
+        }
     }
 }
 
 struct TabRailView<Tag: Hashable>: View {
+    @Environment(\.colorScheme) private var colorScheme // AGENT-PLATFORM (Brief 0083, question 343)
+    @Environment(\.displayScale) private var displayScale // AGENT-PLATFORM (Brief 0083, question 343)
+    
     let navigationTabCoordinator: NavigationTabCoordinator<Tag>
     let isFullScreen: Bool
     
@@ -506,16 +687,23 @@ struct TabRailView<Tag: Hashable>: View {
                         Label {
                             Text(module.details.title)
                         } icon: {
-                            CompoundIcon(isSelected ? module.details.selectedIcon : module.details.icon)
+                            // AGENT-PLATFORM (Brief 0083, question 343)
+                            module.details.iconView(isSelected: isSelected, colorScheme: colorScheme, displayScale: displayScale)
                         }
                     }
                     .buttonStyle(TabButtonStyle(isSelected: isSelected))
                     .accessibilityAddTraits(isSelected ? .isSelected : [])
+                    .accessibilityIdentifier(module.details.accessibilityIdentifier ?? "")
                     .accessibilityValue(module.details.badgeAccessibilityValue ?? "", isEnabled: module.details.badgeAccessibilityValue != nil) // AGENT-PLATFORM (coverage walk F3)
-                    .badge(10) // TODO: Check if this works.
+                    .overlay(alignment: .topTrailing) {
+                        if module.details.badgeCount > 0 {
+                            NotificationCountBadge(count: module.details.badgeCount, size: .small)
+                                .allowsHitTesting(false)
+                        }
+                    }
                 }
             }
-            .padding(.leading, 8)
+            .padding(.horizontal, 8)
             .padding(.top, topPadding)
             .padding(.bottom)
         }

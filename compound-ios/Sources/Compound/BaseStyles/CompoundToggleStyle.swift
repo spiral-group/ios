@@ -23,6 +23,8 @@ public struct CompoundToggleStyle: ToggleStyle {
             configuration.label
                 .foregroundColor(.compound.textPrimary)
         }
+        // AGENT-PLATFORM (Brief 0083, decision 293): the system switch keeps this tint. On, it reads 4.81:1 on a light
+        // row and 3.82:1 on a dark one (#2C2C2E); the filled blue would be 2.89:1 there, and the system green 2.2:1 in light.
         .tint(.compound.iconAccentTertiary)
     }
 }

@@ -9,9 +9,9 @@
 // call's export reach the share sheet as a file, which goes once it closes.
 //
 
-@testable import ElementX
 import Foundation
 import os
+@testable import Spiral
 import Testing
 
 @MainActor
@@ -243,7 +243,6 @@ struct YourDataScreenViewModelTests {
 
     private func makeSettings(userSession: UserSessionMock) -> SettingsScreenViewModel {
         SettingsScreenViewModel(userSession: userSession,
-                                appSettings: AppSettings.volatile(),
                                 isBugReportServiceEnabled: false,
                                 isInSecondaryWindow: false,
                                 userIndicatorController: UserIndicatorControllerMock())

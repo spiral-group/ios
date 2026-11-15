@@ -10,8 +10,8 @@
 // The Spiral feature is built on Element's `TemplateScreenViewModelTests.swift`.
 // Brief 0041 D3 — notifications hub ViewModel.
 
-@testable import ElementX
 import Foundation
+@testable import Spiral
 import Testing
 
 @MainActor
@@ -19,9 +19,9 @@ struct NotificationsHubScreenViewModelTests {
     // MARK: - appeared
 
     @Test
-    func appearedAction_loadsActivityConnectsAndMarksSeen() async throws {
-        let (viewModel, streamService, platformService) = Self.makeViewModel(activity: [Self.executedEntry],
-                                                                             nextCursor: nil)
+    func appearedAction_loadsActivityAndMarksSeen() async throws {
+        let (viewModel, _, platformService) = Self.makeViewModel(activity: [Self.executedEntry],
+                                                                 nextCursor: nil)
 
         let deferred = deferFulfillment(viewModel.context.observe(\.viewState.activityState)) {
             if case .loaded = $0 { return true }
@@ -34,21 +34,21 @@ struct NotificationsHubScreenViewModelTests {
         #expect(viewModel.context.viewState.activityItems[0].outcome == .executed)
         #expect(viewModel.context.viewState.sentinel == nil)
         // Opening the hub is the "seen" gesture.
-        #expect(streamService.markSeenCallsCount == 1)
-        #expect(streamService.connectCallsCount == 1)
+        while !platformService.markNotificationsSeenCalled {
+            await Task.yield()
+        }
+        #expect(platformService.markNotificationsSeenCallsCount == 1)
         // First page = nil cursor.
         #expect(platformService.fetchNotificationsActivityCursorLimitReceivedArguments?.activityCursor == nil)
     }
 
     @Test
-    func needsActionSection_mirrorsStreamService() async throws {
-        // The mock's stored properties aren't @Observable, so the
-        // mirror can't see post-init mutations — configure BEFORE
-        // constructing the VM (init does a synchronous refresh).
+    func needsActionSection_comesFromTheStore() async throws {
         let (viewModel, _, _) = Self.makeViewModel(activity: [],
                                                    nextCursor: nil,
                                                    needsAction: [.approval(Self.approvalSummary),
                                                                  .verification(Self.verificationSummary)])
+        try await Self.rendered(viewModel)
 
         let items = viewModel.context.viewState.needsAction
         #expect(items.map(\.kind) == [.approval, .verification])
@@ -66,6 +66,7 @@ struct NotificationsHubScreenViewModelTests {
                                                    nextCursor: nil,
                                                    needsAction: [.approval(Self.approvalSummary),
                                                                  .verification(Self.verificationSummary)])
+        try await Self.rendered(viewModel)
         #expect(viewModel.context.viewState.needsAction.count == 2)
 
         var actions: [NotificationsHubScreenViewModelAction] = []
@@ -84,6 +85,64 @@ struct NotificationsHubScreenViewModelTests {
             Issue.record("expected selectVerification"); return
         }
         #expect(verificationID == "verification-1")
+    }
+
+    // MARK: - The stream
+
+    /// `approval.changed` reads what waits again: a card decided elsewhere goes.
+    @Test
+    func aCardDecidedElsewhereGoes() async throws {
+        let (viewModel, store, platformService) = Self.makeViewModel(activity: [], nextCursor: nil,
+                                                                     needsAction: [.approval(Self.approvalSummary)])
+        try await Self.rendered(viewModel)
+        #expect(viewModel.context.viewState.needsAction.count == 1)
+
+        platformService.fetchNotificationsActivityCursorLimitReturnValue = .success(.init(needsAction: [], activity: [], nextActivityCursor: nil,
+                                                                                          lastSeenAt: nil, unseenCount: 0))
+        let gone = deferFulfillment(viewModel.context.observe(\.viewState.needsAction)) { $0.isEmpty }
+        store.apply([.approvalChanged(approvalID: Self.approvalSummary.id)])
+        try await gone.fulfill()
+    }
+
+    /// `agent.activity` reads the hub's activity again, as many rows as it holds.
+    @Test
+    func anyAgentsActivityReadsTheHubsActivityAgain() async throws {
+        let (viewModel, store, platformService) = Self.makeViewModel(activity: [Self.executedEntry], nextCursor: nil)
+        try await Self.rendered(viewModel)
+
+        platformService.fetchNotificationsActivityCursorLimitReturnValue = .success(.init(needsAction: [], activity: [Self.deniedEntry, Self.executedEntry],
+                                                                                          nextActivityCursor: nil, lastSeenAt: nil, unseenCount: 0))
+        let updated = deferFulfillment(viewModel.context.observe(\.viewState.activityItems)) { $0.count == 2 }
+        store.apply([.agentActivity(agentID: nil)])
+        try await updated.fulfill()
+        #expect(platformService.fetchNotificationsActivityCursorLimitReceivedArguments?.limit == NotificationsHubScreenViewModel.defaultPageSize)
+    }
+
+    /// Review M1: what waits that could not be read is a retry at the top,
+    /// never an empty pending section; the activity's answer then brings it.
+    @Test
+    func aFailedNeedsActionReadIsARetryNotNothing() async throws {
+        let (viewModel, _, platformService) = Self.makeViewModel(activity: [], nextCursor: nil)
+        let gate = HubGate()
+        platformService.fetchNotificationsActivityCursorLimitClosure = { _, limit in
+            if limit == 1 {
+                return .failure(.serverError(status: 500))
+            }
+            await gate.wait()
+            return .success(.init(needsAction: [.approval(Self.approvalSummary)], activity: [Self.executedEntry], nextActivityCursor: nil,
+                                  lastSeenAt: nil, unseenCount: 0))
+        }
+
+        let failed = deferFulfillment(viewModel.context.observe(\.viewState.isNeedsActionFailed)) { $0 }
+        try await failed.fulfill()
+        #expect(viewModel.context.viewState.needsAction.isEmpty)
+        #expect(!viewModel.context.viewState.isEmpty)
+
+        let loaded = deferFulfillment(viewModel.context.observe(\.viewState.needsAction)) { $0.count == 1 }
+        gate.open()
+        try await loaded.fulfill()
+        // The same render that shows the cards takes the retry row away.
+        #expect(!viewModel.context.viewState.isNeedsActionFailed)
     }
 
     // MARK: - pagination
@@ -154,8 +213,8 @@ struct NotificationsHubScreenViewModelTests {
         }
         viewModel.context.send(viewAction: .appeared)
         try await deferred.fulfill()
-
-        #expect(viewModel.context.viewState.bindings.alertInfo != nil)
+        // Nothing read is not «nothing waits».
+        #expect(!viewModel.context.viewState.isEmpty)
     }
 
     /// Coverage walk F9: the hub showed `!VthLDa…:localhost`. A room this
@@ -220,7 +279,7 @@ struct NotificationsHubScreenViewModelTests {
                                            roomID: "!carol:spiral.md", body: "", createdAt: Date(timeIntervalSince1970: 1_759_990_000))
     static let assistant = AgentSpaceAgentCard(agentID: "agent-1", matrixUserID: "@assistant-me:spiral.md", displayName: "Assistant",
                                                avatarMXC: nil, kind: "personal_assistant", visibility: "private", lifecycleState: "active",
-                                               presence: .online, roomCount: 1, activeToolCount: 0)
+                                               roomCount: 1, activeToolCount: 0)
 
     private func appeared(_ viewModel: NotificationsHubScreenViewModel) async throws {
         let loaded = deferFulfillment(viewModel.context.observe(\.viewState.activityState)) { if case .loaded = $0 { true } else { false } }
@@ -334,18 +393,9 @@ struct NotificationsHubScreenViewModelTests {
                               profileNames: [String: String] = [:],
                               visitorMessages: [VisitorMessage] = [],
                               joinedRoomIDs: Set<String> = [],
-                              agents: [AgentSpaceAgentCard] = []) -> (NotificationsHubScreenViewModel, ApprovalsStreamServiceMock, AgentPlatformServiceMock) {
-        let streamService = ApprovalsStreamServiceMock()
-        streamService.needsAction = needsAction
-        streamService.underlyingPendingCount = 0
-        streamService.underlyingUnseenCount = 0
-        streamService.underlyingConnectionState = .connected
-        streamService.connectClosure = {}
-        streamService.reseedClosure = {}
-        streamService.markSeenClosure = {}
-
+                              agents: [AgentSpaceAgentCard] = []) -> (NotificationsHubScreenViewModel, AgentsStore, AgentPlatformServiceMock) {
         let platformService = AgentPlatformServiceMock()
-        platformService.fetchNotificationsActivityCursorLimitReturnValue = .success(.init(needsAction: [],
+        platformService.fetchNotificationsActivityCursorLimitReturnValue = .success(.init(needsAction: needsAction,
                                                                                           activity: activity,
                                                                                           nextActivityCursor: nextCursor,
                                                                                           lastSeenAt: nil,
@@ -366,11 +416,18 @@ struct NotificationsHubScreenViewModelTests {
         clientProxy.roomSummaryForIdentifierClosure = { roomID in roomNames[roomID].map { .mock(id: roomID, name: $0) } }
         clientProxy.profileForClosure = { userID in .success(UserProfile(userID: userID, displayName: profileNames[userID])) }
         clientProxy.roomForIdentifierClosure = { roomID in joinedRoomIDs.contains(roomID) ? .joined(JoinedRoomProxyMock(.init(id: roomID))) : nil }
-        let viewModel = NotificationsHubScreenViewModel(approvalsStreamService: streamService,
+        let store = AgentsStore(service: platformService)
+        let viewModel = NotificationsHubScreenViewModel(store: store,
                                                         agentPlatformService: platformService,
                                                         clientProxy: clientProxy,
                                                         userIndicatorController: UserIndicatorControllerMock())
-        return (viewModel, streamService, platformService)
+        return (viewModel, store, platformService)
+    }
+
+    /// The screen rendered every first read: it renders the store's answers on its next turn, so the test waits for the screen.
+    static func rendered(_ viewModel: NotificationsHubScreenViewModel) async throws {
+        let rendered = deferFulfillment(viewModel.context.observe(\.viewState.hasRenderedEveryRead)) { $0 }
+        try await rendered.fulfill()
     }
 
     static let approvalSummary = ApprovalSummary(id: "approval-1",
@@ -415,4 +472,28 @@ struct NotificationsHubScreenViewModelTests {
                                                 outcomeEventID: nil,
                                                 createdAt: Date(timeIntervalSinceNow: -7200),
                                                 resolvedAt: Date(timeIntervalSinceNow: -7200))
+}
+
+/// Holds the hub's activity read until the test opens it.
+private final class HubGate {
+    private var continuation: CheckedContinuation<Void, Never>?
+    private var isOpen = false
+
+    func wait() async {
+        guard !isOpen else { return }
+        await withCheckedContinuation { continuation = $0 }
+    }
+
+    func open() {
+        isOpen = true
+        continuation?.resume()
+        continuation = nil
+    }
+}
+
+private extension NotificationsHubScreenViewState {
+    var hasRenderedEveryRead: Bool {
+        if case .loading = activityState { return false }
+        return (isNeedsActionRead || isNeedsActionFailed) && areAgentNamesRead
+    }
 }

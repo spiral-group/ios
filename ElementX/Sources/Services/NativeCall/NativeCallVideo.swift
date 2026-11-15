@@ -36,25 +36,32 @@ nonisolated struct NativeCallVideoSource: Equatable {
 
 /// Who fills the 1:1 stage and who floats in the corner.
 ///
-/// The stage belongs to whoever HAS a picture: while the peer has none —
-/// they have not answered yet, or their camera is off — our own camera is
-/// the stage, the way every phone shows an outgoing video call. Before
-/// this, a peer with no video took the stage and filled it with a
-/// camera-off placeholder while our live picture sat in the corner
-/// (found on a device, 2026-08-21). The manual swap still wins, and the
-/// small tile is always the OTHER tile — never a second copy of the
-/// large one.
+/// The stage is the peer's once they are settled: their picture, or without
+/// one the person themselves in Portrait's field (decision 342). Until then
+/// our own camera is the stage, the way every phone shows an outgoing video
+/// call. The manual swap still wins, and the small tile is always the OTHER
+/// tile — never a second copy of the large one.
 nonisolated enum NativeCallVideoStage {
+    /// How long a peer's camera has to stay off before it counts as off. A peer
+    /// reads connected with no camera between publishing their microphone and
+    /// their camera, so an answered video call would flash their portrait.
+    static let settleDuration = Duration.seconds(3)
+
     static func tiles(remote: NativeCallVideoTile?,
                       local: NativeCallVideoTile?,
+                      isPeerSettled: Bool,
                       isSelfVideoLarge: Bool) -> (large: NativeCallVideoTile?, small: NativeCallVideoTile?) {
-        let remoteHasVideo = remote?.source != nil
-        let selfLeads = isSelfVideoLarge || !remoteHasVideo
+        let selfLeads = isSelfVideoLarge || !(isPeerSettled || remote?.source != nil)
 
         guard selfLeads, let local else {
             return (remote ?? local, remote == nil ? nil : local)
         }
         return (local, remote)
+    }
+
+    /// Connected with no camera: as opposed to a picture still on its way.
+    static func isCameraOff(_ peer: NativeCallVideoTile) -> Bool {
+        peer.source == nil && peer.participant.mediaState == .connected && !peer.participant.isVideoEnabled
     }
 }
 

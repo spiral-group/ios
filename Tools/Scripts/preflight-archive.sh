@@ -149,14 +149,17 @@ echo "[8] every file says whose code it is (NOTICE, decision 86)"
 #       without saying it was modified;
 #   (c) no file mixes a Spiral copyright line with Element's copyright or
 #       SPDX line (e.g. a Spiral header followed by Element's SPDX).
-ELEMENT_BASE="f31207583"   # the Element X commit Spiral's fork starts from
+# The Element X release the fork last merged (release/26.10.8 since the 1.0.2
+# sync; it was 26.08.1's f31207583). Files Element added up to it are
+# Element's, and Spiral's changes in them are marked AGENT-PLATFORM (NOTICE).
+ELEMENT_BASE="27cdd980d"
 DERIVED_LIST="$IOS_DIR/Tools/Scripts/element-derived-files.txt"
 ELEMENT_RE='^// Copyright .*(Element Creations|New Vector)'
 SPIRAL_RE='^// Copyright [0-9]{4} the Spiral authors\. AGPL-3\.0-or-later\.$'
 SPIRAL_ANY_RE='^// Copyright .*the Spiral authors'
 MODIFIED_RE='^// Modified [0-9]{4} by the Spiral authors\.$'
 SPDX_RE='^// SPDX-License-Identifier:'
-CHECKED=('ElementX/*.swift' 'NSE/*.swift' 'UnitTests/*.swift' 'PreviewTests/*.swift' 'UITests/*.swift' 'libraries/*.swift' 'ShareExtension/*.swift' 'IntegrationTests/*.swift')
+CHECKED=('ElementX/*.swift' 'NSE/*.swift' 'UnitTests/*.swift' 'PreviewTests/*.swift' 'UITests/*.swift' 'libraries/*.swift' 'SpiralUI/*.swift' 'SpiralComponents/*.swift' 'ShareExtension/*.swift' 'IntegrationTests/*.swift')
 HEADER_FAULTS=""
 LISTED="$(mktemp)"; ADDED="$(mktemp)"
 trap 'rm -f "$LISTED" "$ADDED"' EXIT

@@ -11,10 +11,10 @@
 //
 
 import CryptoKit
-@testable import ElementX
 import Foundation
 import MatrixRustSDK
-import SpiralAppShell
+@testable import Spiral
+import SpiralAppTestArtifacts
 import Testing
 
 struct SpiralAppArtifactStoreTests {
@@ -23,7 +23,7 @@ struct SpiralAppArtifactStoreTests {
     #if DEBUG
     @Test
     func aTruthfulPostYieldsItsArtifact() async throws {
-        let packed = try #require(SpiralAppShell.conformanceArtifact)
+        let packed = try #require(SpiralAppTestArtifacts.conformance)
         let loader = Self.loader(returning: packed.bytes)
         let store = SpiralAppArtifactStore(mediaLoader: loader)
 
@@ -36,7 +36,7 @@ struct SpiralAppArtifactStoreTests {
 
     @Test
     func bytesThatDoNotMatchTheClaimedDigestAreRefused() async throws {
-        let packed = try #require(SpiralAppShell.conformanceArtifact)
+        let packed = try #require(SpiralAppTestArtifacts.conformance)
         // The bytes are a real, valid artifact — they are simply not the one
         // this post claims. That is the case the digest exists to catch: a
         // media repository serving something else entirely.
@@ -75,7 +75,7 @@ struct SpiralAppArtifactStoreTests {
     func aFetchThatFailsIsUnavailableRatherThanRefused() async throws {
         // The distinction is the whole point of having two cases: this post may
         // be perfectly good and the network merely down, so a caller may retry.
-        let packed = try #require(SpiralAppShell.conformanceArtifact)
+        let packed = try #require(SpiralAppTestArtifacts.conformance)
         let loader = MediaLoaderMock()
         loader.loadMediaContentForSourceThrowableError = MediaLoaderError.unexpectedResponse
         let store = SpiralAppArtifactStore(mediaLoader: loader)
@@ -89,7 +89,7 @@ struct SpiralAppArtifactStoreTests {
 
     @Test
     func aSecondAskForTheSameDigestDoesNotFetchAgain() async throws {
-        let packed = try #require(SpiralAppShell.conformanceArtifact)
+        let packed = try #require(SpiralAppTestArtifacts.conformance)
         let loader = Self.loader(returning: packed.bytes)
         let store = SpiralAppArtifactStore(mediaLoader: loader)
         let post = Self.post(digest: packed.digest)
@@ -105,7 +105,7 @@ struct SpiralAppArtifactStoreTests {
         // A room showing four posts of one app must not fetch it four times.
         // Without coalescing this passes the cache test above and still makes
         // four requests, because none of them has finished to populate it.
-        let packed = try #require(SpiralAppShell.conformanceArtifact)
+        let packed = try #require(SpiralAppTestArtifacts.conformance)
         let loader = Self.loader(returning: packed.bytes, delay: .milliseconds(120))
         let store = SpiralAppArtifactStore(mediaLoader: loader)
         let post = Self.post(digest: packed.digest)
@@ -121,7 +121,7 @@ struct SpiralAppArtifactStoreTests {
 
     @Test
     func readinessIsFalseUntilSomethingIsVerified() async throws {
-        let packed = try #require(SpiralAppShell.conformanceArtifact)
+        let packed = try #require(SpiralAppTestArtifacts.conformance)
         let store = SpiralAppArtifactStore(mediaLoader: Self.loader(returning: packed.bytes))
 
         #expect(await store.isReady(packed.digest) == false)
@@ -132,7 +132,7 @@ struct SpiralAppArtifactStoreTests {
     @Test
     func aRefusedArtifactIsNotRemembered() async throws {
         // Caching a failure would turn one bad response into a permanent one.
-        let packed = try #require(SpiralAppShell.conformanceArtifact)
+        let packed = try #require(SpiralAppTestArtifacts.conformance)
         let store = SpiralAppArtifactStore(mediaLoader: Self.loader(returning: packed.bytes))
         let liar = Self.post(digest: String(repeating: "b", count: 64))
 

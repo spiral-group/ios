@@ -6,10 +6,11 @@
 // Please see LICENSE files in the repository root for full details.
 //
 
+import AVFoundation
 import Combine
-@testable import ElementX
 import Foundation
 import MatrixRustSDK
+@testable import Spiral
 import Testing
 
 // AGENT-PLATFORM (Brief 0063)
@@ -25,9 +26,9 @@ struct NativeCallScreenViewModelTests {
         viewModel.start()
         try await waitForJoin(on: rtcSession)
 
-        #expect(rtcSession.joinEncryptMediaNotificationMediaReceivedArguments?.encryptMedia == true)
-        #expect(rtcSession.joinEncryptMediaNotificationMediaReceivedArguments?.notification == .ring)
-        #expect(rtcSession.joinEncryptMediaNotificationMediaReceivedArguments?.media == .audio)
+        #expect(rtcSession.joinEncryptMediaNotificationMediaLanguageReceivedArguments?.encryptMedia == true)
+        #expect(rtcSession.joinEncryptMediaNotificationMediaLanguageReceivedArguments?.notification == .ring)
+        #expect(rtcSession.joinEncryptMediaNotificationMediaLanguageReceivedArguments?.media == .audio)
     }
 
     @Test
@@ -38,13 +39,13 @@ struct NativeCallScreenViewModelTests {
         viewModel.start()
         try await waitForJoin(on: rtcSession)
 
-        #expect(rtcSession.joinEncryptMediaNotificationMediaReceivedArguments?.encryptMedia == false)
+        #expect(rtcSession.joinEncryptMediaNotificationMediaLanguageReceivedArguments?.encryptMedia == false)
     }
 
     @Test
     func aFailedJoinNeverAsksForTransportCredentials() async throws {
         let rtcSession = makeSession()
-        rtcSession.joinEncryptMediaNotificationMediaReturnValue = .failure(.roomInvalid)
+        rtcSession.joinEncryptMediaNotificationMediaLanguageReturnValue = .failure(.roomInvalid)
         let viewModel = makeViewModel(rtcSession: rtcSession, isRoomEncrypted: true)
 
         viewModel.start()
@@ -67,7 +68,7 @@ struct NativeCallScreenViewModelTests {
         viewModel.start()
         try await waitForJoin(on: rtcSession)
 
-        #expect(rtcSession.joinEncryptMediaNotificationMediaReceivedArguments?.notification == nil)
+        #expect(rtcSession.joinEncryptMediaNotificationMediaLanguageReceivedArguments?.notification == nil)
     }
 
     @Test
@@ -116,7 +117,7 @@ struct NativeCallScreenViewModelTests {
 
         await session.start()
 
-        #expect(rtcSession.joinEncryptMediaNotificationMediaReceivedArguments?.media == .video)
+        #expect(rtcSession.joinEncryptMediaNotificationMediaLanguageReceivedArguments?.media == .video)
     }
 
     @Test
@@ -135,7 +136,7 @@ struct NativeCallScreenViewModelTests {
         transport.underlyingLocalConnectionQuality = .unknown
         transport.underlyingIsMicrophoneEnabled = true
         transport.underlyingIsCameraEnabled = false
-        transport.setSubscriptionsAuthorizedIdentitiesIsTrackExcludedClosure = { _, _ in true }
+        transport.setSubscriptionsAuthorizedIdentitiesStagedVideoIdentitiesIsTrackExcludedClosure = { _, _, _ in true }
         transport.setEncryptionKeyIndexIdentityClosure = { _, _, _ in }
         transport.setCameraEnabledClosure = { enabled in
             transport.underlyingIsCameraEnabled = enabled
@@ -206,64 +207,6 @@ struct NativeCallScreenViewModelTests {
         viewModel.nativeCallSessionDidChangeAgentState(session)
 
         try await waitFor { agentPlatformService.voiceSessionControlContextsRoomIDCalled }
-    }
-
-    /// Review #2: whether a call's translation can become the room's rule is
-    /// the server's `can_save_as_room_default`, never the client's own 1:1
-    /// guess. The cases where the two disagree are the ones that matter.
-    @Test(arguments: [(NativeCallScope.group, false, false),
-                      (.direct, true, true),
-                      (.assistant, false, false)])
-    func aRoomDefaultSaveGoesOutOnlyWhenTheServerAllowsIt(scope: NativeCallScope, canSave: Bool, sends: Bool) async throws {
-        let agentPlatformService = AgentPlatformServiceMock()
-        agentPlatformService.saveVoiceTranslationAsRoomDefaultSessionIDReturnValue = .success(())
-        agentPlatformService.voiceSessionControlContextsRoomIDReturnValue = .success([])
-        agentPlatformService.listMyPersonalAgentsReturnValue = .success(.init(agents: [], provisioningStatus: .ready))
-        let rtcSession = makeSession()
-        let viewModel = NativeCallScreenViewModel(session: makeNativeSession(rtcSession: rtcSession, scope: scope),
-                                                  callKitService: CallKitServiceMock(.init()),
-                                                  agentCenter: NativeAgentCenterController(agentPlatformService: agentPlatformService,
-                                                                                           roomID: "!room:matrix.org",
-                                                                                           roomMemberMxids: { [] },
-                                                                                           inviteAgent: { _ in false }),
-                                                  appMediator: AppMediatorMock(.init()),
-                                                  isVideoCall: false,
-                                                  roomID: "!room:matrix.org",
-                                                  roomName: "Native call",
-                                                  scope: scope)
-        viewModel.state.agentCenter = NativeAgentCenterSnapshot(isAvailable: true,
-                                                                isLoading: false,
-                                                                sessions: [Self.translatingSession(canSaveAsRoomDefault: canSave)])
-
-        #expect(viewModel.context.viewState.agents.control(sessionID: "session-1")?.canSaveAsRoomDefault == canSave)
-
-        viewModel.context.send(viewAction: .saveAgentTranslationAsRoomDefault(sessionID: "session-1"))
-
-        if sends {
-            try await waitFor { agentPlatformService.saveVoiceTranslationAsRoomDefaultSessionIDCalled }
-        } else {
-            // The write is dispatched synchronously when it goes out at all.
-            #expect(!viewModel.context.viewState.isAgentActionInFlight)
-            try await Task.sleep(for: .milliseconds(50))
-            #expect(!agentPlatformService.saveVoiceTranslationAsRoomDefaultSessionIDCalled)
-        }
-    }
-
-    private static func translatingSession(canSaveAsRoomDefault: Bool) -> NativeAgentCenterSession {
-        NativeAgentCenterSession(sessionID: "session-1",
-                                 agentMxid: "@assistant-alice:matrix.org",
-                                 canControl: true,
-                                 isEnding: false,
-                                 recording: .init(isEnabled: false, revision: 1, delivery: .notArmed, isStopped: false),
-                                 summary: .init(isEnabled: false, revision: 1, delivery: .notArmed, isStopped: false),
-                                 translation: .init(booths: [.init(speakerScope: VoiceSpeakerScope.anyone.rawValue,
-                                                                   speakerMembers: [],
-                                                                   targetLanguages: ["uk"])],
-                                                    style: "simultaneous",
-                                                    source: "override",
-                                                    revision: 2),
-                                 conversation: .unknown,
-                                 canSaveAsRoomDefault: canSaveAsRoomDefault)
     }
 
     /// ONE call (the Telegram model, operator decision 2026-08-21): a
@@ -578,7 +521,7 @@ struct NativeCallScreenViewModelTests {
     /// Asks the LIVE routing rule, in the channel that hides the least, so
     /// the pin cannot pass against a seam that production no longer uses.
     private func excludedForOwnVoice(_ trackName: String, _ ownUserID: String) -> Bool {
-        NativeCallListening.isTrackExcluded(trackName: trackName, channel: .everything, ownUserID: ownUserID)
+        NativeCallListening.isTrackExcluded(trackName: trackName, channel: .translation(language: "en"), ownUserID: ownUserID)
     }
 
     @Test
@@ -798,6 +741,44 @@ struct NativeCallScreenViewModelTests {
         #expect(session.participants.filter { !$0.isLocal }.map(\.userID) == ["@agent:matrix.org"])
     }
 
+    /// Bug S2: the SDK takes a kicked assistant's membership out, while its runtime is still on the SFU. The
+    /// assistant leaves the roster at once, and its lingering agent kind does not bring it back.
+    @Test
+    func aKickedAssistantLeavesTheRosterThoughItsMediaLingers() {
+        let updates = PassthroughSubject<MatrixRTCSessionUpdate, Never>()
+        let rtcSession = makeSession()
+        rtcSession.underlyingUpdates = updates.eraseToAnyPublisher()
+        let transport = NativeCallTransportMock()
+        transport.underlyingEvents = Empty().eraseToAnyPublisher()
+        transport.localIdentity = "@alice:matrix.org:DEVICE"
+        transport.underlyingIsLocalSpeaking = false
+        transport.underlyingLocalConnectionQuality = .unknown
+        transport.underlyingIsMicrophoneEnabled = true
+        transport.underlyingIsCameraEnabled = false
+        transport.remoteParticipants = [.init(identity: "@bob:matrix.org:BOB", isSpeaking: false, isAudioEnabled: true),
+                                        .init(identity: "@assistant-b:matrix.org:AGENT", isSpeaking: true, isAudioEnabled: true, isAgent: true)]
+        transport.remoteTracks = []
+        transport.setSubscriptionsAuthorizedIdentitiesStagedVideoIdentitiesIsTrackExcludedClosure = { _, _, _ in true }
+        let session = NativeCallSession(rtcSession: rtcSession,
+                                        isRoomEncrypted: false,
+                                        notifyRoom: false,
+                                        configuration: .init(media: .audio, scope: .group),
+                                        transport: transport)
+        defer { withExtendedLifetime(session) { } }
+        let bob = MatrixRTCParticipant(userID: "@bob:matrix.org", deviceID: "BOB", identity: "@bob:matrix.org:BOB")
+        let assistant = MatrixRTCParticipant(userID: "@assistant-b:matrix.org", deviceID: "AGENT", identity: "@assistant-b:matrix.org:AGENT")
+
+        updates.send(.participantsChanged([bob, assistant]))
+        #expect(session.participants.filter { !$0.isLocal }.map(\.userID) == ["@assistant-b:matrix.org", "@bob:matrix.org"])
+
+        updates.send(.participantsChanged([bob]))
+        #expect(session.participants.filter { !$0.isLocal }.map(\.userID) == ["@bob:matrix.org"])
+
+        // Added back: its membership returns and it is in the call again.
+        updates.send(.participantsChanged([bob, assistant]))
+        #expect(session.participants.filter { !$0.isLocal }.map(\.userID) == ["@assistant-b:matrix.org", "@bob:matrix.org"])
+    }
+
     @Test
     func ourRotatedKeyMovesTheSendersToItsIndexAfterInstallingIt() {
         // Device day run 4 (2026-09-12): a rotation announced at a NEW ring
@@ -815,7 +796,7 @@ struct NativeCallScreenViewModelTests {
         transport.underlyingIsCameraEnabled = false
         transport.remoteParticipants = []
         transport.remoteTracks = []
-        transport.setSubscriptionsAuthorizedIdentitiesIsTrackExcludedClosure = { _, _ in true }
+        transport.setSubscriptionsAuthorizedIdentitiesStagedVideoIdentitiesIsTrackExcludedClosure = { _, _, _ in true }
         var order = [String]()
         transport.setEncryptionKeyIndexIdentityClosure = { _, index, identity in order.append("key \(identity) @\(index)") }
         transport.setSenderKeyIndexClosure = { index in order.append("senders @\(index)") }
@@ -882,7 +863,7 @@ struct NativeCallScreenViewModelTests {
         transport.underlyingIsCameraEnabled = false
         transport.remoteParticipants = [.init(identity: "@bob:matrix.org:BOB", isSpeaking: false, isAudioEnabled: true)]
         transport.remoteTracks = []
-        transport.setSubscriptionsAuthorizedIdentitiesIsTrackExcludedClosure = { _, _ in true }
+        transport.setSubscriptionsAuthorizedIdentitiesStagedVideoIdentitiesIsTrackExcludedClosure = { _, _, _ in true }
         transport.setEncryptionKeyIndexIdentityClosure = { _, _, _ in }
 
         let session = NativeCallSession(rtcSession: rtcSession,
@@ -922,13 +903,16 @@ struct NativeCallScreenViewModelTests {
         transport.underlyingLocalConnectionQuality = .unknown
         transport.underlyingIsMicrophoneEnabled = true
         transport.underlyingIsCameraEnabled = false
+        // ADR-0094 A.6: the lane is heard because the agent's own document lists it.
+        let document = #"{"v":6,"agent":true,"lifecycle":"live","functions":[{"kind":"translation","active":true,"for_language":"en","style":"simultaneous","lanes":[{"speaker":"@bob:matrix.org","input":"voice","language":"en"}]}]}"#
         transport.remoteParticipants = [.init(identity: "agent-identity",
                                               isSpeaking: false,
-                                              isAudioEnabled: true)]
+                                              isAudioEnabled: true,
+                                              attributes: [SpiralAgentStateReader.attributeKey: document])]
         transport.remoteTracks = [.init(identity: "agent-identity",
                                         name: "lt:en:@bob:matrix.org",
                                         isSubscribed: true)]
-        transport.setSubscriptionsAuthorizedIdentitiesIsTrackExcludedClosure = { _, _ in true }
+        transport.setSubscriptionsAuthorizedIdentitiesStagedVideoIdentitiesIsTrackExcludedClosure = { _, _, _ in true }
         transport.setEncryptionKeyIndexIdentityClosure = { _, _, _ in }
 
         let session = NativeCallSession(rtcSession: rtcSession,
@@ -967,13 +951,13 @@ struct NativeCallScreenViewModelTests {
         transport.underlyingLocalConnectionQuality = .unknown
         transport.underlyingIsMicrophoneEnabled = true
         transport.underlyingIsCameraEnabled = false
-        let booth = #"{"speaker_scope":"anyone","speaker_members":[],"target_languages":["en"]}"#
-        let document = #"{"v":3,"agent":true,"lifecycle":"live","functions":[{"kind":"translation","active":true,"target_languages":["en"],"style":"simultaneous","booths":[\#(booth)]}]}"#
+        let lane = #"{"speaker":"@bob:matrix.org","input":"voice","language":"en"}"#
+        let document = #"{"v":6,"agent":true,"lifecycle":"live","functions":[{"kind":"translation","active":true,"for_language":"en","style":"simultaneous","lanes":[\#(lane)]}]}"#
         transport.remoteParticipants = [.init(identity: "@bob:matrix.org:BOB", isSpeaking: false, isAudioEnabled: true),
                                         .init(identity: "@agent:matrix.org:AGENT", isSpeaking: false, isAudioEnabled: true,
                                               attributes: [SpiralAgentStateReader.attributeKey: document])]
         transport.remoteTracks = [.init(identity: "@bob:matrix.org:BOB", name: "", isSubscribed: true)]
-        transport.setSubscriptionsAuthorizedIdentitiesIsTrackExcludedClosure = { _, _ in true }
+        transport.setSubscriptionsAuthorizedIdentitiesStagedVideoIdentitiesIsTrackExcludedClosure = { _, _, _ in true }
         transport.setEncryptionKeyIndexIdentityClosure = { _, _, _ in }
         transport.setOriginalDuckingClosure = { _ in }
 
@@ -982,14 +966,14 @@ struct NativeCallScreenViewModelTests {
                                         notifyRoom: false,
                                         configuration: .init(media: .audio, scope: .group),
                                         transport: transport)
-        session.setListeningChoice(.translation)
+        session.setListeningChoice(.language("en"))
 
         let bob = MatrixRTCParticipant(userID: "@bob:matrix.org", deviceID: "BOB", identity: "@bob:matrix.org:BOB")
         let agent = MatrixRTCParticipant(userID: "@agent:matrix.org", deviceID: "AGENT", identity: "@agent:matrix.org:AGENT")
         updates.send(.participantsChanged([bob, agent]))
         transportEvents.send(.participantsUpdated)
 
-        #expect(session.listening.channel == .everything)
+        #expect(session.listening.channel == .translation(language: "en"))
         #expect(session.listening.translatedSpeakers == ["@bob:matrix.org": "en"])
         #expect(session.participants.first { $0.userID == "@bob:matrix.org" }?.isTranslated == true)
         #expect(session.participants.first { $0.userID == "@agent:matrix.org" }?.isTranslated == false)
@@ -1010,8 +994,9 @@ struct NativeCallScreenViewModelTests {
         // disable — the agent's `spiral.agent.state` document must win for
         // participants that publish one. (2) The controls API is
         // owner-gated, so a NON-OWNER has no REST truth at all; the state
-        // document rides LiveKit attributes identically on every device,
-        // and a participant without one keeps its tracks as the truth.
+        // document rides LiveKit attributes identically on every device.
+        // (3) Pre-merge review: a participant without one is no truth at
+        // all — a track name anyone can publish proves nothing.
         let updates = PassthroughSubject<MatrixRTCSessionUpdate, Never>()
         let rtcSession = makeSession()
         rtcSession.underlyingUpdates = updates.eraseToAnyPublisher()
@@ -1029,7 +1014,7 @@ struct NativeCallScreenViewModelTests {
         transport.remoteTracks = [.init(identity: "@agent:matrix.org:DEVICE",
                                         name: "lt:en:@bob:matrix.org",
                                         isSubscribed: true)]
-        transport.setSubscriptionsAuthorizedIdentitiesIsTrackExcludedClosure = { _, _ in true }
+        transport.setSubscriptionsAuthorizedIdentitiesStagedVideoIdentitiesIsTrackExcludedClosure = { _, _, _ in true }
         transport.setEncryptionKeyIndexIdentityClosure = { _, _, _ in }
 
         let session = NativeCallSession(rtcSession: rtcSession,
@@ -1041,10 +1026,11 @@ struct NativeCallScreenViewModelTests {
         func agentDocument(languages: [String]?) -> [String: String] {
             guard let languages else { return [:] }
             let targets = languages.map { "\"\($0)\"" }.joined(separator: ",")
+            let lanes = languages.map { #"{"speaker":"@bob:matrix.org","input":"voice","language":"\#($0)"}"# }.joined(separator: ",")
             let functions = languages.isEmpty
                 ? "[]"
-                : #"[{"kind":"translation","active":true,"target_languages":[\#(targets)],"style":"consecutive","booths":[{"speaker_scope":"anyone","speaker_members":[],"target_languages":[\#(targets)]}]}]"#
-            return [SpiralAgentStateReader.attributeKey: #"{"v":4,"agent":true,"lifecycle":"live","functions":\#(functions)}"#]
+                : #"[{"kind":"translation","active":true,"pocket":[\#(targets)],"style":"consecutive","lanes":[\#(lanes)]}]"#
+            return [SpiralAgentStateReader.attributeKey: #"{"v":6,"agent":true,"lifecycle":"live","functions":\#(functions)}"#]
         }
         func setAgentAttributes(_ agent: [String: String], other: [String: String] = [:]) {
             transport.remoteParticipants = [.init(identity: "@agent:matrix.org:DEVICE", isSpeaking: false, isAudioEnabled: true, attributes: agent),
@@ -1052,10 +1038,9 @@ struct NativeCallScreenViewModelTests {
             transportEvents.send(.participantsUpdated)
         }
 
-        // No state document (its publish did not land): the track snapshot
-        // drives the picker.
+        // No state document: the English track alone produces nothing.
         transportEvents.send(.participantsUpdated)
-        #expect(session.listening.producedLanguages == ["en"])
+        #expect(session.listening.producedLanguages.isEmpty)
 
         // The document says translation is OFF: the picker empties even
         // though the stale publication is still on the SFU.
@@ -1067,14 +1052,13 @@ struct NativeCallScreenViewModelTests {
         setAgentAttributes(agentDocument(languages: ["uk"]))
         #expect(session.listening.producedLanguages == ["uk"])
 
-        // Two agents, one document: the documented agent contributes its
-        // languages, the undocumented one its tracks.
+        // Two agents, one document: only the documented agent contributes.
         setAgentAttributes([:], other: agentDocument(languages: ["uk"]))
-        #expect(session.listening.producedLanguages == ["en", "uk"])
+        #expect(session.listening.producedLanguages == ["uk"])
 
-        // Malformed document: fail-soft back to the tracks.
+        // Malformed document: no truth, nothing produced.
         setAgentAttributes([SpiralAgentStateReader.attributeKey: "not json"])
-        #expect(session.listening.producedLanguages == ["en"])
+        #expect(session.listening.producedLanguages.isEmpty)
     }
 
     @Test
@@ -1093,7 +1077,7 @@ struct NativeCallScreenViewModelTests {
         transport.remoteParticipants = [.init(identity: "bob-identity",
                                               isSpeaking: false,
                                               isAudioEnabled: true)]
-        transport.setSubscriptionsAuthorizedIdentitiesIsTrackExcludedClosure = { _, _ in true }
+        transport.setSubscriptionsAuthorizedIdentitiesStagedVideoIdentitiesIsTrackExcludedClosure = { _, _, _ in true }
         transport.setEncryptionKeyIndexIdentityClosure = { _, _, _ in }
 
         let session = NativeCallSession(rtcSession: rtcSession,
@@ -1175,7 +1159,7 @@ struct NativeCallScreenViewModelTests {
         let rtcSession = MatrixRTCSessionMock()
         rtcSession.underlyingOwnIdentity = "@alice:matrix.org:DEVICE"
         rtcSession.underlyingUpdates = Empty().eraseToAnyPublisher()
-        rtcSession.joinEncryptMediaNotificationMediaReturnValue = .success(())
+        rtcSession.joinEncryptMediaNotificationMediaLanguageReturnValue = .success(())
         rtcSession.setMediaReturnValue = .success(())
         rtcSession.rtcNotificationEventIDReturnValue = "$ring:matrix.org"
         // Transport authorization is expected to fail in the test environment;
@@ -1208,7 +1192,7 @@ struct NativeCallScreenViewModelTests {
         transport.underlyingLocalConnectionQuality = .unknown
         transport.underlyingIsMicrophoneEnabled = true
         transport.underlyingIsCameraEnabled = false
-        transport.setSubscriptionsAuthorizedIdentitiesIsTrackExcludedClosure = { _, _ in true }
+        transport.setSubscriptionsAuthorizedIdentitiesStagedVideoIdentitiesIsTrackExcludedClosure = { _, _, _ in true }
         transport.setEncryptionKeyIndexIdentityClosure = { _, _, _ in }
         return transport
     }
@@ -1279,8 +1263,8 @@ struct NativeCallScreenViewModelTests {
         transport.remoteTracks = []
         transport.setEncryptionKeyIndexIdentityClosure = { _, _, _ in }
         // The FIRST walk fails, every later one succeeds.
-        transport.setSubscriptionsAuthorizedIdentitiesIsTrackExcludedClosure = { [weak transport] _, _ in
-            await MainActor.run { (transport?.setSubscriptionsAuthorizedIdentitiesIsTrackExcludedCallsCount ?? 0) > 1 }
+        transport.setSubscriptionsAuthorizedIdentitiesStagedVideoIdentitiesIsTrackExcludedClosure = { [weak transport] _, _, _ in
+            await MainActor.run { (transport?.setSubscriptionsAuthorizedIdentitiesStagedVideoIdentitiesIsTrackExcludedCallsCount ?? 0) > 1 }
         }
 
         let session = NativeCallSession(rtcSession: rtcSession,
@@ -1291,7 +1275,7 @@ struct NativeCallScreenViewModelTests {
 
         updates.send(.participantsChanged([.init(userID: "@bob:matrix.org", deviceID: "BOB", identity: "@bob:matrix.org:BOB")]))
 
-        try await waitFor(attempts: 400) { transport.setSubscriptionsAuthorizedIdentitiesIsTrackExcludedCallsCount >= 2 }
+        try await waitFor(attempts: 400) { transport.setSubscriptionsAuthorizedIdentitiesStagedVideoIdentitiesIsTrackExcludedCallsCount >= 2 }
         // Brief 0066: the ducking order rides EVERY walk, the refused one
         // included — gating it on `applied` held a covered microphone at
         // unity under a speaking lane for the whole backoff.
@@ -1300,7 +1284,7 @@ struct NativeCallScreenViewModelTests {
     }
 
     private func waitForJoin(on rtcSession: MatrixRTCSessionMock) async throws {
-        try await waitFor { rtcSession.joinEncryptMediaNotificationMediaCalled }
+        try await waitFor { rtcSession.joinEncryptMediaNotificationMediaLanguageCalled }
     }
 
     private func waitFor(attempts: Int = 200, _ condition: @escaping () -> Bool) async throws {
@@ -1310,6 +1294,458 @@ struct NativeCallScreenViewModelTests {
         }
 
         Issue.record("Timed out waiting for the expected state")
+    }
+}
+
+// MARK: - Who is on the 1:1 stage (decision 342)
+
+extension NativeCallScreenViewModelTests {
+    private enum Peer {
+        case gone, connected, cameraOn, picture, droppedTrack
+        case mediaLost(NativeCallParticipant.MediaState)
+    }
+
+    /// Long enough never to pass inside a test.
+    private static let neverSettles = Duration.seconds(60)
+
+    /// The answered video call: the peer's microphone lands before their camera, and their track after it.
+    @Test
+    func anAnsweredVideoCallGoesStraightFromOurCameraToThePeer() {
+        let viewModel = makeStageViewModel(peerSettleDuration: Self.neverSettles)
+
+        let stages = send([.gone, .mediaLost(.waitingForKeys), .connected, .cameraOn, .picture], to: viewModel)
+
+        #expect(stages == ["own", "picture"])
+    }
+
+    @Test
+    func aPeerWhoseCameraStaysOffFillsTheStageOnceSettled() async throws {
+        let viewModel = makeStageViewModel(peerSettleDuration: .milliseconds(10))
+
+        #expect(send([.gone, .connected], to: viewModel) == ["own"])
+        try await waitForPeerToSettle(viewModel)
+
+        #expect(stage(of: viewModel) == "portrait")
+    }
+
+    @Test
+    func aCameraComingOnStopsTheWaitForThePortrait() async throws {
+        let viewModel = makeStageViewModel(peerSettleDuration: .milliseconds(10))
+
+        _ = send([.connected, .cameraOn], to: viewModel)
+        try await Task.sleep(for: .milliseconds(100))
+
+        #expect(stage(of: viewModel) == "own")
+    }
+
+    /// The first camera-on in a call: the portrait stays until the track renders.
+    @Test
+    func aCameraComingOnGoesStraightFromThePortraitToThePicture() async throws {
+        let viewModel = makeStageViewModel(peerSettleDuration: .milliseconds(10))
+        _ = send([.connected], to: viewModel)
+        try await waitForPeerToSettle(viewModel)
+
+        let stages = send([.cameraOn, .picture], to: viewModel)
+
+        #expect(stages == ["portrait", "picture"])
+    }
+
+    @Test
+    func aCameraGoingOffGoesStraightFromThePictureToThePortrait() {
+        let viewModel = makeStageViewModel(peerSettleDuration: Self.neverSettles)
+
+        let stages = send([.picture, .connected], to: viewModel)
+
+        #expect(stages == ["picture", "portrait"])
+    }
+
+    @Test(arguments: [NativeCallParticipant.MediaState.connecting, .waitingForKeys])
+    func thePortraitStaysThroughABlipInThePeersMedia(mediaState: NativeCallParticipant.MediaState) async throws {
+        let viewModel = makeStageViewModel(peerSettleDuration: .milliseconds(10))
+        _ = send([.connected], to: viewModel)
+        try await waitForPeerToSettle(viewModel)
+
+        let stages = send([.mediaLost(mediaState)], to: viewModel)
+        #expect(stages == ["portrait"])
+
+        let peer = viewModel.context.viewState.videoStage.large
+        #expect(peer?.stageFacts.state == UntranslatedL10n.screenNativeCallParticipantReconnecting)
+    }
+
+    @Test
+    func theStageGoesBackToOurCameraWhenThePeerLeaves() {
+        let viewModel = makeStageViewModel(peerSettleDuration: Self.neverSettles)
+
+        let stages = send([.picture, .gone, .connected], to: viewModel)
+
+        #expect(stages == ["picture", "own"])
+    }
+
+    /// Decision 341 and question 383: a tap on the corner tile swaps the pictures, a second tap swaps them back, and the
+    /// camera flips only from its own control.
+    @Test
+    func aTapOnTheCornerTileSwapsThePicturesAndBack() {
+        let viewModel = makeStageViewModel(peerSettleDuration: Self.neverSettles)
+        #expect(!viewModel.context.isSelfVideoLarge)
+
+        viewModel.context.send(viewAction: .swapVideos)
+        #expect(viewModel.context.isSelfVideoLarge, "our picture is large")
+
+        viewModel.context.send(viewAction: .swapVideos)
+        #expect(!viewModel.context.isSelfVideoLarge, "and back")
+    }
+
+    /// A person joining the call with one's assistant ends the page, and a swap made on it, camera or not.
+    @Test
+    func aPersonJoiningTheAssistantsCallEndsTheSwap() {
+        let viewModel = makeStageViewModel(peerSettleDuration: Self.neverSettles, scope: .assistant)
+        let session = makeNativeSession(rtcSession: makeSession(), scope: .assistant)
+        let me = NativeCallParticipant(id: "@alice:matrix.org:ALICE", userID: "@alice:matrix.org", role: .human,
+                                       mediaState: .connected, isSpeaking: false, isAudioEnabled: true, isLocal: true)
+        let assistant = NativeCallParticipant(id: "@assistant-alice:matrix.org:A", userID: "@assistant-alice:matrix.org", role: .agent,
+                                              mediaState: .connected, isSpeaking: false, isAudioEnabled: true, isLocal: false)
+        let bob = NativeCallParticipant(id: "@bob:matrix.org:BOB", userID: "@bob:matrix.org", role: .human,
+                                        mediaState: .connected, isSpeaking: false, isAudioEnabled: true, isLocal: false)
+
+        viewModel.nativeCallSession(session, didChangeParticipants: [me, assistant])
+        viewModel.context.send(viewAction: .swapVideos)
+        #expect(viewModel.context.isSelfVideoLarge)
+
+        viewModel.nativeCallSession(session, didChangeParticipants: [me, assistant, bob])
+        #expect(!viewModel.context.isSelfVideoLarge, "the page ended with bob's arrival, camera off")
+    }
+
+    /// A group's stage starts on the first person and turns to someone else only once they have held the floor for a
+    /// sustained turn, re-checked by the view model on its own (question 383).
+    @Test
+    func aGroupsStageTurnsToASustainedSpeaker() async throws {
+        let viewModel = makeStageViewModel(peerSettleDuration: Self.neverSettles, scope: .group)
+        let session = makeNativeSession(rtcSession: makeSession(), scope: .group)
+        func person(_ name: String, isLocal: Bool = false, isSpeaking: Bool = false) -> NativeCallParticipant {
+            NativeCallParticipant(id: "@\(name):matrix.org:\(name.uppercased())", userID: "@\(name):matrix.org", role: .human,
+                                  mediaState: .connected, isSpeaking: isSpeaking, isAudioEnabled: true, isLocal: isLocal)
+        }
+
+        viewModel.nativeCallSession(session, didChangeParticipants: [person("alice", isLocal: true), person("bob"), person("carol")])
+        #expect(viewModel.context.viewState.groupFocusUserID == "@bob:matrix.org", "the first remote person before anyone speaks")
+
+        viewModel.nativeCallSession(session, didChangeParticipants: [person("alice", isLocal: true), person("bob"), person("carol", isSpeaking: true)])
+        #expect(viewModel.context.viewState.groupFocusUserID == "@bob:matrix.org", "a sound is not yet a turn")
+
+        let deadline = ContinuousClock.now + .seconds(3)
+        while viewModel.context.viewState.groupFocusUserID != "@carol:matrix.org", ContinuousClock.now < deadline {
+            try await Task.sleep(for: .milliseconds(50))
+        }
+        #expect(viewModel.context.viewState.groupFocusUserID == "@carol:matrix.org", "a sustained turn moves the stage without a new update")
+    }
+
+    /// While VoiceOver runs the stage holds still, so the reader's focus isn't reset on every turn; it moves on only
+    /// when the person on it leaves (question 383).
+    @Test
+    func aGroupsStageHoldsStillUnderVoiceOver() async throws {
+        let viewModel = makeStageViewModel(peerSettleDuration: Self.neverSettles, scope: .group)
+        let session = makeNativeSession(rtcSession: makeSession(), scope: .group)
+        func person(_ name: String, isLocal: Bool = false, isSpeaking: Bool = false) -> NativeCallParticipant {
+            NativeCallParticipant(id: "@\(name):matrix.org:\(name.uppercased())", userID: "@\(name):matrix.org", role: .human,
+                                  mediaState: .connected, isSpeaking: isSpeaking, isAudioEnabled: true, isLocal: isLocal)
+        }
+        viewModel.context.send(viewAction: .voiceOverStatusChanged(isRunning: true))
+
+        viewModel.nativeCallSession(session, didChangeParticipants: [person("alice", isLocal: true), person("bob"), person("carol")])
+        viewModel.nativeCallSession(session, didChangeParticipants: [person("alice", isLocal: true), person("bob"), person("carol", isSpeaking: true)])
+        try await Task.sleep(for: .milliseconds(1300))
+        viewModel.nativeCallSession(session, didChangeParticipants: [person("alice", isLocal: true), person("bob"), person("carol", isSpeaking: true)])
+        #expect(viewModel.context.viewState.groupFocusUserID == "@bob:matrix.org", "a sustained turn doesn't move a held stage")
+
+        viewModel.nativeCallSession(session, didChangeParticipants: [person("alice", isLocal: true), person("carol", isSpeaking: true)])
+        #expect(viewModel.context.viewState.groupFocusUserID == "@carol:matrix.org", "the person on it left")
+    }
+
+    @Test
+    func aSwapEndsWhenThePeersCameraComesOn() async throws {
+        let viewModel = makeStageViewModel(peerSettleDuration: .milliseconds(10))
+        _ = send([.connected], to: viewModel)
+        try await waitForPeerToSettle(viewModel)
+        viewModel.context.isSelfVideoLarge = true
+
+        _ = send([.cameraOn], to: viewModel)
+        #expect(viewModel.context.isSelfVideoLarge, "no picture yet")
+
+        _ = send([.picture], to: viewModel)
+        #expect(!viewModel.context.isSelfVideoLarge)
+    }
+
+    @Test
+    func aSwapEndsOnceThePeersPictureHasStayedAway() async throws {
+        let viewModel = makeStageViewModel(peerSettleDuration: .milliseconds(10))
+        _ = send([.picture], to: viewModel)
+        viewModel.context.isSelfVideoLarge = true
+
+        _ = send([.connected], to: viewModel)
+        #expect(viewModel.context.isSelfVideoLarge, "it may yet come back")
+
+        let deadline = ContinuousClock.now + .seconds(5)
+        while viewModel.context.isSelfVideoLarge, ContinuousClock.now < deadline {
+            try await Task.sleep(for: .milliseconds(5))
+        }
+        #expect(!viewModel.context.isSelfVideoLarge)
+        #expect(stage(of: viewModel) == "portrait")
+    }
+
+    @Test(arguments: [Peer.connected, .droppedTrack])
+    private func aSwapHoldsThroughABlipInThePeersPicture(blip: Peer) {
+        let viewModel = makeStageViewModel(peerSettleDuration: Self.neverSettles)
+        _ = send([.picture], to: viewModel)
+        viewModel.context.isSelfVideoLarge = true
+
+        _ = send([blip, .picture], to: viewModel)
+
+        #expect(viewModel.context.isSelfVideoLarge)
+    }
+
+    private func makeStageViewModel(peerSettleDuration: Duration, scope: NativeCallScope = .direct) -> NativeCallScreenViewModel {
+        NativeCallScreenViewModel(session: NativeCallSession(rtcSession: makeSession(),
+                                                             isRoomEncrypted: false,
+                                                             notifyRoom: true,
+                                                             configuration: .init(media: .video, scope: scope)),
+                                  callKitService: CallKitServiceMock(.init()),
+                                  agentCenter: NativeAgentCenterController(agentPlatformService: nil,
+                                                                           roomID: "!room:matrix.org",
+                                                                           roomMemberMxids: { [] },
+                                                                           inviteAgent: { _ in false }),
+                                  appMediator: AppMediatorMock(.init()),
+                                  haptics: .none,
+                                  peerSettleDuration: peerSettleDuration,
+                                  isVideoCall: true,
+                                  roomID: "!room:matrix.org",
+                                  roomName: "Native call",
+                                  scope: scope)
+    }
+
+    /// Plays the peer's states in order and gives back the stages they showed, each once for as long as it lasted.
+    private func send(_ peers: [Peer], to viewModel: NativeCallScreenViewModel) -> [String] {
+        let session = makeNativeSession(rtcSession: makeSession())
+        return peers.reduce(into: [String]()) { stages, peer in
+            viewModel.nativeCallSession(session, didChangeVideoTiles: videoTiles(peer))
+            let current = stage(of: viewModel)
+            if stages.last != current {
+                stages.append(current)
+            }
+        }
+    }
+
+    private func stage(of viewModel: NativeCallScreenViewModel) -> String {
+        guard let large = viewModel.context.viewState.videoStage.large, !large.participant.isLocal else { return "own" }
+        return large.source == nil ? "portrait" : "picture"
+    }
+
+    private func waitForPeerToSettle(_ viewModel: NativeCallScreenViewModel) async throws {
+        let deadline = ContinuousClock.now + .seconds(5)
+        while !viewModel.context.viewState.isPeerSettled, ContinuousClock.now < deadline {
+            try await Task.sleep(for: .milliseconds(5))
+        }
+        #expect(viewModel.context.viewState.isPeerSettled)
+    }
+
+    private func videoTiles(_ peer: Peer) -> [NativeCallVideoTile] {
+        func person(_ userID: String,
+                    isLocal: Bool = false,
+                    mediaState: NativeCallParticipant.MediaState = .connected,
+                    isVideoEnabled: Bool = false) -> NativeCallParticipant {
+            var person = NativeCallParticipant(id: "\(userID):DEVICE",
+                                               userID: userID,
+                                               role: .human,
+                                               mediaState: mediaState,
+                                               isSpeaking: false,
+                                               isAudioEnabled: true,
+                                               isLocal: isLocal)
+            person.isVideoEnabled = isVideoEnabled
+            return person
+        }
+        let local = NativeCallVideoTile(participant: person("@alice:matrix.org", isLocal: true, isVideoEnabled: true),
+                                        source: .init(identity: "@alice:matrix.org:DEVICE", trackID: "", isLocal: true))
+        let bob = "@bob:matrix.org"
+        return switch peer {
+        case .gone:
+            [local]
+        case .connected:
+            [NativeCallVideoTile(participant: person(bob), source: nil), local]
+        case .cameraOn, .droppedTrack:
+            [NativeCallVideoTile(participant: person(bob, isVideoEnabled: true), source: nil), local]
+        case .picture:
+            [NativeCallVideoTile(participant: person(bob, isVideoEnabled: true),
+                                 source: .init(identity: "\(bob):DEVICE", trackID: "track", isLocal: false)),
+             local]
+        case .mediaLost(let mediaState):
+            [NativeCallVideoTile(participant: person(bob, mediaState: mediaState), source: nil), local]
+        }
+    }
+}
+
+// MARK: - Question 407: a call with one's own assistant starts on the speaker
+
+extension NativeCallScreenViewModelTests {
+    @Test
+    func aCallWithOnesOwnAssistantStartsOnTheSpeaker() {
+        let viewModel = makeRoutedViewModel(scope: .assistant, routing: NativeCallAudioRoutingRecorder())
+
+        #expect(viewModel.context.viewState.isSpeakerEnabled, "the «Звук» button shows the speaker from the first frame")
+    }
+
+    @Test(arguments: [NativeCallScope.direct, .group])
+    func anAudioCallWithPeopleStartsOnTheEarpiece(scope: NativeCallScope) {
+        let viewModel = makeRoutedViewModel(scope: scope, routing: NativeCallAudioRoutingRecorder())
+
+        #expect(!viewModel.context.viewState.isSpeakerEnabled)
+    }
+
+    @Test
+    func headphonesKeepACallWithOnesOwnAssistantOffTheSpeaker() {
+        let routing = NativeCallAudioRoutingRecorder()
+        routing.hasExternalOutput = true
+        let viewModel = makeRoutedViewModel(scope: .assistant, routing: routing)
+
+        #expect(!viewModel.context.viewState.isSpeakerEnabled)
+        #expect(routing.speakerRequests.isEmpty)
+    }
+
+    /// A car kit or mono headset that does hands-free only is no output before the call's category: it counts by its input.
+    @Test(arguments: [true, false])
+    func aHandsFreeOnlyDeviceKeepsTheCallOffTheSpeakerFromTheFirstFrame(isVideoCall: Bool) {
+        let routing = NativeCallAudioRoutingRecorder()
+        routing.hasHandsFreeInput = true
+        let viewModel = makeRoutedViewModel(scope: .assistant, routing: routing, isVideoCall: isVideoCall)
+
+        #expect(!viewModel.context.viewState.isSpeakerEnabled)
+    }
+
+    /// The speaker changed outside the screen — a default gave way to a car at activation, a held call resumed with its
+    /// own: «Звук» follows at once, not on the next video change.
+    @Test
+    func aSpeakerChangeOutsideTheScreenReachesIt() {
+        let routing = NativeCallAudioRoutingRecorder()
+        let viewModel = makeRoutedViewModel(scope: .assistant, routing: routing)
+        #expect(viewModel.context.viewState.isSpeakerEnabled)
+
+        routing.speakerChanges.send(false)
+        #expect(!viewModel.context.viewState.isSpeakerEnabled)
+
+        routing.speakerChanges.send(true)
+        #expect(viewModel.context.viewState.isSpeakerEnabled)
+    }
+
+    /// AirPods arriving mid-call: the system's route change reaches the audio, whose speaker «Звук» then follows.
+    @Test
+    func aDeviceRouteChangeReachesTheAudio() async throws {
+        let routing = NativeCallAudioRoutingRecorder()
+        let viewModel = makeRoutedViewModel(scope: .assistant, routing: routing)
+
+        NotificationCenter.default.post(name: AVAudioSession.routeChangeNotification,
+                                        object: nil,
+                                        userInfo: [AVAudioSessionRouteChangeReasonKey: AVAudioSession.RouteChangeReason.newDeviceAvailable.rawValue])
+
+        try await waitFor { routing.routeChangeReasons.contains(.newDeviceAvailable) }
+        withExtendedLifetime(viewModel) { }
+    }
+
+    /// A held call waits for its resume (operator, 2026-11-12): a device that goes meanwhile doesn't move the route of
+    /// the call in use from its screen. Once resumed, the screen passes route changes on again.
+    @Test
+    func aHeldCallsScreenLeavesTheDeviceToTheCallInUse() async throws {
+        let routing = NativeCallAudioRoutingRecorder()
+        let viewModel = makeRoutedViewModel(scope: .assistant, routing: routing)
+        let session = makeNativeSession(rtcSession: makeSession(), scope: .assistant)
+        viewModel.nativeCallSession(session, didChangeState: .connected)
+        viewModel.nativeCallSession(session, didChangeState: .onHold)
+
+        NotificationCenter.default.post(name: AVAudioSession.routeChangeNotification,
+                                        object: nil,
+                                        userInfo: [AVAudioSessionRouteChangeReasonKey: AVAudioSession.RouteChangeReason.oldDeviceUnavailable.rawValue])
+        // The screen hears route changes on the main queue: drain it while the call is still held.
+        await withCheckedContinuation { continuation in DispatchQueue.main.async { continuation.resume() } }
+        viewModel.nativeCallSession(session, didChangeState: .connected)
+        NotificationCenter.default.post(name: AVAudioSession.routeChangeNotification,
+                                        object: nil,
+                                        userInfo: [AVAudioSessionRouteChangeReasonKey: AVAudioSession.RouteChangeReason.routeConfigurationChange.rawValue])
+
+        try await waitFor { routing.routeChangeReasons.contains(.routeConfigurationChange) }
+        #expect(!routing.routeChangeReasons.contains(.oldDeviceUnavailable))
+    }
+
+    /// What the session applies at start and the screen shows from its first frame: one rule.
+    @Test
+    func theStartRouteRule() {
+        #expect(NativeCallSpeakerPolicy.startsOnSpeaker(media: .audio, scope: .assistant, hasExternalRoute: false))
+        #expect(NativeCallSpeakerPolicy.startsOnSpeaker(media: .video, scope: .direct, hasExternalRoute: false))
+        #expect(!NativeCallSpeakerPolicy.startsOnSpeaker(media: .audio, scope: .direct, hasExternalRoute: false))
+        #expect(!NativeCallSpeakerPolicy.startsOnSpeaker(media: .audio, scope: .group, hasExternalRoute: false))
+        #expect(!NativeCallSpeakerPolicy.startsOnSpeaker(media: .audio, scope: .assistant, hasExternalRoute: true))
+        #expect(!NativeCallSpeakerPolicy.startsOnSpeaker(media: .video, scope: .assistant, hasExternalRoute: true))
+    }
+
+    /// Before `.playAndRecord` a hands-free-only device is an available input, not an output; it still counts as the
+    /// call's route. A car's CarPlay, a wired headset and USB audio do too; the phone's own microphone doesn't.
+    @Test
+    func aHandsFreeOnlyDeviceCountsAsAnExternalRoute() {
+        let speaker = NativeCallAudioPort(type: .builtInSpeaker, name: "Speaker", uid: "Speaker")
+        let microphone = NativeCallAudioPort(type: .builtInMic, name: "iPhone Microphone", uid: "Built-In Microphone")
+        let carKit = NativeCallAudioPort(type: .bluetoothHFP, name: "Car kit", uid: "00:11:22:33:44:55-tsco")
+
+        #expect(!NativeCallAudioRoutes.hasExternalOutput(activeOutputs: [speaker]))
+        #expect(NativeCallAudioRoutes.hasExternalRoute(activeOutputs: [speaker], availableInputs: [microphone, carKit]))
+        #expect(!NativeCallAudioRoutes.hasExternalRoute(activeOutputs: [speaker], availableInputs: [microphone]))
+        for type in [AVAudioSession.Port.carAudio, .headsetMic, .usbAudio] {
+            #expect(NativeCallAudioRoutes.hasExternalRoute(activeOutputs: [speaker], availableInputs: [.init(type: type, name: "External", uid: "external")]))
+        }
+        #expect(NativeCallAudioRoutes.hasExternalRoute(activeOutputs: [.init(type: .bluetoothA2DP, name: "AirPods", uid: "airpods")], availableInputs: []))
+    }
+
+    /// At activation a speaker that came from the default gives way to an external route; the person's own pick doesn't.
+    @Test
+    func onlyADefaultSpeakerGivesWayAtActivation() {
+        #expect(!NativeCallSpeakerPolicy.keepsSpeakerAtActivation(isSpeakerEnabled: true, isDefaulted: true, hasExternalRoute: true))
+        #expect(NativeCallSpeakerPolicy.keepsSpeakerAtActivation(isSpeakerEnabled: true, isDefaulted: false, hasExternalRoute: true))
+        #expect(NativeCallSpeakerPolicy.keepsSpeakerAtActivation(isSpeakerEnabled: true, isDefaulted: true, hasExternalRoute: false))
+        #expect(!NativeCallSpeakerPolicy.keepsSpeakerAtActivation(isSpeakerEnabled: false, isDefaulted: false, hasExternalRoute: false))
+    }
+
+    private func makeRoutedViewModel(scope: NativeCallScope,
+                                     routing: NativeCallAudioRoutingRecorder,
+                                     isVideoCall: Bool = false) -> NativeCallScreenViewModel {
+        let rtcSession = makeSession()
+        return NativeCallScreenViewModel(session: makeNativeSession(rtcSession: rtcSession, media: isVideoCall ? .video : .audio, scope: scope),
+                                         callKitService: CallKitServiceMock(.init()),
+                                         agentCenter: NativeAgentCenterController(agentPlatformService: nil,
+                                                                                  roomID: "!room:matrix.org",
+                                                                                  roomMemberMxids: { [] },
+                                                                                  inviteAgent: { _ in false }),
+                                         appMediator: AppMediatorMock(.init()),
+                                         haptics: .none,
+                                         audioRouting: routing.routing,
+                                         isVideoCall: isVideoCall,
+                                         roomID: "!room:matrix.org",
+                                         roomName: "Native call",
+                                         scope: scope)
+    }
+}
+
+/// The route the call screen asks for, recorded; the phone's two outputs unless a test plugs headphones in.
+@MainActor
+final class NativeCallAudioRoutingRecorder {
+    var hasExternalOutput = false
+    /// A hands-free-only Bluetooth device (a car kit): an input before the session activates, not yet an output.
+    var hasHandsFreeInput = false
+    private(set) var speakerRequests: [Bool] = []
+    private(set) var routeChangeReasons: [AVAudioSession.RouteChangeReason] = []
+    let speakerChanges = PassthroughSubject<Bool, Never>()
+
+    var routing: NativeCallAudioRouting {
+        NativeCallAudioRouting(availableRoutes: { NativeCallAudioRoutes.build(activeOutputs: [], availableInputs: []) },
+                               hasExternalRoute: { [weak self] in (self?.hasExternalOutput ?? false) || (self?.hasHandsFreeInput ?? false) },
+                               setSpeakerEnabled: { [weak self] in self?.speakerRequests.append($0) },
+                               selectRoute: { [weak self] in self?.speakerRequests.append($0 == NativeCallAudioRoute.speakerID) },
+                               followRouteChange: { [weak self] in self?.routeChangeReasons.append($0) },
+                               speakerChanges: speakerChanges.eraseToAnyPublisher())
     }
 }
 
@@ -1360,11 +1796,13 @@ struct MatrixRTCSessionProxyTests {
         let session = MatrixRtcSessionSpy()
         let proxy = MatrixRTCSessionProxy(session: session)
 
-        let result = await proxy.join(encryptMedia: true, notification: nil, media: .audio)
+        let result = await proxy.join(encryptMedia: true, notification: nil, media: .audio, language: "zh-Hans")
 
         _ = try result.get()
         let configuration = try #require(session.joinConfiguration)
         #expect(configuration.callIntent == .audio)
+        // ADR-0094 A.1: "my language" rides the join's membership, the catalog's exact code.
+        #expect(configuration.language == "zh-Hans")
         if configuration.notificationType != nil {
             Issue.record("A silent join must not notify the room again")
         }
@@ -1378,6 +1816,17 @@ struct MatrixRTCSessionProxyTests {
         _ = try await proxy.setMedia(.video).get()
 
         #expect(session.updatedCallIntent == .video)
+    }
+
+    /// ADR-0094 A.1, row 9: a new language republishes the membership through the SDK.
+    @Test
+    func theLanguageCanChangeAfterJoining() async throws {
+        let session = MatrixRtcSessionSpy()
+        let proxy = MatrixRTCSessionProxy(session: session)
+
+        _ = try await proxy.updateLanguage("pt-BR").get()
+
+        #expect(session.updatedLanguages == ["pt-BR"])
     }
 }
 
@@ -1395,6 +1844,12 @@ private final class MatrixRtcSessionSpy: MatrixRustSDK.MatrixRtcSessionProtocol,
 
     func updateCallIntent(callIntent: MatrixRtcCallIntent) async throws {
         updatedCallIntent = callIntent
+    }
+
+    var updatedLanguages: [String?] = []
+
+    func updateLanguage(language: String?) async throws {
+        updatedLanguages.append(language)
     }
 
     func leave() async throws { }
@@ -1454,7 +1909,7 @@ extension NativeCallScreenViewModelTests {
         transport.underlyingLocalConnectionQuality = .unknown
         transport.underlyingIsMicrophoneEnabled = true
         transport.underlyingIsCameraEnabled = false
-        transport.setSubscriptionsAuthorizedIdentitiesIsTrackExcludedClosure = { _, _ in true }
+        transport.setSubscriptionsAuthorizedIdentitiesStagedVideoIdentitiesIsTrackExcludedClosure = { _, _, _ in true }
 
         let session = NativeCallSession(rtcSession: rtcSession,
                                         isRoomEncrypted: false,
@@ -1485,7 +1940,7 @@ extension NativeCallScreenViewModelTests {
         transport.underlyingLocalConnectionQuality = .unknown
         transport.underlyingIsMicrophoneEnabled = true
         transport.underlyingIsCameraEnabled = false
-        transport.setSubscriptionsAuthorizedIdentitiesIsTrackExcludedClosure = { _, _ in true }
+        transport.setSubscriptionsAuthorizedIdentitiesStagedVideoIdentitiesIsTrackExcludedClosure = { _, _, _ in true }
 
         let session = NativeCallSession(rtcSession: rtcSession,
                                         isRoomEncrypted: false,
@@ -1506,7 +1961,7 @@ extension NativeCallScreenViewModelTests {
     @Test
     func aFailedStartLeavesTheMatrixSessionAndReleasesAudio() async {
         let rtcSession = makeSession()
-        rtcSession.joinEncryptMediaNotificationMediaReturnValue = .failure(.roomInvalid)
+        rtcSession.joinEncryptMediaNotificationMediaLanguageReturnValue = .failure(.roomInvalid)
         let transport = NativeCallTransportMock()
         transport.underlyingEvents = Empty().eraseToAnyPublisher()
         transport.localIdentity = "@alice:matrix.org:DEVICE"
@@ -1514,7 +1969,7 @@ extension NativeCallScreenViewModelTests {
         transport.underlyingLocalConnectionQuality = .unknown
         transport.underlyingIsMicrophoneEnabled = true
         transport.underlyingIsCameraEnabled = false
-        transport.setSubscriptionsAuthorizedIdentitiesIsTrackExcludedClosure = { _, _ in true }
+        transport.setSubscriptionsAuthorizedIdentitiesStagedVideoIdentitiesIsTrackExcludedClosure = { _, _, _ in true }
 
         let session = NativeCallSession(rtcSession: rtcSession,
                                         isRoomEncrypted: false,
@@ -1872,7 +2327,7 @@ extension NativeCallScreenViewModelTests {
     @Test
     func aWedgedMatrixLeaveStillFailsTheStart() async {
         let rtcSession = makeSession()
-        rtcSession.joinEncryptMediaNotificationMediaReturnValue = .failure(.roomInvalid)
+        rtcSession.joinEncryptMediaNotificationMediaLanguageReturnValue = .failure(.roomInvalid)
         rtcSession.leaveClosure = {
             try? await Task.sleep(for: .seconds(30))
             return .success(())
@@ -1899,7 +2354,7 @@ extension NativeCallScreenViewModelTests {
     @Test
     func aWedgedJoinFailsTheStartInsteadOfHangingOnConnecting() async {
         let rtcSession = makeSession()
-        rtcSession.joinEncryptMediaNotificationMediaClosure = { _, _, _ in
+        rtcSession.joinEncryptMediaNotificationMediaLanguageClosure = { _, _, _, _ in
             try? await Task.sleep(for: .seconds(30))
             return .success(())
         }
@@ -1971,7 +2426,7 @@ extension NativeCallScreenViewModelTests {
     @Test
     func aStartFailureLandingAfterTheUserHungUpLeavesTheEndReasonAlone() async {
         let rtcSession = makeSession()
-        rtcSession.joinEncryptMediaNotificationMediaClosure = { _, _, _ in
+        rtcSession.joinEncryptMediaNotificationMediaLanguageClosure = { _, _, _, _ in
             try? await Task.sleep(for: .seconds(30))
             return .success(())
         }
@@ -2013,7 +2468,7 @@ extension NativeCallScreenViewModelTests {
 
         // Every application is slow enough for the next plan to land mid-walk.
         let applied = RecordingBox<[Set<String>]>([])
-        transport.setSubscriptionsAuthorizedIdentitiesIsTrackExcludedClosure = { identities, _ in
+        transport.setSubscriptionsAuthorizedIdentitiesStagedVideoIdentitiesIsTrackExcludedClosure = { identities, _, _ in
             try? await Task.sleep(for: .milliseconds(20))
             applied.value.append(identities)
             return true
@@ -2051,5 +2506,50 @@ private final class RecordingBox<Value>: @unchecked Sendable {
     var value: Value
     init(_ value: Value) {
         self.value = value
+    }
+}
+
+// MARK: - Bug S2: removing an assistant already out of the room
+
+@MainActor
+struct RoomRemovalTests {
+    /// The second tap on «Убрать» met the server's "not in the room" and showed «Не удалось изменить».
+    @Test
+    func removingSomeoneAlreadyOutOfTheRoomIsARemoval() async {
+        for state in [MembershipState.leave, .ban] {
+            let roomProxy = JoinedRoomProxyMock(.init())
+            roomProxy.kickUserReasonReturnValue = .failure(.eventNotFound)
+            roomProxy.membershipOfReturnValue = state
+
+            let result = await roomProxy.removeFromRoom("@assistant-b:example.org")
+
+            #expect((try? result.get()) != nil, "already out as \(state)")
+            #expect(roomProxy.kickUserReasonCallsCount == 1)
+            #expect(roomProxy.membershipOfReceivedUserID == "@assistant-b:example.org")
+        }
+    }
+
+    @Test
+    func aRefusedRemovalOfAMemberStillFails() async {
+        for state in [MembershipState.join, nil] {
+            let roomProxy = JoinedRoomProxyMock(.init())
+            roomProxy.kickUserReasonReturnValue = .failure(.eventNotFound)
+            roomProxy.membershipOfReturnValue = state
+
+            let result = await roomProxy.removeFromRoom("@assistant-b:example.org")
+
+            #expect((try? result.get()) == nil, "still in, or the membership could not be read")
+        }
+    }
+
+    @Test
+    func aRemovalThatLandsReadsNothingMore() async {
+        let roomProxy = JoinedRoomProxyMock(.init())
+        roomProxy.kickUserReasonReturnValue = .success(())
+
+        let result = await roomProxy.removeFromRoom("@assistant-b:example.org")
+
+        #expect((try? result.get()) != nil)
+        #expect(!roomProxy.membershipOfCalled)
     }
 }

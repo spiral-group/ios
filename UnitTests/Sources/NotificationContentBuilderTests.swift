@@ -6,9 +6,9 @@
 //
 
 import Dynamic
-@testable import ElementX
 import MatrixRustSDK
 import MatrixRustSDKMocks
+@testable import Spiral
 import Testing
 import UserNotifications
 
@@ -22,14 +22,13 @@ struct NotificationContentBuilderTests {
     var mediaProvider: MediaProviderMock
     var notificationContent: UNMutableNotificationContent
     
-    init() {
+    init() async {
         notificationContent = .init()
         let stringBuilder = RoomMessageEventStringBuilder(attributedStringBuilder: AttributedStringBuilder(mentionBuilder: PlainMentionBuilder()),
                                                           style: .plain)
         mediaProvider = MediaProviderMock(.init())
-        notificationContentBuilder = NotificationContentBuilder(messageEventStringBuilder: stringBuilder,
-                                                                notificationSoundName: UNNotificationSoundName("message.caf"),
-                                                                userSession: NSEUserSessionMock(.init()))
+        notificationContentBuilder = await NotificationContentBuilder(messageEventStringBuilder: stringBuilder,
+                                                                      userSession: NSEUserSessionMock(.init()))
     }
     
     @Test
@@ -275,6 +274,7 @@ struct NotificationContentBuilderTests {
     mutating func liveLocationStartNotification() async {
         let event = TimelineEventSDKMock()
         event.eventIdReturnValue = UUID().uuidString
+        event.timestampReturnValue = 0
         event.contentReturnValue = .state(content: .beaconInfo)
         
         let notificationItem = NotificationItemProxyMock(.init(event: .timeline(event: event),
@@ -312,6 +312,7 @@ struct NotificationContentBuilderTests {
     mutating func spiralActionMentionNotification() async throws {
         let event = TimelineEventSDKMock()
         event.eventIdReturnValue = UUID().uuidString
+        event.timestampReturnValue = 0 // the 26.10 builder dates the notification from the event
         event.contentThrowableError = NotificationTestError.customEvent
         let raw = #"{"type":"com.spiral.app.action","content":{"m.relates_to":{"rel_type":"m.reference","event_id":"$post"},"m.mentions":{"user_ids":["@bob:matrix.org"]},"summary":{"line":"Alice placed X"}}}"#
         let action = try #require(SpiralActionNotification(rawEvent: raw, receiverID: "@bob:matrix.org"))
@@ -349,6 +350,7 @@ struct NotificationContentBuilderTests {
     mutating func otherStateEventNotification() async {
         let event = TimelineEventSDKMock()
         event.eventIdReturnValue = UUID().uuidString
+        event.timestampReturnValue = 0
         event.contentReturnValue = .state(content: .roomName)
         
         let notificationItem = NotificationItemProxyMock(.init(event: .timeline(event: event),

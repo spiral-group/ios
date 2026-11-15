@@ -10,20 +10,122 @@ import Foundation
 // swiftlint:disable explicit_type_interface function_parameter_count identifier_name line_length
 // swiftlint:disable nesting type_body_length type_name vertical_whitespace_opening_braces
 internal nonisolated enum UntranslatedL10n {
+  /// Plural format key: "%#@COUNT@"
+  internal static func a11yAlbumItems(_ p1: Int) -> String {
+    return UntranslatedL10n.tr("Untranslated", "a11y_album_items", p1)
+  }
+  /// Open item %1$d
+  internal static func a11yAlbumOpenItem(_ p1: Int) -> String {
+    return UntranslatedL10n.tr("Untranslated", "a11y_album_open_item", p1)
+  }
+  /// %1$d of %2$d characters
+  internal static func a11yEditProfileBioCount(_ p1: Int, _ p2: Int) -> String {
+    return UntranslatedL10n.tr("Untranslated", "a11y_edit_profile_bio_count", p1, p2)
+  }
+  /// Plural format key: "%#@COUNT@"
+  internal static func a11yFeedActivityUnread(_ p1: Int) -> String {
+    return UntranslatedL10n.tr("Untranslated", "a11y_feed_activity_unread", p1)
+  }
+  /// Cancel reply
+  internal static var a11yFeedCancelReply: String { return UntranslatedL10n.tr("Untranslated", "a11y_feed_cancel_reply") }
+  /// Collapsed
+  internal static var a11yFeedCollapsed: String { return UntranslatedL10n.tr("Untranslated", "a11y_feed_collapsed") }
+  /// Comment
+  internal static var a11yFeedComment: String { return UntranslatedL10n.tr("Untranslated", "a11y_feed_comment") }
+  /// Plural format key: "%#@COUNT@"
+  internal static func a11yFeedComments(_ p1: Int) -> String {
+    return UntranslatedL10n.tr("Untranslated", "a11y_feed_comments", p1)
+  }
+  /// Expanded
+  internal static var a11yFeedExpanded: String { return UntranslatedL10n.tr("Untranslated", "a11y_feed_expanded") }
+  /// Plural format key: "%#@COUNT@"
+  internal static func a11yFeedImages(_ p1: Int) -> String {
+    return UntranslatedL10n.tr("Untranslated", "a11y_feed_images", p1)
+  }
+  /// Like
+  internal static var a11yFeedLike: String { return UntranslatedL10n.tr("Untranslated", "a11y_feed_like") }
+  /// Liked by you
+  internal static var a11yFeedLikedByYou: String { return UntranslatedL10n.tr("Untranslated", "a11y_feed_liked_by_you") }
+  /// Plural format key: "%#@COUNT@"
+  internal static func a11yFeedLikes(_ p1: Int) -> String {
+    return UntranslatedL10n.tr("Untranslated", "a11y_feed_likes", p1)
+  }
+  /// Writes an email
+  internal static var a11yFeedNoticeAppealHint: String { return UntranslatedL10n.tr("Untranslated", "a11y_feed_notice_appeal_hint") }
+  /// Unread
+  internal static var a11yFeedNoticeUnread: String { return UntranslatedL10n.tr("Untranslated", "a11y_feed_notice_unread") }
+  /// Plural format key: "%#@COUNT@"
+  internal static func a11yFeedNoticesUnread(_ p1: Int) -> String {
+    return UntranslatedL10n.tr("Untranslated", "a11y_feed_notices_unread", p1)
+  }
+  /// Open %1$@'s profile
+  internal static func a11yFeedOpenAuthor(_ p1: Any) -> String {
+    return UntranslatedL10n.tr("Untranslated", "a11y_feed_open_author", String(describing: p1))
+  }
+  /// View image %1$d
+  internal static func a11yFeedOpenImage(_ p1: Int) -> String {
+    return UntranslatedL10n.tr("Untranslated", "a11y_feed_open_image", p1)
+  }
+  /// View image %1$d: %2$@
+  internal static func a11yFeedOpenImageWithAlt(_ p1: Int, _ p2: Any) -> String {
+    return UntranslatedL10n.tr("Untranslated", "a11y_feed_open_image_with_alt", p1, String(describing: p2))
+  }
+  /// Open link %1$@
+  internal static func a11yFeedOpenLink(_ p1: Any) -> String {
+    return UntranslatedL10n.tr("Untranslated", "a11y_feed_open_link", String(describing: p1))
+  }
+  /// Post options
+  internal static var a11yFeedPostOptions: String { return UntranslatedL10n.tr("Untranslated", "a11y_feed_post_options") }
+  /// replying to %1$@
+  internal static func a11yFeedReplyingTo(_ p1: Any) -> String {
+    return UntranslatedL10n.tr("Untranslated", "a11y_feed_replying_to", String(describing: p1))
+  }
+  /// Send comment
+  internal static var a11yFeedSendComment: String { return UntranslatedL10n.tr("Untranslated", "a11y_feed_send_comment") }
+  /// Plural format key: "%#@COUNT@"
+  internal static func a11yFeedShares(_ p1: Int) -> String {
+    return UntranslatedL10n.tr("Untranslated", "a11y_feed_shares", p1)
+  }
+  /// Show who liked this
+  internal static var a11yFeedShowLikers: String { return UntranslatedL10n.tr("Untranslated", "a11y_feed_show_likers") }
+  /// Remove like
+  internal static var a11yFeedUnlike: String { return UntranslatedL10n.tr("Untranslated", "a11y_feed_unlike") }
+  /// All %1$d in %2$@
+  internal static func a11yInteractiveCatalogAll(_ p1: Int, _ p2: Any) -> String {
+    return UntranslatedL10n.tr("Untranslated", "a11y_interactive_catalog_all", p1, String(describing: p2))
+  }
+  /// %1$@, new
+  internal static func a11yInteractiveCatalogNew(_ p1: Any) -> String {
+    return UntranslatedL10n.tr("Untranslated", "a11y_interactive_catalog_new", String(describing: p1))
+  }
+  /// Send to the chat %1$@
+  internal static func a11yInteractivePostSendToChat(_ p1: Any) -> String {
+    return UntranslatedL10n.tr("Untranslated", "a11y_interactive_post_send_to_chat", String(describing: p1))
+  }
+  /// More
+  internal static var a11yMediaViewerMore: String { return UntranslatedL10n.tr("Untranslated", "a11y_media_viewer_more") }
+  /// Read
+  internal static var a11yMessageRead: String { return UntranslatedL10n.tr("Untranslated", "a11y_message_read") }
   /// %1$@, translating into %2$@
   internal static func a11yNativeCallAgentBlockAiring(_ p1: Any, _ p2: Any) -> String {
     return UntranslatedL10n.tr("Untranslated", "a11y_native_call_agent_block_airing", String(describing: p1), String(describing: p2))
   }
   /// Opens the agent controls
   internal static var a11yNativeCallAgentBlockHint: String { return UntranslatedL10n.tr("Untranslated", "a11y_native_call_agent_block_hint") }
-  /// %1$@, resting
-  internal static func a11yNativeCallAgentBlockIdle(_ p1: Any) -> String {
-    return UntranslatedL10n.tr("Untranslated", "a11y_native_call_agent_block_idle", String(describing: p1))
-  }
   /// %1$@, %2$@
   internal static func a11yNativeCallAgentBlockRole(_ p1: Any, _ p2: Any) -> String {
     return UntranslatedL10n.tr("Untranslated", "a11y_native_call_agent_block_role", String(describing: p1), String(describing: p2))
   }
+  /// %1$@, in the call
+  internal static func a11yNativeCallAgentPillInCall(_ p1: Any) -> String {
+    return UntranslatedL10n.tr("Untranslated", "a11y_native_call_agent_pill_in_call", String(describing: p1))
+  }
+  /// %1$@, other agents in the call: %2$d
+  internal static func a11yNativeCallAgentPillOtherAgents(_ p1: Any, _ p2: Int) -> String {
+    return UntranslatedL10n.tr("Untranslated", "a11y_native_call_agent_pill_other_agents", String(describing: p1), p2)
+  }
+  /// More
+  internal static var a11yNativeCallAssistantsMore: String { return UntranslatedL10n.tr("Untranslated", "a11y_native_call_assistants_more") }
   /// Choose where to play the call
   internal static var a11yNativeCallAudioRoutes: String { return UntranslatedL10n.tr("Untranslated", "a11y_native_call_audio_routes") }
   /// Ongoing call with %1$@. Tap to return.
@@ -44,12 +146,18 @@ internal nonisolated enum UntranslatedL10n {
   internal static var a11yNativeCallMinimize: String { return UntranslatedL10n.tr("Untranslated", "a11y_native_call_minimize") }
   /// Mute microphone
   internal static var a11yNativeCallMuteMicrophone: String { return UntranslatedL10n.tr("Untranslated", "a11y_native_call_mute_microphone") }
+  /// You hear them in %1$@
+  internal static func a11yNativeCallParticipantHeardIn(_ p1: Any) -> String {
+    return UntranslatedL10n.tr("Untranslated", "a11y_native_call_participant_heard_in", String(describing: p1))
+  }
   /// Muted
   internal static var a11yNativeCallParticipantMuted: String { return UntranslatedL10n.tr("Untranslated", "a11y_native_call_participant_muted") }
   /// Speaking
   internal static var a11yNativeCallParticipantSpeaking: String { return UntranslatedL10n.tr("Untranslated", "a11y_native_call_participant_speaking") }
   /// This call is being recorded
   internal static var a11yNativeCallRecording: String { return UntranslatedL10n.tr("Untranslated", "a11y_native_call_recording") }
+  /// Show controls
+  internal static var a11yNativeCallShowControls: String { return UntranslatedL10n.tr("Untranslated", "a11y_native_call_show_controls") }
   /// Signal strength %1$d of 3
   internal static func a11yNativeCallSignal(_ p1: Int) -> String {
     return UntranslatedL10n.tr("Untranslated", "a11y_native_call_signal", p1)
@@ -62,12 +170,20 @@ internal nonisolated enum UntranslatedL10n {
   internal static var a11yNativeCallSwapVideo: String { return UntranslatedL10n.tr("Untranslated", "a11y_native_call_swap_video") }
   /// Switch camera
   internal static var a11yNativeCallSwitchCamera: String { return UntranslatedL10n.tr("Untranslated", "a11y_native_call_switch_camera") }
+  /// Listening in %1$@
+  internal static func a11yNativeCallTranslateListening(_ p1: Any) -> String {
+    return UntranslatedL10n.tr("Untranslated", "a11y_native_call_translate_listening", String(describing: p1))
+  }
+  /// A new language is available
+  internal static var a11yNativeCallTranslateNew: String { return UntranslatedL10n.tr("Untranslated", "a11y_native_call_translate_new") }
   /// Unmute microphone
   internal static var a11yNativeCallUnmuteMicrophone: String { return UntranslatedL10n.tr("Untranslated", "a11y_native_call_unmute_microphone") }
   /// Contact agent %1$@
   internal static func a11yScreenPublicProfileActionContactAgent(_ p1: Any) -> String {
     return UntranslatedL10n.tr("Untranslated", "a11y_screen_public_profile_action_contact_agent", String(describing: p1))
   }
+  /// You have one minute to confirm.
+  internal static var a11ySessionVerificationTimeLimitedActionRequiredSpiral: String { return UntranslatedL10n.tr("Untranslated", "a11y_session_verification_time_limited_action_required_spiral") }
   /// Interactive, %1$@
   internal static func a11ySpiralAppPost(_ p1: Any) -> String {
     return UntranslatedL10n.tr("Untranslated", "a11y_spiral_app_post", String(describing: p1))
@@ -82,7 +198,7 @@ internal nonisolated enum UntranslatedL10n {
   internal static var actionAgentActivity: String { return UntranslatedL10n.tr("Untranslated", "action_agent_activity") }
   /// Queue
   internal static var actionAgentQueue: String { return UntranslatedL10n.tr("Untranslated", "action_agent_queue") }
-  /// Usage
+  /// AI limit
   internal static var actionAgentUsage: String { return UntranslatedL10n.tr("Untranslated", "action_agent_usage") }
   /// Approve
   internal static var actionApprovalApprove: String { return UntranslatedL10n.tr("Untranslated", "action_approval_approve") }
@@ -94,14 +210,20 @@ internal nonisolated enum UntranslatedL10n {
   internal static var actionDismissVisitorMessage: String { return UntranslatedL10n.tr("Untranslated", "action_dismiss_visitor_message") }
   /// Manage
   internal static var actionManage: String { return UntranslatedL10n.tr("Untranslated", "action_manage") }
+  /// Your messages are backed up automatically. If you lose all your devices, a recovery key brings back your message history, so you don't have to start over.
+  internal static var bannerSetUpRecoveryContentSpiral: String { return UntranslatedL10n.tr("Untranslated", "banner_set_up_recovery_content_spiral") }
+  /// Create recovery key
+  internal static var bannerSetUpRecoverySubmitSpiral: String { return UntranslatedL10n.tr("Untranslated", "banner_set_up_recovery_submit_spiral") }
+  /// Keep access to your messages
+  internal static var bannerSetUpRecoveryTitleSpiral: String { return UntranslatedL10n.tr("Untranslated", "banner_set_up_recovery_title_spiral") }
   /// A conversation
   internal static var commonAConversation: String { return UntranslatedL10n.tr("Untranslated", "common_a_conversation") }
+  /// Encryption
+  internal static var commonEncryptionSpiral: String { return UntranslatedL10n.tr("Untranslated", "common_encryption_spiral") }
   /// Draft
   internal static var commonInteractiveDraft: String { return UntranslatedL10n.tr("Untranslated", "common_interactive_draft") }
   /// Interactive
   internal static var commonInteractivePost: String { return UntranslatedL10n.tr("Untranslated", "common_interactive_post") }
-  /// Off
-  internal static var commonOff: String { return UntranslatedL10n.tr("Untranslated", "common_off") }
   /// On
   internal static var commonOn: String { return UntranslatedL10n.tr("Untranslated", "common_on") }
   /// last seen %1$@
@@ -134,14 +256,28 @@ internal nonisolated enum UntranslatedL10n {
   internal static var commonPresenceOnline: String { return UntranslatedL10n.tr("Untranslated", "common_presence_online") }
   /// Terms of Use
   internal static var commonTermsOfUseSpiral: String { return UntranslatedL10n.tr("Untranslated", "common_terms_of_use_spiral") }
+  /// Confirmed
+  internal static var commonVerificationCompleteSpiral: String { return UntranslatedL10n.tr("Untranslated", "common_verification_complete_spiral") }
+  /// Couldn't confirm
+  internal static var commonVerificationFailedSpiral: String { return UntranslatedL10n.tr("Untranslated", "common_verification_failed_spiral") }
+  /// Enter it to keep access to your message history.
+  internal static var confirmRecoveryKeyBannerMessageSpiral: String { return UntranslatedL10n.tr("Untranslated", "confirm_recovery_key_banner_message_spiral") }
+  /// Enter recovery key
+  internal static var confirmRecoveryKeyBannerPrimaryButtonTitleSpiral: String { return UntranslatedL10n.tr("Untranslated", "confirm_recovery_key_banner_primary_button_title_spiral") }
+  /// Lost your key?
+  internal static var confirmRecoveryKeyBannerSecondaryButtonTitleSpiral: String { return UntranslatedL10n.tr("Untranslated", "confirm_recovery_key_banner_secondary_button_title_spiral") }
+  /// Confirm your recovery key
+  internal static var confirmRecoveryKeyBannerTitleSpiral: String { return UntranslatedL10n.tr("Untranslated", "confirm_recovery_key_banner_title_spiral") }
   /// That is an invitation to join Spiral — you already have.
   internal static var inviteLinkOpenedWhileSignedIn: String { return UntranslatedL10n.tr("Untranslated", "invite_link_opened_while_signed_in") }
-  /// I'll answer again from %1$@.
-  internal static func noticeAiBudgetReachedBody(_ p1: Any) -> String {
-    return UntranslatedL10n.tr("Untranslated", "notice_ai_budget_reached_body", String(describing: p1))
+  /// I'll answer again %1$@, %2$@, at %3$@.
+  internal static func noticeAiBudgetReachedBody(_ p1: Any, _ p2: Any, _ p3: Any) -> String {
+    return UntranslatedL10n.tr("Untranslated", "notice_ai_budget_reached_body", String(describing: p1), String(describing: p2), String(describing: p3))
   }
-  /// Today's AI limit is used up
+  /// Weekly AI limit is used up
   internal static var noticeAiBudgetReachedTitle: String { return UntranslatedL10n.tr("Untranslated", "notice_ai_budget_reached_title") }
+  /// Everything else works as usual.
+  internal static var noticeAiCategoryPausedBody: String { return UntranslatedL10n.tr("Untranslated", "notice_ai_category_paused_body") }
   /// Open Settings
   internal static var noticeAiConsentNeededAction: String { return UntranslatedL10n.tr("Untranslated", "notice_ai_consent_needed_action") }
   /// You allowed AI. %1$@ answers your new messages.
@@ -252,6 +388,14 @@ internal nonisolated enum UntranslatedL10n {
   internal static var notificationApprovalBodyFirstContact: String { return UntranslatedL10n.tr("Untranslated", "notification_approval_body_first_contact") }
   /// A message matched one of your agent's rules, so it needs your OK to reply. Tap to review.
   internal static var notificationApprovalBodyRuleMatch: String { return UntranslatedL10n.tr("Untranslated", "notification_approval_body_rule_match") }
+  /// Someone commented on your post
+  internal static var notificationFeedCommentBody: String { return UntranslatedL10n.tr("Untranslated", "notification_feed_comment_body") }
+  /// Someone liked your post
+  internal static var notificationFeedLikeBody: String { return UntranslatedL10n.tr("Untranslated", "notification_feed_like_body") }
+  /// You have a new notice about the feed
+  internal static var notificationFeedNoticeBody: String { return UntranslatedL10n.tr("Untranslated", "notification_feed_notice_body") }
+  /// Someone replied to your comment
+  internal static var notificationFeedReplyBody: String { return UntranslatedL10n.tr("Untranslated", "notification_feed_reply_body") }
   /// You are challenged
   internal static var notificationInteractivePostChallenge: String { return UntranslatedL10n.tr("Untranslated", "notification_interactive_post_challenge") }
   /// You were mentioned
@@ -280,15 +424,31 @@ internal nonisolated enum UntranslatedL10n {
   internal static var screenAddAgentFooter: String { return UntranslatedL10n.tr("Untranslated", "screen_add_agent_footer") }
   /// In this chat
   internal static var screenAddAgentInRoomBadge: String { return UntranslatedL10n.tr("Untranslated", "screen_add_agent_in_room_badge") }
+  /// Couldn't load your agents
+  internal static var screenAddAgentPickerLoadFailed: String { return UntranslatedL10n.tr("Untranslated", "screen_add_agent_picker_load_failed") }
   /// Add an agent
   internal static var screenAddAgentTitle: String { return UntranslatedL10n.tr("Untranslated", "screen_add_agent_title") }
+  /// Fixes mistakes without changing the meaning
+  internal static var screenAddToolCorrectSubtitle: String { return UntranslatedL10n.tr("Untranslated", "screen_add_tool_correct_subtitle") }
+  /// Your own instruction in your own words
+  internal static var screenAddToolCustomSubtitle: String { return UntranslatedL10n.tr("Untranslated", "screen_add_tool_custom_subtitle") }
+  /// Couldn't load the tools
+  internal static var screenAddToolLoadFailed: String { return UntranslatedL10n.tr("Untranslated", "screen_add_tool_load_failed") }
+  /// Rewrites messages by your instruction
+  internal static var screenAddToolRephraseSubtitle: String { return UntranslatedL10n.tr("Untranslated", "screen_add_tool_rephrase_subtitle") }
+  /// Rewrites messages in simpler words
+  internal static var screenAddToolSimplifySubtitle: String { return UntranslatedL10n.tr("Untranslated", "screen_add_tool_simplify_subtitle") }
+  /// Sums up long messages in a few words
+  internal static var screenAddToolSummarizeSubtitle: String { return UntranslatedL10n.tr("Untranslated", "screen_add_tool_summarize_subtitle") }
+  /// Translates messages into the language you choose
+  internal static var screenAddToolTranslateSubtitle: String { return UntranslatedL10n.tr("Untranslated", "screen_add_tool_translate_subtitle") }
   /// Let assistants process what you write and say with OpenAI and Google. When off, your assistant stays off and other people's assistants ignore your messages.
   internal static var screenAdvancedSettingsAiConsentDescription: String { return UntranslatedL10n.tr("Untranslated", "screen_advanced_settings_ai_consent_description") }
   /// Third-party AI
   internal static var screenAdvancedSettingsAiConsentTitle: String { return UntranslatedL10n.tr("Untranslated", "screen_advanced_settings_ai_consent_title") }
   /// If turned off, you won’t be able to send or receive read receipts or typing notifications. Others also won’t see when you’re online, only roughly when you were last seen, and you’ll see them the same way.
   internal static var screenAdvancedSettingsSharePresenceAccountDescription: String { return UntranslatedL10n.tr("Untranslated", "screen_advanced_settings_share_presence_account_description") }
-  /// Let you know the daily AI limit was reached
+  /// Let you know the weekly AI limit was reached
   internal static var screenAgentActivityActionAiLimitReached: String { return UntranslatedL10n.tr("Untranslated", "screen_agent_activity_action_ai_limit_reached") }
   /// Answered a call
   internal static var screenAgentActivityActionAnsweredCall: String { return UntranslatedL10n.tr("Untranslated", "screen_agent_activity_action_answered_call") }
@@ -392,6 +552,8 @@ internal nonisolated enum UntranslatedL10n {
   internal static var screenAgentActivityFilterMenuTitle: String { return UntranslatedL10n.tr("Untranslated", "screen_agent_activity_filter_menu_title") }
   /// Waiting for you
   internal static var screenAgentActivityFilterPendingConsent: String { return UntranslatedL10n.tr("Untranslated", "screen_agent_activity_filter_pending_consent") }
+  /// Couldn't load the activity
+  internal static var screenAgentActivityLoadFailed: String { return UntranslatedL10n.tr("Untranslated", "screen_agent_activity_load_failed") }
   /// Loading more…
   internal static var screenAgentActivityLoadMore: String { return UntranslatedL10n.tr("Untranslated", "screen_agent_activity_load_more") }
   /// Failed to load more. Tap to retry.
@@ -402,7 +564,7 @@ internal nonisolated enum UntranslatedL10n {
   internal static var screenAgentActivityReasonAgentInTargetRoom: String { return UntranslatedL10n.tr("Untranslated", "screen_agent_activity_reason_agent_in_target_room") }
   /// It isn't in that chat
   internal static var screenAgentActivityReasonAgentNotInRoom: String { return UntranslatedL10n.tr("Untranslated", "screen_agent_activity_reason_agent_not_in_room") }
-  /// Daily AI limit reached
+  /// Weekly AI limit reached
   internal static var screenAgentActivityReasonAiBudgetNotice: String { return UntranslatedL10n.tr("Untranslated", "screen_agent_activity_reason_ai_budget_notice") }
   /// AI isn't allowed yet
   internal static var screenAgentActivityReasonAiConsentNeededNotice: String { return UntranslatedL10n.tr("Untranslated", "screen_agent_activity_reason_ai_consent_needed_notice") }
@@ -434,6 +596,8 @@ internal nonisolated enum UntranslatedL10n {
   internal static var screenAgentActivityReasonMessagePassedToOwnerNotice: String { return UntranslatedL10n.tr("Untranslated", "screen_agent_activity_reason_message_passed_to_owner_notice") }
   /// Not one of your contacts
   internal static var screenAgentActivityReasonNoContactRelationship: String { return UntranslatedL10n.tr("Untranslated", "screen_agent_activity_reason_no_contact_relationship") }
+  /// Not offered to it here
+  internal static var screenAgentActivityReasonNotOffered: String { return UntranslatedL10n.tr("Untranslated", "screen_agent_activity_reason_not_offered") }
   /// Would need your OK
   internal static var screenAgentActivityReasonNoticeWouldNeedConsent: String { return UntranslatedL10n.tr("Untranslated", "screen_agent_activity_reason_notice_would_need_consent") }
   /// Outside this conversation
@@ -468,38 +632,24 @@ internal nonisolated enum UntranslatedL10n {
   internal static var screenAgentBlockedFooter: String { return UntranslatedL10n.tr("Untranslated", "screen_agent_blocked_footer") }
   /// Couldn't load who is blocked
   internal static var screenAgentBlockedLoadFailure: String { return UntranslatedL10n.tr("Untranslated", "screen_agent_blocked_load_failure") }
-  /// Recording voice calls
-  internal static var screenAgentCapabilitiesCallRecordingActive: String { return UntranslatedL10n.tr("Untranslated", "screen_agent_capabilities_call_recording_active") }
   /// Keep a recording of each voice call
   internal static var screenAgentCapabilitiesCallRecordingSubtitle: String { return UntranslatedL10n.tr("Untranslated", "screen_agent_capabilities_call_recording_subtitle") }
   /// Record calls
   internal static var screenAgentCapabilitiesCallRecordingTitle: String { return UntranslatedL10n.tr("Untranslated", "screen_agent_capabilities_call_recording_title") }
-  /// Summaries on for voice calls
-  internal static var screenAgentCapabilitiesCallSummaryActive: String { return UntranslatedL10n.tr("Untranslated", "screen_agent_capabilities_call_summary_active") }
   /// Create a summary after each voice call
   internal static var screenAgentCapabilitiesCallSummarySubtitle: String { return UntranslatedL10n.tr("Untranslated", "screen_agent_capabilities_call_summary_subtitle") }
   /// Summarise calls
   internal static var screenAgentCapabilitiesCallSummaryTitle: String { return UntranslatedL10n.tr("Untranslated", "screen_agent_capabilities_call_summary_title") }
   /// Interpret speech live during a call
   internal static var screenAgentCapabilitiesLiveCallSubtitle: String { return UntranslatedL10n.tr("Untranslated", "screen_agent_capabilities_live_call_subtitle") }
-  /// Translate voice calls
-  internal static var screenAgentCapabilitiesLiveCallTitle: String { return UntranslatedL10n.tr("Untranslated", "screen_agent_capabilities_live_call_title") }
-  /// Turn on what %1$@ should do automatically in this chat. Only you can change this.
-  internal static func screenAgentCapabilitiesSectionFooter(_ p1: Any) -> String {
-    return UntranslatedL10n.tr("Untranslated", "screen_agent_capabilities_section_footer", String(describing: p1))
-  }
-  /// What it can do here
-  internal static var screenAgentCapabilitiesSectionTitle: String { return UntranslatedL10n.tr("Untranslated", "screen_agent_capabilities_section_title") }
   /// Add a tool
   internal static var screenAgentCapabilitiesTitle: String { return UntranslatedL10n.tr("Untranslated", "screen_agent_capabilities_title") }
-  /// Rewrite incoming messages as they arrive
-  internal static var screenAgentCapabilitiesTranslateSubtitle: String { return UntranslatedL10n.tr("Untranslated", "screen_agent_capabilities_translate_subtitle") }
-  /// Translate messages
-  internal static var screenAgentCapabilitiesTranslateTitle: String { return UntranslatedL10n.tr("Untranslated", "screen_agent_capabilities_translate_title") }
   /// Not available
   internal static var screenAgentCapabilitiesUnavailable: String { return UntranslatedL10n.tr("Untranslated", "screen_agent_capabilities_unavailable") }
   /// Doesn't run for this agent here. Tap to turn it off.
   internal static var screenAgentCapabilitiesUnavailableSubtitle: String { return UntranslatedL10n.tr("Untranslated", "screen_agent_capabilities_unavailable_subtitle") }
+  /// Not in any chat yet.
+  internal static var screenAgentChatsEmpty: String { return UntranslatedL10n.tr("Untranslated", "screen_agent_chats_empty") }
   /// An agent joins a group chat you're in. It can't be added to a chat with one other person, or to a chat it's already in. Start a group chat, then come back here.
   internal static var screenAgentDetailAddToChatEmptyMessage: String { return UntranslatedL10n.tr("Untranslated", "screen_agent_detail_add_to_chat_empty_message") }
   /// No chats to add it to
@@ -526,7 +676,7 @@ internal nonisolated enum UntranslatedL10n {
   internal static var screenAgentDetailControlSection: String { return UntranslatedL10n.tr("Untranslated", "screen_agent_detail_control_section") }
   /// Couldn't load this agent
   internal static var screenAgentDetailErrorTitle: String { return UntranslatedL10n.tr("Untranslated", "screen_agent_detail_error_title") }
-  /// your personal assistant
+  /// Your personal assistant
   internal static var screenAgentDetailKindPersonalAssistant: String { return UntranslatedL10n.tr("Untranslated", "screen_agent_detail_kind_personal_assistant") }
   /// Not in any chat yet. Tap “Add to chat” to bring it into one.
   internal static var screenAgentDetailNoRooms: String { return UntranslatedL10n.tr("Untranslated", "screen_agent_detail_no_rooms") }
@@ -590,6 +740,8 @@ internal nonisolated enum UntranslatedL10n {
   internal static var screenAgentInRoomMemberPickerUnavailable: String { return UntranslatedL10n.tr("Untranslated", "screen_agent_in_room_member_picker_unavailable") }
   /// No tools in this chat yet.
   internal static var screenAgentInRoomNoTools: String { return UntranslatedL10n.tr("Untranslated", "screen_agent_in_room_no_tools") }
+  /// Open chat
+  internal static var screenAgentInRoomOpenChat: String { return UntranslatedL10n.tr("Untranslated", "screen_agent_in_room_open_chat") }
   /// Remove agent from chat
   internal static var screenAgentInRoomRemove: String { return UntranslatedL10n.tr("Untranslated", "screen_agent_in_room_remove") }
   /// The agent leaves this chat and its tools here turn off.
@@ -658,18 +810,12 @@ internal nonisolated enum UntranslatedL10n {
   internal static var screenAgentSettingsVisitorSection: String { return UntranslatedL10n.tr("Untranslated", "screen_agent_settings_visitor_section") }
   /// Add agent
   internal static var screenAgentSheetAddAgent: String { return UntranslatedL10n.tr("Untranslated", "screen_agent_sheet_add_agent") }
-  /// Pick an agent to manage what it does here, or add another to this chat.
-  internal static var screenAgentSheetFooter: String { return UntranslatedL10n.tr("Untranslated", "screen_agent_sheet_footer") }
-  /// You have no agent in this chat yet. Add one to set up tools.
-  internal static var screenAgentSheetNoOwnAgent: String { return UntranslatedL10n.tr("Untranslated", "screen_agent_sheet_no_own_agent") }
-  /// No tools yet · tap to set up
-  internal static var screenAgentSheetNoTools: String { return UntranslatedL10n.tr("Untranslated", "screen_agent_sheet_no_tools") }
+  /// Couldn't load this chat's agents
+  internal static var screenAgentSheetLoadFailed: String { return UntranslatedL10n.tr("Untranslated", "screen_agent_sheet_load_failed") }
   /// Tools other participants' agents run in this chat. You can only change your own.
   internal static var screenAgentSheetOthersFooter: String { return UntranslatedL10n.tr("Untranslated", "screen_agent_sheet_others_footer") }
   /// Other participants
   internal static var screenAgentSheetOthersHeader: String { return UntranslatedL10n.tr("Untranslated", "screen_agent_sheet_others_header") }
-  /// Agents
-  internal static var screenAgentSheetTitle: String { return UntranslatedL10n.tr("Untranslated", "screen_agent_sheet_title") }
   /// Your agents
   internal static var screenAgentSheetYoursHeader: String { return UntranslatedL10n.tr("Untranslated", "screen_agent_sheet_yours_header") }
   /// Online
@@ -690,26 +836,10 @@ internal nonisolated enum UntranslatedL10n {
   internal static var screenAgentSpacesSectionRetry: String { return UntranslatedL10n.tr("Untranslated", "screen_agent_spaces_section_retry") }
   /// Agents
   internal static var screenAgentSpacesTitle: String { return UntranslatedL10n.tr("Untranslated", "screen_agent_spaces_title") }
-  /// Add a tool
-  internal static var screenAgentToolsListAdd: String { return UntranslatedL10n.tr("Untranslated", "screen_agent_tools_list_add") }
-  /// Add a tool to have the agent do something automatically in this chat.
-  internal static var screenAgentToolsListEmptySubtitle: String { return UntranslatedL10n.tr("Untranslated", "screen_agent_tools_list_empty_subtitle") }
-  /// No tools yet
-  internal static var screenAgentToolsListEmptyTitle: String { return UntranslatedL10n.tr("Untranslated", "screen_agent_tools_list_empty_title") }
   /// This version of the app can't show when the tool runs. You can still turn it off.
   internal static var screenAgentToolsListNeedsUpdateMessage: String { return UntranslatedL10n.tr("Untranslated", "screen_agent_tools_list_needs_update_message") }
   /// Update the app to edit this tool
   internal static var screenAgentToolsListNeedsUpdateTitle: String { return UntranslatedL10n.tr("Untranslated", "screen_agent_tools_list_needs_update_title") }
-  /// Tap a tool to change it, or add another. Only you can change what %1$@ does here.
-  internal static func screenAgentToolsListSectionFooter(_ p1: Any) -> String {
-    return UntranslatedL10n.tr("Untranslated", "screen_agent_tools_list_section_footer", String(describing: p1))
-  }
-  /// On in this chat
-  internal static var screenAgentToolsListSectionTitle: String { return UntranslatedL10n.tr("Untranslated", "screen_agent_tools_list_section_title") }
-  /// In this chat
-  internal static var screenAgentToolsListSectionTitleMixed: String { return UntranslatedL10n.tr("Untranslated", "screen_agent_tools_list_section_title_mixed") }
-  /// Active tools
-  internal static var screenAgentToolsListTitle: String { return UntranslatedL10n.tr("Untranslated", "screen_agent_tools_list_title") }
   /// Rephrase · %1$@
   internal static func screenAgentToolsListTitleRephrase(_ p1: Any) -> String {
     return UntranslatedL10n.tr("Untranslated", "screen_agent_tools_list_title_rephrase", String(describing: p1))
@@ -722,6 +852,20 @@ internal nonisolated enum UntranslatedL10n {
   internal static var screenAgentToolsListTitleUnknown: String { return UntranslatedL10n.tr("Untranslated", "screen_agent_tools_list_title_unknown") }
   /// This tool doesn't run for this agent in this chat. You can turn it off.
   internal static var screenAgentToolsListUnavailableMessage: String { return UntranslatedL10n.tr("Untranslated", "screen_agent_tools_list_unavailable_message") }
+  /// AI works again %1$@, %2$@, at %3$@.
+  internal static func screenAgentUsageAiBackOn(_ p1: Any, _ p2: Any, _ p3: Any) -> String {
+    return UntranslatedL10n.tr("Untranslated", "screen_agent_usage_ai_back_on", String(describing: p1), String(describing: p2), String(describing: p3))
+  }
+  /// AI works again today at %1$@.
+  internal static func screenAgentUsageAiBackToday(_ p1: Any) -> String {
+    return UntranslatedL10n.tr("Untranslated", "screen_agent_usage_ai_back_today", String(describing: p1))
+  }
+  /// AI works again tomorrow at %1$@.
+  internal static func screenAgentUsageAiBackTomorrow(_ p1: Any) -> String {
+    return UntranslatedL10n.tr("Untranslated", "screen_agent_usage_ai_back_tomorrow", String(describing: p1))
+  }
+  /// Where it went
+  internal static var screenAgentUsageCategoriesSection: String { return UntranslatedL10n.tr("Untranslated", "screen_agent_usage_categories_section") }
   /// Call summaries
   internal static var screenAgentUsageCategoryCallSummaries: String { return UntranslatedL10n.tr("Untranslated", "screen_agent_usage_category_call_summaries") }
   /// Call translation
@@ -732,46 +876,158 @@ internal nonisolated enum UntranslatedL10n {
   internal static var screenAgentUsageCategoryMessages: String { return UntranslatedL10n.tr("Untranslated", "screen_agent_usage_category_messages") }
   /// Other
   internal static var screenAgentUsageCategoryOther: String { return UntranslatedL10n.tr("Untranslated", "screen_agent_usage_category_other") }
+  /// %1$@: paused
+  internal static func screenAgentUsageCategoryPaused(_ p1: Any) -> String {
+    return UntranslatedL10n.tr("Untranslated", "screen_agent_usage_category_paused", String(describing: p1))
+  }
+  /// %1$@: paused until %2$@, %3$@
+  internal static func screenAgentUsageCategoryPausedUntilDate(_ p1: Any, _ p2: Any, _ p3: Any) -> String {
+    return UntranslatedL10n.tr("Untranslated", "screen_agent_usage_category_paused_until_date", String(describing: p1), String(describing: p2), String(describing: p3))
+  }
+  /// %1$@: paused until %2$@
+  internal static func screenAgentUsageCategoryPausedUntilToday(_ p1: Any, _ p2: Any) -> String {
+    return UntranslatedL10n.tr("Untranslated", "screen_agent_usage_category_paused_until_today", String(describing: p1), String(describing: p2))
+  }
+  /// %1$@: paused until tomorrow, %2$@
+  internal static func screenAgentUsageCategoryPausedUntilTomorrow(_ p1: Any, _ p2: Any) -> String {
+    return UntranslatedL10n.tr("Untranslated", "screen_agent_usage_category_paused_until_tomorrow", String(describing: p1), String(describing: p2))
+  }
+  /// %1$@: paused %2$@, %3$@
+  internal static func screenAgentUsageCategoryPausedUntilWeekday(_ p1: Any, _ p2: Any, _ p3: Any) -> String {
+    return UntranslatedL10n.tr("Untranslated", "screen_agent_usage_category_paused_until_weekday", String(describing: p1), String(describing: p2), String(describing: p3))
+  }
   /// Posts
   internal static var screenAgentUsageCategoryPosts: String { return UntranslatedL10n.tr("Untranslated", "screen_agent_usage_category_posts") }
   /// Room tools
   internal static var screenAgentUsageCategoryRoomTools: String { return UntranslatedL10n.tr("Untranslated", "screen_agent_usage_category_room_tools") }
-  /// No AI use in the last 30 days.
-  internal static var screenAgentUsageDaysEmpty: String { return UntranslatedL10n.tr("Untranslated", "screen_agent_usage_days_empty") }
-  /// Last 30 days
-  internal static var screenAgentUsageDaysSection: String { return UntranslatedL10n.tr("Untranslated", "screen_agent_usage_days_section") }
-  /// A daily limit keeps the cost of AI in check. Messages, room tools, posts and calls all count towards it.
+  /// The limit keeps the cost of AI in check. Your chats and calls aren't limited.
   internal static var screenAgentUsageFooter: String { return UntranslatedL10n.tr("Untranslated", "screen_agent_usage_footer") }
-  /// Today's limit is used up. Your agent answers again from %1$@.
-  internal static func screenAgentUsageLimitReached(_ p1: Any) -> String {
-    return UntranslatedL10n.tr("Untranslated", "screen_agent_usage_limit_reached", String(describing: p1))
+  /// %1$@ left.
+  internal static func screenAgentUsageLeft(_ p1: Any) -> String {
+    return UntranslatedL10n.tr("Untranslated", "screen_agent_usage_left", String(describing: p1))
   }
-  /// Today's limit is used up. Your agent answers again tomorrow from %1$@.
-  internal static func screenAgentUsageLimitReachedTomorrow(_ p1: Any) -> String {
-    return UntranslatedL10n.tr("Untranslated", "screen_agent_usage_limit_reached_tomorrow", String(describing: p1))
+  /// %1$@ left this week.
+  internal static func screenAgentUsageLeftThisWeek(_ p1: Any) -> String {
+    return UntranslatedL10n.tr("Untranslated", "screen_agent_usage_left_this_week", String(describing: p1))
   }
-  /// Couldn't load usage
+  /// The limit is used up
+  internal static var screenAgentUsageLimitUsedUp: String { return UntranslatedL10n.tr("Untranslated", "screen_agent_usage_limit_used_up") }
+  /// This week's limit is used up
+  internal static var screenAgentUsageLimitUsedUpThisWeek: String { return UntranslatedL10n.tr("Untranslated", "screen_agent_usage_limit_used_up_this_week") }
+  /// Couldn't load the limit
   internal static var screenAgentUsageLoadFailure: String { return UntranslatedL10n.tr("Untranslated", "screen_agent_usage_load_failure") }
-  /// Resets at %1$@.
-  internal static func screenAgentUsageResetsAt(_ p1: Any) -> String {
-    return UntranslatedL10n.tr("Untranslated", "screen_agent_usage_resets_at", String(describing: p1))
+  /// Most of it goes to call summaries.
+  internal static var screenAgentUsageMostCallSummaries: String { return UntranslatedL10n.tr("Untranslated", "screen_agent_usage_most_call_summaries") }
+  /// Most of it goes to call translation.
+  internal static var screenAgentUsageMostCallTranslation: String { return UntranslatedL10n.tr("Untranslated", "screen_agent_usage_most_call_translation") }
+  /// Most of it goes to calls.
+  internal static var screenAgentUsageMostCalls: String { return UntranslatedL10n.tr("Untranslated", "screen_agent_usage_most_calls") }
+  /// Most of it goes to messages.
+  internal static var screenAgentUsageMostMessages: String { return UntranslatedL10n.tr("Untranslated", "screen_agent_usage_most_messages") }
+  /// Most of it goes to other things.
+  internal static var screenAgentUsageMostOther: String { return UntranslatedL10n.tr("Untranslated", "screen_agent_usage_most_other") }
+  /// Most of it goes to posts.
+  internal static var screenAgentUsageMostPosts: String { return UntranslatedL10n.tr("Untranslated", "screen_agent_usage_most_posts") }
+  /// Most of it goes to room tools.
+  internal static var screenAgentUsageMostRoomTools: String { return UntranslatedL10n.tr("Untranslated", "screen_agent_usage_most_room_tools") }
+  /// of the limit
+  internal static var screenAgentUsageOfLimit: String { return UntranslatedL10n.tr("Untranslated", "screen_agent_usage_of_limit") }
+  /// of the weekly limit
+  internal static var screenAgentUsageOfWeeklyLimit: String { return UntranslatedL10n.tr("Untranslated", "screen_agent_usage_of_weekly_limit") }
+  /// on Friday
+  internal static var screenAgentUsageOnFriday: String { return UntranslatedL10n.tr("Untranslated", "screen_agent_usage_on_friday") }
+  /// on Monday
+  internal static var screenAgentUsageOnMonday: String { return UntranslatedL10n.tr("Untranslated", "screen_agent_usage_on_monday") }
+  /// on Saturday
+  internal static var screenAgentUsageOnSaturday: String { return UntranslatedL10n.tr("Untranslated", "screen_agent_usage_on_saturday") }
+  /// on Sunday
+  internal static var screenAgentUsageOnSunday: String { return UntranslatedL10n.tr("Untranslated", "screen_agent_usage_on_sunday") }
+  /// on Thursday
+  internal static var screenAgentUsageOnThursday: String { return UntranslatedL10n.tr("Untranslated", "screen_agent_usage_on_thursday") }
+  /// on Tuesday
+  internal static var screenAgentUsageOnTuesday: String { return UntranslatedL10n.tr("Untranslated", "screen_agent_usage_on_tuesday") }
+  /// on Wednesday
+  internal static var screenAgentUsageOnWednesday: String { return UntranslatedL10n.tr("Untranslated", "screen_agent_usage_on_wednesday") }
+  /// Past weeks
+  internal static var screenAgentUsagePastWeeksSection: String { return UntranslatedL10n.tr("Untranslated", "screen_agent_usage_past_weeks_section") }
+  /// Paused
+  internal static var screenAgentUsagePaused: String { return UntranslatedL10n.tr("Untranslated", "screen_agent_usage_paused") }
+  /// A pause stops only that kind of AI use. Everything else works as usual.
+  internal static var screenAgentUsagePausedFooter: String { return UntranslatedL10n.tr("Untranslated", "screen_agent_usage_paused_footer") }
+  /// Paused until %1$@, %2$@
+  internal static func screenAgentUsagePausedUntilDate(_ p1: Any, _ p2: Any) -> String {
+    return UntranslatedL10n.tr("Untranslated", "screen_agent_usage_paused_until_date", String(describing: p1), String(describing: p2))
   }
-  /// Resets tomorrow at %1$@.
-  internal static func screenAgentUsageResetsTomorrowAt(_ p1: Any) -> String {
-    return UntranslatedL10n.tr("Untranslated", "screen_agent_usage_resets_tomorrow_at", String(describing: p1))
+  /// Paused until %1$@
+  internal static func screenAgentUsagePausedUntilToday(_ p1: Any) -> String {
+    return UntranslatedL10n.tr("Untranslated", "screen_agent_usage_paused_until_today", String(describing: p1))
   }
-  /// Usage
+  /// Paused until tomorrow, %1$@
+  internal static func screenAgentUsagePausedUntilTomorrow(_ p1: Any) -> String {
+    return UntranslatedL10n.tr("Untranslated", "screen_agent_usage_paused_until_tomorrow", String(describing: p1))
+  }
+  /// Paused %1$@, %2$@
+  internal static func screenAgentUsagePausedUntilWeekday(_ p1: Any, _ p2: Any) -> String {
+    return UntranslatedL10n.tr("Untranslated", "screen_agent_usage_paused_until_weekday", String(describing: p1), String(describing: p2))
+  }
+  /// Resets on %1$@ at %2$@
+  internal static func screenAgentUsageResetsOnDate(_ p1: Any, _ p2: Any) -> String {
+    return UntranslatedL10n.tr("Untranslated", "screen_agent_usage_resets_on_date", String(describing: p1), String(describing: p2))
+  }
+  /// Resets %1$@ at %2$@
+  internal static func screenAgentUsageResetsOnWeekday(_ p1: Any, _ p2: Any) -> String {
+    return UntranslatedL10n.tr("Untranslated", "screen_agent_usage_resets_on_weekday", String(describing: p1), String(describing: p2))
+  }
+  /// Resets today at %1$@
+  internal static func screenAgentUsageResetsToday(_ p1: Any) -> String {
+    return UntranslatedL10n.tr("Untranslated", "screen_agent_usage_resets_today", String(describing: p1))
+  }
+  /// Resets tomorrow at %1$@
+  internal static func screenAgentUsageResetsTomorrow(_ p1: Any) -> String {
+    return UntranslatedL10n.tr("Untranslated", "screen_agent_usage_resets_tomorrow", String(describing: p1))
+  }
+  /// This week · %1$@
+  internal static func screenAgentUsageThisWeek(_ p1: Any) -> String {
+    return UntranslatedL10n.tr("Untranslated", "screen_agent_usage_this_week", String(describing: p1))
+  }
+  /// AI limit
   internal static var screenAgentUsageTitle: String { return UntranslatedL10n.tr("Untranslated", "screen_agent_usage_title") }
-  /// Today
-  internal static var screenAgentUsageToday: String { return UntranslatedL10n.tr("Untranslated", "screen_agent_usage_today") }
-  /// %1$@ of today's limit
-  internal static func screenAgentUsageTodayPercent(_ p1: Any) -> String {
-    return UntranslatedL10n.tr("Untranslated", "screen_agent_usage_today_percent", String(describing: p1))
+  /// until Friday
+  internal static var screenAgentUsageUntilFriday: String { return UntranslatedL10n.tr("Untranslated", "screen_agent_usage_until_friday") }
+  /// until %1$@
+  internal static func screenAgentUsageUntilMoment(_ p1: Any) -> String {
+    return UntranslatedL10n.tr("Untranslated", "screen_agent_usage_until_moment", String(describing: p1))
   }
-  /// Today
-  internal static var screenAgentUsageTodaySection: String { return UntranslatedL10n.tr("Untranslated", "screen_agent_usage_today_section") }
-  /// Yesterday
-  internal static var screenAgentUsageYesterday: String { return UntranslatedL10n.tr("Untranslated", "screen_agent_usage_yesterday") }
+  /// until Monday
+  internal static var screenAgentUsageUntilMonday: String { return UntranslatedL10n.tr("Untranslated", "screen_agent_usage_until_monday") }
+  /// until Saturday
+  internal static var screenAgentUsageUntilSaturday: String { return UntranslatedL10n.tr("Untranslated", "screen_agent_usage_until_saturday") }
+  /// until Sunday
+  internal static var screenAgentUsageUntilSunday: String { return UntranslatedL10n.tr("Untranslated", "screen_agent_usage_until_sunday") }
+  /// until Thursday
+  internal static var screenAgentUsageUntilThursday: String { return UntranslatedL10n.tr("Untranslated", "screen_agent_usage_until_thursday") }
+  /// until tomorrow
+  internal static var screenAgentUsageUntilTomorrow: String { return UntranslatedL10n.tr("Untranslated", "screen_agent_usage_until_tomorrow") }
+  /// until Tuesday
+  internal static var screenAgentUsageUntilTuesday: String { return UntranslatedL10n.tr("Untranslated", "screen_agent_usage_until_tuesday") }
+  /// until Wednesday
+  internal static var screenAgentUsageUntilWednesday: String { return UntranslatedL10n.tr("Untranslated", "screen_agent_usage_until_wednesday") }
+  /// Limit was used up %1$@
+  internal static func screenAgentUsageWeekLimitUsedUp(_ p1: Any) -> String {
+    return UntranslatedL10n.tr("Untranslated", "screen_agent_usage_week_limit_used_up", String(describing: p1))
+  }
+  /// Agent replies, room tools and call translation, %1$@.
+  internal static func screenAgentUsageWorksAiPausedDetail(_ p1: Any) -> String {
+    return UntranslatedL10n.tr("Untranslated", "screen_agent_usage_works_ai_paused_detail", String(describing: p1))
+  }
+  /// AI is paused
+  internal static var screenAgentUsageWorksAiPausedTitle: String { return UntranslatedL10n.tr("Untranslated", "screen_agent_usage_works_ai_paused_title") }
+  /// Work as usual — the limit doesn't touch them.
+  internal static var screenAgentUsageWorksChatsDetail: String { return UntranslatedL10n.tr("Untranslated", "screen_agent_usage_works_chats_detail") }
+  /// Chats and calls
+  internal static var screenAgentUsageWorksChatsTitle: String { return UntranslatedL10n.tr("Untranslated", "screen_agent_usage_works_chats_title") }
+  /// What still works
+  internal static var screenAgentUsageWorksSection: String { return UntranslatedL10n.tr("Untranslated", "screen_agent_usage_works_section") }
   /// Edit
   internal static var screenAgentsActionEdit: String { return UntranslatedL10n.tr("Untranslated", "screen_agents_action_edit") }
   /// Plural format key: "%#@COUNT@"
@@ -888,18 +1144,6 @@ internal nonisolated enum UntranslatedL10n {
   internal static var screenApprovalDetailVisitorExplainer: String { return UntranslatedL10n.tr("Untranslated", "screen_approval_detail_visitor_explainer") }
   /// First contact
   internal static var screenApprovalDetailVisitorTitle: String { return UntranslatedL10n.tr("Untranslated", "screen_approval_detail_visitor_title") }
-  /// Connecting…
-  internal static var screenApprovalsListConnectingTitle: String { return UntranslatedL10n.tr("Untranslated", "screen_approvals_list_connecting_title") }
-  /// Showing the last known list. Pull to refresh or check your connection.
-  internal static var screenApprovalsListOfflineSubtitle: String { return UntranslatedL10n.tr("Untranslated", "screen_approvals_list_offline_subtitle") }
-  /// Live updates unavailable
-  internal static var screenApprovalsListOfflineTitle: String { return UntranslatedL10n.tr("Untranslated", "screen_approvals_list_offline_title") }
-  /// The live stream dropped — retrying (attempt %1$d)
-  internal static func screenApprovalsListReconnectingSubtitleAttempt(_ p1: Int) -> String {
-    return UntranslatedL10n.tr("Untranslated", "screen_approvals_list_reconnecting_subtitle_attempt", p1)
-  }
-  /// Reconnecting…
-  internal static var screenApprovalsListReconnectingTitle: String { return UntranslatedL10n.tr("Untranslated", "screen_approvals_list_reconnecting_title") }
   /// Applies to everyone in the call
   internal static var screenArmToolCallAudienceSubtitle: String { return UntranslatedL10n.tr("Untranslated", "screen_arm_tool_call_audience_subtitle") }
   /// Every voice call
@@ -936,8 +1180,6 @@ internal nonisolated enum UntranslatedL10n {
   internal static var screenArmToolKindCorrect: String { return UntranslatedL10n.tr("Untranslated", "screen_arm_tool_kind_correct") }
   /// Custom instruction
   internal static var screenArmToolKindCustom: String { return UntranslatedL10n.tr("Untranslated", "screen_arm_tool_kind_custom") }
-  /// Action
-  internal static var screenArmToolKindLabel: String { return UntranslatedL10n.tr("Untranslated", "screen_arm_tool_kind_label") }
   /// Rephrase
   internal static var screenArmToolKindRephrase: String { return UntranslatedL10n.tr("Untranslated", "screen_arm_tool_kind_rephrase") }
   /// Simplify
@@ -946,26 +1188,16 @@ internal nonisolated enum UntranslatedL10n {
   internal static var screenArmToolKindSummarize: String { return UntranslatedL10n.tr("Untranslated", "screen_arm_tool_kind_summarize") }
   /// Translate
   internal static var screenArmToolKindTranslate: String { return UntranslatedL10n.tr("Untranslated", "screen_arm_tool_kind_translate") }
-  /// Add language
-  internal static var screenArmToolLanguageAdd: String { return UntranslatedL10n.tr("Untranslated", "screen_arm_tool_language_add") }
   /// Choose a language
   internal static var screenArmToolLanguageChoose: String { return UntranslatedL10n.tr("Untranslated", "screen_arm_tool_language_choose") }
-  /// The language messages are translated into, e.g. English or Ukrainian.
-  internal static var screenArmToolLanguageFooter: String { return UntranslatedL10n.tr("Untranslated", "screen_arm_tool_language_footer") }
   /// Language
   internal static var screenArmToolLanguageLabel: String { return UntranslatedL10n.tr("Untranslated", "screen_arm_tool_language_label") }
-  /// Add one or more target languages. Drag to set their priority order.
-  internal static var screenArmToolLanguagesFooter: String { return UntranslatedL10n.tr("Untranslated", "screen_arm_tool_languages_footer") }
   /// Translate voice calls
   internal static var screenArmToolLiveCallTitle: String { return UntranslatedL10n.tr("Untranslated", "screen_arm_tool_live_call_title") }
   /// People
   internal static var screenArmToolMembersLabel: String { return UntranslatedL10n.tr("Untranslated", "screen_arm_tool_members_label") }
   /// Choose people
   internal static var screenArmToolMembersNone: String { return UntranslatedL10n.tr("Untranslated", "screen_arm_tool_members_none") }
-  /// Nothing else to set
-  internal static var screenArmToolNoSettings: String { return UntranslatedL10n.tr("Untranslated", "screen_arm_tool_no_settings") }
-  /// The agent does this to each message as it arrives.
-  internal static var screenArmToolNoSettingsFooter: String { return UntranslatedL10n.tr("Untranslated", "screen_arm_tool_no_settings_footer") }
   /// Everyone
   internal static var screenArmToolScopeAnyone: String { return UntranslatedL10n.tr("Untranslated", "screen_arm_tool_scope_anyone") }
   /// Everyone except…
@@ -976,12 +1208,6 @@ internal nonisolated enum UntranslatedL10n {
   internal static var screenArmToolScopeOwner: String { return UntranslatedL10n.tr("Untranslated", "screen_arm_tool_scope_owner") }
   /// Choose people…
   internal static var screenArmToolScopeSpecific: String { return UntranslatedL10n.tr("Untranslated", "screen_arm_tool_scope_specific") }
-  /// Consecutive
-  internal static var screenArmToolStyleConsecutive: String { return UntranslatedL10n.tr("Untranslated", "screen_arm_tool_style_consecutive") }
-  /// Style
-  internal static var screenArmToolStyleLabel: String { return UntranslatedL10n.tr("Untranslated", "screen_arm_tool_style_label") }
-  /// Simultaneous
-  internal static var screenArmToolStyleSimultaneous: String { return UntranslatedL10n.tr("Untranslated", "screen_arm_tool_style_simultaneous") }
   /// Turn off
   internal static var screenArmToolTurnOff: String { return UntranslatedL10n.tr("Untranslated", "screen_arm_tool_turn_off") }
   /// The agent stops doing this in this chat for everyone. You can turn it on again at any time.
@@ -992,6 +1218,14 @@ internal nonisolated enum UntranslatedL10n {
   internal static var screenArmToolWhatSectionTitle: String { return UntranslatedL10n.tr("Untranslated", "screen_arm_tool_what_section_title") }
   /// Apply to
   internal static var screenArmToolWhoSectionTitle: String { return UntranslatedL10n.tr("Untranslated", "screen_arm_tool_who_section_title") }
+  /// All tools
+  internal static var screenChatToolsAllTools: String { return UntranslatedL10n.tr("Untranslated", "screen_chat_tools_all_tools") }
+  /// %1$@'s agent
+  internal static func screenChatToolsOtherAgentOwner(_ p1: Any) -> String {
+    return UntranslatedL10n.tr("Untranslated", "screen_chat_tools_other_agent_owner", String(describing: p1))
+  }
+  /// Chat tools
+  internal static var screenChatToolsTitle: String { return UntranslatedL10n.tr("Untranslated", "screen_chat_tools_title") }
   /// Couldn't save the company
   internal static var screenCompanyEditFailure: String { return UntranslatedL10n.tr("Untranslated", "screen_company_edit_failure") }
   /// Edit company
@@ -1068,52 +1302,796 @@ internal nonisolated enum UntranslatedL10n {
   internal static var screenDeactivateAccountSpiralListItemAssistant: String { return UntranslatedL10n.tr("Untranslated", "screen_deactivate_account_spiral_list_item_assistant") }
   /// Your messages are erased: people already in your chats still see them, anyone who joins later won't.
   internal static var screenDeactivateAccountSpiralListItemMessages: String { return UntranslatedL10n.tr("Untranslated", "screen_deactivate_account_spiral_list_item_messages") }
+  /// Bio
+  internal static var screenEditProfileBio: String { return UntranslatedL10n.tr("Untranslated", "screen_edit_profile_bio") }
+  /// %1$d/%2$d
+  internal static func screenEditProfileBioCount(_ p1: Int, _ p2: Int) -> String {
+    return UntranslatedL10n.tr("Untranslated", "screen_edit_profile_bio_count", p1, p2)
+  }
+  /// Shown on your feed profile. Plain text, one line.
+  internal static var screenEditProfileBioFooter: String { return UntranslatedL10n.tr("Untranslated", "screen_edit_profile_bio_footer") }
+  /// Couldn't load your bio
+  internal static var screenEditProfileBioLoadFailed: String { return UntranslatedL10n.tr("Untranslated", "screen_edit_profile_bio_load_failed") }
+  /// A line about you
+  internal static var screenEditProfileBioPlaceholder: String { return UntranslatedL10n.tr("Untranslated", "screen_edit_profile_bio_placeholder") }
+  /// Your bio couldn't be saved. Try again.
+  internal static var screenEditProfileBioSaveFailed: String { return UntranslatedL10n.tr("Untranslated", "screen_edit_profile_bio_save_failed") }
+  /// A bio can be at most %1$d characters. Shorten it to save it.
+  internal static func screenEditProfileBioTooLong(_ p1: Int) -> String {
+    return UntranslatedL10n.tr("Untranslated", "screen_edit_profile_bio_too_long", p1)
+  }
+  /// Reset
+  internal static var screenEncryptionResetActionContinueResetSpiral: String { return UntranslatedL10n.tr("Untranslated", "screen_encryption_reset_action_continue_reset_spiral") }
+  /// Your account, contacts, settings and chat list stay.
+  internal static var screenEncryptionResetBullet1Spiral: String { return UntranslatedL10n.tr("Untranslated", "screen_encryption_reset_bullet_1_spiral") }
+  /// You'll lose message history that's only on the server.
+  internal static var screenEncryptionResetBullet2Spiral: String { return UntranslatedL10n.tr("Untranslated", "screen_encryption_reset_bullet_2_spiral") }
+  /// People you chat with will see that you reset encryption.
+  internal static var screenEncryptionResetBullet3Spiral: String { return UntranslatedL10n.tr("Untranslated", "screen_encryption_reset_bullet_3_spiral") }
+  /// Reset only if you can't confirm on another device and don't have your recovery key.
+  internal static var screenEncryptionResetFooterSpiral: String { return UntranslatedL10n.tr("Untranslated", "screen_encryption_reset_footer_spiral") }
+  /// Reset encryption
+  internal static var screenEncryptionResetTitleSpiral: String { return UntranslatedL10n.tr("Untranslated", "screen_encryption_reset_title_spiral") }
+  /// Your account is restricted, so nothing was changed. Write to support@spiral.md if you think this is a mistake.
+  internal static var screenFeedActionFailedAccountRestrictedMessage: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_action_failed_account_restricted_message") }
+  /// Nothing was changed. Check your connection and try again.
+  internal static var screenFeedActionFailedMessage: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_action_failed_message") }
+  /// Something went wrong on Spiral's side, and nothing was changed. Try again.
+  internal static var screenFeedActionFailedServerMessage: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_action_failed_server_message") }
+  /// Nothing was changed. Try again in a moment.
+  internal static var screenFeedActionFailedTryShortlyMessage: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_action_failed_try_shortly_message") }
+  /// The feed is off right now, so nothing was changed. Try again later.
+  internal static var screenFeedActionFailedUnavailableMessage: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_action_failed_unavailable_message") }
+  /// Comment on your post
+  internal static var screenFeedActivityCommentContext: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_activity_comment_context") }
+  /// When people like or comment on your posts, you'll see it here.
+  internal static var screenFeedActivityEmptyMessage: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_activity_empty_message") }
+  /// No activity yet
+  internal static var screenFeedActivityEmptyTitle: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_activity_empty_title") }
+  /// %1$@ and %2$@ liked your post
+  internal static func screenFeedActivityLikedMany(_ p1: Any, _ p2: Any) -> String {
+    return UntranslatedL10n.tr("Untranslated", "screen_feed_activity_liked_many", String(describing: p1), String(describing: p2))
+  }
+  /// %1$@ liked your post
+  internal static func screenFeedActivityLikedOne(_ p1: Any) -> String {
+    return UntranslatedL10n.tr("Untranslated", "screen_feed_activity_liked_one", String(describing: p1))
+  }
+  /// Couldn't load your activity
+  internal static var screenFeedActivityLoadFailedTitle: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_activity_load_failed_title") }
+  /// Plural format key: "%#@COUNT@"
+  internal static func screenFeedActivityOthers(_ p1: Int) -> String {
+    return UntranslatedL10n.tr("Untranslated", "screen_feed_activity_others", p1)
+  }
+  /// %1$@: %2$@
+  internal static func screenFeedActivityQuote(_ p1: Any, _ p2: Any) -> String {
+    return UntranslatedL10n.tr("Untranslated", "screen_feed_activity_quote", String(describing: p1), String(describing: p2))
+  }
+  /// Couldn't refresh your activity
+  internal static var screenFeedActivityRefreshFailed: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_activity_refresh_failed") }
+  /// Reply to your comment
+  internal static var screenFeedActivityReplyContext: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_activity_reply_context") }
+  /// Activity
+  internal static var screenFeedActivityTitle: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_activity_title") }
+  /// Block
+  internal static var screenFeedAuthorBlock: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_author_block") }
+  /// Couldn't block. Try again.
+  internal static var screenFeedAuthorBlockFailed: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_author_block_failed") }
+  /// You won't see each other's posts, and they can't message you. This blocks them everywhere in Spiral, not only in the feed. You can unblock them in Settings.
+  internal static var screenFeedAuthorBlockMessage: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_author_block_message") }
+  /// Block %1$@?
+  internal static func screenFeedAuthorBlockTitle(_ p1: Any) -> String {
+    return UntranslatedL10n.tr("Untranslated", "screen_feed_author_block_title", String(describing: p1))
+  }
+  /// Blocked
+  internal static var screenFeedAuthorBlocked: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_author_blocked") }
+  /// Couldn't open the chat. Try again.
+  internal static var screenFeedAuthorChatFailed: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_author_chat_failed") }
+  /// No posts yet
+  internal static var screenFeedAuthorNoPosts: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_author_no_posts") }
+  /// This account's posts aren't available.
+  internal static var screenFeedAuthorNotAvailable: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_author_not_available") }
+  /// Couldn't load the posts
+  internal static var screenFeedAuthorPostsLoadFailed: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_author_posts_load_failed") }
+  /// Start a chat with %1$@?
+  internal static func screenFeedAuthorStartChatTitle(_ p1: Any) -> String {
+    return UntranslatedL10n.tr("Untranslated", "screen_feed_author_start_chat_title", String(describing: p1))
+  }
+  /// Spiral member
+  internal static var screenFeedAuthorWithheldName: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_author_withheld_name") }
+  /// Plural format key: "%#@COUNT@"
+  internal static func screenFeedCommentDailyCapNotice(_ p1: Int) -> String {
+    return UntranslatedL10n.tr("Untranslated", "screen_feed_comment_daily_cap_notice", p1)
+  }
+  /// Delete
+  internal static var screenFeedCommentDelete: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_comment_delete") }
+  /// Couldn't delete the comment
+  internal static var screenFeedCommentDeleteFailed: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_comment_delete_failed") }
+  /// Your account is restricted, so your comment wasn't deleted. Write to support@spiral.md if you think this is a mistake.
+  internal static var screenFeedCommentDeleteFailedAccountRestrictedMessage: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_comment_delete_failed_account_restricted_message") }
+  /// It's still there. Check your connection and try again.
+  internal static var screenFeedCommentDeleteFailedMessage: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_comment_delete_failed_message") }
+  /// Something went wrong on Spiral's side, and your comment wasn't deleted. Try again.
+  internal static var screenFeedCommentDeleteFailedServerMessage: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_comment_delete_failed_server_message") }
+  /// Your comment wasn't deleted. Try again in a moment.
+  internal static var screenFeedCommentDeleteFailedTryShortlyMessage: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_comment_delete_failed_try_shortly_message") }
+  /// The feed is off right now, so your comment wasn't deleted. Try again later.
+  internal static var screenFeedCommentDeleteFailedUnavailableMessage: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_comment_delete_failed_unavailable_message") }
+  /// It's removed for everyone. This can't be undone.
+  internal static var screenFeedCommentDeleteMessage: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_comment_delete_message") }
+  /// Delete this comment?
+  internal static var screenFeedCommentDeleteTitle: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_comment_delete_title") }
+  /// Comment deleted
+  internal static var screenFeedCommentDeleted: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_comment_deleted") }
+  /// Your account is restricted. Write to support@spiral.md if you think this is a mistake.
+  internal static var screenFeedCommentErrorAccountRestrictedMessage: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_comment_error_account_restricted_message") }
+  /// Check your connection and try again. Trying again won't send it twice.
+  internal static var screenFeedCommentErrorGenericMessage: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_comment_error_generic_message") }
+  /// Couldn't send the comment
+  internal static var screenFeedCommentErrorGenericTitle: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_comment_error_generic_title") }
+  /// An earlier version of this comment was already sent. Check the comments before you send it again.
+  internal static var screenFeedCommentErrorKeyReusedMessage: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_comment_error_key_reused_message") }
+  /// Already sent
+  internal static var screenFeedCommentErrorKeyReusedTitle: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_comment_error_key_reused_title") }
+  /// A link in your comment leads to a site that is blocked on Spiral. Remove it to send.
+  internal static var screenFeedCommentErrorLinkRefusedMessage: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_comment_error_link_refused_message") }
+  /// The post was deleted or its comments were turned off.
+  internal static var screenFeedCommentErrorNotFoundMessage: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_comment_error_not_found_message") }
+  /// Take a short break and try again later.
+  internal static var screenFeedCommentErrorRateLimitedLater: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_comment_error_rate_limited_later") }
+  /// Plural format key: "%#@COUNT@"
+  internal static func screenFeedCommentErrorRateLimitedMinutes(_ p1: Int) -> String {
+    return UntranslatedL10n.tr("Untranslated", "screen_feed_comment_error_rate_limited_minutes", p1)
+  }
+  /// You're commenting too often
+  internal static var screenFeedCommentErrorRateLimitedTitle: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_comment_error_rate_limited_title") }
+  /// The comment you replied to isn't there anymore. Your text is kept: send it without the reply.
+  internal static var screenFeedCommentErrorReplyGoneMessage: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_comment_error_reply_gone_message") }
+  /// That comment is gone
+  internal static var screenFeedCommentErrorReplyGoneTitle: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_comment_error_reply_gone_title") }
+  /// Something went wrong on Spiral's side. Try again; trying again won't send it twice.
+  internal static var screenFeedCommentErrorServerMessage: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_comment_error_server_message") }
+  /// Posting and commenting are suspended for your account. You can still read the feed.
+  internal static var screenFeedCommentErrorSuspendedMessage: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_comment_error_suspended_message") }
+  /// You can't comment right now
+  internal static var screenFeedCommentErrorSuspendedTitle: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_comment_error_suspended_title") }
+  /// The feed couldn't check your comment just now. Try again in a moment.
+  internal static var screenFeedCommentErrorTryShortlyMessage: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_comment_error_try_shortly_message") }
+  /// The feed is off right now. Try again later.
+  internal static var screenFeedCommentErrorUnavailableMessage: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_comment_error_unavailable_message") }
+  /// This comment isn't available
+  internal static var screenFeedCommentNotAvailable: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_comment_not_available") }
+  /// Add a comment
+  internal static var screenFeedCommentPlaceholder: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_comment_placeholder") }
+  /// You can still read the feed. Try again later.
+  internal static var screenFeedCommentReadOnlyMessage: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_comment_read_only_message") }
+  /// Reply
+  internal static var screenFeedCommentReply: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_comment_reply") }
+  /// Replying to %1$@
+  internal static func screenFeedCommentReplyingTo(_ p1: Any) -> String {
+    return UntranslatedL10n.tr("Untranslated", "screen_feed_comment_replying_to", String(describing: p1))
+  }
+  /// Report
+  internal static var screenFeedCommentReport: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_comment_report") }
+  /// Couldn't send
+  internal static var screenFeedCommentSendFailed: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_comment_send_failed") }
+  /// The feed rules have changed. Update Spiral to read the new rules, then comment. Your text is kept.
+  internal static var screenFeedCommentUpdateRequiredMessage: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_comment_update_required_message") }
+  /// No comments yet.
+  internal static var screenFeedCommentsEmpty: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_comments_empty") }
+  /// Couldn't load the comments
+  internal static var screenFeedCommentsLoadFailed: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_comments_load_failed") }
+  /// Show more comments
+  internal static var screenFeedCommentsLoadMore: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_comments_load_more") }
+  /// Comments aren't available
+  internal static var screenFeedCommentsNotAvailable: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_comments_not_available") }
+  /// The author turned comments off.
+  internal static var screenFeedCommentsOff: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_comments_off") }
+  /// You turned comments off. Only you can see these comments now.
+  internal static var screenFeedCommentsOffAuthor: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_comments_off_author") }
+  /// Comments
+  internal static var screenFeedCommentsTitle: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_comments_title") }
+  /// Couldn't change the comments
+  internal static var screenFeedCommentsToggleFailed: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_comments_toggle_failed") }
+  /// Turn off comments
+  internal static var screenFeedCommentsTurnOff: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_comments_turn_off") }
+  /// Turn on comments
+  internal static var screenFeedCommentsTurnOn: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_comments_turn_on") }
+  /// Comments turned off
+  internal static var screenFeedCommentsTurnedOff: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_comments_turned_off") }
+  /// Comments turned on
+  internal static var screenFeedCommentsTurnedOn: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_comments_turned_on") }
+  /// A draft stays on this device only.
+  internal static var screenFeedComposerCancelMessage: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_composer_cancel_message") }
+  /// Keep this post?
+  internal static var screenFeedComposerCancelTitle: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_composer_cancel_title") }
+  /// Plural format key: "%#@COUNT@"
+  internal static func screenFeedComposerCharactersLeft(_ p1: Int) -> String {
+    return UntranslatedL10n.tr("Untranslated", "screen_feed_composer_characters_left", p1)
+  }
+  /// Plural format key: "%#@COUNT@"
+  internal static func screenFeedComposerCharactersOver(_ p1: Int) -> String {
+    return UntranslatedL10n.tr("Untranslated", "screen_feed_composer_characters_over", p1)
+  }
+  /// Plural format key: "%#@COUNT@"
+  internal static func screenFeedComposerDailyCapNotice(_ p1: Int) -> String {
+    return UntranslatedL10n.tr("Untranslated", "screen_feed_composer_daily_cap_notice", p1)
+  }
+  /// Discard
+  internal static var screenFeedComposerDiscard: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_composer_discard") }
+  /// Your account is restricted. Write to support@spiral.md if you think this is a mistake.
+  internal static var screenFeedComposerErrorAccountRestrictedMessage: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_composer_error_account_restricted_message") }
+  /// You posted the same text in the last hour.
+  internal static var screenFeedComposerErrorDuplicateMessage: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_composer_error_duplicate_message") }
+  /// You've already posted this
+  internal static var screenFeedComposerErrorDuplicateTitle: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_composer_error_duplicate_title") }
+  /// Check your connection and try again. Trying again won't post it twice.
+  internal static var screenFeedComposerErrorGenericMessage: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_composer_error_generic_message") }
+  /// Couldn't post
+  internal static var screenFeedComposerErrorGenericTitle: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_composer_error_generic_title") }
+  /// An earlier version of this post was already published. Check your posts before you post it again.
+  internal static var screenFeedComposerErrorKeyReusedMessage: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_composer_error_key_reused_message") }
+  /// Already posted
+  internal static var screenFeedComposerErrorKeyReusedTitle: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_composer_error_key_reused_title") }
+  /// A link in your post leads to a site that is blocked on Spiral. Remove it to post.
+  internal static var screenFeedComposerErrorLinkRefusedMessage: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_composer_error_link_refused_message") }
+  /// This link can't be posted
+  internal static var screenFeedComposerErrorLinkRefusedTitle: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_composer_error_link_refused_title") }
+  /// A post needs some text and at most 5,000 characters.
+  internal static var screenFeedComposerErrorNotAcceptedMessage: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_composer_error_not_accepted_message") }
+  /// Take a short break and try again later.
+  internal static var screenFeedComposerErrorRateLimitedLater: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_composer_error_rate_limited_later") }
+  /// Plural format key: "%#@COUNT@"
+  internal static func screenFeedComposerErrorRateLimitedMinutes(_ p1: Int) -> String {
+    return UntranslatedL10n.tr("Untranslated", "screen_feed_composer_error_rate_limited_minutes", p1)
+  }
+  /// You're posting too often
+  internal static var screenFeedComposerErrorRateLimitedTitle: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_composer_error_rate_limited_title") }
+  /// You can still read the feed. Try again later.
+  internal static var screenFeedComposerErrorReadOnlyMessage: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_composer_error_read_only_message") }
+  /// Posting is paused
+  internal static var screenFeedComposerErrorReadOnlyTitle: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_composer_error_read_only_title") }
+  /// Something went wrong on Spiral's side. Try again; trying again won't post it twice.
+  internal static var screenFeedComposerErrorServerMessage: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_composer_error_server_message") }
+  /// Posting is suspended for your account. You can still read the feed.
+  internal static var screenFeedComposerErrorSuspendedMessage: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_composer_error_suspended_message") }
+  /// You can't post right now
+  internal static var screenFeedComposerErrorSuspendedTitle: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_composer_error_suspended_title") }
+  /// The feed couldn't check your post just now. Try again in a moment.
+  internal static var screenFeedComposerErrorTryShortlyMessage: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_composer_error_try_shortly_message") }
+  /// The feed is off right now. Try again later.
+  internal static var screenFeedComposerErrorUnavailableMessage: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_composer_error_unavailable_message") }
+  /// The feed can't take this kind of post yet.
+  internal static var screenFeedComposerErrorUnsupportedMessage: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_composer_error_unsupported_message") }
+  /// Keep editing
+  internal static var screenFeedComposerKeepEditing: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_composer_keep_editing") }
+  /// What do you want to share?
+  internal static var screenFeedComposerPlaceholder: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_composer_placeholder") }
+  /// Post
+  internal static var screenFeedComposerPost: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_composer_post") }
+  /// Posted
+  internal static var screenFeedComposerPosted: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_composer_posted") }
+  /// Posting
+  internal static var screenFeedComposerPosting: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_composer_posting") }
+  /// Everyone on Spiral can see your post.
+  internal static var screenFeedComposerPublicNote: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_composer_public_note") }
+  /// Try again in a little while. Your text is kept.
+  internal static var screenFeedComposerRulesPausedMessage: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_composer_rules_paused_message") }
+  /// Save draft
+  internal static var screenFeedComposerSaveDraft: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_composer_save_draft") }
+  /// Posting is suspended for your account until %1$@.
+  internal static func screenFeedComposerSuspendedNotice(_ p1: Any) -> String {
+    return UntranslatedL10n.tr("Untranslated", "screen_feed_composer_suspended_notice", String(describing: p1))
+  }
+  /// New post
+  internal static var screenFeedComposerTitle: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_composer_title") }
+  /// The feed rules have changed. Update Spiral to read the new rules, then post. Your text is kept.
+  internal static var screenFeedComposerUpdateRequiredMessage: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_composer_update_required_message") }
+  /// Update Spiral to post
+  internal static var screenFeedComposerUpdateRequiredTitle: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_composer_update_required_title") }
+  /// Posts from people on Spiral appear here, newest first.
+  internal static var screenFeedEmptyMessage: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_empty_message") }
+  /// Be the first today
+  internal static var screenFeedEmptyTitle: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_empty_title") }
+  /// Decisions about your posts and reports
+  internal static var screenFeedFromSpiralSubtitle: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_from_spiral_subtitle") }
+  /// From Spiral
+  internal static var screenFeedFromSpiralTitle: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_from_spiral_title") }
+  /// Hidden from your feed
+  internal static var screenFeedHidden: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_hidden") }
+  /// You hid this post. It's left out of your feed.
+  internal static var screenFeedHiddenNotice: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_hidden_notice") }
+  /// Hide post
+  internal static var screenFeedHideAction: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_hide_action") }
+  /// Couldn't hide the post
+  internal static var screenFeedHideFailed: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_hide_failed") }
+  /// Couldn't open the image
+  internal static var screenFeedImageLoadFailed: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_image_load_failed") }
+  /// Couldn't like the post
+  internal static var screenFeedLikeFailed: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_like_failed") }
+  /// You're liking too fast. Try again in a minute.
+  internal static var screenFeedLikeRateLimited: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_like_rate_limited") }
+  /// People you can't see in the feed aren't listed.
+  internal static var screenFeedLikersEmptyMessage: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_likers_empty_message") }
+  /// No likes to show
+  internal static var screenFeedLikersEmptyTitle: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_likers_empty_title") }
+  /// Couldn't load who liked this
+  internal static var screenFeedLikersLoadFailedTitle: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_likers_load_failed_title") }
+  /// Likes
+  internal static var screenFeedLikersTitle: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_likers_title") }
+  /// Check your connection and try again.
+  internal static var screenFeedLoadFailedMessage: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_load_failed_message") }
+  /// Couldn't load the feed
+  internal static var screenFeedLoadFailedTitle: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_load_failed_title") }
+  /// Plural format key: "%#@COUNT@"
+  internal static func screenFeedNewPosts(_ p1: Int) -> String {
+    return UntranslatedL10n.tr("Untranslated", "screen_feed_new_posts", p1)
+  }
+  /// 99+ new posts
+  internal static var screenFeedNewPostsMany: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_new_posts_many") }
+  /// If you disagree, write to %1$@. You can also go to court.
+  internal static func screenFeedNoticeAppeal(_ p1: Any) -> String {
+    return UntranslatedL10n.tr("Untranslated", "screen_feed_notice_appeal", String(describing: p1))
+  }
+  /// Automated means were used.
+  internal static var screenFeedNoticeAutomated: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_notice_automated") }
+  /// Automated means detected this.
+  internal static var screenFeedNoticeAutomatedDetected: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_notice_automated_detected") }
+  /// A moderator decided this, without automated means.
+  internal static var screenFeedNoticeByModerator: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_notice_by_moderator") }
+  /// A moderator will decide by %1$@.
+  internal static func screenFeedNoticeDeadline(_ p1: Any) -> String {
+    return UntranslatedL10n.tr("Untranslated", "screen_feed_notice_deadline", String(describing: p1))
+  }
+  /// It was decided automatically.
+  internal static var screenFeedNoticeDecidedAutomatically: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_notice_decided_automatically") }
+  /// Your comment is hidden while a moderator reviews it
+  internal static var screenFeedNoticeHeldCommentTitle: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_notice_held_comment_title") }
+  /// Your post is hidden while a moderator reviews it
+  internal static var screenFeedNoticeHeldPostTitle: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_notice_held_post_title") }
+  /// Legal ground: %1$@
+  internal static func screenFeedNoticeLegalGround(_ p1: Any) -> String {
+    return UntranslatedL10n.tr("Untranslated", "screen_feed_notice_legal_ground", String(describing: p1))
+  }
+  /// Your feed limits were lowered
+  internal static var screenFeedNoticeLimitedTitle: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_notice_limited_title") }
+  /// Moderator's comment
+  internal static var screenFeedNoticeModeratorComment: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_notice_moderator_comment") }
+  /// A moderator decided this.
+  internal static var screenFeedNoticeModeratorDecided: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_notice_moderator_decided") }
+  /// A moderator acted on it.
+  internal static var screenFeedNoticeOutcomeActionTaken: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_notice_outcome_action_taken") }
+  /// A moderator found that it doesn't break the rules.
+  internal static var screenFeedNoticeOutcomeNoAction: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_notice_outcome_no_action") }
+  /// It was deleted before a moderator decided.
+  internal static var screenFeedNoticeOutcomeTargetDeleted: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_notice_outcome_target_deleted") }
+  /// A moderator removed your comment
+  internal static var screenFeedNoticeRemovedCommentTitle: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_notice_removed_comment_title") }
+  /// A moderator removed your post
+  internal static var screenFeedNoticeRemovedPostTitle: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_notice_removed_post_title") }
+  /// A moderator decided on your report
+  internal static var screenFeedNoticeReportDecidedTitle: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_notice_report_decided_title") }
+  /// We received your report
+  internal static var screenFeedNoticeReportReceivedTitle: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_notice_report_received_title") }
+  /// You reported a profile.
+  internal static var screenFeedNoticeReportedAuthor: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_notice_reported_author") }
+  /// You reported a comment.
+  internal static var screenFeedNoticeReportedComment: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_notice_reported_comment") }
+  /// You reported a post.
+  internal static var screenFeedNoticeReportedPost: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_notice_reported_post") }
+  /// Your comment is back
+  internal static var screenFeedNoticeRestoredCommentTitle: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_notice_restored_comment_title") }
+  /// Your post is back
+  internal static var screenFeedNoticeRestoredPostTitle: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_notice_restored_post_title") }
+  /// Rule: %1$@
+  internal static func screenFeedNoticeRule(_ p1: Any) -> String {
+    return UntranslatedL10n.tr("Untranslated", "screen_feed_notice_rule", String(describing: p1))
+  }
+  /// Your comment was marked as sensitive
+  internal static var screenFeedNoticeSensitiveCommentTitle: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_notice_sensitive_comment_title") }
+  /// Your post was marked as sensitive
+  internal static var screenFeedNoticeSensitivePostTitle: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_notice_sensitive_post_title") }
+  /// You can't post or comment for now
+  internal static var screenFeedNoticeSuspendedTitle: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_notice_suspended_title") }
+  /// You now have new-account limits: at most 30 posts and 200 comments a day.
+  internal static var screenFeedNoticeTierNew: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_notice_tier_new") }
+  /// You now have standard limits: at most 200 posts and 2,000 comments a day.
+  internal static var screenFeedNoticeTierStandard: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_notice_tier_standard") }
+  /// Our automatic filter flagged it.
+  internal static var screenFeedNoticeTriggerFilter: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_notice_trigger_filter") }
+  /// A moderator reviewed it.
+  internal static var screenFeedNoticeTriggerModerator: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_notice_trigger_moderator") }
+  /// Someone reported it.
+  internal static var screenFeedNoticeTriggerReport: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_notice_trigger_report") }
+  /// Several people reported it.
+  internal static var screenFeedNoticeTriggerReports: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_notice_trigger_reports") }
+  /// A report stayed open for 24 hours, so it is hidden until a moderator decides.
+  internal static var screenFeedNoticeTriggerSla: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_notice_trigger_sla") }
+  /// Update Spiral to see this notice
+  internal static var screenFeedNoticeUnsupported: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_notice_unsupported") }
+  /// You can post and comment again
+  internal static var screenFeedNoticeUnsuspendedTitle: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_notice_unsuspended_title") }
+  /// Until %1$@
+  internal static func screenFeedNoticeUntil(_ p1: Any) -> String {
+    return UntranslatedL10n.tr("Untranslated", "screen_feed_notice_until", String(describing: p1))
+  }
+  /// View post
+  internal static var screenFeedNoticeViewPost: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_notice_view_post") }
+  /// Why?
+  internal static var screenFeedNoticeWhy: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_notice_why") }
+  /// Decisions about your posts and your reports appear here.
+  internal static var screenFeedNoticesEmptyMessage: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_notices_empty_message") }
+  /// No notices
+  internal static var screenFeedNoticesEmptyTitle: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_notices_empty_title") }
+  /// Couldn't load your notices
+  internal static var screenFeedNoticesLoadFailedTitle: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_notices_load_failed_title") }
+  /// All notices
+  internal static var screenFeedNoticesOpen: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_notices_open") }
+  /// Couldn't refresh your notices
+  internal static var screenFeedNoticesRefreshFailed: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_notices_refresh_failed") }
+  /// Comments on my posts
+  internal static var screenFeedNotificationSettingsComments: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_notification_settings_comments") }
+  /// From everyone
+  internal static var screenFeedNotificationSettingsEveryone: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_notification_settings_everyone") }
+  /// Notices about your posts and your reports always arrive.
+  internal static var screenFeedNotificationSettingsFooter: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_notification_settings_footer") }
+  /// Likes on my posts
+  internal static var screenFeedNotificationSettingsLikes: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_notification_settings_likes") }
+  /// Couldn't load the feed's settings
+  internal static var screenFeedNotificationSettingsLoadFailed: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_notification_settings_load_failed") }
+  /// Off
+  internal static var screenFeedNotificationSettingsOff: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_notification_settings_off") }
+  /// Replies to my comments
+  internal static var screenFeedNotificationSettingsReplies: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_notification_settings_replies") }
+  /// Couldn't change it. Try again.
+  internal static var screenFeedNotificationSettingsSaveFailed: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_notification_settings_save_failed") }
+  /// Feed
+  internal static var screenFeedNotificationSettingsTitle: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_notification_settings_title") }
+  /// Update Spiral to change this
+  internal static var screenFeedNotificationSettingsUpdateRequired: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_notification_settings_update_required") }
+  /// Official
+  internal static var screenFeedOfficialLabel: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_official_label") }
+  /// Couldn't reach the feed. These are the posts you saw last.
+  internal static var screenFeedOfflineBanner: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_offline_banner") }
+  /// Your posts
+  internal static var screenFeedOwnPosts: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_own_posts") }
+  /// Pinned
+  internal static var screenFeedPinnedLabel: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_pinned_label") }
+  /// Delete post
+  internal static var screenFeedPostDelete: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_post_delete") }
+  /// Couldn't delete the post
+  internal static var screenFeedPostDeleteFailed: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_post_delete_failed") }
+  /// Your account is restricted, so your post wasn't deleted. Write to support@spiral.md if you think this is a mistake.
+  internal static var screenFeedPostDeleteFailedAccountRestrictedMessage: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_post_delete_failed_account_restricted_message") }
+  /// Your post wasn't deleted. Check your connection and try again.
+  internal static var screenFeedPostDeleteFailedMessage: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_post_delete_failed_message") }
+  /// Something went wrong on Spiral's side, and your post wasn't deleted. Try again.
+  internal static var screenFeedPostDeleteFailedServerMessage: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_post_delete_failed_server_message") }
+  /// Your post wasn't deleted. Try again in a moment.
+  internal static var screenFeedPostDeleteFailedTryShortlyMessage: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_post_delete_failed_try_shortly_message") }
+  /// The feed is off right now, so your post wasn't deleted. Try again later.
+  internal static var screenFeedPostDeleteFailedUnavailableMessage: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_post_delete_failed_unavailable_message") }
+  /// It leaves the feed with its comments and likes. This can't be undone.
+  internal static var screenFeedPostDeleteMessage: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_post_delete_message") }
+  /// Delete this post?
+  internal static var screenFeedPostDeleteTitle: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_post_delete_title") }
+  /// Post deleted
+  internal static var screenFeedPostDeleted: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_post_deleted") }
+  /// Deleting
+  internal static var screenFeedPostDeleting: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_post_deleting") }
+  /// Under review · only you can see it
+  internal static var screenFeedPostHeldLabel: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_post_held_label") }
+  /// Under review, usually within 24 h. Only you can see this post for now.
+  internal static var screenFeedPostHeldNotice: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_post_held_notice") }
+  /// Couldn't load the post
+  internal static var screenFeedPostLoadFailedTitle: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_post_load_failed_title") }
+  /// It may have been deleted, or you can't see it.
+  internal static var screenFeedPostNotAvailableMessage: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_post_not_available_message") }
+  /// This post isn't available
+  internal static var screenFeedPostNotAvailableTitle: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_post_not_available_title") }
+  /// Removed by a moderator · only you can see it
+  internal static var screenFeedPostRemovedLabel: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_post_removed_label") }
+  /// A moderator removed this post. Only you can see it.
+  internal static var screenFeedPostRemovedNotice: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_post_removed_notice") }
+  /// Couldn't post
+  internal static var screenFeedPostSendFailed: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_post_send_failed") }
+  /// Marked as sensitive. Others see this post behind “Show”.
+  internal static var screenFeedPostSensitiveNotice: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_post_sensitive_notice") }
+  /// Couldn't load the reasons.
+  internal static var screenFeedPostStatementLoadFailed: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_post_statement_load_failed") }
+  /// Post
+  internal static var screenFeedPostTitle: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_post_title") }
+  /// Update Spiral to see this post
+  internal static var screenFeedPostUnsupported: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_post_unsupported") }
+  /// Read more
+  internal static var screenFeedReadMore: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_read_more") }
+  /// Couldn't refresh the feed
+  internal static var screenFeedRefreshFailed: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_refresh_failed") }
+  /// Report profile
+  internal static var screenFeedReportAuthorTitle: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_report_author_title") }
+  /// Report comment
+  internal static var screenFeedReportCommentTitle: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_report_comment_title") }
+  /// Optional. What should the moderator know? The author never sees this, or who reported.
+  internal static var screenFeedReportDetailFooter: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_report_detail_footer") }
+  /// Details for the moderator
+  internal static var screenFeedReportDetailPlaceholder: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_report_detail_placeholder") }
+  /// Your report is still open. A moderator will decide by %1$@.
+  internal static func screenFeedReportExistingMessage(_ p1: Any) -> String {
+    return UntranslatedL10n.tr("Untranslated", "screen_feed_report_existing_message", String(describing: p1))
+  }
+  /// You already reported this
+  internal static var screenFeedReportExistingTitle: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_report_existing_title") }
+  /// Couldn't send the report
+  internal static var screenFeedReportFailedTitle: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_report_failed_title") }
+  /// It may have been deleted, or you can't see it any more.
+  internal static var screenFeedReportNotAvailableMessage: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_report_not_available_message") }
+  /// This isn't available any more
+  internal static var screenFeedReportNotAvailableTitle: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_report_not_available_title") }
+  /// Other rules
+  internal static var screenFeedReportOtherHeader: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_report_other_header") }
+  /// Report
+  internal static var screenFeedReportPostAction: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_report_post_action") }
+  /// Report post
+  internal static var screenFeedReportPostTitle: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_report_post_title") }
+  /// You've sent 10 reports today. You can send more tomorrow.
+  internal static var screenFeedReportRateLimitedMessage: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_report_rate_limited_message") }
+  /// Plural format key: "%#@COUNT@"
+  internal static func screenFeedReportRateLimitedMessageHours(_ p1: Int) -> String {
+    return UntranslatedL10n.tr("Untranslated", "screen_feed_report_rate_limited_message_hours", p1)
+  }
+  /// Too many reports today
+  internal static var screenFeedReportRateLimitedTitle: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_report_rate_limited_title") }
+  /// Child safety
+  internal static var screenFeedReportReasonChildSafety: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_report_reason_child_safety") }
+  /// Sexualises, exploits or endangers a child
+  internal static var screenFeedReportReasonChildSafetyDescription: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_report_reason_child_safety_description") }
+  /// Harassment or bullying
+  internal static var screenFeedReportReasonHarassment: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_report_reason_harassment") }
+  /// Hate
+  internal static var screenFeedReportReasonHate: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_report_reason_hate") }
+  /// Illegal content
+  internal static var screenFeedReportReasonIllegal: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_report_reason_illegal") }
+  /// Pretends to be someone else
+  internal static var screenFeedReportReasonImpersonation: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_report_reason_impersonation") }
+  /// Malware or phishing
+  internal static var screenFeedReportReasonMalware: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_report_reason_malware") }
+  /// Something else
+  internal static var screenFeedReportReasonOther: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_report_reason_other") }
+  /// Private information
+  internal static var screenFeedReportReasonPrivateInformation: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_report_reason_private_information") }
+  /// Someone's address, phone number or other private details
+  internal static var screenFeedReportReasonPrivateInformationDescription: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_report_reason_private_information_description") }
+  /// Selling drugs, weapons or other regulated goods
+  internal static var screenFeedReportReasonRegulatedGoods: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_report_reason_regulated_goods") }
+  /// Sexual content
+  internal static var screenFeedReportReasonSexualContent: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_report_reason_sexual_content") }
+  /// Spam or scam
+  internal static var screenFeedReportReasonSpam: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_report_reason_spam") }
+  /// A threat to someone's life
+  internal static var screenFeedReportReasonThreatToLife: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_report_reason_threat_to_life") }
+  /// Threatens violence, or talks of self-harm
+  internal static var screenFeedReportReasonThreatToLifeDescription: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_report_reason_threat_to_life_description") }
+  /// Violence or graphic content
+  internal static var screenFeedReportReasonViolence: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_report_reason_violence") }
+  /// Send
+  internal static var screenFeedReportSend: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_report_send") }
+  /// Sending the report
+  internal static var screenFeedReportSending: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_report_sending") }
+  /// A moderator will decide by %1$@. You'll find their decision in your notices.
+  internal static func screenFeedReportSentMessage(_ p1: Any) -> String {
+    return UntranslatedL10n.tr("Untranslated", "screen_feed_report_sent_message", String(describing: p1))
+  }
+  /// Report sent
+  internal static var screenFeedReportSentTitle: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_report_sent_title") }
+  /// A report under one of these hides it from everyone at once, until a moderator decides.
+  internal static var screenFeedReportSevereFooter: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_report_severe_footer") }
+  /// Most serious
+  internal static var screenFeedReportSevereHeader: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_report_severe_header") }
+  /// Posting, commenting and reporting are suspended for your account. You can still read the feed.
+  internal static var screenFeedReportSuspendedMessage: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_report_suspended_message") }
+  /// You can't report right now
+  internal static var screenFeedReportSuspendedTitle: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_report_suspended_title") }
+  /// Couldn't save your answer. Try again.
+  internal static var screenFeedRulesAcceptFailed: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_rules_accept_failed") }
+  /// Got it, post
+  internal static var screenFeedRulesAgree: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_rules_agree") }
+  /// Got it, comment
+  internal static var screenFeedRulesAgreeComment: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_rules_agree_comment") }
+  /// The feed is for everyone on Spiral. To keep it a good place:
+  internal static var screenFeedRulesIntro: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_rules_intro") }
+  /// Be kind. No hate, harassment or threats.
+  internal static var screenFeedRulesKind: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_rules_kind") }
+  /// Posts are public to everyone on Spiral. A moderator reviews reports, usually within 24 hours, and may remove posts or suspend posting for breaking these rules. Questions: support@spiral.md
+  internal static var screenFeedRulesModeration: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_rules_moderation") }
+  /// Nothing that harms people, and never sexual content involving minors.
+  internal static var screenFeedRulesNoHarm: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_rules_no_harm") }
+  /// No scams, spam or links to harmful sites.
+  internal static var screenFeedRulesNoScams: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_rules_no_scams") }
+  /// Post only what you have the right to share.
+  internal static var screenFeedRulesOwnContent: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_rules_own_content") }
+  /// Don't share other people's private information.
+  internal static var screenFeedRulesPrivacy: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_rules_privacy") }
+  /// A few simple rules
+  internal static var screenFeedRulesTitle: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_rules_title") }
+  /// This post was marked as possibly upsetting.
+  internal static var screenFeedSensitiveMessage: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_sensitive_message") }
+  /// Show
+  internal static var screenFeedSensitiveShow: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_sensitive_show") }
+  /// Sensitive content
+  internal static var screenFeedSensitiveTitle: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_sensitive_title") }
+  /// Share
+  internal static var screenFeedShareAction: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_share_action") }
+  /// Posts can be shared into Spiral chats only, not Telegram, WhatsApp or Instagram chats.
+  internal static var screenFeedShareBridgedRoom: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_share_bridged_room") }
+  /// Couldn't share the post.
+  internal static var screenFeedShareFailed: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_share_failed") }
+  /// Share post
+  internal static var screenFeedShareTitle: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_share_title") }
+  /// Plural format key: "%#@COUNT@"
+  internal static func screenFeedShared(_ p1: Int) -> String {
+    return UntranslatedL10n.tr("Untranslated", "screen_feed_shared", p1)
+  }
+  /// Plural format key: "%#@SENT@, %#@FAILED@"
+  internal static func screenFeedSharedPartly(_ p1: Int, _ p2: Int) -> String {
+    return UntranslatedL10n.tr("Untranslated", "screen_feed_shared_partly", p1, p2)
+  }
+  /// Slow down a little. Try again in a moment.
+  internal static var screenFeedSlowDown: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_slow_down") }
+  /// No connection
+  internal static var screenFeedSyncNoConnection: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_sync_no_connection") }
+  /// Updating…
+  internal static var screenFeedSyncUpdating: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_sync_updating") }
+  /// The feed is turned off for now. Your chats work as usual.
+  internal static var screenFeedUnavailableMessage: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_unavailable_message") }
+  /// Feed is unavailable
+  internal static var screenFeedUnavailableTitle: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_unavailable_title") }
+  /// Show in my feed
+  internal static var screenFeedUnhideAction: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_unhide_action") }
+  /// Couldn't show the post in your feed
+  internal static var screenFeedUnhideFailed: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_unhide_failed") }
+  /// Couldn't remove your like
+  internal static var screenFeedUnlikeFailed: String { return UntranslatedL10n.tr("Untranslated", "screen_feed_unlike_failed") }
   /// Agents
   internal static var screenHomeTabAgents: String { return UntranslatedL10n.tr("Untranslated", "screen_home_tab_agents") }
-  /// Search
-  internal static var screenHomeTabSearch: String { return UntranslatedL10n.tr("Untranslated", "screen_home_tab_search") }
+  /// Feed
+  internal static var screenHomeTabFeed: String { return UntranslatedL10n.tr("Untranslated", "screen_home_tab_feed") }
+  /// No device or recovery key?
+  internal static var screenIdentityConfirmationCannotConfirmSpiral: String { return UntranslatedL10n.tr("Untranslated", "screen_identity_confirmation_cannot_confirm_spiral") }
+  /// This device will be signed out of Spiral. You can sign in again with your sign-in phrase.
+  internal static var screenIdentityConfirmationSignOutContentSpiral: String { return UntranslatedL10n.tr("Untranslated", "screen_identity_confirmation_sign_out_content_spiral") }
+  /// Sign out
+  internal static var screenIdentityConfirmationSignOutSpiral: String { return UntranslatedL10n.tr("Untranslated", "screen_identity_confirmation_sign_out_spiral") }
+  /// Sign out
+  internal static var screenIdentityConfirmationSignOutSubmitSpiral: String { return UntranslatedL10n.tr("Untranslated", "screen_identity_confirmation_sign_out_submit_spiral") }
+  /// Sign out?
+  internal static var screenIdentityConfirmationSignOutTitleSpiral: String { return UntranslatedL10n.tr("Untranslated", "screen_identity_confirmation_sign_out_title_spiral") }
+  /// Once you do, this device can open your messages and send new ones securely.
+  internal static var screenIdentityConfirmationSubtitleNoMethodsSpiral: String { return UntranslatedL10n.tr("Untranslated", "screen_identity_confirmation_subtitle_no_methods_spiral") }
+  /// Choose one of the ways below. Then this device can open your messages and send new ones securely.
+  internal static var screenIdentityConfirmationSubtitleSpiral: String { return UntranslatedL10n.tr("Untranslated", "screen_identity_confirmation_subtitle_spiral") }
+  /// Confirm it's you
+  internal static var screenIdentityConfirmationTitleSpiral: String { return UntranslatedL10n.tr("Untranslated", "screen_identity_confirmation_title_spiral") }
+  /// Confirm on another device
+  internal static var screenIdentityConfirmationUseAnotherDeviceSpiral: String { return UntranslatedL10n.tr("Untranslated", "screen_identity_confirmation_use_another_device_spiral") }
+  /// Enter recovery key
+  internal static var screenIdentityConfirmationUseRecoveryKeySpiral: String { return UntranslatedL10n.tr("Untranslated", "screen_identity_confirmation_use_recovery_key_spiral") }
+  /// An agent fills in posts like this — it takes a minute
+  internal static var screenInteractiveCatalogAgentFillsHint: String { return UntranslatedL10n.tr("Untranslated", "screen_interactive_catalog_agent_fills_hint") }
+  /// The agent will make “%1$@”
+  internal static func screenInteractiveCatalogAgentMakes(_ p1: Any) -> String {
+    return UntranslatedL10n.tr("Untranslated", "screen_interactive_catalog_agent_makes", String(describing: p1))
+  }
   /// Your agent is still being set up. Try again in a moment.
   internal static var screenInteractiveCatalogAgentSettingUp: String { return UntranslatedL10n.tr("Untranslated", "screen_interactive_catalog_agent_setting_up") }
+  /// Setting up your agent…
+  internal static var screenInteractiveCatalogAgentSettingUpAction: String { return UntranslatedL10n.tr("Untranslated", "screen_interactive_catalog_agent_setting_up_action") }
   /// Couldn't check your agent. Try again.
   internal static var screenInteractiveCatalogAgentUnknown: String { return UntranslatedL10n.tr("Untranslated", "screen_interactive_catalog_agent_unknown") }
+  /// All %1$d
+  internal static func screenInteractiveCatalogAllCount(_ p1: Int) -> String {
+    return UntranslatedL10n.tr("Untranslated", "screen_interactive_catalog_all_count", p1)
+  }
   /// All
-  internal static var screenInteractiveCatalogAll: String { return UntranslatedL10n.tr("Untranslated", "screen_interactive_catalog_all") }
-  /// Change it with the agent first
-  internal static var screenInteractiveCatalogChangeFirst: String { return UntranslatedL10n.tr("Untranslated", "screen_interactive_catalog_change_first") }
-  /// Nothing yet
-  internal static var screenInteractiveCatalogEmpty: String { return UntranslatedL10n.tr("Untranslated", "screen_interactive_catalog_empty") }
+  internal static var screenInteractiveCatalogAllSections: String { return UntranslatedL10n.tr("Untranslated", "screen_interactive_catalog_all_sections") }
+  /// Change with the agent
+  internal static var screenInteractiveCatalogChangeWithAgent: String { return UntranslatedL10n.tr("Untranslated", "screen_interactive_catalog_change_with_agent") }
+  /// Create an agent
+  internal static var screenInteractiveCatalogCreateAgent: String { return UntranslatedL10n.tr("Untranslated", "screen_interactive_catalog_create_agent") }
   /// Every post you make with the agent, or change, is kept here.
   internal static var screenInteractiveCatalogEmptyHint: String { return UntranslatedL10n.tr("Untranslated", "screen_interactive_catalog_empty_hint") }
   /// Nothing of yours yet
   internal static var screenInteractiveCatalogEmptyTitle: String { return UntranslatedL10n.tr("Untranslated", "screen_interactive_catalog_empty_title") }
+  /// Check your connection and try again.
+  internal static var screenInteractiveCatalogErrorHint: String { return UntranslatedL10n.tr("Untranslated", "screen_interactive_catalog_error_hint") }
+  /// Couldn't load the catalogue
+  internal static var screenInteractiveCatalogErrorTitle: String { return UntranslatedL10n.tr("Untranslated", "screen_interactive_catalog_error_title") }
+  /// Games and tools the whole chat plays — each on their own, and everyone sees the result.
+  internal static var screenInteractiveCatalogExplanation: String { return UntranslatedL10n.tr("Untranslated", "screen_interactive_catalog_explanation") }
+  /// Your agent fills it in with you
+  internal static var screenInteractiveCatalogFactAgentFills: String { return UntranslatedL10n.tr("Untranslated", "screen_interactive_catalog_fact_agent_fills") }
+  /// Changes live for everyone
+  internal static var screenInteractiveCatalogFactLive: String { return UntranslatedL10n.tr("Untranslated", "screen_interactive_catalog_fact_live") }
+  /// Made of the people in the chat
+  internal static var screenInteractiveCatalogFactNames: String { return UntranslatedL10n.tr("Untranslated", "screen_interactive_catalog_fact_names") }
+  /// For the whole chat
+  internal static var screenInteractiveCatalogFactPlayersGroup: String { return UntranslatedL10n.tr("Untranslated", "screen_interactive_catalog_fact_players_group") }
+  /// Everyone plays on their own
+  internal static var screenInteractiveCatalogFactPlayersSolo: String { return UntranslatedL10n.tr("Untranslated", "screen_interactive_catalog_fact_players_solo") }
+  /// For two, in any chat
+  internal static var screenInteractiveCatalogFactPlayersTwo: String { return UntranslatedL10n.tr("Untranslated", "screen_interactive_catalog_fact_players_two") }
+  /// One result, the same for everyone
+  internal static var screenInteractiveCatalogFactSameForAll: String { return UntranslatedL10n.tr("Untranslated", "screen_interactive_catalog_fact_same_for_all") }
+  /// The score stays in the chat
+  internal static var screenInteractiveCatalogFactScore: String { return UntranslatedL10n.tr("Untranslated", "screen_interactive_catalog_fact_score") }
+  /// Shown once everyone has chosen
+  internal static var screenInteractiveCatalogFactSealed: String { return UntranslatedL10n.tr("Untranslated", "screen_interactive_catalog_fact_sealed") }
+  /// A move shows once both have chosen
+  internal static var screenInteractiveCatalogFactSealedTwo: String { return UntranslatedL10n.tr("Untranslated", "screen_interactive_catalog_fact_sealed_two") }
+  /// Nobody can peek
+  internal static var screenInteractiveCatalogFactSecret: String { return UntranslatedL10n.tr("Untranslated", "screen_interactive_catalog_fact_secret") }
+  /// Everyone sees who chose what
+  internal static var screenInteractiveCatalogFactShown: String { return UntranslatedL10n.tr("Untranslated", "screen_interactive_catalog_fact_shown") }
+  /// Everyone adds their own
+  internal static var screenInteractiveCatalogFactTogether: String { return UntranslatedL10n.tr("Untranslated", "screen_interactive_catalog_fact_together") }
+  /// Players take turns
+  internal static var screenInteractiveCatalogFactTurns: String { return UntranslatedL10n.tr("Untranslated", "screen_interactive_catalog_fact_turns") }
   /// Fill it in with the agent
   internal static var screenInteractiveCatalogFillIn: String { return UntranslatedL10n.tr("Untranslated", "screen_interactive_catalog_fill_in") }
-  /// Loading…
-  internal static var screenInteractiveCatalogLoading: String { return UntranslatedL10n.tr("Untranslated", "screen_interactive_catalog_loading") }
+  /// See the catalogue
+  internal static var screenInteractiveCatalogIntroAction: String { return UntranslatedL10n.tr("Untranslated", "screen_interactive_catalog_intro_action") }
+  /// Describe it, and the agent makes a post in a minute
+  internal static var screenInteractiveCatalogIntroAgentDetail: String { return UntranslatedL10n.tr("Untranslated", "screen_interactive_catalog_intro_agent_detail") }
+  /// Your own, with the agent
+  internal static var screenInteractiveCatalogIntroAgentTitle: String { return UntranslatedL10n.tr("Untranslated", "screen_interactive_catalog_intro_agent_title") }
+  /// Games and tools the whole chat plays.
+  internal static var screenInteractiveCatalogIntroLine: String { return UntranslatedL10n.tr("Untranslated", "screen_interactive_catalog_intro_line") }
+  /// Nobody peeks until everyone has chosen
+  internal static var screenInteractiveCatalogIntroSealedDetail: String { return UntranslatedL10n.tr("Untranslated", "screen_interactive_catalog_intro_sealed_detail") }
+  /// Moves in an envelope
+  internal static var screenInteractiveCatalogIntroSealedTitle: String { return UntranslatedL10n.tr("Untranslated", "screen_interactive_catalog_intro_sealed_title") }
+  /// Interactive posts
+  internal static var screenInteractiveCatalogIntroTitle: String { return UntranslatedL10n.tr("Untranslated", "screen_interactive_catalog_intro_title") }
+  /// Two of you or the whole room
+  internal static var screenInteractiveCatalogIntroTogetherDetail: String { return UntranslatedL10n.tr("Untranslated", "screen_interactive_catalog_intro_together_detail") }
+  /// Together, in any chat
+  internal static var screenInteractiveCatalogIntroTogetherTitle: String { return UntranslatedL10n.tr("Untranslated", "screen_interactive_catalog_intro_together_title") }
   /// Yours
   internal static var screenInteractiveCatalogMine: String { return UntranslatedL10n.tr("Untranslated", "screen_interactive_catalog_mine") }
-  /// Open one to change it, or to publish it in «%1$@».
+  /// Couldn't load your posts
+  internal static var screenInteractiveCatalogMineError: String { return UntranslatedL10n.tr("Untranslated", "screen_interactive_catalog_mine_error") }
+  /// Open one to change it, or to publish it in “%1$@”.
   internal static func screenInteractiveCatalogMineFooter(_ p1: Any) -> String {
     return UntranslatedL10n.tr("Untranslated", "screen_interactive_catalog_mine_footer", String(describing: p1))
   }
-  /// More
-  internal static var screenInteractiveCatalogMore: String { return UntranslatedL10n.tr("Untranslated", "screen_interactive_catalog_more") }
-  /// This one is filled in with an agent. Create one in the Agents tab to post it.
-  internal static var screenInteractiveCatalogNeedsAgent: String { return UntranslatedL10n.tr("Untranslated", "screen_interactive_catalog_needs_agent") }
   /// Describe a new one
   internal static var screenInteractiveCatalogNew: String { return UntranslatedL10n.tr("Untranslated", "screen_interactive_catalog_new") }
-  /// Your agent builds it with you
-  internal static var screenInteractiveCatalogNewDescription: String { return UntranslatedL10n.tr("Untranslated", "screen_interactive_catalog_new_description") }
   /// New
-  internal static var screenInteractiveCatalogNewShort: String { return UntranslatedL10n.tr("Untranslated", "screen_interactive_catalog_new_short") }
+  internal static var screenInteractiveCatalogNewBadge: String { return UntranslatedL10n.tr("Untranslated", "screen_interactive_catalog_new_badge") }
+  /// Try another word.
+  internal static var screenInteractiveCatalogNoResultsHint: String { return UntranslatedL10n.tr("Untranslated", "screen_interactive_catalog_no_results_hint") }
+  /// Nothing like that yet
+  internal static var screenInteractiveCatalogNoResultsTitle: String { return UntranslatedL10n.tr("Untranslated", "screen_interactive_catalog_no_results_title") }
+  /// %1$d of %2$d
+  internal static func screenInteractiveCatalogPagePosition(_ p1: Int, _ p2: Int) -> String {
+    return UntranslatedL10n.tr("Untranslated", "screen_interactive_catalog_page_position", p1, p2)
+  }
   /// The agent will ask: %1$@
   internal static func screenInteractiveCatalogPreviewAsks(_ p1: Any) -> String {
     return UntranslatedL10n.tr("Untranslated", "screen_interactive_catalog_preview_asks", String(describing: p1))
   }
-  /// Try it: nothing is sent until you publish.
+  /// Try it — nothing is sent
   internal static var screenInteractiveCatalogPreviewTry: String { return UntranslatedL10n.tr("Untranslated", "screen_interactive_catalog_preview_try") }
-  /// Interactive post
+  /// “%1$@”
+  internal static func screenInteractiveCatalogRoomNameQuoted(_ p1: Any) -> String {
+    return UntranslatedL10n.tr("Untranslated", "screen_interactive_catalog_room_name_quoted", String(describing: p1))
+  }
+  /// Game, poll, timer…
+  internal static var screenInteractiveCatalogSearchPlaceholder: String { return UntranslatedL10n.tr("Untranslated", "screen_interactive_catalog_search_placeholder") }
+  /// Interactives
   internal static var screenInteractiveCatalogTitle: String { return UntranslatedL10n.tr("Untranslated", "screen_interactive_catalog_title") }
+  /// Try it
+  internal static var screenInteractiveCatalogTry: String { return UntranslatedL10n.tr("Untranslated", "screen_interactive_catalog_try") }
+  /// Update
+  internal static var screenInteractiveCatalogUpdateAction: String { return UntranslatedL10n.tr("Untranslated", "screen_interactive_catalog_update_action") }
   /// Everyone this invitation allowed has already joined. Ask for a new one.
   internal static var screenInvitePasteExhausted: String { return UntranslatedL10n.tr("Untranslated", "screen_invite_paste_exhausted") }
   /// This invitation is no longer valid. Ask for a new one.
@@ -1182,7 +2160,7 @@ internal nonisolated enum UntranslatedL10n {
   internal static var screenLanguagePickerAllSection: String { return UntranslatedL10n.tr("Untranslated", "screen_language_picker_all_section") }
   /// No languages match your search.
   internal static var screenLanguagePickerEmpty: String { return UntranslatedL10n.tr("Untranslated", "screen_language_picker_empty") }
-  /// Frequently used
+  /// Suggested
   internal static var screenLanguagePickerSuggestedSection: String { return UntranslatedL10n.tr("Untranslated", "screen_language_picker_suggested_section") }
   /// Language
   internal static var screenLanguagePickerTitle: String { return UntranslatedL10n.tr("Untranslated", "screen_language_picker_title") }
@@ -1196,70 +2174,18 @@ internal nonisolated enum UntranslatedL10n {
   internal static var screenLegalInformationSourceCodeSpiral: String { return UntranslatedL10n.tr("Untranslated", "screen_legal_information_source_code_spiral") }
   /// Request the source
   internal static var screenLegalInformationSourceRequestSpiral: String { return UntranslatedL10n.tr("Untranslated", "screen_legal_information_source_request_spiral") }
-  /// Add
-  internal static var screenNativeCallAddAgentAdd: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_add_agent_add") }
-  /// Everyone in the call sees what the agent is doing. Audio handled by these functions is processed by an AI model.
-  internal static var screenNativeCallAddAgentConsentNote: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_add_agent_consent_note") }
-  /// Your assistant joins for this call and leaves when it ends.
-  internal static var screenNativeCallAddAgentNote: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_add_agent_note") }
-  /// Or pick what it does
-  internal static var screenNativeCallAddAgentPickSection: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_add_agent_pick_section") }
-  /// Record the call
-  internal static var screenNativeCallAddAgentRecord: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_add_agent_record") }
-  /// The recording is posted to the chat afterwards
-  internal static var screenNativeCallAddAgentRecordDetail: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_add_agent_record_detail") }
-  /// Post a summary
-  internal static var screenNativeCallAddAgentSummary: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_add_agent_summary") }
-  /// Sent when the call ends
-  internal static var screenNativeCallAddAgentSummaryDetail: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_add_agent_summary_detail") }
-  /// Translate me
-  internal static var screenNativeCallAddAgentTranslateMe: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_add_agent_translate_me") }
-  /// Others hear you in their language
-  internal static var screenNativeCallAddAgentTranslateMeDetail: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_add_agent_translate_me_detail") }
-  /// Everyone into %1$@
-  internal static func screenNativeCallAddAgentTranslationDetail(_ p1: Any) -> String {
-    return UntranslatedL10n.tr("Untranslated", "screen_native_call_add_agent_translation_detail", String(describing: p1))
-  }
-  /// Couldn’t load the languages
-  internal static var screenNativeCallAddAgentTranslationUnavailable: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_add_agent_translation_unavailable") }
-  /// %1$d of %2$d agents
-  internal static func screenNativeCallAgentBlockCount(_ p1: Int, _ p2: Int) -> String {
-    return UntranslatedL10n.tr("Untranslated", "screen_native_call_agent_block_count", p1, p2)
+  /// Open
+  internal static var screenMediaViewerOpen: String { return UntranslatedL10n.tr("Untranslated", "screen_media_viewer_open") }
+  /// %1$d of %2$d
+  internal static func screenMediaViewerPosition(_ p1: Int, _ p2: Int) -> String {
+    return UntranslatedL10n.tr("Untranslated", "screen_media_viewer_position", p1, p2)
   }
   /// Ready
   internal static var screenNativeCallAgentBlockIdle: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_agent_block_idle") }
   /// Not delivered
   internal static var screenNativeCallAgentBlockNotDelivered: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_agent_block_not_delivered") }
-  /// Original
-  internal static var screenNativeCallAgentBlockOriginal: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_agent_block_original") }
-  /// Paused
-  internal static var screenNativeCallAgentBlockPaused: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_agent_block_paused") }
   /// Recording
   internal static var screenNativeCallAgentBlockRecording: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_agent_block_recording") }
-  /// Speaking
-  internal static var screenNativeCallAgentBlockSpeaking: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_agent_block_speaking") }
-  /// Summary
-  internal static var screenNativeCallAgentBlockSummary: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_agent_block_summary") }
-  /// Talking
-  internal static var screenNativeCallAgentBlockTalking: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_agent_block_talking") }
-  /// Waiting
-  internal static var screenNativeCallAgentBlockWaiting: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_agent_block_waiting") }
-  /// Waiting for people
-  internal static var screenNativeCallAgentBlockWaitingForPeople: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_agent_block_waiting_for_people") }
-  /// Agent in this call
-  internal static var screenNativeCallAgentCenterActiveSection: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_agent_center_active_section") }
-  /// Audio handled by these functions is processed by an AI model.
-  internal static var screenNativeCallAgentCenterAiDisclosure: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_agent_center_ai_disclosure") }
-  /// Add an agent
-  internal static var screenNativeCallAgentCenterAvailableSection: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_agent_center_available_section") }
-  /// everyone into %1$@
-  internal static func screenNativeCallAgentCenterBoothEveryone(_ p1: Any) -> String {
-    return UntranslatedL10n.tr("Untranslated", "screen_native_call_agent_center_booth_everyone", String(describing: p1))
-  }
-  /// everyone except %1$@ into %2$@
-  internal static func screenNativeCallAgentCenterBoothEveryoneExcept(_ p1: Any, _ p2: Any) -> String {
-    return UntranslatedL10n.tr("Untranslated", "screen_native_call_agent_center_booth_everyone_except", String(describing: p1), String(describing: p2))
-  }
   /// %1$@ into %2$@
   internal static func screenNativeCallAgentCenterBoothMembers(_ p1: Any, _ p2: Any) -> String {
     return UntranslatedL10n.tr("Untranslated", "screen_native_call_agent_center_booth_members", String(describing: p1), String(describing: p2))
@@ -1268,30 +2194,6 @@ internal nonisolated enum UntranslatedL10n {
   internal static func screenNativeCallAgentCenterBoothYou(_ p1: Any) -> String {
     return UntranslatedL10n.tr("Untranslated", "screen_native_call_agent_center_booth_you", String(describing: p1))
   }
-  /// Conversation
-  internal static var screenNativeCallAgentCenterConversation: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_agent_center_conversation") }
-  /// Silent. Recording, summary and translation go on.
-  internal static var screenNativeCallAgentCenterConversationOff: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_agent_center_conversation_off") }
-  /// The assistant answers you. Everyone in the call hears it.
-  internal static var screenNativeCallAgentCenterConversationOn: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_agent_center_conversation_on") }
-  /// Translates you into %1$@ — you hear your clip too
-  internal static func screenNativeCallAgentCenterCoversYouInterpreter(_ p1: Any) -> String {
-    return UntranslatedL10n.tr("Untranslated", "screen_native_call_agent_center_covers_you_interpreter", String(describing: p1))
-  }
-  /// Translates you into %1$@ — others hear it, you don't
-  internal static func screenNativeCallAgentCenterCoversYouLive(_ p1: Any) -> String {
-    return UntranslatedL10n.tr("Untranslated", "screen_native_call_agent_center_covers_you_live", String(describing: p1))
-  }
-  /// Delivered to your chat with the agent
-  internal static var screenNativeCallAgentCenterDeliveredToOwnerDm: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_agent_center_delivered_to_owner_dm") }
-  /// Delivered to this room
-  internal static var screenNativeCallAgentCenterDeliveredToRoom: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_agent_center_delivered_to_room") }
-  /// Delivery failed
-  internal static var screenNativeCallAgentCenterDeliveryFailed: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_agent_center_delivery_failed") }
-  /// Delivering…
-  internal static var screenNativeCallAgentCenterDeliveryPending: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_agent_center_delivery_pending") }
-  /// No agent has joined this call.
-  internal static var screenNativeCallAgentCenterEmpty: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_agent_center_empty") }
   /// The agent is paused — turn off its pause to add it to a call.
   internal static var screenNativeCallAgentCenterErrorAgentPaused: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_agent_center_error_agent_paused") }
   /// Someone changed this first. Please try again.
@@ -1300,72 +2202,334 @@ internal nonisolated enum UntranslatedL10n {
   internal static var screenNativeCallAgentCenterErrorConversationRefused: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_agent_center_error_conversation_refused") }
   /// That agent session has already ended.
   internal static var screenNativeCallAgentCenterErrorGone: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_agent_center_error_gone") }
-  /// Every booth needs a language, and a named booth needs members.
-  internal static var screenNativeCallAgentCenterErrorInvalidBooths: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_agent_center_error_invalid_booths") }
   /// Only the owner of this session can change it.
   internal static var screenNativeCallAgentCenterErrorNotOwner: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_agent_center_error_not_owner") }
   /// The agent platform is unreachable.
   internal static var screenNativeCallAgentCenterErrorUnavailable: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_agent_center_error_unavailable") }
   /// Agent
   internal static var screenNativeCallAgentCenterForeignDetailTitle: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_agent_center_foreign_detail_title") }
-  /// Brought by another participant. Only they can change it.
-  internal static var screenNativeCallAgentCenterForeignFooter: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_agent_center_foreign_footer") }
-  /// Joining…
-  internal static var screenNativeCallAgentCenterJoining: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_agent_center_joining") }
   /// Leaving…
   internal static var screenNativeCallAgentCenterLeaving: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_agent_center_leaving") }
-  /// Only you. Off means original voices only.
-  internal static var screenNativeCallAgentCenterListeningFooter: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_agent_center_listening_footer") }
-  /// What you hear
-  internal static var screenNativeCallAgentCenterListeningSection: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_agent_center_listening_section") }
-  /// You have no agents available.
-  internal static var screenNativeCallAgentCenterNoAgents: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_agent_center_no_agents") }
   /// Agents in this call
   internal static var screenNativeCallAgentCenterOpen: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_agent_center_open") }
-  /// Also in this call
-  internal static var screenNativeCallAgentCenterOthersSection: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_agent_center_others_section") }
-  /// Record
-  internal static var screenNativeCallAgentCenterRecord: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_agent_center_record") }
-  /// Recording
-  internal static var screenNativeCallAgentCenterRecording: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_agent_center_recording") }
   /// Recording…
   internal static var screenNativeCallAgentCenterRecordingLive: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_agent_center_recording_live") }
-  /// Not recording
-  internal static var screenNativeCallAgentCenterRecordingOff: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_agent_center_recording_off") }
-  /// Stopped — publishing what was captured
-  internal static var screenNativeCallAgentCenterRecordingStopped: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_agent_center_recording_stopped") }
-  /// Remove from call
-  internal static var screenNativeCallAgentCenterRemove: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_agent_center_remove") }
-  /// Removing…
-  internal static var screenNativeCallAgentCenterRemoving: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_agent_center_removing") }
-  /// Stop
-  internal static var screenNativeCallAgentCenterStop: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_agent_center_stop") }
-  /// Summary
-  internal static var screenNativeCallAgentCenterSummary: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_agent_center_summary") }
-  /// No summary
-  internal static var screenNativeCallAgentCenterSummaryOff: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_agent_center_summary_off") }
   /// A summary will be posted
   internal static var screenNativeCallAgentCenterSummaryOn: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_agent_center_summary_on") }
   /// Assistant is talking
   internal static var screenNativeCallAgentCenterTalking: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_agent_center_talking") }
   /// Agent Center
   internal static var screenNativeCallAgentCenterTitle: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_agent_center_title") }
-  /// Translation
-  internal static var screenNativeCallAgentCenterTranslation: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_agent_center_translation") }
-  /// Off
-  internal static var screenNativeCallAgentCenterTranslationOff: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_agent_center_translation_off") }
   /// Translating %1$@
   internal static func screenNativeCallAgentCenterTranslationOn(_ p1: Any) -> String {
     return UntranslatedL10n.tr("Untranslated", "screen_native_call_agent_center_translation_on", String(describing: p1))
   }
-  /// Paused · %1$@
-  internal static func screenNativeCallAgentCenterTranslationPaused(_ p1: Any) -> String {
-    return UntranslatedL10n.tr("Untranslated", "screen_native_call_agent_center_translation_paused", String(describing: p1))
+  /// Listening
+  internal static var screenNativeCallAgentPillListening: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_agent_pill_listening") }
+  /// Original voice
+  internal static var screenNativeCallAgentPillOriginalVoice: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_agent_pill_original_voice") }
+  /// Recording not saved
+  internal static var screenNativeCallAgentPillRecordingNotSaved: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_agent_pill_recording_not_saved") }
+  /// Summary not sent
+  internal static var screenNativeCallAgentPillSummaryNotSent: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_agent_pill_summary_not_sent") }
+  /// Taking notes
+  internal static var screenNativeCallAgentPillTakingNotes: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_agent_pill_taking_notes") }
+  /// Translating
+  internal static var screenNativeCallAgentPillTranslating: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_agent_pill_translating") }
+  /// Translation paused
+  internal static var screenNativeCallAgentPillTranslationPaused: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_agent_pill_translation_paused") }
+  /// Your assistant
+  internal static var screenNativeCallAgentPillYourAssistant: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_agent_pill_your_assistant") }
+  /// All languages
+  internal static var screenNativeCallAssistantsAllLanguages: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_assistants_all_languages") }
+  /// Allow AI
+  internal static var screenNativeCallAssistantsAllowAi: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_assistants_allow_ai") }
+  /// Cancel
+  internal static var screenNativeCallAssistantsCancelJoin: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_assistants_cancel_join") }
+  /// AI in a call starts only when everyone in this chat has allowed it. Each person decides for themselves in Settings, and you can change your own choice there too.
+  internal static var screenNativeCallAssistantsConsentRoomExplainer: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_assistants_consent_room_explainer") }
+  /// Copy assistant's ID
+  internal static var screenNativeCallAssistantsCopyId: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_assistants_copy_id") }
+  /// Plural format key: "%#@COUNT@"
+  internal static func screenNativeCallAssistantsCount(_ p1: Int) -> String {
+    return UntranslatedL10n.tr("Untranslated", "screen_native_call_assistants_count", p1)
   }
-  /// %1$@ · %2$@
-  internal static func screenNativeCallAgentCenterTranslationRunning(_ p1: Any, _ p2: Any) -> String {
-    return UntranslatedL10n.tr("Untranslated", "screen_native_call_agent_center_translation_running", String(describing: p1), String(describing: p2))
+  /// Delivered to your chat with your assistant
+  internal static var screenNativeCallAssistantsDeliveredOwnerDm: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_assistants_delivered_owner_dm") }
+  /// Delivered to this chat
+  internal static var screenNativeCallAssistantsDeliveredRoom: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_assistants_delivered_room") }
+  /// Couldn't be delivered
+  internal static var screenNativeCallAssistantsDeliveryFailed: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_assistants_delivery_failed") }
+  /// Delivering…
+  internal static var screenNativeCallAssistantsDeliveryPending: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_assistants_delivery_pending") }
+  /// Changed elsewhere a moment ago. Try again.
+  internal static var screenNativeCallAssistantsErrorChanged: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_assistants_error_changed") }
+  /// Couldn't change it. Try again.
+  internal static var screenNativeCallAssistantsErrorFailed: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_assistants_error_failed") }
+  /// Your assistant has left the call
+  internal static var screenNativeCallAssistantsErrorLeft: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_assistants_error_left") }
+  /// Talking isn't available in this call right now
+  internal static var screenNativeCallAssistantsErrorTalkRefused: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_assistants_error_talk_refused") }
+  /// For those who picked %1$@
+  internal static func screenNativeCallAssistantsForeignForLanguage(_ p1: Any) -> String {
+    return UntranslatedL10n.tr("Untranslated", "screen_native_call_assistants_foreign_for_language", String(describing: p1))
   }
+  /// Listening
+  internal static var screenNativeCallAssistantsForeignListening: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_assistants_foreign_listening") }
+  /// Doesn't talk or translate
+  internal static var screenNativeCallAssistantsForeignListeningDetail: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_assistants_foreign_listening_detail") }
+  /// Takes notes of this call
+  internal static var screenNativeCallAssistantsForeignNotes: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_assistants_foreign_notes") }
+  /// Notes are posted in the chat after the call
+  internal static var screenNativeCallAssistantsForeignNotesDetail: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_assistants_foreign_notes_detail") }
+  /// Records the call
+  internal static var screenNativeCallAssistantsForeignRecordsYou: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_assistants_foreign_records_you") }
+  /// The recording appears in the chat after the call
+  internal static var screenNativeCallAssistantsForeignRecordsYouDetail: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_assistants_foreign_records_you_detail") }
+  /// On standby · %1$@
+  internal static func screenNativeCallAssistantsForeignStandby(_ p1: Any) -> String {
+    return UntranslatedL10n.tr("Untranslated", "screen_native_call_assistants_foreign_standby", String(describing: p1))
+  }
+  /// takes notes
+  internal static var screenNativeCallAssistantsForeignStatusAlsoNotes: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_assistants_foreign_status_also_notes") }
+  /// records
+  internal static var screenNativeCallAssistantsForeignStatusAlsoRecords: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_assistants_foreign_status_also_records") }
+  /// Records the call, you too
+  internal static var screenNativeCallAssistantsForeignStatusRecordsYou: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_assistants_foreign_status_records_you") }
+  /// Translates you into %1$@
+  internal static func screenNativeCallAssistantsForeignStatusTranslatesYou(_ p1: Any) -> String {
+    return UntranslatedL10n.tr("Untranslated", "screen_native_call_assistants_foreign_status_translates_you", String(describing: p1))
+  }
+  /// Talks with its owner
+  internal static var screenNativeCallAssistantsForeignTalks: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_assistants_foreign_talks") }
+  /// Everyone hears it
+  internal static var screenNativeCallAssistantsForeignTalksDetail: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_assistants_foreign_talks_detail") }
+  /// Translates into %1$@
+  internal static func screenNativeCallAssistantsForeignTranslates(_ p1: Any) -> String {
+    return UntranslatedL10n.tr("Untranslated", "screen_native_call_assistants_foreign_translates", String(describing: p1))
+  }
+  /// Translates you into %1$@
+  internal static func screenNativeCallAssistantsForeignTranslatesYou(_ p1: Any) -> String {
+    return UntranslatedL10n.tr("Untranslated", "screen_native_call_assistants_foreign_translates_you", String(describing: p1))
+  }
+  /// you listen
+  internal static var screenNativeCallAssistantsForeignYouListen: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_assistants_foreign_you_listen") }
+  /// Already translated: free
+  internal static var screenNativeCallAssistantsFreeSection: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_assistants_free_section") }
+  /// I speak
+  internal static var screenNativeCallAssistantsISpeak: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_assistants_i_speak") }
+  /// You speak it and hear the translation in it
+  internal static var screenNativeCallAssistantsISpeakDetail: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_assistants_i_speak_detail") }
+  /// In the call
+  internal static var screenNativeCallAssistantsInCall: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_assistants_in_call") }
+  /// In the call: %1$d more
+  internal static func screenNativeCallAssistantsInCallMore(_ p1: Int) -> String {
+    return UntranslatedL10n.tr("Untranslated", "screen_native_call_assistants_in_call_more", p1)
+  }
+  /// Talk
+  internal static var screenNativeCallAssistantsJobConversation: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_assistants_job_conversation") }
+  /// Notes
+  internal static var screenNativeCallAssistantsJobSummary: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_assistants_job_summary") }
+  /// Talks with you
+  internal static var screenNativeCallAssistantsJobTalks: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_assistants_job_talks") }
+  /// Translation
+  internal static var screenNativeCallAssistantsJobTranslation: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_assistants_job_translation") }
+  /// Joining the call…
+  internal static var screenNativeCallAssistantsJoining: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_assistants_joining") }
+  /// Joins when someone answers
+  internal static var screenNativeCallAssistantsJoinsWhenAnswered: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_assistants_joins_when_answered") }
+  /// Learn more
+  internal static var screenNativeCallAssistantsLearnMore: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_assistants_learn_more") }
+  /// Leaving…
+  internal static var screenNativeCallAssistantsLeaving: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_assistants_leaving") }
+  /// Translation limit reached
+  internal static var screenNativeCallAssistantsLimitTitle: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_assistants_limit_title") }
+  /// Free: another assistant already translates.
+  internal static var screenNativeCallAssistantsListenFree: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_assistants_listen_free") }
+  /// Free: %1$@'s assistant already translates.
+  internal static func screenNativeCallAssistantsListenFreeBy(_ p1: Any) -> String {
+    return UntranslatedL10n.tr("Untranslated", "screen_native_call_assistants_listen_free_by", String(describing: p1))
+  }
+  /// Listen in %1$@
+  internal static func screenNativeCallAssistantsListenLanguage(_ p1: Any) -> String {
+    return UntranslatedL10n.tr("Untranslated", "screen_native_call_assistants_listen_language", String(describing: p1))
+  }
+  /// Assistant's profile
+  internal static var screenNativeCallAssistantsMenuProfile: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_assistants_menu_profile") }
+  /// My limit
+  internal static var screenNativeCallAssistantsMyLimit: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_assistants_my_limit") }
+  /// Person next to you
+  internal static var screenNativeCallAssistantsNeighbour: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_assistants_neighbour") }
+  /// Language of the person next to you
+  internal static var screenNativeCallAssistantsNeighbourLanguage: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_assistants_neighbour_language") }
+  /// New translation
+  internal static var screenNativeCallAssistantsNewTranslation: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_assistants_new_translation") }
+  /// Your assistant will translate the call
+  internal static var screenNativeCallAssistantsNewTranslationDetail: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_assistants_new_translation_detail") }
+  /// Your assistant translates %1$@. The others are already translated, free.
+  internal static func screenNativeCallAssistantsNewTranslationOthers(_ p1: Any) -> String {
+    return UntranslatedL10n.tr("Untranslated", "screen_native_call_assistants_new_translation_others", String(describing: p1))
+  }
+  /// You don't have an assistant
+  internal static var screenNativeCallAssistantsNoneOfYourOwn: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_assistants_none_of_your_own") }
+  /// Not in the call
+  internal static var screenNativeCallAssistantsNotInCall: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_assistants_not_in_call") }
+  /// Everyone here speaks this language: nothing to translate.
+  internal static var screenNativeCallAssistantsNothingToTranslate: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_assistants_nothing_to_translate") }
+  /// Nothing to translate. Pick another language in “Translate into”, or turn translation on when someone speaks another language.
+  internal static var screenNativeCallAssistantsNothingToTranslateDetail: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_assistants_nothing_to_translate_detail") }
+  /// Everyone already speaks %1$@
+  internal static func screenNativeCallAssistantsNothingToTranslateEveryone(_ p1: Any) -> String {
+    return UntranslatedL10n.tr("Untranslated", "screen_native_call_assistants_nothing_to_translate_everyone", String(describing: p1))
+  }
+  /// %1$@ already speaks %2$@
+  internal static func screenNativeCallAssistantsNothingToTranslateOne(_ p1: Any, _ p2: Any) -> String {
+    return UntranslatedL10n.tr("Untranslated", "screen_native_call_assistants_nothing_to_translate_one", String(describing: p1), String(describing: p2))
+  }
+  /// Only the person who added an assistant can change it.
+  internal static var screenNativeCallAssistantsOthersFooter: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_assistants_others_footer") }
+  /// Owner: %1$@
+  internal static func screenNativeCallAssistantsOwner(_ p1: Any) -> String {
+    return UntranslatedL10n.tr("Untranslated", "screen_native_call_assistants_owner", String(describing: p1))
+  }
+  /// %1$@'s assistant
+  internal static func screenNativeCallAssistantsOwnerAssistant(_ p1: Any) -> String {
+    return UntranslatedL10n.tr("Untranslated", "screen_native_call_assistants_owner_assistant", String(describing: p1))
+  }
+  /// Phone language
+  internal static var screenNativeCallAssistantsPhoneLanguage: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_assistants_phone_language") }
+  /// Remembered for this chat
+  internal static var screenNativeCallAssistantsPickFooter: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_assistants_pick_footer") }
+  /// After each phrase · both ways
+  internal static var screenNativeCallAssistantsPocketDetail: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_assistants_pocket_detail") }
+  /// Only admins can add members to this chat
+  internal static var screenNativeCallAssistantsReasonAskToJoin: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_assistants_reason_ask_to_join") }
+  /// Ask an admin to add your assistant
+  internal static var screenNativeCallAssistantsReasonAskToJoinDetail: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_assistants_reason_ask_to_join_detail") }
+  /// Weekly limit reached
+  internal static var screenNativeCallAssistantsReasonBudget: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_assistants_reason_budget") }
+  /// Your assistant can join again when the limit resets
+  internal static var screenNativeCallAssistantsReasonBudgetDetail: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_assistants_reason_budget_detail") }
+  /// Your assistant can't join calls
+  internal static var screenNativeCallAssistantsReasonCannotJoinCalls: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_assistants_reason_cannot_join_calls") }
+  /// Turn on its voice in the assistant's settings
+  internal static var screenNativeCallAssistantsReasonCannotJoinCallsDetail: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_assistants_reason_cannot_join_calls_detail") }
+  /// The AI limit page says when it's back.
+  internal static var screenNativeCallAssistantsReasonCategoryPausedDetail: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_assistants_reason_category_paused_detail") }
+  /// Your assistant listens to the call through an AI model
+  internal static var screenNativeCallAssistantsReasonConsentOwnerDetail: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_assistants_reason_consent_owner_detail") }
+  /// Not everyone in this chat has allowed AI
+  internal static var screenNativeCallAssistantsReasonConsentRoom: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_assistants_reason_consent_room") }
+  /// Assistants can join when everyone has
+  internal static var screenNativeCallAssistantsReasonConsentRoomDetail: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_assistants_reason_consent_room_detail") }
+  /// Your assistant couldn't join
+  internal static var screenNativeCallAssistantsReasonFailed: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_assistants_reason_failed") }
+  /// Check your connection and try again
+  internal static var screenNativeCallAssistantsReasonFailedDetail: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_assistants_reason_failed_detail") }
+  /// Update the app to add your assistant here
+  internal static var screenNativeCallAssistantsReasonNeedsUpdate: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_assistants_reason_needs_update") }
+  /// Your assistant is paused
+  internal static var screenNativeCallAssistantsReasonPaused: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_assistants_reason_paused") }
+  /// While it's paused, it doesn't join calls
+  internal static var screenNativeCallAssistantsReasonPausedDetail: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_assistants_reason_paused_detail") }
+  /// Record
+  internal static var screenNativeCallAssistantsRecordConfirmAction: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_assistants_record_confirm_action") }
+  /// Everyone sees REC in the header. The recording appears in the chat after the call.
+  internal static var screenNativeCallAssistantsRecordConfirmMessage: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_assistants_record_confirm_message") }
+  /// %1$@ is no longer recording. Your recording will come to the chat as a separate file.
+  internal static func screenNativeCallAssistantsRecordConfirmMessageAfterOther(_ p1: Any) -> String {
+    return UntranslatedL10n.tr("Untranslated", "screen_native_call_assistants_record_confirm_message_after_other", String(describing: p1))
+  }
+  /// The previous recording stopped. Your recording will come to the chat as a separate file.
+  internal static var screenNativeCallAssistantsRecordConfirmMessageAfterSomeone: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_assistants_record_confirm_message_after_someone") }
+  /// Record the call?
+  internal static var screenNativeCallAssistantsRecordConfirmTitle: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_assistants_record_confirm_title") }
+  /// Recording
+  internal static var screenNativeCallAssistantsRecording: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_assistants_recording") }
+  /// Continue
+  internal static var screenNativeCallAssistantsRecordingContinue: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_assistants_recording_continue") }
+  /// %1$@ is already recording this call
+  internal static func screenNativeCallAssistantsRecordingCovered(_ p1: Any) -> String {
+    return UntranslatedL10n.tr("Untranslated", "screen_native_call_assistants_recording_covered", String(describing: p1))
+  }
+  /// Recording
+  internal static var screenNativeCallAssistantsRecordingCoveredButton: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_assistants_recording_covered_button") }
+  /// The file will come to this chat. When the recording stops, “Continue” will appear here.
+  internal static var screenNativeCallAssistantsRecordingCoveredCardDetail: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_assistants_recording_covered_card_detail") }
+  /// Got it
+  internal static var screenNativeCallAssistantsRecordingCoveredGotIt: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_assistants_recording_covered_got_it") }
+  /// Someone is already recording this call
+  internal static var screenNativeCallAssistantsRecordingCoveredSomeone: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_assistants_recording_covered_someone") }
+  /// Stopped. What was captured will be posted.
+  internal static var screenNativeCallAssistantsRecordingStopped: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_assistants_recording_stopped") }
+  /// Remove
+  internal static var screenNativeCallAssistantsRemove: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_assistants_remove") }
+  /// Notes and the recording so far will still be posted.
+  internal static var screenNativeCallAssistantsRemoveConfirmMessage: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_assistants_remove_confirm_message") }
+  /// Notes so far will still be posted.
+  internal static var screenNativeCallAssistantsRemoveConfirmNotes: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_assistants_remove_confirm_notes") }
+  /// The recording so far will still be posted.
+  internal static var screenNativeCallAssistantsRemoveConfirmRecording: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_assistants_remove_confirm_recording") }
+  /// Remove from call
+  internal static var screenNativeCallAssistantsRemoveFromCall: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_assistants_remove_from_call") }
+  /// Remove from chat
+  internal static var screenNativeCallAssistantsRemoveFromChat: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_assistants_remove_from_chat") }
+  /// Removes %1$@ from this chat, not just the call. Its tools in this chat stop. Its owner can add it again.
+  internal static func screenNativeCallAssistantsRemoveFromChatMessage(_ p1: Any) -> String {
+    return UntranslatedL10n.tr("Untranslated", "screen_native_call_assistants_remove_from_chat_message", String(describing: p1))
+  }
+  /// Remove %1$@ from the chat?
+  internal static func screenNativeCallAssistantsRemoveFromChatTitle(_ p1: Any) -> String {
+    return UntranslatedL10n.tr("Untranslated", "screen_native_call_assistants_remove_from_chat_title", String(describing: p1))
+  }
+  /// Resume
+  internal static var screenNativeCallAssistantsResume: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_assistants_resume") }
+  /// Search languages
+  internal static var screenNativeCallAssistantsSearchLanguages: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_assistants_search_languages") }
+  /// Start translation
+  internal static var screenNativeCallAssistantsStartTranslation: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_assistants_start_translation") }
+  /// Uses your limit. Anyone who picks this language listens free.
+  internal static var screenNativeCallAssistantsStartTranslationDetail: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_assistants_start_translation_detail") }
+  /// Translating both ways
+  internal static var screenNativeCallAssistantsStatusBothWays: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_assistants_status_both_ways") }
+  /// Translation stopped: limit
+  internal static var screenNativeCallAssistantsStatusLimit: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_assistants_status_limit") }
+  /// Nothing to translate · everyone speaks this language
+  internal static var screenNativeCallAssistantsStatusNothingToTranslate: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_assistants_status_nothing_to_translate") }
+  /// The owner left the call
+  internal static var screenNativeCallAssistantsStatusOwnerLeft: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_assistants_status_owner_left") }
+  /// Paused
+  internal static var screenNativeCallAssistantsStatusPaused: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_assistants_status_paused") }
+  /// On standby · will take over
+  internal static var screenNativeCallAssistantsStatusStandby: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_assistants_status_standby") }
+  /// Starting translation…
+  internal static var screenNativeCallAssistantsStatusStarting: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_assistants_status_starting") }
+  /// Still joining…
+  internal static var screenNativeCallAssistantsStillJoining: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_assistants_still_joining") }
+  /// Stop
+  internal static var screenNativeCallAssistantsStopStandby: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_assistants_stop_standby") }
+  /// Stop translation
+  internal static var screenNativeCallAssistantsStopTranslation: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_assistants_stop_translation") }
+  /// Answers you aloud, and everyone hears it. Translation is off while it talks.
+  internal static var screenNativeCallAssistantsTalkCaption: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_assistants_talk_caption") }
+  /// Translate into
+  internal static var screenNativeCallAssistantsTranslateInto: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_assistants_translate_into") }
+  /// You hear the call in it
+  internal static var screenNativeCallAssistantsTranslateIntoDetail: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_assistants_translate_into_detail") }
+  /// Translating into %1$@
+  internal static func screenNativeCallAssistantsTranslating(_ p1: Any) -> String {
+    return UntranslatedL10n.tr("Untranslated", "screen_native_call_assistants_translating", String(describing: p1))
+  }
+  /// Try again
+  internal static var screenNativeCallAssistantsTryAgain: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_assistants_try_again") }
+  /// Assistants are unavailable right now
+  internal static var screenNativeCallAssistantsUnavailable: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_assistants_unavailable") }
+  /// The call itself is not affected
+  internal static var screenNativeCallAssistantsUnavailableDetail: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_assistants_unavailable_detail") }
+  /// Which assistant
+  internal static var screenNativeCallAssistantsWhich: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_assistants_which") }
+  /// Your assistant
+  internal static var screenNativeCallAssistantsYourAssistant: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_assistants_your_assistant") }
   /// Bluetooth
   internal static var screenNativeCallAudioRouteBluetooth: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_audio_route_bluetooth") }
   /// Connected
@@ -1376,8 +2540,6 @@ internal nonisolated enum UntranslatedL10n {
   internal static var screenNativeCallAudioRouteSpeaker: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_audio_route_speaker") }
   /// Sound
   internal static var screenNativeCallAudioRoutesTitle: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_audio_routes_title") }
-  /// Tap to return
-  internal static var screenNativeCallBarReturn: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_bar_return") }
   /// Turn on camera access for Spiral in Settings to share your video.
   internal static var screenNativeCallCameraDeniedMessage: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_camera_denied_message") }
   /// Open Settings
@@ -1390,7 +2552,43 @@ internal nonisolated enum UntranslatedL10n {
   internal static var screenNativeCallCameraFailedTitle: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_camera_failed_title") }
   /// Camera off
   internal static var screenNativeCallCameraOff: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_camera_off") }
-  /// Agent
+  /// Translation into %1$@ is available
+  internal static func screenNativeCallCapsuleAvailable(_ p1: Any) -> String {
+    return UntranslatedL10n.tr("Untranslated", "screen_native_call_capsule_available", String(describing: p1))
+  }
+  /// Change
+  internal static var screenNativeCallCapsuleChange: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_capsule_change") }
+  /// Continue
+  internal static var screenNativeCallCapsuleContinue: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_capsule_continue") }
+  /// Listen
+  internal static var screenNativeCallCapsuleListen: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_capsule_listen") }
+  /// Translating %1$@ into %2$@
+  internal static func screenNativeCallCapsuleOwnTranslating(_ p1: Any, _ p2: Any) -> String {
+    return UntranslatedL10n.tr("Untranslated", "screen_native_call_capsule_own_translating", String(describing: p1), String(describing: p2))
+  }
+  /// Translation stopped
+  internal static var screenNativeCallCapsuleStopped: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_capsule_stopped") }
+  /// %1$@ · their AI limit ran out
+  internal static func screenNativeCallCapsuleStoppedLimit(_ p1: Any) -> String {
+    return UntranslatedL10n.tr("Untranslated", "screen_native_call_capsule_stopped_limit", String(describing: p1))
+  }
+  /// %1$@ · turned it off
+  internal static func screenNativeCallCapsuleStoppedOwner(_ p1: Any) -> String {
+    return UntranslatedL10n.tr("Untranslated", "screen_native_call_capsule_stopped_owner", String(describing: p1))
+  }
+  /// %1$@ · left the call
+  internal static func screenNativeCallCapsuleStoppedOwnerLeft(_ p1: Any) -> String {
+    return UntranslatedL10n.tr("Untranslated", "screen_native_call_capsule_stopped_owner_left", String(describing: p1))
+  }
+  /// Translation on, by the chat's tool
+  internal static var screenNativeCallCapsuleTool: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_capsule_tool") }
+  /// Translating you from %1$@
+  internal static func screenNativeCallCapsuleTranslatingYou(_ p1: Any) -> String {
+    return UntranslatedL10n.tr("Untranslated", "screen_native_call_capsule_translating_you", String(describing: p1))
+  }
+  /// Undo
+  internal static var screenNativeCallCapsuleUndo: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_capsule_undo") }
+  /// Assistant
   internal static var screenNativeCallControlAgent: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_control_agent") }
   /// End
   internal static var screenNativeCallControlEnd: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_control_end") }
@@ -1402,20 +2600,8 @@ internal nonisolated enum UntranslatedL10n {
   internal static var screenNativeCallControlSound: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_control_sound") }
   /// Video
   internal static var screenNativeCallControlVideo: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_control_video") }
-  /// Reload and try again
-  internal static var screenNativeCallErrorConflictAction: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_error_conflict_action") }
-  /// Someone changed this first
-  internal static var screenNativeCallErrorConflictTitle: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_error_conflict_title") }
-  /// The session ended
-  internal static var screenNativeCallErrorGoneTitle: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_error_gone_title") }
-  /// That change was refused
-  internal static var screenNativeCallErrorRejectedTitle: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_error_rejected_title") }
   /// Call failed
   internal static var screenNativeCallErrorTitle: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_error_title") }
-  /// Controls will come back when the connection returns.
-  internal static var screenNativeCallErrorUnavailableBody: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_error_unavailable_body") }
-  /// Agent platform unavailable
-  internal static var screenNativeCallErrorUnavailableTitle: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_error_unavailable_title") }
   /// The call audio was reset by the system.
   internal static var screenNativeCallFailureAudioReset: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_failure_audio_reset") }
   /// Could not connect to the call.
@@ -1436,22 +2622,26 @@ internal nonisolated enum UntranslatedL10n {
   internal static var screenNativeCallIncomingVideo: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_incoming_video") }
   /// Spiral audio call
   internal static var screenNativeCallIncomingVoice: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_incoming_voice") }
-  /// While you receive someone's translation, their original voice is turned down on this device. Voices nobody translates for you stay at full volume.
-  internal static var screenNativeCallListeningOriginalQuietFooter: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_listening_original_quiet_footer") }
-  /// Hear the translation
-  internal static var screenNativeCallListeningTranslation: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_listening_translation") }
+  /// Your assistant is paused
+  internal static var screenNativeCallLimitAssistantPaused: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_limit_assistant_paused") }
+  /// Your assistant is paused %1$@
+  internal static func screenNativeCallLimitAssistantPausedUntil(_ p1: Any) -> String {
+    return UntranslatedL10n.tr("Untranslated", "screen_native_call_limit_assistant_paused_until", String(describing: p1))
+  }
+  /// Translation is paused
+  internal static var screenNativeCallLimitTranslationPaused: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_limit_translation_paused") }
+  /// Translation is paused %1$@
+  internal static func screenNativeCallLimitTranslationPausedUntil(_ p1: Any) -> String {
+    return UntranslatedL10n.tr("Untranslated", "screen_native_call_limit_translation_paused_until", String(describing: p1))
+  }
+  /// The AI limit is used up
+  internal static var screenNativeCallLimitUsedUp: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_limit_used_up") }
+  /// This week's AI limit is used up
+  internal static var screenNativeCallLimitUsedUpThisWeek: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_limit_used_up_this_week") }
   /// Connecting…
   internal static var screenNativeCallParticipantConnecting: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_participant_connecting") }
-  /// Covered in %1$@
-  internal static func screenNativeCallParticipantCovered(_ p1: Any) -> String {
-    return UntranslatedL10n.tr("Untranslated", "screen_native_call_participant_covered", String(describing: p1))
-  }
-  /// Muted
-  internal static var screenNativeCallParticipantMuted: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_participant_muted") }
   /// Reconnecting…
   internal static var screenNativeCallParticipantReconnecting: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_participant_reconnecting") }
-  /// Translated
-  internal static var screenNativeCallParticipantTranslated: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_participant_translated") }
   /// Waiting for encryption…
   internal static var screenNativeCallParticipantWaitingForKeys: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_participant_waiting_for_keys") }
   /// REC
@@ -1508,94 +2698,56 @@ internal nonisolated enum UntranslatedL10n {
   internal static var screenNativeCallTileNotJoined: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_tile_not_joined") }
   /// Outgoing call
   internal static var screenNativeCallTileOutgoing: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_tile_outgoing") }
-  /// Add a rule
-  internal static var screenNativeCallTranslationAddBooth: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_translation_add_booth") }
-  /// Apply
-  internal static var screenNativeCallTranslationApplyShort: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_translation_apply_short") }
-  /// AUTO
-  internal static var screenNativeCallTranslationAutoBadge: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_translation_auto_badge") }
-  /// Booths
-  internal static var screenNativeCallTranslationBooths: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_translation_booths") }
-  /// %1$d booths
-  internal static func screenNativeCallTranslationBoothsCount(_ p1: Int) -> String {
-    return UntranslatedL10n.tr("Untranslated", "screen_native_call_translation_booths_count", p1)
+  /// Add your translation…
+  internal static var screenNativeCallTranslateAddOwn: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_translate_add_own") }
+  /// You haven't allowed AI yet
+  internal static var screenNativeCallTranslateBlockConsentOwner: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_translate_block_consent_owner") }
+  /// Free
+  internal static var screenNativeCallTranslateFree: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_translate_free") }
+  /// From %1$@ · free
+  internal static func screenNativeCallTranslateFreeBy(_ p1: Any) -> String {
+    return UntranslatedL10n.tr("Untranslated", "screen_native_call_translate_free_by", String(describing: p1))
   }
-  /// Choose a language
-  internal static var screenNativeCallTranslationChooseLanguage: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_translation_choose_language") }
-  /// Forget this call's changes
-  internal static var screenNativeCallTranslationClearOverride: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_translation_clear_override") }
-  /// Every future call in %1$@ starts with these booths — not just this call.
-  internal static func screenNativeCallTranslationDefaultDialogBody(_ p1: Any) -> String {
-    return UntranslatedL10n.tr("Untranslated", "screen_native_call_translation_default_dialog_body", String(describing: p1))
+  /// Listen to the call
+  internal static var screenNativeCallTranslateMenuTitle: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_translate_menu_title") }
+  /// My language
+  internal static var screenNativeCallTranslateMyLanguage: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_translate_my_language") }
+  /// Original
+  internal static var screenNativeCallTranslateOriginal: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_translate_original") }
+  /// No translation
+  internal static var screenNativeCallTranslateOriginalDetail: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_translate_original_detail") }
+  /// Other language…
+  internal static var screenNativeCallTranslateOtherLanguage: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_translate_other_language") }
+  /// Your translation…
+  internal static var screenNativeCallTranslateOwn: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_translate_own") }
+  /// %1$d of %2$d · free
+  internal static func screenNativeCallTranslatePartial(_ p1: Int, _ p2: Int) -> String {
+    return UntranslatedL10n.tr("Untranslated", "screen_native_call_translate_partial", p1, p2)
   }
-  /// Make this the room default?
-  internal static var screenNativeCallTranslationDefaultDialogTitle: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_translation_default_dialog_title") }
-  /// %1$@ brought their own agent for their voice, so this booth was narrowed automatically.
-  internal static func screenNativeCallTranslationDisplacedNote(_ p1: Any) -> String {
-    return UntranslatedL10n.tr("Untranslated", "screen_native_call_translation_displaced_note", String(describing: p1))
+  /// %1$d of %2$d · from %3$@ · free
+  internal static func screenNativeCallTranslatePartialBy(_ p1: Int, _ p2: Int, _ p3: Any) -> String {
+    return UntranslatedL10n.tr("Untranslated", "screen_native_call_translate_partial_by", p1, p2, String(describing: p3))
   }
-  /// Everyone except %1$@
-  internal static func screenNativeCallTranslationEveryoneExcept(_ p1: Any) -> String {
-    return UntranslatedL10n.tr("Untranslated", "screen_native_call_translation_everyone_except", String(describing: p1))
-  }
-  /// Drops what you set for this call. If the room has a standing translation rule, it takes over; otherwise translation turns off.
-  internal static var screenNativeCallTranslationFootnote: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_translation_footnote") }
-  /// Listeners hear the agent's voice over the original, which is turned down for them while they receive the translation.
-  internal static var screenNativeCallTranslationHintDucked: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_translation_hint_ducked") }
-  /// How the agent interprets
-  internal static var screenNativeCallTranslationHowSection: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_translation_how_section") }
-  /// Into
-  internal static var screenNativeCallTranslationInto: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_translation_into") }
+  /// On
+  internal static var screenNativeCallTranslationToolEnabled: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_translation_tool_enabled") }
+  /// If nobody translates, my assistant does
+  internal static var screenNativeCallTranslationToolFallback: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_translation_tool_fallback") }
+  /// Uses your AI limit
+  internal static var screenNativeCallTranslationToolFallbackDetail: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_translation_tool_fallback_detail") }
+  /// You hear this chat's calls in the language you pick. If your assistant translates, everyone in the chat sees the tool.
+  internal static var screenNativeCallTranslationToolFooterShared: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_translation_tool_footer_shared") }
   /// Language
-  internal static var screenNativeCallTranslationLanguageTitle: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_translation_language_title") }
-  /// Live translation
-  internal static var screenNativeCallTranslationMaster: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_translation_master") }
-  /// For this call only
-  internal static var screenNativeCallTranslationMasterCallOnly: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_translation_master_call_only") }
-  /// Following the room's rule
-  internal static var screenNativeCallTranslationMasterRoomRule: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_translation_master_room_rule") }
-  /// Several languages · played in order
-  internal static var screenNativeCallTranslationModeMulti: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_translation_mode_multi") }
-  /// One language · used for the whole call
-  internal static var screenNativeCallTranslationModeSingle: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_translation_mode_single") }
-  /// No other participants in the call yet
-  internal static var screenNativeCallTranslationNoParticipants: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_translation_no_participants") }
-  /// Remove this rule
-  internal static var screenNativeCallTranslationRemoveBooth: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_translation_remove_booth") }
-  /// Save as this room's standard
-  internal static var screenNativeCallTranslationSaveDefault: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_translation_save_default") }
-  /// Saved as the room standard
-  internal static var screenNativeCallTranslationSavedDefault: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_translation_saved_default") }
-  /// Everyone
-  internal static var screenNativeCallTranslationScopeEveryone: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_translation_scope_everyone") }
-  /// Everyone except me
-  internal static var screenNativeCallTranslationScopeEveryoneExceptMe: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_translation_scope_everyone_except_me") }
-  /// Only me
-  internal static var screenNativeCallTranslationScopeOnlyMe: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_translation_scope_only_me") }
-  /// Specific people
-  internal static var screenNativeCallTranslationScopeSpecific: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_translation_scope_specific") }
-  /// Search languages
-  internal static var screenNativeCallTranslationSearchLanguages: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_translation_search_languages") }
-  /// Set up booths
-  internal static var screenNativeCallTranslationSetupBooths: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_translation_setup_booths") }
-  /// Interpreter
-  internal static var screenNativeCallTranslationStyleInterpreter: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_translation_style_interpreter") }
-  /// Speaks in the pause after each turn
-  internal static var screenNativeCallTranslationStyleInterpreterDetail: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_translation_style_interpreter_detail") }
-  /// Several languages, played in order
-  internal static var screenNativeCallTranslationStyleInterpreterLangs: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_translation_style_interpreter_langs") }
-  /// Live
-  internal static var screenNativeCallTranslationStyleLive: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_translation_style_live") }
-  /// Speaks over the talker, a few seconds behind
-  internal static var screenNativeCallTranslationStyleLiveDetail: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_translation_style_live_detail") }
-  /// One language
-  internal static var screenNativeCallTranslationStyleLiveLangs: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_translation_style_live_langs") }
-  /// Translate
-  internal static var screenNativeCallTranslationTranslate: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_translation_translate") }
-  /// Who is translated
-  internal static var screenNativeCallTranslationWho: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_translation_who") }
-  /// Who
-  internal static var screenNativeCallTranslationWhoRow: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_translation_who_row") }
+  internal static var screenNativeCallTranslationToolLanguage: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_translation_tool_language") }
+  /// Couldn't save this yet. Try again later.
+  internal static var screenNativeCallTranslationToolNotSaved: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_translation_tool_not_saved") }
+  /// In this chat's calls you listen in %1$@
+  internal static func screenNativeCallTranslationToolSummary(_ p1: Any) -> String {
+    return UntranslatedL10n.tr("Untranslated", "screen_native_call_translation_tool_summary", String(describing: p1))
+  }
+  /// Calls in this chat start in the original
+  internal static var screenNativeCallTranslationToolSummaryOff: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_translation_tool_summary_off") }
+  /// Call translation
+  internal static var screenNativeCallTranslationToolTitle: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_translation_tool_title") }
   /// Video paused
   internal static var screenNativeCallVideoPaused: String { return UntranslatedL10n.tr("Untranslated", "screen_native_call_video_paused") }
   /// Spiral Default
@@ -1604,8 +2756,6 @@ internal nonisolated enum UntranslatedL10n {
   internal static var screenNotificationSettingsSoundSpiralFade: String { return UntranslatedL10n.tr("Untranslated", "screen_notification_settings_sound_spiral_fade") }
   /// Recent activity
   internal static var screenNotificationsHubActivitySection: String { return UntranslatedL10n.tr("Untranslated", "screen_notifications_hub_activity_section") }
-  /// Subscribing to live updates
-  internal static var screenNotificationsHubConnectingSubtitle: String { return UntranslatedL10n.tr("Untranslated", "screen_notifications_hub_connecting_subtitle") }
   /// Approvals, consent requests and your agents' activity will appear here.
   internal static var screenNotificationsHubEmptySubtitle: String { return UntranslatedL10n.tr("Untranslated", "screen_notifications_hub_empty_subtitle") }
   /// You're all caught up
@@ -1614,6 +2764,10 @@ internal nonisolated enum UntranslatedL10n {
   internal static var screenNotificationsHubKindApproval: String { return UntranslatedL10n.tr("Untranslated", "screen_notifications_hub_kind_approval") }
   /// Verification
   internal static var screenNotificationsHubKindVerification: String { return UntranslatedL10n.tr("Untranslated", "screen_notifications_hub_kind_verification") }
+  /// Couldn't load your notifications
+  internal static var screenNotificationsHubLoadFailed: String { return UntranslatedL10n.tr("Untranslated", "screen_notifications_hub_load_failed") }
+  /// Couldn't load what waits for you
+  internal static var screenNotificationsHubNeedsActionLoadFailure: String { return UntranslatedL10n.tr("Untranslated", "screen_notifications_hub_needs_action_load_failure") }
   /// Needs action
   internal static var screenNotificationsHubNeedsActionSection: String { return UntranslatedL10n.tr("Untranslated", "screen_notifications_hub_needs_action_section") }
   /// Notifications
@@ -1680,6 +2834,8 @@ internal nonisolated enum UntranslatedL10n {
   internal static var screenOutreachQueueFilterAll: String { return UntranslatedL10n.tr("Untranslated", "screen_outreach_queue_filter_all") }
   /// Filter
   internal static var screenOutreachQueueFilterMenuTitle: String { return UntranslatedL10n.tr("Untranslated", "screen_outreach_queue_filter_menu_title") }
+  /// Couldn't load the queue
+  internal static var screenOutreachQueueLoadFailed: String { return UntranslatedL10n.tr("Untranslated", "screen_outreach_queue_load_failed") }
   /// Targets
   internal static var screenOutreachQueueSectionTitle: String { return UntranslatedL10n.tr("Untranslated", "screen_outreach_queue_section_title") }
   /// Blocked by target
@@ -1700,6 +2856,14 @@ internal nonisolated enum UntranslatedL10n {
   internal static var screenOutreachQueueUnavailableSubtitle: String { return UntranslatedL10n.tr("Untranslated", "screen_outreach_queue_unavailable_subtitle") }
   /// Queue not available
   internal static var screenOutreachQueueUnavailableTitle: String { return UntranslatedL10n.tr("Untranslated", "screen_outreach_queue_unavailable_title") }
+  /// Call
+  internal static var screenProfileActionCall: String { return UntranslatedL10n.tr("Untranslated", "screen_profile_action_call") }
+  /// More
+  internal static var screenProfileActionMore: String { return UntranslatedL10n.tr("Untranslated", "screen_profile_action_more") }
+  /// Agent
+  internal static var screenProfileAgentKindAgent: String { return UntranslatedL10n.tr("Untranslated", "screen_profile_agent_kind_agent") }
+  /// Assistant
+  internal static var screenProfileAgentKindAssistant: String { return UntranslatedL10n.tr("Untranslated", "screen_profile_agent_kind_assistant") }
   /// Contact agent
   internal static var screenPublicProfileActionContactAgent: String { return UntranslatedL10n.tr("Untranslated", "screen_public_profile_action_contact_agent") }
   /// Tap Contact agent to start a conversation. Their assistant will reply on their behalf.
@@ -1710,6 +2874,8 @@ internal nonisolated enum UntranslatedL10n {
   internal static var screenPublicProfileEmptySubtitle: String { return UntranslatedL10n.tr("Untranslated", "screen_public_profile_empty_subtitle") }
   /// No public agents
   internal static var screenPublicProfileEmptyTitle: String { return UntranslatedL10n.tr("Untranslated", "screen_public_profile_empty_title") }
+  /// Couldn't load this profile
+  internal static var screenPublicProfileLoadFailed: String { return UntranslatedL10n.tr("Untranslated", "screen_public_profile_load_failed") }
   /// %1$@ isn't on this platform — double-check the MXID or ask them to sign up.
   internal static func screenPublicProfileNotFoundSubtitle(_ p1: Any) -> String {
     return UntranslatedL10n.tr("Untranslated", "screen_public_profile_not_found_subtitle", String(describing: p1))
@@ -1722,6 +2888,76 @@ internal nonisolated enum UntranslatedL10n {
   internal static var screenPublicProfileSelfTitle: String { return UntranslatedL10n.tr("Untranslated", "screen_public_profile_self_title") }
   /// Profile
   internal static var screenPublicProfileTitle: String { return UntranslatedL10n.tr("Untranslated", "screen_public_profile_title") }
+  /// Do this if you lost your current key. Once you create a new one, the old key stops working.
+  internal static var screenRecoveryKeyChangeDescriptionSpiral: String { return UntranslatedL10n.tr("Untranslated", "screen_recovery_key_change_description_spiral") }
+  /// Don't share it with anyone.
+  internal static var screenRecoveryKeyChangeGenerateKeyDescriptionSpiral: String { return UntranslatedL10n.tr("Untranslated", "screen_recovery_key_change_generate_key_description_spiral") }
+  /// Create new key
+  internal static var screenRecoveryKeyChangeGenerateKeySpiral: String { return UntranslatedL10n.tr("Untranslated", "screen_recovery_key_change_generate_key_spiral") }
+  /// New recovery key created
+  internal static var screenRecoveryKeyChangeSuccessSpiral: String { return UntranslatedL10n.tr("Untranslated", "screen_recovery_key_change_success_spiral") }
+  /// Create a new recovery key?
+  internal static var screenRecoveryKeyChangeTitleSpiral: String { return UntranslatedL10n.tr("Untranslated", "screen_recovery_key_change_title_spiral") }
+  /// Enter your recovery key. Make sure no one can see your screen.
+  internal static var screenRecoveryKeyConfirmDescriptionSpiral: String { return UntranslatedL10n.tr("Untranslated", "screen_recovery_key_confirm_description_spiral") }
+  /// Check the key and try again.
+  internal static var screenRecoveryKeyConfirmErrorContentSpiral: String { return UntranslatedL10n.tr("Untranslated", "screen_recovery_key_confirm_error_content_spiral") }
+  /// Wrong recovery key
+  internal static var screenRecoveryKeyConfirmErrorTitleSpiral: String { return UntranslatedL10n.tr("Untranslated", "screen_recovery_key_confirm_error_title_spiral") }
+  /// It's not your sign-in phrase.
+  internal static var screenRecoveryKeyConfirmKeyDescriptionSpiral: String { return UntranslatedL10n.tr("Untranslated", "screen_recovery_key_confirm_key_description_spiral") }
+  /// Paste or type your key
+  internal static var screenRecoveryKeyConfirmKeyPlaceholderSpiral: String { return UntranslatedL10n.tr("Untranslated", "screen_recovery_key_confirm_key_placeholder_spiral") }
+  /// Unlock
+  internal static var screenRecoveryKeyConfirmSubmitSpiral: String { return UntranslatedL10n.tr("Untranslated", "screen_recovery_key_confirm_submit_spiral") }
+  /// Messages unlocked
+  internal static var screenRecoveryKeyConfirmSuccessSpiral: String { return UntranslatedL10n.tr("Untranslated", "screen_recovery_key_confirm_success_spiral") }
+  /// Unlock your messages
+  internal static var screenRecoveryKeyConfirmTitleSpiral: String { return UntranslatedL10n.tr("Untranslated", "screen_recovery_key_confirm_title_spiral") }
+  /// Recovery key copied
+  internal static var screenRecoveryKeyCopiedToClipboardSpiral: String { return UntranslatedL10n.tr("Untranslated", "screen_recovery_key_copied_to_clipboard_spiral") }
+  /// Creating…
+  internal static var screenRecoveryKeyGeneratingKeySpiral: String { return UntranslatedL10n.tr("Untranslated", "screen_recovery_key_generating_key_spiral") }
+  /// Save key
+  internal static var screenRecoveryKeySaveActionSpiral: String { return UntranslatedL10n.tr("Untranslated", "screen_recovery_key_save_action_spiral") }
+  /// Save it in a password manager or an encrypted note, or write it down and keep it in a safe place.
+  internal static var screenRecoveryKeySaveDescriptionSpiral: String { return UntranslatedL10n.tr("Untranslated", "screen_recovery_key_save_description_spiral") }
+  /// Copy or save it before you continue.
+  internal static var screenRecoveryKeySaveKeyDescriptionSpiral: String { return UntranslatedL10n.tr("Untranslated", "screen_recovery_key_save_key_description_spiral") }
+  /// Keep your key somewhere safe
+  internal static var screenRecoveryKeySaveTitleSpiral: String { return UntranslatedL10n.tr("Untranslated", "screen_recovery_key_save_title_spiral") }
+  /// After this step, you can't see this key again.
+  internal static var screenRecoveryKeySetupConfirmationDescriptionSpiral: String { return UntranslatedL10n.tr("Untranslated", "screen_recovery_key_setup_confirmation_description_spiral") }
+  /// Saved your key?
+  internal static var screenRecoveryKeySetupConfirmationTitleSpiral: String { return UntranslatedL10n.tr("Untranslated", "screen_recovery_key_setup_confirmation_title_spiral") }
+  /// It unlocks your message history on a new device. If you lose it, you can create a new one in Settings.
+  internal static var screenRecoveryKeySetupDescriptionSpiral: String { return UntranslatedL10n.tr("Untranslated", "screen_recovery_key_setup_description_spiral") }
+  /// Don't share it with anyone.
+  internal static var screenRecoveryKeySetupGenerateKeyDescriptionSpiral: String { return UntranslatedL10n.tr("Untranslated", "screen_recovery_key_setup_generate_key_description_spiral") }
+  /// Create recovery key
+  internal static var screenRecoveryKeySetupGenerateKeySpiral: String { return UntranslatedL10n.tr("Untranslated", "screen_recovery_key_setup_generate_key_spiral") }
+  /// Recovery key created
+  internal static var screenRecoveryKeySetupSuccessSpiral: String { return UntranslatedL10n.tr("Untranslated", "screen_recovery_key_setup_success_spiral") }
+  /// Create your recovery key
+  internal static var screenRecoveryKeySetupTitleSpiral: String { return UntranslatedL10n.tr("Untranslated", "screen_recovery_key_setup_title_spiral") }
+  /// Check your connection and try again.
+  internal static var screenRecoveryKeyUnknownDescriptionSpiral: String { return UntranslatedL10n.tr("Untranslated", "screen_recovery_key_unknown_description_spiral") }
+  /// Couldn't check your recovery key
+  internal static var screenRecoveryKeyUnknownTitleSpiral: String { return UntranslatedL10n.tr("Untranslated", "screen_recovery_key_unknown_title_spiral") }
+  /// Reset
+  internal static var screenResetEncryptionConfirmationAlertActionSpiral: String { return UntranslatedL10n.tr("Untranslated", "screen_reset_encryption_confirmation_alert_action_spiral") }
+  /// This can't be undone.
+  internal static var screenResetEncryptionConfirmationAlertSubtitleSpiral: String { return UntranslatedL10n.tr("Untranslated", "screen_reset_encryption_confirmation_alert_subtitle_spiral") }
+  /// Reset encryption now?
+  internal static var screenResetEncryptionConfirmationAlertTitleSpiral: String { return UntranslatedL10n.tr("Untranslated", "screen_reset_encryption_confirmation_alert_title_spiral") }
+  /// Enter…
+  internal static var screenResetEncryptionPasswordPlaceholderSpiral: String { return UntranslatedL10n.tr("Untranslated", "screen_reset_encryption_password_placeholder_spiral") }
+  /// Reset
+  internal static var screenResetEncryptionPasswordSubmitSpiral: String { return UntranslatedL10n.tr("Untranslated", "screen_reset_encryption_password_submit_spiral") }
+  /// To reset encryption, confirm it's you.
+  internal static var screenResetEncryptionPasswordSubtitleSpiral: String { return UntranslatedL10n.tr("Untranslated", "screen_reset_encryption_password_subtitle_spiral") }
+  /// Enter your password
+  internal static var screenResetEncryptionPasswordTitleSpiral: String { return UntranslatedL10n.tr("Untranslated", "screen_reset_encryption_password_title_spiral") }
   /// This link doesn't lead to any chat.
   internal static var screenRoomAliasLinkNotFound: String { return UntranslatedL10n.tr("Untranslated", "screen_room_alias_link_not_found") }
   /// Agents
@@ -1736,8 +2972,6 @@ internal nonisolated enum UntranslatedL10n {
   internal static var screenRoomInteractiveDraftByAgent: String { return UntranslatedL10n.tr("Untranslated", "screen_room_interactive_draft_by_agent") }
   /// Code
   internal static var screenRoomInteractiveDraftCode: String { return UntranslatedL10n.tr("Untranslated", "screen_room_interactive_draft_code") }
-  /// Publish
-  internal static var screenRoomInteractiveDraftPublish: String { return UntranslatedL10n.tr("Untranslated", "screen_room_interactive_draft_publish") }
   /// Publish to…
   internal static var screenRoomInteractiveDraftPublishTo: String { return UntranslatedL10n.tr("Untranslated", "screen_room_interactive_draft_publish_to") }
   /// Published
@@ -1784,10 +3018,6 @@ internal nonisolated enum UntranslatedL10n {
   internal static var screenRoomInteractivePostNoOrigin: String { return UntranslatedL10n.tr("Untranslated", "screen_room_interactive_post_no_origin") }
   /// Who should build it?
   internal static var screenRoomInteractivePostPickAgentTitle: String { return UntranslatedL10n.tr("Untranslated", "screen_room_interactive_post_pick_agent_title") }
-  /// Publish in «%1$@»
-  internal static func screenRoomInteractivePostPublishIn(_ p1: Any) -> String {
-    return UntranslatedL10n.tr("Untranslated", "screen_room_interactive_post_publish_in", String(describing: p1))
-  }
   /// Publish as new
   internal static var screenRoomInteractivePostPublishNew: String { return UntranslatedL10n.tr("Untranslated", "screen_room_interactive_post_publish_new") }
   /// Interactive post for «%1$@»
@@ -1852,8 +3082,18 @@ internal nonisolated enum UntranslatedL10n {
   internal static var screenRoomMemberDetailsEraseAssistantMemoryRefused: String { return UntranslatedL10n.tr("Untranslated", "screen_room_member_details_erase_assistant_memory_refused") }
   /// Your agents stop ignoring them too, except where you approved an agent's own block.
   internal static var screenRoomMemberDetailsUnblockAlertAgents: String { return UntranslatedL10n.tr("Untranslated", "screen_room_member_details_unblock_alert_agents") }
+  /// Reply to a message in a thread and it shows up here.
+  internal static var screenRoomThreadListEmptyMessage: String { return UntranslatedL10n.tr("Untranslated", "screen_room_thread_list_empty_message") }
+  /// No threads yet
+  internal static var screenRoomThreadListEmptyTitle: String { return UntranslatedL10n.tr("Untranslated", "screen_room_thread_list_empty_title") }
+  /// Couldn't load the threads
+  internal static var screenRoomThreadListLoadFailed: String { return UntranslatedL10n.tr("Untranslated", "screen_room_thread_list_load_failed") }
   /// Unsupported call. Ask if the caller can use Spiral.
   internal static var screenRoomTimelineLegacyCallSpiral: String { return UntranslatedL10n.tr("Untranslated", "screen_room_timeline_legacy_call_spiral") }
+  /// Plural format key: "%#@COUNT@"
+  internal static func screenRoomTimelineToolChanges(_ p1: Int) -> String {
+    return UntranslatedL10n.tr("Untranslated", "screen_room_timeline_tool_changes", p1)
+  }
   /// %1$@ of %2$@
   internal static func screenRoomToolsBannerIndicator(_ p1: Any, _ p2: Any) -> String {
     return UntranslatedL10n.tr("Untranslated", "screen_room_tools_banner_indicator", String(describing: p1), String(describing: p2))
@@ -1862,18 +3102,10 @@ internal nonisolated enum UntranslatedL10n {
   internal static func screenRoomToolsBannerIndicatorToolsDescription(_ p1: Any) -> String {
     return UntranslatedL10n.tr("Untranslated", "screen_room_tools_banner_indicator_tools_description", String(describing: p1))
   }
-  /// Search for chats and messages
-  internal static var screenSearchEmptyStateMessage: String { return UntranslatedL10n.tr("Untranslated", "screen_search_empty_state_message") }
-  /// Start searching...
-  internal static var screenSearchEmptyStateTitle: String { return UntranslatedL10n.tr("Untranslated", "screen_search_empty_state_title") }
-  /// There are no results for “%1$@.” Try a new search term.
-  internal static func screenSearchNoResultsMessage(_ p1: Any) -> String {
-    return UntranslatedL10n.tr("Untranslated", "screen_search_no_results_message", String(describing: p1))
-  }
-  /// Chats
-  internal static var screenSearchTabChats: String { return UntranslatedL10n.tr("Untranslated", "screen_search_tab_chats") }
-  /// Messages
-  internal static var screenSearchTabMessages: String { return UntranslatedL10n.tr("Untranslated", "screen_search_tab_messages") }
+  /// typing…
+  internal static var screenRoomTypingDmIos: String { return UntranslatedL10n.tr("Untranslated", "screen_room_typing_dm_ios") }
+  /// Filter
+  internal static var screenRoomlistFilterMenuTitle: String { return UntranslatedL10n.tr("Untranslated", "screen_roomlist_filter_menu_title") }
   /// Your recovery key unlocks your message history on a new device. It is not your sign-in phrase.
   internal static var screenSecurityMessagesFooter: String { return UntranslatedL10n.tr("Untranslated", "screen_security_messages_footer") }
   /// Messages
@@ -1884,6 +3116,42 @@ internal nonisolated enum UntranslatedL10n {
   internal static var screenSecuritySignInSection: String { return UntranslatedL10n.tr("Untranslated", "screen_security_sign_in_section") }
   /// This device
   internal static var screenSecurityThisDeviceSection: String { return UntranslatedL10n.tr("Untranslated", "screen_security_this_device_section") }
+  /// Check that your other device shows the same emoji in the same order.
+  internal static var screenSessionVerificationCompareEmojisSubtitleSpiral: String { return UntranslatedL10n.tr("Untranslated", "screen_session_verification_compare_emojis_subtitle_spiral") }
+  /// Do the emoji match?
+  internal static var screenSessionVerificationCompareEmojisTitleSpiral: String { return UntranslatedL10n.tr("Untranslated", "screen_session_verification_compare_emojis_title_spiral") }
+  /// Check that their device shows the same emoji in the same order.
+  internal static var screenSessionVerificationCompareEmojisUserSubtitleSpiral: String { return UntranslatedL10n.tr("Untranslated", "screen_session_verification_compare_emojis_user_subtitle_spiral") }
+  /// Your messages now open on your other device too.
+  internal static var screenSessionVerificationCompleteSubtitleSpiral: String { return UntranslatedL10n.tr("Untranslated", "screen_session_verification_complete_subtitle_spiral") }
+  /// You can now be sure you're messaging the real person.
+  internal static var screenSessionVerificationCompleteUserSubtitleSpiral: String { return UntranslatedL10n.tr("Untranslated", "screen_session_verification_complete_user_subtitle_spiral") }
+  /// Device confirmed
+  internal static var screenSessionVerificationDeviceVerifiedSpiral: String { return UntranslatedL10n.tr("Untranslated", "screen_session_verification_device_verified_spiral") }
+  /// The request timed out, was declined, or the emoji didn't match.
+  internal static var screenSessionVerificationFailedSubtitleSpiral: String { return UntranslatedL10n.tr("Untranslated", "screen_session_verification_failed_subtitle_spiral") }
+  /// Continue only if you started this yourself.
+  internal static var screenSessionVerificationRequestFooterSpiral: String { return UntranslatedL10n.tr("Untranslated", "screen_session_verification_request_footer_spiral") }
+  /// Confirm your other device so it can open your messages safely.
+  internal static var screenSessionVerificationRequestSubtitleSpiral: String { return UntranslatedL10n.tr("Untranslated", "screen_session_verification_request_subtitle_spiral") }
+  /// Confirmation request
+  internal static var screenSessionVerificationRequestTitleSpiral: String { return UntranslatedL10n.tr("Untranslated", "screen_session_verification_request_title_spiral") }
+  /// Continue
+  internal static var screenSessionVerificationStartSpiral: String { return UntranslatedL10n.tr("Untranslated", "screen_session_verification_start_spiral") }
+  /// No, they don't
+  internal static var screenSessionVerificationTheyDontMatchSpiral: String { return UntranslatedL10n.tr("Untranslated", "screen_session_verification_they_dont_match_spiral") }
+  /// Yes, they match
+  internal static var screenSessionVerificationTheyMatchSpiral: String { return UntranslatedL10n.tr("Untranslated", "screen_session_verification_they_match_spiral") }
+  /// Use a device where you've already confirmed it's you, and keep Spiral open there.
+  internal static var screenSessionVerificationUseAnotherDeviceSubtitleSpiral: String { return UntranslatedL10n.tr("Untranslated", "screen_session_verification_use_another_device_subtitle_spiral") }
+  /// Open Spiral on another device
+  internal static var screenSessionVerificationUseAnotherDeviceTitleSpiral: String { return UntranslatedL10n.tr("Untranslated", "screen_session_verification_use_another_device_title_spiral") }
+  /// For extra safety, you'll each see a set of emoji. Compare them in person or on a call you trust.
+  internal static var screenSessionVerificationUserInitiatorSubtitleSpiral: String { return UntranslatedL10n.tr("Untranslated", "screen_session_verification_user_initiator_subtitle_spiral") }
+  /// Confirm this person?
+  internal static var screenSessionVerificationUserInitiatorTitleSpiral: String { return UntranslatedL10n.tr("Untranslated", "screen_session_verification_user_initiator_title_spiral") }
+  /// Someone wants to make sure it's really you. You'll both compare a set of emoji.
+  internal static var screenSessionVerificationUserResponderSubtitleSpiral: String { return UntranslatedL10n.tr("Untranslated", "screen_session_verification_user_responder_subtitle_spiral") }
   /// Appearance & media
   internal static var screenSettingsAppearanceMediaTitle: String { return UntranslatedL10n.tr("Untranslated", "screen_settings_appearance_media_title") }
   /// Devices & sessions
@@ -1922,6 +3190,48 @@ internal nonisolated enum UntranslatedL10n {
   internal static var screenStartSignIn: String { return UntranslatedL10n.tr("Untranslated", "screen_start_sign_in") }
   /// Fast, private messaging with your personal agent.
   internal static var screenStartWelcomeSubtitle: String { return UntranslatedL10n.tr("Untranslated", "screen_start_welcome_subtitle") }
+  /// Only the agent's owner can change or turn off this tool.
+  internal static var screenToolDetailFooter: String { return UntranslatedL10n.tr("Untranslated", "screen_tool_detail_footer") }
+  /// When
+  internal static var screenToolDetailWhen: String { return UntranslatedL10n.tr("Untranslated", "screen_tool_detail_when") }
+  /// Your messages
+  internal static var screenToolDetailYourMessages: String { return UntranslatedL10n.tr("Untranslated", "screen_tool_detail_your_messages") }
+  /// Not processed
+  internal static var screenToolDetailYourMessagesNotProcessed: String { return UntranslatedL10n.tr("Untranslated", "screen_tool_detail_your_messages_not_processed") }
+  /// Processed
+  internal static var screenToolDetailYourMessagesProcessed: String { return UntranslatedL10n.tr("Untranslated", "screen_tool_detail_your_messages_processed") }
+  /// Couldn't check
+  internal static var screenToolDetailYourMessagesUnknown: String { return UntranslatedL10n.tr("Untranslated", "screen_tool_detail_your_messages_unknown") }
+  /// The team went through the report and will send it by Friday.
+  internal static var screenToolExampleCallSummary: String { return UntranslatedL10n.tr("Untranslated", "screen_tool_example_call_summary") }
+  /// Anna: check the figures
+  internal static var screenToolExampleCallSummaryActionItem: String { return UntranslatedL10n.tr("Untranslated", "screen_tool_example_call_summary_action_item") }
+  /// Action items
+  internal static var screenToolExampleCallSummaryActionItemsTitle: String { return UntranslatedL10n.tr("Untranslated", "screen_tool_example_call_summary_action_items_title") }
+  /// Send the report by Friday
+  internal static var screenToolExampleCallSummaryDecision: String { return UntranslatedL10n.tr("Untranslated", "screen_tool_example_call_summary_decision") }
+  /// Decisions
+  internal static var screenToolExampleCallSummaryDecisionsTitle: String { return UntranslatedL10n.tr("Untranslated", "screen_tool_example_call_summary_decisions_title") }
+  /// I'm sending the report tomorrow.
+  internal static var screenToolExampleCorrected: String { return UntranslatedL10n.tr("Untranslated", "screen_tool_example_corrected") }
+  /// To do: send the report by Friday.
+  internal static var screenToolExampleCustom: String { return UntranslatedL10n.tr("Untranslated", "screen_tool_example_custom") }
+  /// Hello, how are you?
+  internal static var screenToolExampleGreeting: String { return UntranslatedL10n.tr("Untranslated", "screen_tool_example_greeting") }
+  /// Example instruction: make it more polite
+  internal static var screenToolExampleInstructionPolite: String { return UntranslatedL10n.tr("Untranslated", "screen_tool_example_instruction_polite") }
+  /// Example instruction: turn it into a to-do
+  internal static var screenToolExampleInstructionTodo: String { return UntranslatedL10n.tr("Untranslated", "screen_tool_example_instruction_todo") }
+  /// Could you send me the report by Friday? I need it for the meeting.
+  internal static var screenToolExampleMessage: String { return UntranslatedL10n.tr("Untranslated", "screen_tool_example_message") }
+  /// I would be grateful to receive the report by Friday.
+  internal static var screenToolExampleRephrased: String { return UntranslatedL10n.tr("Untranslated", "screen_tool_example_rephrased") }
+  /// Please send the report by Friday.
+  internal static var screenToolExampleSimplified: String { return UntranslatedL10n.tr("Untranslated", "screen_tool_example_simplified") }
+  /// The report is needed by Friday.
+  internal static var screenToolExampleSummary: String { return UntranslatedL10n.tr("Untranslated", "screen_tool_example_summary") }
+  /// Im sending teh report tommorow
+  internal static var screenToolExampleTypos: String { return UntranslatedL10n.tr("Untranslated", "screen_tool_example_typos") }
   /// Add (%1$d)
   internal static func screenToolMemberPickerConfirmCount(_ p1: Int) -> String {
     return UntranslatedL10n.tr("Untranslated", "screen_tool_member_picker_confirm_count", p1)
@@ -2013,12 +3323,56 @@ internal nonisolated enum UntranslatedL10n {
   }
   /// Sign in
   internal static var softLogoutSigninTitle: String { return UntranslatedL10n.tr("Untranslated", "soft_logout_signin_title") }
+  /// From %1$@
+  internal static func spiralAppCardLineBy(_ p1: Any) -> String {
+    return UntranslatedL10n.tr("Untranslated", "spiral_app_card_line_by", String(describing: p1))
+  }
   /// Update the app to open it
   internal static var spiralAppNeedsUpdate: String { return UntranslatedL10n.tr("Untranslated", "spiral_app_needs_update") }
   /// Interactive
   internal static var spiralAppNotRunning: String { return UntranslatedL10n.tr("Untranslated", "spiral_app_not_running") }
   /// Open full screen
   internal static var spiralAppOpenFullScreen: String { return UntranslatedL10n.tr("Untranslated", "spiral_app_open_full_screen") }
+  /// Never enter a password or a code here.
+  internal static var spiralAppViewerBanner: String { return UntranslatedL10n.tr("Untranslated", "spiral_app_viewer_banner") }
+  /// Interactive post
+  internal static var spiralAppViewerSubtitle: String { return UntranslatedL10n.tr("Untranslated", "spiral_app_viewer_subtitle") }
+  /// %1$@ changed %2$@
+  internal static func stateEventSpiralToolChanged(_ p1: Any, _ p2: Any) -> String {
+    return UntranslatedL10n.tr("Untranslated", "state_event_spiral_tool_changed", String(describing: p1), String(describing: p2))
+  }
+  /// You changed %1$@
+  internal static func stateEventSpiralToolChangedByYou(_ p1: Any) -> String {
+    return UntranslatedL10n.tr("Untranslated", "state_event_spiral_tool_changed_by_you", String(describing: p1))
+  }
+  /// %1$@ changed Translate: %2$@ → %3$@
+  internal static func stateEventSpiralToolLanguageChanged(_ p1: Any, _ p2: Any, _ p3: Any) -> String {
+    return UntranslatedL10n.tr("Untranslated", "state_event_spiral_tool_language_changed", String(describing: p1), String(describing: p2), String(describing: p3))
+  }
+  /// You changed Translate: %1$@ → %2$@
+  internal static func stateEventSpiralToolLanguageChangedByYou(_ p1: Any, _ p2: Any) -> String {
+    return UntranslatedL10n.tr("Untranslated", "state_event_spiral_tool_language_changed_by_you", String(describing: p1), String(describing: p2))
+  }
+  /// %1$@ turned off %2$@
+  internal static func stateEventSpiralToolOff(_ p1: Any, _ p2: Any) -> String {
+    return UntranslatedL10n.tr("Untranslated", "state_event_spiral_tool_off", String(describing: p1), String(describing: p2))
+  }
+  /// %1$@ was turned off for %2$@
+  internal static func stateEventSpiralToolOffBySystem(_ p1: Any, _ p2: Any) -> String {
+    return UntranslatedL10n.tr("Untranslated", "state_event_spiral_tool_off_by_system", String(describing: p1), String(describing: p2))
+  }
+  /// You turned off %1$@
+  internal static func stateEventSpiralToolOffByYou(_ p1: Any) -> String {
+    return UntranslatedL10n.tr("Untranslated", "state_event_spiral_tool_off_by_you", String(describing: p1))
+  }
+  /// %1$@ turned on %2$@
+  internal static func stateEventSpiralToolOn(_ p1: Any, _ p2: Any) -> String {
+    return UntranslatedL10n.tr("Untranslated", "state_event_spiral_tool_on", String(describing: p1), String(describing: p2))
+  }
+  /// You turned on %1$@
+  internal static func stateEventSpiralToolOnByYou(_ p1: Any) -> String {
+    return UntranslatedL10n.tr("Untranslated", "state_event_spiral_tool_on_by_you", String(describing: p1))
+  }
   /// %1$@: %2$@
   internal static func stateEventSpiralToolsActive(_ p1: Any, _ p2: Any) -> String {
     return UntranslatedL10n.tr("Untranslated", "state_event_spiral_tools_active", String(describing: p1), String(describing: p2))
@@ -2050,6 +3404,12 @@ internal nonisolated enum UntranslatedL10n {
 // Swift 6.2 default-MainActor isolation change.
 nonisolated extension UntranslatedL10n {
   static func tr(_ table: String, _ key: String, _ args: CVarArg...) -> String {
+    // AGENT-PLATFORM (Brief 0083, question 359): the timeline's rows ask for their labels each time they're drawn.
+    guard args.isEmpty else { return lookUp(table, key, args) }
+    return Bundle.cachedTranslation(table: table, key: key) { lookUp(table, key, args) }
+  }
+
+  private static func lookUp(_ table: String, _ key: String, _ args: [CVarArg]) -> String {
     // Use preferredLocalizations to get a language that is in the bundle and the user's preferred list of languages.
     let languages = Bundle.overrideLocalizations ?? Bundle.app.preferredLocalizations
 

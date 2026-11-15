@@ -20,9 +20,9 @@ enum UserSessionFlowCoordinatorAction {
 
 class UserSessionFlowCoordinator: FlowCoordinatorProtocol {
     // AGENT-PLATFORM: added `.agents` case so the tab bar carries a
-    // third destination for the agent-platform feature (upstream's
-    // `.search` tab stays as the optional fourth, iOS 26 + dev flag).
-    enum HomeTab: Hashable { case chats, spaces, agents, search }
+    // destination for the agent-platform feature.
+    // AGENT-PLATFORM: feed (Brief 0082): `.feed`, second after Chats (D-P9).
+    enum HomeTab: Hashable { case chats, feed, spaces, agents, settings } // AGENT-PLATFORM (Brief 0083, question 343): settings, no search tab
     
     private let navigationRootCoordinator: NavigationRootCoordinator
     private let navigationTabCoordinator: NavigationTabCoordinator<HomeTab>
@@ -41,35 +41,33 @@ class UserSessionFlowCoordinator: FlowCoordinatorProtocol {
     private let onboardingStackCoordinator: NavigationStackCoordinator
     private let chatsTabFlowCoordinator: ChatsTabFlowCoordinator
     private let chatsTabDetails: NavigationTabCoordinator<HomeTab>.TabDetails
-    private let spacesTabFlowCoordinator: SpacesTabFlowCoordinator
-    private let spacesTabDetails: NavigationTabCoordinator<HomeTab>.TabDetails
+    // AGENT-PLATFORM (decision 301): `nil` while `spacesEnabled` is off.
+    private let spacesTabFlowCoordinator: SpacesTabFlowCoordinator?
     // AGENT-PLATFORM: Agents tab flow + tab metadata (S150).
     private let agentsTabFlowCoordinator: AgentSpacesTabFlowCoordinator
     private let agentsTabDetails: NavigationTabCoordinator<HomeTab>.TabDetails
+    // AGENT-PLATFORM: feed (Brief 0082)
+    private let feedTabFlowCoordinator: FeedTabFlowCoordinator
+    private let feedTabDetails: NavigationTabCoordinator<HomeTab>.TabDetails
     
-    private let searchScreenCoordinator: SearchScreenCoordinator?
-    private let searchTabNavigationStackCoordinator: NavigationStackCoordinator?
-    private let searchTabDetails: NavigationTabCoordinator<HomeTab>.TabDetails?
+    let searchScreenCoordinator: SearchScreenCoordinator? // AGENT-PLATFORM (Brief 0083): readable, so a test can open a result.
     
-    private var settingsFlowCoordinator: SettingsFlowCoordinator?
+    // AGENT-PLATFORM (Brief 0083, question 343): Settings is the person's tab, not a sheet.
+    private let settingsFlowCoordinator: SettingsFlowCoordinator
+    private let settingsStackCoordinator: NavigationStackCoordinator
+    private let settingsTabDetails: NavigationTabCoordinator<HomeTab>.TabDetails
+    private var settingsTabAvatarTask: Task<Void, Never>?
     
     enum State: StateType {
         /// The state machine hasn't started.
         case initial
         /// The root screen for this flow.
         case tabBar
-        /// Showing the settings screen.
-        case settingsScreen
     }
     
     enum Event: EventType {
         /// The flow is being started.
         case start
-        
-        /// Request presentation of the settings screen.
-        case showSettingsScreen
-        /// The settings screen has been dismissed.
-        case dismissedSettingsScreen
     }
     
     private let stateMachine: StateMachine<State, Event>
@@ -88,49 +86,72 @@ class UserSessionFlowCoordinator: FlowCoordinatorProtocol {
         self.appLockService = appLockService
         self.flowParameters = flowParameters
         presenceService = PresenceService(clientProxy: flowParameters.userSession.clientProxy,
-                                          appSettings: flowParameters.appSettings)
+                                          userSettings: flowParameters.userSession.userSettings)
         
         navigationTabCoordinator = NavigationTabCoordinator()
         navigationRootCoordinator.setRootCoordinator(navigationTabCoordinator)
         
-        let chatsSplitCoordinator = NavigationSplitCoordinator(placeholderCoordinator: PlaceholderScreenCoordinator(hideBrandChrome: flowParameters.appSettings.hideBrandChrome))
+        // AGENT-PLATFORM (Brief 0083, question 343): search is Chats' field now, so its coordinator comes first.
+        if flowParameters.userSession.userSettings.app.globalSearchEnabled {
+            let searchCoordinator = SearchScreenCoordinator(parameters: .init(roomSummaryProvider: flowParameters.userSession.clientProxy.alternateRoomSummaryProvider,
+                                                                              userSession: flowParameters.userSession,
+                                                                              userIndicatorController: flowParameters.userIndicatorController))
+            searchCoordinator.start()
+            searchScreenCoordinator = searchCoordinator
+        } else {
+            searchScreenCoordinator = nil
+        }
+        
+        let chatsSplitCoordinator = NavigationSplitCoordinator(placeholderCoordinator: PlaceholderScreenCoordinator(hideBrandChrome: flowParameters.userSession.userSettings.app.hideBrandChrome))
         chatsTabFlowCoordinator = ChatsTabFlowCoordinator(navigationSplitCoordinator: chatsSplitCoordinator,
+                                                          searchContext: searchScreenCoordinator?.context, // AGENT-PLATFORM (Brief 0083, question 343)
                                                           flowParameters: flowParameters)
-        chatsTabDetails = .init(tag: HomeTab.chats, title: L10n.screenHomeTabChats, icon: \.chat, selectedIcon: \.chatSolid)
+        chatsTabDetails = .init(tag: HomeTab.chats,
+                                title: L10n.screenHomeTabChats,
+                                symbol: SpiralTabSymbol.chats, // AGENT-PLATFORM (decision 386): Crest
+                                accessibilityIdentifier: A11yIdentifiers.homeTabs.chats)
+        
         chatsTabDetails.navigationSplitCoordinator = chatsSplitCoordinator
         
-        let spacesSplitCoordinator = NavigationSplitCoordinator(placeholderCoordinator: PlaceholderScreenCoordinator(hideBrandChrome: flowParameters.appSettings.hideBrandChrome))
-        spacesTabFlowCoordinator = SpacesTabFlowCoordinator(navigationSplitCoordinator: spacesSplitCoordinator,
-                                                            flowParameters: flowParameters)
-        spacesTabDetails = .init(tag: HomeTab.spaces, title: L10n.screenHomeTabSpaces, icon: \.space, selectedIcon: \.spaceSolid)
-        spacesTabDetails.navigationSplitCoordinator = spacesSplitCoordinator
+        // AGENT-PLATFORM: feed (Brief 0082)
+        let feedSplitCoordinator = NavigationSplitCoordinator(placeholderCoordinator: PlaceholderScreenCoordinator(hideBrandChrome: flowParameters.userSession.userSettings.app.hideBrandChrome))
+        feedTabFlowCoordinator = FeedTabFlowCoordinator(navigationSplitCoordinator: feedSplitCoordinator,
+                                                        flowParameters: flowParameters)
+        feedTabDetails = .init(tag: HomeTab.feed,
+                               title: UntranslatedL10n.screenHomeTabFeed,
+                               symbol: SpiralTabSymbol.feed, // AGENT-PLATFORM (decision 386): Crest
+                               accessibilityIdentifier: A11yIdentifiers.feedScreen.tab)
+        feedTabDetails.navigationSplitCoordinator = feedSplitCoordinator
+        
+        // AGENT-PLATFORM (decision 301): without the flag there is no Spaces tab; spaces open in Chats.
+        let spacesTab: NavigationTabCoordinator<HomeTab>.Tab?
+        if flowParameters.userSession.userSettings.app.spacesEnabled {
+            let spacesSplitCoordinator = NavigationSplitCoordinator(placeholderCoordinator: PlaceholderScreenCoordinator(hideBrandChrome: flowParameters.userSession.userSettings.app.hideBrandChrome))
+            spacesTabFlowCoordinator = SpacesTabFlowCoordinator(navigationSplitCoordinator: spacesSplitCoordinator,
+                                                                flowParameters: flowParameters)
+            let spacesTabDetails = NavigationTabCoordinator<HomeTab>.TabDetails(tag: HomeTab.spaces,
+                                                                                title: L10n.screenHomeTabSpaces,
+                                                                                icon: \.space,
+                                                                                selectedIcon: \.spaceSolid,
+                                                                                accessibilityIdentifier: A11yIdentifiers.homeTabs.spaces)
+            
+            spacesTabDetails.navigationSplitCoordinator = spacesSplitCoordinator
+            spacesTab = .init(coordinator: spacesSplitCoordinator, details: spacesTabDetails)
+        } else {
+            spacesTabFlowCoordinator = nil
+            spacesTab = nil
+        }
         
         // AGENT-PLATFORM: Agents tab — Brief 0037 rebuild on the
         // Spaces model (Organization = space → Agent = child →
         // Room = deeper). Owns the agent-spaces directory and will
         // host the approvals inbox bell in its nav bar.
-        let agentsSplitCoordinator = NavigationSplitCoordinator(placeholderCoordinator: PlaceholderScreenCoordinator(hideBrandChrome: flowParameters.appSettings.hideBrandChrome))
+        let agentsSplitCoordinator = NavigationSplitCoordinator(placeholderCoordinator: PlaceholderScreenCoordinator(hideBrandChrome: flowParameters.userSession.userSettings.app.hideBrandChrome))
         agentsTabFlowCoordinator = AgentSpacesTabFlowCoordinator(navigationSplitCoordinator: agentsSplitCoordinator,
                                                                  flowParameters: flowParameters)
-        agentsTabDetails = .init(tag: HomeTab.agents, title: UntranslatedL10n.screenHomeTabAgents, icon: \.host, selectedIcon: \.host)
+        agentsTabDetails = .init(tag: HomeTab.agents, title: UntranslatedL10n.screenHomeTabAgents, symbol: SpiralTabSymbol.agents,
+                                 accessibilityIdentifier: A11yIdentifiers.homeTabs.agents)
         agentsTabDetails.navigationSplitCoordinator = agentsSplitCoordinator
-        
-        if flowParameters.appSettings.globalSearchEnabled, #available(iOS 26.0, *) {
-            let searchCoordinator = SearchScreenCoordinator(parameters: .init(roomSummaryProvider: flowParameters.userSession.clientProxy.alternateRoomSummaryProvider,
-                                                                              clientProxy: flowParameters.userSession.clientProxy,
-                                                                              mediaProvider: flowParameters.userSession.mediaProvider,
-                                                                              userIndicatorController: flowParameters.userIndicatorController))
-            let searchStackCoordinator = NavigationStackCoordinator()
-            searchStackCoordinator.setRootCoordinator(searchCoordinator)
-            
-            searchScreenCoordinator = searchCoordinator
-            searchTabNavigationStackCoordinator = searchStackCoordinator
-            searchTabDetails = .init(tag: HomeTab.search, title: UntranslatedL10n.screenHomeTabSearch, icon: \.search, selectedIcon: \.search, isSearch: true)
-        } else {
-            searchScreenCoordinator = nil
-            searchTabNavigationStackCoordinator = nil
-            searchTabDetails = nil
-        }
         
         onboardingStackCoordinator = NavigationStackCoordinator()
         onboardingFlowCoordinator = OnboardingFlowCoordinator(isNewLogin: isNewLogin,
@@ -138,16 +159,26 @@ class UserSessionFlowCoordinator: FlowCoordinatorProtocol {
                                                               navigationStackCoordinator: onboardingStackCoordinator,
                                                               flowParameters: flowParameters)
         
-        var tabs: [NavigationTabCoordinator<HomeTab>.Tab] = [
+        // AGENT-PLATFORM (Brief 0083, question 343): the person's tab, with Settings as its root.
+        settingsStackCoordinator = NavigationStackCoordinator()
+        settingsFlowCoordinator = SettingsFlowCoordinator(appLockService: appLockService,
+                                                          isInSecondaryWindow: false,
+                                                          navigationStackCoordinator: settingsStackCoordinator,
+                                                          flowParameters: flowParameters)
+        settingsTabDetails = .init(tag: HomeTab.settings, title: L10n.commonSettings, icon: \.userProfile, selectedIcon: \.userProfileSolid,
+                                   accessibilityIdentifier: A11yIdentifiers.homeScreen.userAvatar)
+        
+        // AGENT-PLATFORM (decision 301): optional entries, for the Spaces tab.
+        let tabEntries: [NavigationTabCoordinator<HomeTab>.Tab?] = [
             .init(coordinator: chatsSplitCoordinator, details: chatsTabDetails),
-            .init(coordinator: spacesSplitCoordinator, details: spacesTabDetails),
+            .init(coordinator: feedSplitCoordinator, details: feedTabDetails), // AGENT-PLATFORM: feed (Brief 0082)
+            spacesTab, // AGENT-PLATFORM (decision 301)
             // AGENT-PLATFORM: third tab for the agents feature.
-            .init(coordinator: agentsSplitCoordinator, details: agentsTabDetails)
+            .init(coordinator: agentsSplitCoordinator, details: agentsTabDetails),
+            .init(coordinator: settingsStackCoordinator, details: settingsTabDetails) // AGENT-PLATFORM (Brief 0083, question 343)
         ]
-        if let searchTabNavigationStackCoordinator, let searchTabDetails {
-            tabs.append(.init(coordinator: searchTabNavigationStackCoordinator, details: searchTabDetails))
-        }
-        navigationTabCoordinator.setTabs(tabs)
+        
+        navigationTabCoordinator.setTabs(tabEntries.compactMap(\.self))
         
         stateMachine = flowParameters.stateMachineFactory.makeUserSessionFlowStateMachine(state: .initial)
         configureStateMachine()
@@ -173,25 +204,27 @@ class UserSessionFlowCoordinator: FlowCoordinatorProtocol {
         }
         flowParameters.callKitService.tearDownCallSession(forRoomID: nil)
         chatsTabFlowCoordinator.stop()
-        // AGENT-PLATFORM (decision 154): the stream reconnected with the ended
-        // session's token after a sign-out or account deletion.
-        userSession.approvalsStreamService?.stop()
+        // AGENT-PLATFORM: platform sync (decisions 154, 289): the session's sync
+        // stream must not reconnect with the ended session's token.
+        flowParameters.userSession.platformSync?.stop()
     }
     
     func handleAppRoute(_ appRoute: AppRoute, animated: Bool) {
         MXLog.info("Handling app route: \(appRoute)")
         
         switch appRoute {
-        case .accountProvisioningLink, .oAuthCallback, .inviteLink: // AGENT-PLATFORM: .inviteLink (Brief 0073)
+        case .oAuthCallback, .inviteLink: // AGENT-PLATFORM: .inviteLink (Brief 0073), no .accountProvisioningLink (Brief 0083 L1b)
             break // We always ignore these flows when logged in.
         case .settings, .chatBackupSettings, .aiConsentSettings: // AGENT-PLATFORM: .aiConsentSettings (decision 150)
             if ProcessInfo.processInfo.isiOSAppOnMac, flowParameters.windowManager.secondaryWindowsEnabled {
-                startSettingsFlow(detached: true)
+                startDetachedSettingsFlow()
             } else {
-                if stateMachine.state != .settingsScreen {
-                    stateMachine.tryEvent(.showSettingsScreen)
+                // AGENT-PLATFORM (Brief 0083, question 343): the route opens the person's tab, at the screen it names.
+                settingsStackCoordinator.popToRoot(animated: false)
+                if appRoute != .settings {
+                    settingsFlowCoordinator.handleAppRoute(appRoute, animated: animated)
                 }
-                settingsFlowCoordinator?.handleAppRoute(appRoute, animated: animated)
+                navigationTabCoordinator.selectedTab = .settings
             }
         case .call(let roomID, let isVoiceCall):
             Task { await presentCallScreen(roomID: roomID, isVoiceCall: isVoiceCall) }
@@ -199,10 +232,14 @@ class UserSessionFlowCoordinator: FlowCoordinatorProtocol {
         // deep links into the Agents tab. Listed before the chats
         // catch-all so the explicit cases win.
         case .approvalDetail, .verificationDetail, .publicProfile:
-            clearPresentedSheets(animated: animated)
             agentsTabFlowCoordinator.handleAppRoute(appRoute, animated: animated)
             if navigationTabCoordinator.selectedTab != .agents {
                 navigationTabCoordinator.selectedTab = .agents
+            }
+        case .feedPost, .feedNotices: // AGENT-PLATFORM: feed (Brief 0082)
+            feedTabFlowCoordinator.handleAppRoute(appRoute, animated: animated)
+            if navigationTabCoordinator.selectedTab != .feed {
+                navigationTabCoordinator.selectedTab = .feed
             }
         // AGENT-PLATFORM (Brief 0060): `.userProfile` lands on Element's
         // canonical UserProfileScreen — avatar, display name, MXID and a
@@ -222,37 +259,25 @@ class UserSessionFlowCoordinator: FlowCoordinatorProtocol {
              .event, .eventOnRoomAlias, .childEvent, .childEventOnRoomAlias,
              .share, .transferOwnership, .thread,
              .catalogTemplate: // AGENT-PLATFORM (decision 111): the chat picker is the chats tab's.
-            clearPresentedSheets(animated: animated) // Make sure the presented route is visible.
             chatsTabFlowCoordinator.handleAppRoute(appRoute, animated: animated)
             if navigationTabCoordinator.selectedTab != .chats {
                 navigationTabCoordinator.selectedTab = .chats
             }
         case .search:
-            // Switch to the dedicated search tab when it's available (iOS 26 + flag), otherwise ignore.
-            if searchTabNavigationStackCoordinator != nil {
-                navigationTabCoordinator.selectedTab = .search
+            // AGENT-PLATFORM (Brief 0083, question 343): search is Chats' field when it's available (flag enabled), otherwise ignore.
+            if let searchScreenCoordinator {
+                // AGENT-PLATFORM (Brief 0083): in compact width an open room covers Chats, and the field with it.
+                if flowParameters.windowManager.mainWindow.traitCollection.horizontalSizeClass == .compact {
+                    clearRoute(animated: false)
+                }
+                navigationTabCoordinator.selectedTab = .chats
+                searchScreenCoordinator.presentSearch()
             }
         }
     }
 
     func clearRoute(animated: Bool) {
-        clearPresentedSheets(animated: animated)
         chatsTabFlowCoordinator.clearRoute(animated: animated)
-    }
-    
-    /// Clearing routes is more complicated than it first seems. When passing routes
-    /// to the chats flow we can't clear all routes as e.g. childRoom/childEvent etc
-    /// expect to push into the existing stack. But we do need to hide any sheets that
-    /// might cover up the presented route. BUT! We probably shouldn't dismiss onboarding
-    /// or verification flows until they're complete… This needs more thought before we
-    /// codify it all into the state machine.
-    private func clearPresentedSheets(animated: Bool) {
-        switch stateMachine.state {
-        case .initial, .tabBar:
-            break
-        case .settingsScreen:
-            navigationTabCoordinator.setSheetCoordinator(nil, animated: animated)
-        }
     }
     
     // MARK: - Invite welcome (AGENT-PLATFORM, Brief 0073)
@@ -307,8 +332,12 @@ class UserSessionFlowCoordinator: FlowCoordinatorProtocol {
             guard let self else { return }
             
             chatsTabFlowCoordinator.start()
-            spacesTabFlowCoordinator.start()
+            settingsFlowCoordinator.handleAppRoute(.settings, animated: false) // AGENT-PLATFORM (Brief 0083, question 343)
+            spacesTabFlowCoordinator?.start() // AGENT-PLATFORM (decision 301)
             agentsTabFlowCoordinator.start() // AGENT-PLATFORM: bring up Agents tab.
+            feedTabFlowCoordinator.start() // AGENT-PLATFORM: feed (Brief 0082)
+            // AGENT-PLATFORM: platform sync (decision 289): the session's one stream, for every tab.
+            flowParameters.userSession.platformSync?.start()
             attemptStartingOnboarding()
             // AGENT-PLATFORM (Brief 0078 phase 2): ask about third-party AI once the server says so.
             Task { [weak self] in
@@ -318,18 +347,12 @@ class UserSessionFlowCoordinator: FlowCoordinatorProtocol {
             }
         }
         
-        stateMachine.addRoutes(event: .showSettingsScreen, transitions: [.tabBar => .settingsScreen]) { [weak self] _ in
-            self?.startSettingsFlow(detached: false)
-        }
-        stateMachine.addRoutes(event: .dismissedSettingsScreen, transitions: [.settingsScreen => .tabBar]) { [weak self] _ in
-            self?.settingsFlowCoordinator = nil
-        }
-        
         stateMachine.addErrorHandler { context in
             fatalError("Unexpected transition: \(context)")
         }
     }
     
+    // AGENT-PLATFORM: the Agents tab and call observers keep this past upstream's cap.
     // swiftlint:disable:next function_body_length
     private func setupObservers() {
         chatsTabFlowCoordinator.actionsPublisher
@@ -338,8 +361,6 @@ class UserSessionFlowCoordinator: FlowCoordinatorProtocol {
                 switch action {
                 case .switchToChatsTab:
                     navigationTabCoordinator.selectedTab = .chats
-                case .showSettings:
-                    handleAppRoute(.settings, animated: true)
                 case .showChatBackupSettings:
                     handleAppRoute(.chatBackupSettings, animated: true)
                 case .sessionVerification(let flow):
@@ -348,6 +369,8 @@ class UserSessionFlowCoordinator: FlowCoordinatorProtocol {
                     presentCallScreen(roomProxy: roomProxy, voiceOnly: isVoiceCall)
                 case .showAIConsentSettings: // AGENT-PLATFORM (decision 150)
                     handleAppRoute(.aiConsentSettings, animated: true)
+                case .showAgentsTab: // AGENT-PLATFORM (question 412)
+                    showAgentsTab()
                 case .hideCallScreenOverlay:
                     hideCallScreenOverlay()
                 case .logout:
@@ -356,7 +379,7 @@ class UserSessionFlowCoordinator: FlowCoordinatorProtocol {
             }
             .store(in: &cancellables)
         
-        spacesTabFlowCoordinator.actionsPublisher
+        spacesTabFlowCoordinator?.actionsPublisher // AGENT-PLATFORM (decision 301)
             .sink { [weak self] action in
                 guard let self else { return }
                 switch action {
@@ -364,10 +387,12 @@ class UserSessionFlowCoordinator: FlowCoordinatorProtocol {
                     presentCallScreen(roomProxy: roomProxy, voiceOnly: isVoiceCall)
                 case .presentAIConsentSettings: // AGENT-PLATFORM (decision 150)
                     handleAppRoute(.aiConsentSettings, animated: true)
+                case .presentAgentsTab: // AGENT-PLATFORM (question 412)
+                    showAgentsTab()
                 case .verifyUser(let userID):
                     presentSessionVerificationScreen(flow: .userInitiator(userID: userID))
                 case .showSettings:
-                    stateMachine.tryEvent(.showSettingsScreen)
+                    handleAppRoute(.settings, animated: true) // AGENT-PLATFORM (Brief 0083, question 343)
                 }
             }
             .store(in: &cancellables)
@@ -380,40 +405,31 @@ class UserSessionFlowCoordinator: FlowCoordinatorProtocol {
                 self?.handleAgentsTabAction(action)
             }
             .store(in: &cancellables)
+        
+        // AGENT-PLATFORM: feed (Brief 0082)
+        feedTabFlowCoordinator.actionsPublisher
+            .sink { [weak self] action in
+                switch action {
+                case .openRoom(let roomID):
+                    self?.handleAppRoute(.room(roomID: roomID, via: []), animated: true)
+                }
+            }
+            .store(in: &cancellables)
+        // AGENT-PLATFORM: feed (Brief 0082, lane I5): unread activity and notices on the tab.
+        feedTabFlowCoordinator.badgeCountPublisher
+            .weakAssign(to: \.badgeCount, on: feedTabDetails)
+            .store(in: &cancellables)
 
-        // AGENT-PLATFORM: mirror `ApprovalsStreamService.pendingCount`
-        // into the Agents tab badge. Uses self-rearming
-        // `withObservationTracking` (DECISIONS.md § "Badge propagation
-        // via @Observable, no Combine plumbing"). Per S150 architecture
-        // sprint: tab badge must update even while the user is in
-        // Chats, hence sinking here rather than in
-        // `AgentsTabFlowCoordinator`.
-        if userSession.approvalsStreamService != nil {
-            agentsTabDetails.badgeCount = userSession.approvalsStreamService?.pendingCount ?? 0
-            rearmAgentsBadgeObservation()
-            
-            // AGENT-PLATFORM: Brief 0041 C5 — the FULL SSE lifecycle from
-            // DESIGNS/sse-and-push-lifecycle.md, previously implemented only
-            // half-way (connect fired solely from the approvals inbox
-            // `.appeared`, so the badge stayed 0 until the user happened to
-            // open the bell — the C0-confirmed defect). Session start +
-            // every foreground transition connects (idempotent; `ready`
-            // triggers the REST reseed), backgrounding disconnects (iOS
-            // kills long-lived HTTP in background anyway — fail fast and
-            // reconnect cleanly on return).
-            userSession.approvalsStreamService?.connect()
-            
-            NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)
-                .sink { [weak self] _ in
-                    self?.userSession.approvalsStreamService?.connect()
-                }
-                .store(in: &cancellables)
-            
-            NotificationCenter.default.publisher(for: UIApplication.didEnterBackgroundNotification)
-                .sink { [weak self] _ in
-                    self?.userSession.approvalsStreamService?.disconnect()
-                }
-                .store(in: &cancellables)
+        // AGENT-PLATFORM: platform sync (decision 289): the Agents tab badge is
+        // what waits for the owner, held by the session for as long as it
+        // lives, so it moves while the person is in Chats too.
+        if let agentsStore = userSession.agentsStore {
+            agentsStore.show(.needsAction, by: self)
+            agentsStore.observe { [weak self] in
+                guard let self else { return false }
+                updateAgentsBadge()
+                return true
+            }
         }
         
         userSession.sessionSecurityStatePublisher
@@ -429,7 +445,7 @@ class UserSessionFlowCoordinator: FlowCoordinatorProtocol {
             }
             .store(in: &cancellables)
         
-        let reachabilityNotificationID = "io.element.elementx.reachability.notification"
+        let reachabilityNotificationID = "com.spiral.reachability.notification" // AGENT-PLATFORM (Brief 0083 L1b)
         userSession.clientProxy.homeserverReachabilityPublisher.removeDuplicates()
             .combineLatest(flowParameters.appMediator.networkMonitor.reachabilityPublisher.removeDuplicates())
             .receive(on: DispatchQueue.main)
@@ -509,6 +525,7 @@ class UserSessionFlowCoordinator: FlowCoordinatorProtocol {
                 }
             }
             .store(in: &cancellables)
+        setupUnreadNotificationsObserver()
         
         searchScreenCoordinator?.actionsPublisher
             .sink { [weak self] action in
@@ -520,18 +537,16 @@ class UserSessionFlowCoordinator: FlowCoordinatorProtocol {
                     } else {
                         handleAppRoute(.room(roomID: roomID, via: []), animated: true)
                     }
-                case .cancel:
-                    // Return to the tab the user came from, but never back into search.
-                    navigationTabCoordinator.selectedTab = navigationTabCoordinator.previousTab == .search ? .chats : navigationTabCoordinator.previousTab ?? .chats
                 }
             }
             .store(in: &cancellables)
+        
+        observeSettingsFlow(settingsFlowCoordinator) // AGENT-PLATFORM (Brief 0083, question 343)
+        setupSettingsTabAvatar() // AGENT-PLATFORM (Brief 0083, question 343)
     }
 
     private func handleAgentsTabAction(_ action: AgentSpacesTabFlowCoordinatorAction) {
         switch action {
-        case .showSettings:
-            stateMachine.tryEvent(.showSettingsScreen)
         case .openDMWithAgent(let matrixUserID):
             // 'Contact agent' hand-off (Brief 0038 I5): open the existing
             // DM, or create one; either way land in the Chats tab room.
@@ -542,9 +557,18 @@ class UserSessionFlowCoordinator: FlowCoordinatorProtocol {
             presentCallScreen(roomProxy: roomProxy, voiceOnly: isVoiceCall)
         case .presentAIConsentSettings: // AGENT-PLATFORM (decision 150)
             handleAppRoute(.aiConsentSettings, animated: true)
+        case .presentAgentsTab: // AGENT-PLATFORM (question 412)
+            showAgentsTab()
         case .verifyUser(let userID):
             presentSessionVerificationScreen(flow: .userInitiator(userID: userID))
         }
+    }
+
+    /// AGENT-PLATFORM (question 412): the Agents tab at its list, where the person's agent is or is being set up —
+    /// what «Create an agent» on a post the agent fills in leads to.
+    private func showAgentsTab() {
+        agentsTabFlowCoordinator.clearRoute(animated: false)
+        navigationTabCoordinator.selectedTab = .agents
     }
 
     /// 'Contact agent' from the public profile: open (or create) the DM
@@ -565,20 +589,11 @@ class UserSessionFlowCoordinator: FlowCoordinatorProtocol {
         }
     }
     
-    /// Self-rearming observer for the approvals pending count.
-    /// Mirrors `userSession.approvalsStreamService.pendingCount`
-    /// into `agentsTabDetails.badgeCount` whenever it changes.
-    private func rearmAgentsBadgeObservation() {
-        guard let approvalsStreamService = userSession.approvalsStreamService else { return }
-        withObservationTracking {
-            _ = approvalsStreamService.pendingCount
-        } onChange: { [weak self] in
-            Task { @MainActor [weak self] in
-                guard let self,
-                      let approvalsStreamService = userSession.approvalsStreamService else { return }
-                agentsTabDetails.badgeCount = approvalsStreamService.pendingCount
-                rearmAgentsBadgeObservation()
-            }
+    /// AGENT-PLATFORM: what waits for the owner, as the store last read it.
+    private func updateAgentsBadge() {
+        let count = userSession.agentsStore?.needsAction?.count ?? 0
+        if agentsTabDetails.badgeCount != count {
+            agentsTabDetails.badgeCount = count
         }
     }
     
@@ -595,51 +610,55 @@ class UserSessionFlowCoordinator: FlowCoordinatorProtocol {
     
     // MARK: - Settings
     
-    private func startSettingsFlow(detached: Bool) {
+    // AGENT-PLATFORM (Brief 0083, question 343): only the Mac's own window builds a flow on demand; the tab's lives with the session.
+    private func startDetachedSettingsFlow() {
         let navigationStackCoordinator = NavigationStackCoordinator()
         let coordinator = SettingsFlowCoordinator(appLockService: appLockService,
-                                                  isInSecondaryWindow: detached,
+                                                  isInSecondaryWindow: true,
                                                   navigationStackCoordinator: navigationStackCoordinator,
                                                   flowParameters: flowParameters)
-        
+        observeSettingsFlow(coordinator)
+        coordinator.handleAppRoute(.settings, animated: false)
+        flowParameters.windowManager.registerCoordinator(navigationStackCoordinator,
+                                                         flowCoordinator: coordinator,
+                                                         forWindowType: .settings)
+    }
+    
+    private func observeSettingsFlow(_ coordinator: SettingsFlowCoordinator) {
         coordinator.actions.sink { [weak self] action in
             guard let self else { return }
             
             switch action {
-            case .dismiss:
-                navigationTabCoordinator.setSheetCoordinator(nil)
             case .openUserProfile(let userID): // AGENT-PLATFORM (Brief 0073).
-                navigationTabCoordinator.setSheetCoordinator(nil)
                 handleAppRoute(.userProfile(userID: userID), animated: true)
             case .clearCache:
                 actionsSubject.send(.clearCache)
             case .runLogoutFlow:
-                Task {
-                    self.navigationTabCoordinator.setSheetCoordinator(nil)
-                    
-                    // The sheet needs to be dismissed before the alert can be shown
-                    try await Task.sleep(for: .milliseconds(100))
-                    await self.runLogoutFlow()
-                }
+                Task { await self.runLogoutFlow() }
             case .forceLogout:
                 actionsSubject.send(.forceLogout)
             }
         }
         .store(in: &cancellables)
-        
-        coordinator.handleAppRoute(.settings, animated: false)
-        
-        if detached {
-            flowParameters.windowManager.registerCoordinator(navigationStackCoordinator,
-                                                             flowCoordinator: coordinator,
-                                                             forWindowType: .settings)
-        } else {
-            settingsFlowCoordinator = coordinator
-            
-            navigationTabCoordinator.setSheetCoordinator(navigationStackCoordinator) { [weak self] in
-                self?.stateMachine.tryEvent(.dismissedSettingsScreen)
+    }
+    
+    // AGENT-PLATFORM (Brief 0083, question 343): the person's tab draws their avatar: the monogram at once, then the photo.
+    private func setupSettingsTabAvatar() {
+        flowParameters.userSession.clientProxy.userProfilePublisher
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] profile in
+                guard let self else { return }
+                settingsTabDetails.avatar = .init(name: profile.displayName, contentID: profile.id, photo: nil)
+                settingsTabAvatarTask?.cancel()
+                
+                guard let url = profile.avatarURL, let source = try? MediaSourceProxy(url: url, mimeType: "image/jpeg") else { return }
+                let task = flowParameters.userSession.mediaProvider.loadImageRetryingOnReconnection(source, size: Avatars.Size.user(on: .chats).scaledSize)
+                settingsTabAvatarTask = Task { [weak self] in
+                    guard let photo = try? await task.value, !Task.isCancelled else { return }
+                    self?.settingsTabDetails.avatar?.photo = photo
+                }
             }
-        }
+            .store(in: &cancellables)
     }
     
     // MARK: - Session Verification
@@ -672,8 +691,7 @@ class UserSessionFlowCoordinator: FlowCoordinatorProtocol {
         
         let parameters = SessionVerificationScreenCoordinatorParameters(sessionVerificationControllerProxy: sessionVerificationController,
                                                                         flow: flow,
-                                                                        appSettings: flowParameters.appSettings,
-                                                                        mediaProvider: userSession.mediaProvider)
+                                                                        userSession: userSession)
         
         let coordinator = SessionVerificationScreenCoordinator(parameters: parameters)
         
@@ -744,6 +762,13 @@ class UserSessionFlowCoordinator: FlowCoordinatorProtocol {
         presentCallScreen(roomProxy: roomProxy, voiceOnly: isVoiceCall, isAnswer: wasAnsweredCall || isAnsweringInAppRing)
     }
     
+    private func setupUnreadNotificationsObserver() {
+        userSession.notificationService.badgeCountPublisher
+            .removeDuplicates()
+            .weakAssign(to: \.badgeCount, on: chatsTabDetails)
+            .store(in: &cancellables)
+    }
+    
     private func presentCallScreen(roomProxy: JoinedRoomProxyProtocol, voiceOnly: Bool, isAnswer: Bool = false) {
         // AGENT-PLATFORM (Brief 0063/0067): every room is a native call
         // (ADR-0079 D3); the room's shape only decides scope and whether a
@@ -794,6 +819,7 @@ class UserSessionFlowCoordinator: FlowCoordinatorProtocol {
         let coordinator = NativeCallScreenCoordinator(parameters: .init(roomProxy: roomProxy,
                                                                         callKitService: flowParameters.callKitService,
                                                                         agentPlatformService: flowParameters.userSession.agentPlatformService,
+                                                                        agentsStore: flowParameters.userSession.agentsStore, // AGENT-PLATFORM: S5
                                                                         isRoomEncrypted: roomProxy.infoPublisher.value.isEncrypted,
                                                                         notifyRoom: notifyRoom,
                                                                         isAnswer: isAnswer,
@@ -832,12 +858,19 @@ class UserSessionFlowCoordinator: FlowCoordinatorProtocol {
                     // stopping it).
                     guard isOnScreen else { return }
                     coordinator.stopPictureInPictureForFullScreenReturn()
+                    dismissModalsCoveringTheCallScreen() // AGENT-PLATFORM (1.0.2): the PiP restore can come under a sheet
                     navigationTabCoordinator.setOverlayPresentationMode(.fullScreen)
                 case .pictureInPictureStarted:
                     // The picture lives in the floating window now; the
                     // overlay steps aside so the app underneath is usable.
                     guard isOnScreen else { return }
                     navigationTabCoordinator.setOverlayPresentationMode(.minimized)
+                // AGENT-PLATFORM (Brief 0083, question 401): the assistant's "…" menu in the call opens its profile
+                // with the call on its bar, as the bar's own way back to the chat does.
+                case .showProfile(let userID):
+                    guard isOnScreen else { return }
+                    navigationTabCoordinator.setOverlayPresentationMode(.minimized)
+                    handleAppRoute(.userProfile(userID: userID), animated: true)
                 }
             }
             .store(in: &cancellables)
@@ -856,9 +889,32 @@ class UserSessionFlowCoordinator: FlowCoordinatorProtocol {
             current.isParked = true
             heldCallCoordinator = current
         }
+        dismissModalsCoveringTheCallScreen() // AGENT-PLATFORM (1.0.2)
         navigationTabCoordinator.setOverlayCoordinator(coordinator, animated: true)
         
         flowParameters.analytics.track(screen: .RoomCall)
+    }
+    
+    /// AGENT-PLATFORM (1.0.2, DEBT "a call under the sheet"): the call screen is the tab view's overlay, drawn
+    /// under every sheet and cover: answered with Settings open, the call ran with its controls hidden until the
+    /// sheet was swiped away. As the screen comes up, the viewers over the app and the modals their owners let go
+    /// close — the call wins (the operator, 2026-11-14).
+    private func dismissModalsCoveringTheCallScreen(animated: Bool = true) {
+        NotificationCenter.default.post(name: .callScreenWillCoverTheApp, object: nil)
+        navigationTabCoordinator.dismissModalsCoveringTheOverlay(sparing: callSpares, animated: animated)
+    }
+    
+    /// What a call leaves above its screen (Fable review of 93d0663ef). A sheet goes unless it shows a screen its
+    /// person can't swipe away either (``HoldsItsModalAboveACall``). A cover can't be swiped away at all, so its owner may not handle losing it:
+    /// only the room directory's does. Onboarding and the invite welcome stay (their flows stall or lose the
+    /// welcome when torn down), and so does the in-app ring, above an ongoing call on purpose (G15).
+    private func callSpares(_ coordinator: any CoordinatorProtocol, as modal: NavigationTabCoordinator<HomeTab>.OverlayCoveringModal) -> Bool {
+        switch modal {
+        case .sheet:
+            NavigationTabCoordinator<HomeTab>.modalRefusesToBeClosedByACall(coordinator)
+        case .fullScreenCover:
+            !(coordinator is RoomDirectorySearchScreenCoordinator)
+        }
     }
     
     /// The call screen on screen goes. The parked call comes forward the
@@ -938,6 +994,7 @@ class UserSessionFlowCoordinator: FlowCoordinatorProtocol {
         // window's restore button — the window must come down or the
         // same call shows twice.
         existing.stopPictureInPictureForFullScreenReturn()
+        dismissModalsCoveringTheCallScreen() // AGENT-PLATFORM (1.0.2)
         // G9 — the call may be living behind its bar; returning to it
         // restores the full screen.
         navigationTabCoordinator.setOverlayPresentationMode(.fullScreen)
@@ -950,6 +1007,7 @@ class UserSessionFlowCoordinator: FlowCoordinatorProtocol {
     /// coordinator, so re-presenting does not re-join the call.
     private func presentParkedCallScreen(_ coordinator: NativeCallScreenCoordinator) {
         coordinator.isParked = false
+        dismissModalsCoveringTheCallScreen() // AGENT-PLATFORM (1.0.2)
         navigationTabCoordinator.setOverlayCoordinator(coordinator, animated: true)
     }
     
@@ -1028,6 +1086,10 @@ class UserSessionFlowCoordinator: FlowCoordinatorProtocol {
             }
             .store(in: &cancellables)
 
+        // AGENT-PLATFORM (1.0.2, DEBT "a call under the sheet"): a cover can't present over the tab view while
+        // a sheet is up there or in a tab, so the ring never showed. What a call may close closes at once,
+        // unanimated, so the cover presents in this same pass; a cover already up is replaced below, as before.
+        dismissModalsCoveringTheCallScreen(animated: false)
         navigationTabCoordinator.setFullScreenCoverCoordinator(coordinator)
     }
 
@@ -1164,3 +1226,22 @@ class UserSessionFlowCoordinator: FlowCoordinatorProtocol {
         navigationTabCoordinator.setSheetCoordinator(coordinator, animated: true)
     }
 }
+
+// AGENT-PLATFORM (1.0.2, DEBT "a call under the sheet"): the viewers presented over the app, outside the
+// coordinators (the media viewer, a post played full screen), close on this as a call screen or the in-app ring
+// comes up.
+extension Notification.Name {
+    static let callScreenWillCoverTheApp = Notification.Name("SpiralCallScreenWillCoverTheApp")
+}
+
+// AGENT-PLATFORM (1.0.2, Fable review of 93d0663ef): screens their person can't swipe away; a call leaves the
+// modal showing them up.
+extension SecureBackupRecoveryKeyScreenCoordinator: HoldsItsModalAboveACall { }
+extension SecureBackupKeyBackupScreenCoordinator: HoldsItsModalAboveACall { }
+extension EncryptionResetScreenCoordinator: HoldsItsModalAboveACall { }
+extension EncryptionResetPasswordScreenCoordinator: HoldsItsModalAboveACall { }
+extension AppLockSetupPINScreenCoordinator: HoldsItsModalAboveACall { }
+extension AppLockSetupBiometricsScreenCoordinator: HoldsItsModalAboveACall { }
+extension AppLockScreenCoordinator: HoldsItsModalAboveACall { }
+extension BugReportScreenCoordinator: HoldsItsModalAboveACall { }
+extension ReportContentScreenCoordinator: HoldsItsModalAboveACall { }

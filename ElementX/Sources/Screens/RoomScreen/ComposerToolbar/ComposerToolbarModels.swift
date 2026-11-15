@@ -27,7 +27,7 @@ enum ComposerToolbarViewModelAction {
     case sendMessage(plain: String, html: String?, mode: ComposerMode, intentionalMentions: IntentionalMentions)
     case editLastMessage
     case attach(ComposerAttachmentType)
-    // AGENT-PLATFORM: open the agent-tools capabilities sheet (Brief 0036).
+    // AGENT-PLATFORM: open the chat's tools (Brief 0036).
     case presentAgentTools
     case presentInteractivePostAgentPicker
     

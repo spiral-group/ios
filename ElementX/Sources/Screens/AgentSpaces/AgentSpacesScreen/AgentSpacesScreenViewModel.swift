@@ -12,54 +12,37 @@ import SwiftUI
 typealias AgentSpacesScreenViewModelType = StateStoreViewModelV2<AgentSpacesScreenViewState, AgentSpacesScreenViewAction>
 
 class AgentSpacesScreenViewModel: AgentSpacesScreenViewModelType, AgentSpacesScreenViewModelProtocol {
-    private let agentPlatformService: AgentPlatformServiceProtocol
-
-    /// While the reconcile worker is provisioning the Personal space
-    /// the directory answers `provisioningStatus: .inProgress` — poll
-    /// until it settles so the owner isn't stuck on the hint screen.
-    private static let provisioningPollInterval: Duration = .seconds(2)
-    private var provisioningPollTask: Task<Void, Never>?
-    /// Reads overlap (appear, pull, a change elsewhere); only the newest one's answer is shown.
-    private var reloadGeneration: UInt64 = 0
+    // AGENT-PLATFORM: platform sync (decision 289): the list renders from the
+    // session's store and moves with the stream; a new space, agent or the
+    // Personal space's provisioning comes as `agent.updated` / `space.updated`.
+    private let store: AgentsStore
+    /// S5: whether the list is on screen, and whether its rows changed while it was covered.
+    private var visibility = ListVisibility.notYetShown
+    private var changedWhileHidden = false
 
     private let actionsSubject: PassthroughSubject<AgentSpacesScreenViewModelAction, Never> = .init()
     var actionsPublisher: AnyPublisher<AgentSpacesScreenViewModelAction, Never> {
         actionsSubject.eraseToAnyPublisher()
     }
 
-    private let approvalsStreamService: ApprovalsStreamServiceProtocol?
+    init(userSession: UserSessionProtocol, store: AgentsStore) {
+        self.store = store
 
-    init(userSession: UserSessionProtocol,
-         agentPlatformService: AgentPlatformServiceProtocol) {
-        self.agentPlatformService = agentPlatformService
-        approvalsStreamService = userSession.approvalsStreamService
-
-        super.init(initialViewState: AgentSpacesScreenViewState(userID: userSession.clientProxy.userID),
+        super.init(initialViewState: AgentSpacesScreenViewState(),
                    mediaProvider: userSession.mediaProvider)
 
-        // Bell badge: self-rearming observation of the approvals stream's
-        // pending count — the same @Observable pattern the tab badge uses
-        // in UserSessionFlowCoordinator.
-        if approvalsStreamService != nil {
-            state.pendingApprovalsCount = approvalsStreamService?.pendingCount ?? 0
-            rearmApprovalsBadgeObservation()
+        render()
+        store.observe { [weak self] in
+            guard let self else { return false }
+            render()
+            return true
         }
+        store.show(.spaces, by: self)
 
-        userSession.clientProxy.userProfilePublisher
-            .receive(on: DispatchQueue.main)
-            .map(\.avatarURL)
-            .weakAssign(to: \.state.userAvatarURL, on: self)
-            .store(in: &cancellables)
-
-        userSession.clientProxy.userProfilePublisher
-            .receive(on: DispatchQueue.main)
-            .map(\.displayName)
-            .weakAssign(to: \.state.userDisplayName, on: self)
-            .store(in: &cancellables)
     }
 
     isolated deinit {
-        provisioningPollTask?.cancel()
+        store.stopShowing(.spaces, by: self)
     }
 
     // MARK: - Public
@@ -68,6 +51,19 @@ class AgentSpacesScreenViewModel: AgentSpacesScreenViewModelType, AgentSpacesScr
         MXLog.info("View model: received view action: \(viewAction)")
 
         switch viewAction {
+        case .appeared:
+            visibility = .visible
+            // S5: a row that changed under a pushed screen may never load its new avatar (`LoadableImage` loads from
+            // a `.task` that doesn't start off screen); the rows are made anew, from what is cached, as they show.
+            if changedWhileHidden {
+                changedWhileHidden = false
+                state.listGeneration += 1
+            }
+            store.refresh(.spaces)
+        case .disappeared:
+            if visibility == .visible {
+                visibility = .hidden
+            }
         case .selectAgent(let agentID):
             for section in state.sections {
                 if let card = section.agents.first(where: { $0.agentID == agentID }) {
@@ -76,9 +72,8 @@ class AgentSpacesScreenViewModel: AgentSpacesScreenViewModelType, AgentSpacesScr
                     return
                 }
             }
-        case .showSettings:
-            actionsSubject.send(.showSettings)
         case .createCompany:
+            guard SpiralFeatures.companySpaces else { return }
             actionsSubject.send(.showCreateCompany)
         case .createAgent(let orgID):
             guard let company = state.companies.first(where: { $0.orgID == orgID }) else { return }
@@ -89,87 +84,57 @@ class AgentSpacesScreenViewModel: AgentSpacesScreenViewModelType, AgentSpacesScr
         case .showNotifications:
             actionsSubject.send(.showNotifications)
         case .retry:
-            state.listState = .loading
-            Task { await reload() }
-        case .refresh:
-            Task { await reload() }
-        case .appeared:
-            // A company or agent made elsewhere shows once the list is back
-            // on screen; rows already shown stay until the answer replaces them.
-            Task { await reload() }
+            reload()
         }
     }
 
-    func reload() async {
-        reloadGeneration &+= 1
-        let generation = reloadGeneration
-        let result = await agentPlatformService.listMyAgentSpaces()
-        guard generation == reloadGeneration else { return }
-
-        switch result {
-        case .success(let directory):
-            if directory.spaces.isEmpty, directory.provisioningStatus == .inProgress {
-                state.listState = .provisioning
-                scheduleProvisioningPoll()
-                return
-            }
-            let sections = await loadSections(directory.spaces)
-            guard generation == reloadGeneration else { return }
-            state.listState = .loaded(sections)
-        case .failure(let error):
-            MXLog.error("Failed to load agent spaces: \(error)")
-            // Keep showing stale content if we have it; only surface
-            // the failure state when there is nothing to show.
-            if case .loaded = state.listState {} else {
-                state.listState = .failure
-            }
-        }
+    /// The person's own change (a company or agent made, an agent archived): read it now, before the stream says so.
+    func reload() {
+        Task { await store.reread(.spaces) }
     }
 
     // MARK: - Private
 
-    /// Each space's agents, in the directory's order (Personal first).
-    /// Sequential: Swift 6.2 strict checking forbids `async let` child tasks
-    /// capturing the non-Sendable service existential, and a person has a
-    /// handful of spaces at most.
-    private func loadSections(_ spaces: [AgentSpaceSummary]) async -> [AgentSpaceSection] {
-        var sections: [AgentSpaceSection] = []
-        for space in spaces {
-            switch await agentPlatformService.fetchAgentSpace(orgID: space.orgID) {
-            case .success(let detail):
-                sections.append(.init(summary: space, content: .loaded(detail)))
-            case .failure(let error):
-                MXLog.error("Failed to load agent space \(space.orgID): \(error)")
-                // A refresh that fails keeps what was shown for this space.
-                if let shown = state.sections.first(where: { $0.id == space.orgID }), shown.detail != nil {
-                    sections.append(shown)
-                } else {
-                    sections.append(.init(summary: space, content: .failed))
-                }
+    private func render() {
+        let listState = Self.listState(store.readState(.spaces, \.spaces))
+        if state.listState != listState {
+            state.listState = listState
+            if visibility == .hidden {
+                changedWhileHidden = true
             }
         }
-        return sections
-    }
-
-    private func rearmApprovalsBadgeObservation() {
-        guard let approvalsStreamService else { return }
-        withObservationTracking {
-            _ = approvalsStreamService.pendingCount
-        } onChange: { [weak self] in
-            Task { @MainActor [weak self] in
-                guard let self, let approvalsStreamService = self.approvalsStreamService else { return }
-                state.pendingApprovalsCount = approvalsStreamService.pendingCount
-                rearmApprovalsBadgeObservation()
-            }
+        // The bell: what waits for the owner, as the session's badge reads it.
+        let pending = store.needsAction?.count ?? 0
+        if state.pendingApprovalsCount != pending {
+            state.pendingApprovalsCount = pending
+        }
+        if state.syncStatus != store.syncStatus {
+            state.syncStatus = store.syncStatus
         }
     }
 
-    private func scheduleProvisioningPoll() {
-        provisioningPollTask?.cancel()
-        provisioningPollTask = Task { [weak self] in
-            try? await Task.sleep(for: Self.provisioningPollInterval)
-            guard !Task.isCancelled else { return }
-            await self?.reload()
+    /// Each space in the directory's order (Personal first); one never read says so with a retry.
+    private static func listState(_ read: AgentsReadState<AgentsSpaces>) -> AgentSpacesScreenListState {
+        switch read {
+        case .loading:
+            return .loading
+        case .failed:
+            return .failure
+        case .loaded(let spaces):
+            if spaces.directory.spaces.isEmpty, spaces.directory.provisioningStatus == .inProgress {
+                return .provisioning
+            }
+            return .loaded(spaces.directory.spaces.map { summary in
+                AgentSpaceSection(summary: summary, content: spaces.details[summary.orgID].map { .loaded($0) } ?? .failed)
+            })
         }
     }
+}
+
+/// S5: the list's place on screen. Before it first shows it is not hidden: its first rows are made as it shows anyway.
+private enum ListVisibility {
+    case notYetShown
+    case visible
+    /// Shown before and now covered: by a pushed screen, or another tab.
+    case hidden
 }

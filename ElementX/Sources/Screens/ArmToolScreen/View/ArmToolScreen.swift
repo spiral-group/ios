@@ -10,6 +10,7 @@
 //
 
 import Compound
+import SFSafeSymbols
 import SwiftUI
 
 struct ArmToolScreen: View {
@@ -17,121 +18,67 @@ struct ArmToolScreen: View {
 
     var body: some View {
         Form {
-            if context.viewState.showsKindPicker {
-                kindSection
-            }
+            exampleSection
             paramsSection
             if context.viewState.showsScopeSelector {
                 scopeSection
             } else {
                 fixedCallSection
             }
-            if context.viewState.hasActiveTool {
+            if context.viewState.isEditing {
                 turnOffSection
             }
         }
-        .compoundList()
+        .spiralGroupedList() // AGENT-PLATFORM (Brief 0083, question 359): the chat's other tool screens' cards.
         .scrollBounceBehavior(.basedOnSize)
         .presentationDragIndicator(.visible)
         .presentationDetents([.large, .medium])
-        .navigationTitle(title)
+        .navigationTitle(context.viewState.kind.title)
         .navigationBarTitleDisplayMode(.inline)
         .alert(item: $context.alertInfo)
         .toolbar { toolbar }
         .interactiveDismissDisabled(context.viewState.isSubmitting)
     }
 
-    /// The title follows the chosen action (step B.5), in a create or an edit.
-    private var title: String {
-        switch context.viewState.capability {
-        case .translateMessages: return context.viewState.bindings.kind.bannerTitle
-        case .liveCallTranslation: return UntranslatedL10n.screenArmToolLiveCallTitle
-        case .callSummary: return UntranslatedL10n.screenArmToolCallSummaryTitle
-        case .callRecording: return UntranslatedL10n.screenArmToolCallRecordingTitle
-        }
-    }
-
     // MARK: - Sections
 
-    private var kindSection: some View {
+    private var exampleSection: some View {
         Section {
-            ListRow(label: .plain(title: UntranslatedL10n.screenArmToolKindLabel),
-                    kind: .inlinePicker(selection: $context.kind,
-                                        items: ArmToolKind.allCases.map { (title: $0.title, tag: $0) }))
-        } header: {
-            Text(UntranslatedL10n.screenArmToolWhatSectionTitle)
-                .compoundListSectionHeader()
+            ToolExampleCard(example: context.viewState.example)
+                .listRowInsets(EdgeInsets())
+                .listRowBackground(Color.clear)
         }
     }
 
     @ViewBuilder
     private var paramsSection: some View {
-        if context.viewState.isLiveTranslation {
-            liveTranslationSection
-        } else if let row = context.viewState.textParamsRow {
-            // Always one row and a footer, whichever kind is picked, so the
-            // rows below never move under the finger (re-walk R5).
+        if context.viewState.kind.needsLanguage {
             Section {
-                switch row {
-                case .language:
-                    ListRow(label: .default(title: UntranslatedL10n.screenArmToolLanguageLabel,
-                                            description: languageDescription,
-                                            icon: \.translate),
-                            kind: .navigationLink {
-                                context.send(viewAction: .selectLanguage(index: nil))
-                            })
-                case .instruction:
-                    ListRow(label: .plain(title: UntranslatedL10n.screenArmToolInstructionLabel),
-                            kind: .textField(text: $context.instruction,
-                                             axis: .vertical))
-                case .nothingToSet:
-                    ListRow(label: .plain(title: UntranslatedL10n.screenArmToolNoSettings),
-                            kind: .label)
-                }
+                ListRow(label: .default(title: UntranslatedL10n.screenArmToolLanguageLabel, icon: \.translate),
+                        details: .title(languageDescription, isWaiting: context.viewState.isLoadingLanguages),
+                        kind: .navigationLink {
+                            context.send(viewAction: .selectLanguage)
+                        })
+            } header: {
+                whatSectionHeader
+            }
+        } else if context.viewState.kind.needsInstruction {
+            Section {
+                ListRow(label: .plain(title: UntranslatedL10n.screenArmToolInstructionLabel),
+                        kind: .textField(text: $context.instruction,
+                                         axis: .vertical))
+            } header: {
+                whatSectionHeader
             } footer: {
-                Text(textParamsFooter(row))
+                Text(UntranslatedL10n.screenArmToolInstructionFooter)
                     .compoundListSectionFooter()
             }
         }
     }
 
-    private func textParamsFooter(_ row: ArmToolParamsRow) -> String {
-        switch row {
-        case .language: UntranslatedL10n.screenArmToolLanguageFooter
-        case .instruction: UntranslatedL10n.screenArmToolInstructionFooter
-        case .nothingToSet: UntranslatedL10n.screenArmToolNoSettingsFooter
-        }
-    }
-
-    private var liveTranslationSection: some View {
-        Section {
-            ForEach(Array(context.viewState.bindings.targetLanguages.enumerated()), id: \.offset) { index, language in
-                ListRow(label: .default(title: context.viewState.displayName(forLanguageCode: language),
-                                        icon: \.translate),
-                        kind: .navigationLink {
-                            context.send(viewAction: .selectLanguage(index: index))
-                        })
-                        .swipeActions {
-                            Button(L10n.actionRemove, role: .destructive) {
-                                context.send(viewAction: .removeLanguage(index: index))
-                            }
-                        }
-            }
-            .onMove { offsets, destination in
-                context.send(viewAction: .moveLanguages(fromOffsets: offsets, toOffset: destination))
-            }
-            ListRow(label: .action(title: UntranslatedL10n.screenArmToolLanguageAdd,
-                                   icon: \.plus),
-                    kind: .button {
-                        context.send(viewAction: .selectLanguage(index: nil))
-                    })
-            ListRow(label: .plain(title: UntranslatedL10n.screenArmToolStyleLabel),
-                    kind: .inlinePicker(selection: $context.liveStyle,
-                                        items: LiveTranslationStyle.pickerItems))
-        } footer: {
-            Text(UntranslatedL10n.screenArmToolLanguagesFooter)
-                .compoundListSectionFooter()
-        }
+    private var whatSectionHeader: some View {
+        Text(UntranslatedL10n.screenArmToolWhatSectionTitle)
+            .compoundListSectionHeader()
     }
 
     private var scopeSection: some View {
@@ -171,20 +118,20 @@ struct ArmToolScreen: View {
     }
 
     /// Copy telling the owner what happens to the room's voice calls once
-    /// this parameterless capability is armed (summarised / recorded, and —
-    /// for recording — posted back as an audio file).
+    /// this tool is on (summarised / recorded, and — for recording — posted
+    /// back as an audio file).
     private var callDisclosure: String? {
-        switch context.viewState.capability {
-        case .callSummary: return UntranslatedL10n.screenArmToolCallSummaryDisclosure
-        case .callRecording: return UntranslatedL10n.screenArmToolCallRecordingDisclosure
-        case .translateMessages, .liveCallTranslation: return nil
+        switch context.viewState.kind {
+        case .callSummary: UntranslatedL10n.screenArmToolCallSummaryDisclosure
+        case .callRecording: UntranslatedL10n.screenArmToolCallRecordingDisclosure
+        default: nil
         }
     }
 
     private var turnOffSection: some View {
         Section {
             ListRow(label: .default(title: UntranslatedL10n.screenArmToolTurnOff,
-                                    icon: \.close,
+                                    systemIcon: .power,
                                     role: .destructive),
                     details: context.viewState.isSubmitting ? .isWaiting(true) : nil,
                     kind: .button {
@@ -213,17 +160,16 @@ struct ArmToolScreen: View {
     /// would be a duplicate "X" next to the "<").
     @ToolbarContentBuilder
     private var toolbar: some ToolbarContent {
-        if context.viewState.isLiveTranslation, context.viewState.bindings.targetLanguages.count > 1 {
-            ToolbarItem(placement: .topBarLeading) {
-                EditButton()
-            }
+        ToolbarItem(placement: .principal) {
+            ToolScreenTitle(title: context.viewState.kind.title, subtitle: context.viewState.agentDisplayName)
         }
         ToolbarItem(placement: .confirmationAction) {
             // AGENT-PLATFORM: a visible "Turn on" word, not a bare ✓ disc.
             Button(confirmTitle) {
                 context.send(viewAction: .submit)
             }
-            .backportButtonStyleGlassProminent()
+            // AGENT-PLATFORM (decision 306): the filled blue, not the window tint (#0A84FF, 3.65:1 under white in dark).
+            .backportButtonStyleGlassProminent(tint: .compound.bgActionPrimaryRest)
             .disabled(!context.viewState.canSubmit)
         }
     }
@@ -234,13 +180,6 @@ struct ArmToolScreen: View {
 }
 
 // MARK: - Presentation
-
-private extension ArmToolKind {
-    /// Alias of `bannerTitle` (shared with the tools banner, Brief 0044).
-    var title: String {
-        bannerTitle
-    }
-}
 
 private extension ArmToolScope {
     var title: String {
@@ -254,60 +193,51 @@ private extension ArmToolScope {
     }
 }
 
-private extension LiveTranslationStyle {
-    static var pickerItems: [(title: String, tag: LiveTranslationStyle)] {
-        [(title: UntranslatedL10n.screenArmToolStyleSimultaneous, tag: .simultaneous),
-         (title: UntranslatedL10n.screenArmToolStyleConsecutive, tag: .consecutive)]
-    }
-}
-
 // MARK: - Previews
 
-struct ArmToolScreen_Previews: PreviewProvider, TestablePreview {
-    // AGENT-PLATFORM: the view model fetches the tools catalog at init, and
-    // an unconfigured mock method fatal-errors by design — on a background
-    // task, which kills the whole PreviewTests process and fails whichever
-    // unrelated test happens to be running. Always hand the previews a
-    // configured service.
-    static func makeService() -> AgentPlatformServiceMock {
-        let service = AgentPlatformServiceMock()
-        service.fetchToolsCatalogAgentIDRoomIDReturnValue = .success(ToolsCatalogView(agentID: "agent-1",
-                                                                                      roomID: "!room:example.com",
-                                                                                      paramsSchema: [:],
-                                                                                      triggerSchema: [:],
-                                                                                      textTranslationLanguages: [],
-                                                                                      voiceTranslationLanguages: [],
-                                                                                      availableToolKinds: []))
-        return service
-    }
-
-    static let translateViewModel = makeViewModel(capability: .translateMessages, active: nil)
-    static let liveViewModel = makeViewModel(capability: .liveCallTranslation, active: nil)
-    static let summaryViewModel = makeViewModel(capability: .callSummary, active: nil)
-    static let recordingViewModel = makeViewModel(capability: .callRecording, active: nil)
-    static let activeViewModel = makeViewModel(capability: .translateMessages,
-                                               active: ActiveCapabilityTool(toolIDs: ["t1"], summary: "Translating to English", count: 1))
-    static let editViewModel = ArmToolScreenViewModel(roomID: "!room:example.com",
-                                                      agentID: "agent-1",
-                                                      agentDisplayName: "Aria",
-                                                      editing: ActiveToolDetail(toolID: "t1",
-                                                                                capability: .translateMessages,
-                                                                                params: .translate(targetLanguage: "English"),
-                                                                                trigger: .onMessage(senderScope: .everyoneExcept(members: ["@bob:host"])),
-                                                                                title: "Translate → English",
-                                                                                subtitle: "Everyone except @bob:host"),
-                                                      agentPlatformService: makeService())
+struct ArmToolScreen_Previews: PreviewProvider, TestablePreview, SpiralGatedPreview {
+    static let translateViewModel = makeViewModel(kind: .translate)
+    static let simplifyViewModel = makeViewModel(kind: .simplify)
+    static let correctViewModel = makeViewModel(kind: .correct)
+    static let customViewModel = makeViewModel(kind: .custom)
+    static let summaryViewModel = makeViewModel(kind: .callSummary)
+    static let recordingViewModel = makeViewModel(kind: .callRecording)
+    static let editViewModel = makeViewModel(editing: .init(RoomToolView(toolID: "t1",
+                                                                         toolKind: "translate",
+                                                                         triggerKind: "on_message",
+                                                                         targetLanguage: "ru",
+                                                                         params: .translate(targetLanguage: "ru"),
+                                                                         trigger: .onMessage(senderScope: .anyone),
+                                                                         safeSliceSalt: "t1",
+                                                                         appliesToViewer: .yes)))
 
     static var previews: some View {
         ElementNavigationStack {
+            ArmToolScreen(context: editViewModel.context)
+        }
+        .snapshotPreferences(expect: hasCatalog(editViewModel))
+        .previewDisplayName("Edit")
+
+        ElementNavigationStack {
             ArmToolScreen(context: translateViewModel.context)
         }
+        .snapshotPreferences(expect: hasCatalog(translateViewModel))
         .previewDisplayName("Translate")
 
         ElementNavigationStack {
-            ArmToolScreen(context: liveViewModel.context)
+            ArmToolScreen(context: simplifyViewModel.context)
         }
-        .previewDisplayName("Live call")
+        .previewDisplayName("Simplify")
+
+        ElementNavigationStack {
+            ArmToolScreen(context: correctViewModel.context)
+        }
+        .previewDisplayName("Correct")
+
+        ElementNavigationStack {
+            ArmToolScreen(context: customViewModel.context)
+        }
+        .previewDisplayName("Custom")
 
         ElementNavigationStack {
             ArmToolScreen(context: summaryViewModel.context)
@@ -318,25 +248,46 @@ struct ArmToolScreen_Previews: PreviewProvider, TestablePreview {
             ArmToolScreen(context: recordingViewModel.context)
         }
         .previewDisplayName("Call recording")
-
-        ElementNavigationStack {
-            ArmToolScreen(context: activeViewModel.context)
-        }
-        .previewDisplayName("With active tool")
-
-        ElementNavigationStack {
-            ArmToolScreen(context: editViewModel.context)
-        }
-        .previewDisplayName("Edit")
     }
 
-    private static func makeViewModel(capability: AgentCapability,
-                                      active: ActiveCapabilityTool?) -> ArmToolScreenViewModel {
-        ArmToolScreenViewModel(roomID: "!room:example.com",
-                               agentID: "agent-1",
-                               agentDisplayName: "Aria",
-                               capability: capability,
-                               active: active,
-                               agentPlatformService: makeService())
+    private static func hasCatalog(_ viewModel: ArmToolScreenViewModel) -> some AsyncSequence<Bool, Never> {
+        viewModel.context.observe(\.viewState.isLoadingLanguages).map { !$0 }
+    }
+
+    private static func makeViewModel(kind: AgentToolKind) -> ArmToolScreenViewModel {
+        let service = makeService()
+        return ArmToolScreenViewModel(roomID: "!room:example.com",
+                                      agentID: "agent-1",
+                                      agentDisplayName: "Aria",
+                                      kind: kind,
+                                      agentPlatformService: service,
+                                      store: AgentsStore(service: service))
+    }
+
+    private static func makeViewModel(editing tool: ActiveToolDetail?) -> ArmToolScreenViewModel {
+        guard let tool else { fatalError("The preview's tool is the owner's") }
+        let service = makeService()
+        guard let viewModel = ArmToolScreenViewModel(roomID: "!room:example.com",
+                                                     agentID: "agent-1",
+                                                     agentDisplayName: "Aria",
+                                                     editing: tool,
+                                                     agentPlatformService: service,
+                                                     store: AgentsStore(service: service)) else {
+            fatalError("The preview's tool is of a known kind")
+        }
+        return viewModel
+    }
+
+    /// An unconfigured mock method fatal-errors on a background task, which kills the whole PreviewTests process.
+    private static func makeService() -> AgentPlatformServiceMock {
+        let service = AgentPlatformServiceMock()
+        service.fetchToolsCatalogAgentIDRoomIDReturnValue = .success(ToolsCatalogView(agentID: "agent-1",
+                                                                                      roomID: "!room:example.com",
+                                                                                      paramsSchema: [:],
+                                                                                      triggerSchema: [:],
+                                                                                      textTranslationLanguages: [],
+                                                                                      voiceTranslationLanguages: [],
+                                                                                      availableToolKinds: AgentToolKind.allCases.map(\.rawValue)))
+        return service
     }
 }

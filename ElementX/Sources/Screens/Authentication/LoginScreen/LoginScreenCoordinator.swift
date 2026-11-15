@@ -15,7 +15,7 @@ struct LoginScreenCoordinatorParameters {
     /// An optional hint that can be used to pre-fill the form.
     let loginHint: String?
     let userIndicatorController: UserIndicatorControllerProtocol
-    let appSettings: AppSettings
+    // AGENT-PLATFORM (Brief 0083 L1b): no appSettings, it only held Element Pro's App Store URL.
 }
 
 enum LoginScreenCoordinatorAction {
@@ -41,8 +41,7 @@ final class LoginScreenCoordinator: CoordinatorProtocol {
     init(parameters: LoginScreenCoordinatorParameters) {
         viewModel = LoginScreenViewModel(authenticationService: parameters.authenticationService,
                                          loginHint: parameters.loginHint,
-                                         userIndicatorController: parameters.userIndicatorController,
-                                         appSettings: parameters.appSettings)
+                                         userIndicatorController: parameters.userIndicatorController) // AGENT-PLATFORM (Brief 0083 L1b)
     }
     
     // MARK: - Public

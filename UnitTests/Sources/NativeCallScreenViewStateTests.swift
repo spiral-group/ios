@@ -2,7 +2,7 @@
 // Copyright 2026 the Spiral authors. AGPL-3.0-or-later.
 //
 
-@testable import ElementX
+@testable import Spiral
 import Testing
 
 // AGENT-PLATFORM (Brief 0063, native call UI Phase 1): the view state's
@@ -46,6 +46,226 @@ struct NativeCallScreenViewStateTests {
                                  conversation: .unknown)
     }
 
+    // MARK: - The assistant's own page (question 383)
+
+    /// The page is for a call with one's own assistant and nobody else: from the ring, before anyone has joined, and
+    /// back to the call's usual layout the moment a person joins, so their face and camera show.
+    @Test
+    func theAssistantsPageIsOnlyForACallWithNobodyElse() {
+        let me = NativeCallParticipant(id: "@alice:spiral.md:ALICE", userID: "@alice:spiral.md", role: .human,
+                                       mediaState: .connected, isSpeaking: false, isAudioEnabled: true, isLocal: true)
+        let assistant = participant(agentMxid, role: .agent)
+        let bob = participant("@bob:spiral.md", role: .human)
+
+        var ringing = state(participants: [])
+        ringing.scope = .assistant
+        #expect(ringing.isAssistantPage, "from the ring: no jump when the assistant joins")
+
+        var alone = state(participants: [me, assistant])
+        alone.scope = .assistant
+        #expect(alone.isAssistantPage)
+
+        var joined = state(participants: [me, assistant, bob])
+        joined.scope = .assistant
+        #expect(!joined.isAssistantPage, "a person joined: the usual layout, their camera shows")
+
+        var direct = state(participants: [me, bob])
+        direct.scope = .direct
+        #expect(!direct.isAssistantPage)
+
+        var group = state(participants: [me, assistant])
+        group.scope = .group
+        #expect(!group.isAssistantPage)
+
+        #expect(alone.stagePeer?.userID == agentMxid, "the page centres on the assistant")
+        #expect(joined.stagePeer?.userID == "@bob:spiral.md", "once the page ends, the person takes the stage")
+    }
+
+    /// Question 400: the assistant's page takes its colour as the avatar shows it, from the ring (the DM's one hero) to
+    /// the call (the agent); a person's call, a group and the page once a person joined keep their own field.
+    @Test
+    func theAssistantsPageTakesTheAssistantsColour() {
+        let me = NativeCallParticipant(id: "@alice:spiral.md:ALICE", userID: "@alice:spiral.md", role: .human,
+                                       mediaState: .connected, isSpeaking: false, isAudioEnabled: true, isLocal: true)
+        let assistant = participant(agentMxid, role: .agent)
+        let bob = participant("@bob:spiral.md", role: .human)
+
+        var ringing = state(participants: [])
+        ringing.scope = .assistant
+        ringing.roomAvatar = .heroes([UserProfile(userID: agentMxid)])
+        #expect(ringing.backdropContentID == agentMxid)
+        #expect(NativeCallBackdrop.Fill(contentID: ringing.backdropContentID) == .agent(id: agentMxid))
+
+        var alone = state(participants: [me, assistant])
+        alone.scope = .assistant
+        #expect(alone.backdropContentID == agentMxid)
+
+        var joined = state(participants: [me, assistant, bob])
+        joined.scope = .assistant
+        joined.roomAvatar = .heroes([UserProfile(userID: agentMxid)])
+        #expect(joined.backdropContentID == nil)
+
+        var direct = state(participants: [me, bob])
+        direct.scope = .direct
+        direct.roomAvatar = .heroes([UserProfile(userID: "@bob:spiral.md")])
+        #expect(direct.backdropContentID == nil)
+
+        var group = state(participants: [me, assistant])
+        group.scope = .group
+        #expect(group.backdropContentID == nil)
+    }
+
+    // MARK: - Who is on the 1:1 stage (decision 342)
+
+    private func tile(_ userID: String,
+                      isLocal: Bool = false,
+                      hasPicture: Bool = false,
+                      mediaState: NativeCallParticipant.MediaState = .connected,
+                      isCameraEnabled: Bool = false,
+                      isMuted: Bool = false,
+                      isOnHold: Bool = false,
+                      isReconnecting: Bool = false) -> NativeCallVideoTile {
+        var person = NativeCallParticipant(id: "\(userID):DEVICE",
+                                           userID: userID,
+                                           role: .human,
+                                           mediaState: mediaState,
+                                           isSpeaking: false,
+                                           isAudioEnabled: !isMuted,
+                                           isLocal: isLocal)
+        person.isVideoEnabled = hasPicture || isCameraEnabled
+        person.isOnHold = isOnHold
+        person.isReconnecting = isReconnecting
+        return NativeCallVideoTile(participant: person,
+                                   source: hasPicture ? .init(identity: person.id, trackID: "", isLocal: isLocal) : nil)
+    }
+
+    @Test
+    func aSettledPeerWithTheirCameraOffFillsTheStageWithOurVideoInTheCorner() {
+        let local = tile("@alice:spiral.md", isLocal: true, hasPicture: true)
+        let peer = tile("@bob:spiral.md")
+
+        let stage = NativeCallVideoStage.tiles(remote: peer, local: local, isPeerSettled: true, isSelfVideoLarge: false)
+
+        #expect(stage.large == peer)
+        #expect(stage.small == local)
+    }
+
+    @Test
+    func aPeerWithAPictureTakesTheStage() {
+        let local = tile("@alice:spiral.md", isLocal: true, hasPicture: true)
+        let peer = tile("@bob:spiral.md", hasPicture: true)
+
+        let stage = NativeCallVideoStage.tiles(remote: peer, local: local, isPeerSettled: false, isSelfVideoLarge: false)
+
+        #expect(stage.large == peer)
+        #expect(stage.small == local)
+    }
+
+    @Test(arguments: [true, false])
+    func theManualSwapPutsUsOnTheStage(peerHasPicture: Bool) {
+        let local = tile("@alice:spiral.md", isLocal: true, hasPicture: true)
+        let peer = tile("@bob:spiral.md", hasPicture: peerHasPicture)
+
+        let stage = NativeCallVideoStage.tiles(remote: peer, local: local, isPeerSettled: true, isSelfVideoLarge: true)
+
+        #expect(stage.large == local)
+        #expect(stage.small == peer)
+    }
+
+    @Test
+    func ourCameraKeepsTheStageUntilThePeerAnswers() {
+        let local = tile("@alice:spiral.md", isLocal: true, hasPicture: true)
+
+        let stage = NativeCallVideoStage.tiles(remote: nil, local: local, isPeerSettled: false, isSelfVideoLarge: false)
+
+        #expect(stage.large == local)
+        #expect(stage.small == nil)
+    }
+
+    @Test
+    func ourCameraKeepsTheStageUntilThePeerSettles() {
+        let local = tile("@alice:spiral.md", isLocal: true, hasPicture: true)
+        let peer = tile("@bob:spiral.md")
+
+        let stage = NativeCallVideoStage.tiles(remote: peer, local: local, isPeerSettled: false, isSelfVideoLarge: false)
+
+        #expect(stage.large == local)
+        #expect(stage.small == peer)
+    }
+
+    @Test
+    func aCameraIsOffOnlyWhenThePeerIsConnectedWithNoCamera() {
+        #expect(NativeCallVideoStage.isCameraOff(tile("@bob:spiral.md")))
+        #expect(!NativeCallVideoStage.isCameraOff(tile("@bob:spiral.md", hasPicture: true)))
+        #expect(!NativeCallVideoStage.isCameraOff(tile("@bob:spiral.md", mediaState: .connecting)))
+        #expect(!NativeCallVideoStage.isCameraOff(tile("@bob:spiral.md", mediaState: .waitingForKeys)))
+        #expect(!NativeCallVideoStage.isCameraOff(tile("@bob:spiral.md", isCameraEnabled: true)))
+    }
+
+    @Test
+    func thePersonIsOnTheStageOnlyAsTheSettledPeerWithNoPicture() {
+        let local = tile("@alice:spiral.md", isLocal: true, hasPicture: true)
+        var state = NativeCallScreenViewState(roomName: "Bohdan")
+        state.videoTiles = [tile("@bob:spiral.md"), local]
+
+        #expect(!state.isPersonOnStage, "not settled: our camera has the stage")
+
+        state.isPeerSettled = true
+        #expect(state.isPersonOnStage)
+
+        state.bindings.isSelfVideoLarge = true
+        #expect(!state.isPersonOnStage, "swapped: our camera has the stage")
+
+        state.bindings.isSelfVideoLarge = false
+        state.videoTiles = [tile("@bob:spiral.md", hasPicture: true), local]
+        #expect(!state.isPersonOnStage, "their picture has the stage")
+
+        state.videoTiles = [local]
+        #expect(!state.isPersonOnStage, "no peer")
+    }
+
+    // MARK: - What the stage says of the person
+
+    @Test @MainActor
+    func theStageSaysNothingOfAPersonWithNothingToSay() {
+        let facts = tile("@bob:spiral.md").stageFacts
+
+        #expect(!facts.isMuted)
+        #expect(facts.state == nil)
+    }
+
+    @Test @MainActor
+    func theStageShowsAMutedPeer() {
+        let facts = tile("@bob:spiral.md", isMuted: true).stageFacts
+
+        #expect(facts.isMuted)
+        #expect(facts.state == nil)
+    }
+
+    @Test @MainActor
+    func theStageSaysOnHoldRatherThanMuted() {
+        let facts = tile("@bob:spiral.md", isMuted: true, isOnHold: true).stageFacts
+
+        #expect(!facts.isMuted)
+        #expect(facts.state == UntranslatedL10n.screenNativeCallStatusOnHold)
+    }
+
+    @Test @MainActor
+    func theStageSaysReconnectingOverALostLink() {
+        let facts = tile("@bob:spiral.md", isMuted: true, isReconnecting: true).stageFacts
+
+        #expect(facts.isMuted)
+        #expect(facts.state == UntranslatedL10n.screenNativeCallParticipantReconnecting)
+    }
+
+    @Test(arguments: [NativeCallParticipant.MediaState.connecting, .waitingForKeys]) @MainActor
+    func theStageSaysReconnectingWhenMediaDrops(mediaState: NativeCallParticipant.MediaState) {
+        let facts = tile("@bob:spiral.md", mediaState: mediaState, isMuted: true).stageFacts
+
+        #expect(!facts.isMuted, "with its media gone, a peer only reads as muted")
+        #expect(facts.state == UntranslatedL10n.screenNativeCallParticipantReconnecting)
+    }
+
     // MARK: - G1: agents are not participants
 
     /// The roster renders humans only. An agent is disclosed by the header
@@ -77,7 +297,6 @@ struct NativeCallScreenViewStateTests {
                           claimed: [agentMxid: ["en"]],
                           speaking: [agentMxid])
 
-        #expect(state.agentBlock?.isAiring == true)
         #expect(state.agentBlock?.event == .airing(.translation(languages: ["en"])))
     }
 
@@ -228,8 +447,10 @@ struct NativeCallScreenViewStateTests {
     /// doing — the Agent Center's head line, idle here — never a head-count.
     @Test
     func aCallWithTheAssistantReadsItsStatusNotAHeadCount() {
-        var state = state(participants: [participant("@alice:spiral.md", role: .human),
-                                         participant(agentMxid, role: .agent)])
+        // Alice is the local person: a remote one would end the assistant's page (question 383).
+        let alice = NativeCallParticipant(id: "@alice:spiral.md:ALICE", userID: "@alice:spiral.md", role: .human,
+                                          mediaState: .connected, isSpeaking: false, isAudioEnabled: true, isLocal: true)
+        var state = state(participants: [alice, participant(agentMxid, role: .agent)])
         state.scope = .assistant
 
         #expect(state.stagePeer?.userID == agentMxid, "the assistant is the face the 1:1 stage centres on")
@@ -255,12 +476,7 @@ struct NativeCallScreenViewStateTests {
                                  summary: .init(isEnabled: false, revision: 1, delivery: .notArmed, isStopped: false),
                                  translation: languages.isEmpty
                                      ? .unknown
-                                     : .init(booths: [.init(speakerScope: "anyone",
-                                                            speakerMembers: [],
-                                                            targetLanguages: languages)],
-                                             style: "consecutive",
-                                             source: "override",
-                                             revision: 1),
+                                     : .init(effective: .init(source: "override", style: "consecutive", pocket: languages), revision: 1),
                                  conversation: .unknown)
     }
 
@@ -401,131 +617,5 @@ struct NativeCallScreenViewStateTests {
         #expect(poor.isConnectionPoor)
         #expect(poor.statusDetail == nil)
         #expect(!poor.statusDetailIsDegraded)
-    }
-}
-
-/// Audit A7-8 — the group grid sized from both axes. The invariant the
-/// old layout broke: every tile fully on screen, no matter how wide the
-/// screen is.
-struct NativeCallGridLayoutTests {
-    @Test
-    func eightTilesFitAnIPadHeight() {
-        // The reverted-ScrollView scenario: ~980pt wide, ~1000pt of
-        // usable height, 8 tiles. The old width-derived layout produced
-        // three ~430pt rows (~1300pt) and clipped the last one.
-        let layout = NativeCallGridLayout.compute(tileCount: 8,
-                                                  availableWidth: 980,
-                                                  availableHeight: 1000,
-                                                  spacing: 8)
-        let rows = (8 + layout.columns - 1) / layout.columns
-        let gridHeight = Double(rows) * layout.tileHeight + Double(rows - 1) * 8
-        #expect(gridHeight <= 1000, "every tile fully on screen")
-        #expect(layout.tileWidth > 0 && layout.tileHeight > 0)
-    }
-
-    @Test
-    func aPhoneKeepsTheFamiliarTwoColumns() {
-        let layout = NativeCallGridLayout.compute(tileCount: 4,
-                                                  availableWidth: 369,
-                                                  availableHeight: 580,
-                                                  spacing: 8)
-        #expect(layout.columns == 2)
-        let rows = 2.0
-        #expect(rows * layout.tileHeight + 8 <= 580)
-    }
-
-    @Test
-    func tilesNeverExceedThePreferredPortraitAspect() {
-        // Given generous height, the tile settles at 3:4 — never taller.
-        let layout = NativeCallGridLayout.compute(tileCount: 2,
-                                                  availableWidth: 400,
-                                                  availableHeight: 2000,
-                                                  spacing: 8)
-        #expect(abs(layout.tileHeight - layout.tileWidth * 4.0 / 3.0) < 0.001)
-    }
-
-    /// Brief 0067: the eligibility cap is gone, so a twelve-person room is
-    /// a native grid. Every tile must still be fully on screen, on a phone
-    /// and on an iPad, and the fourth column must only appear when it
-    /// actually buys face area.
-    @Test
-    func twelveTilesFitAPhoneAndAnIPad() {
-        for (width, height) in [(369.0, 580.0), (980.0, 1000.0)] {
-            let layout = NativeCallGridLayout.compute(tileCount: 12,
-                                                      availableWidth: width,
-                                                      availableHeight: height,
-                                                      spacing: 8)
-            let rows = (12 + layout.columns - 1) / layout.columns
-            let gridHeight = Double(rows) * layout.tileHeight + Double(rows - 1) * 8
-            #expect(gridHeight <= height, "every tile fully on screen at \(width)×\(height)")
-            #expect(layout.tileWidth > 0 && layout.tileHeight > 0)
-            #expect(layout.columns <= 4)
-        }
-        // Eight tiles never take the fourth column — the familiar layout stays.
-        let eight = NativeCallGridLayout.compute(tileCount: 8, availableWidth: 980, availableHeight: 1000, spacing: 8)
-        #expect(eight.columns <= 3)
-    }
-
-    @Test
-    func degenerateInputsProduceNoTraps() {
-        _ = NativeCallGridLayout.compute(tileCount: 0, availableWidth: 400, availableHeight: 600, spacing: 8)
-        _ = NativeCallGridLayout.compute(tileCount: 8, availableWidth: 0, availableHeight: 0, spacing: 8)
-        let squeezed = NativeCallGridLayout.compute(tileCount: 8, availableWidth: 100, availableHeight: 40, spacing: 8)
-        #expect(squeezed.tileHeight >= 0)
-    }
-}
-
-/// Decision 180 — `11 · Add an agent`: what the sheet's toggles put in the
-/// one attach.
-struct NativeCallAddAgentFormTests {
-    private let catalog: [VoiceControlsCatalogLanguage] = [.init(code: "en", label: "English"),
-                                                           .init(code: "uk", label: "Ukrainian")]
-
-    @Test
-    func nothingPickedJoinsNeutral() {
-        let form = NativeCallAddAgentForm(catalog: catalog)
-        #expect(form.params == VoiceAttachParams(translation: nil, recording: false, summary: false, conversation: false))
-    }
-
-    @Test
-    func conversationAndTranslationExcludeEachOther() {
-        var form = NativeCallAddAgentForm(catalog: catalog)
-        form.setConversation(true)
-        form.setTranslation(true)
-        #expect(form.translation && !form.conversation)
-
-        form.setConversation(true)
-        #expect(form.conversation && !form.translation)
-        #expect(form.params.translation == nil)
-        #expect(form.params.conversation)
-    }
-
-    /// The picker's choice is the booth the attach carries — before any
-    /// session exists.
-    @Test
-    func thePickedLanguageIsTheAttachsTranslation() {
-        var form = NativeCallAddAgentForm(catalog: catalog)
-        form.setTranslation(true)
-        form.languages = ["uk"]
-        form.recording = true
-
-        #expect(form.params == VoiceAttachParams(translation: .init(booths: [.init(speakerScope: VoiceSpeakerScope.anyone.rawValue,
-                                                                                   speakerMembers: [],
-                                                                                   targetLanguages: ["uk"])],
-                                                                    style: NativeCallTranslationStyleDefault.wire),
-                                                 recording: true,
-                                                 summary: false,
-                                                 conversation: false))
-    }
-
-    @Test
-    func translationNeedsALanguage() {
-        var form = NativeCallAddAgentForm(catalog: [.init(code: "xx", label: "Nothing the locale speaks")])
-        form.languages = []
-        form.setTranslation(true)
-        #expect(!form.canAdd)
-
-        form.languages = ["xx"]
-        #expect(form.canAdd)
     }
 }

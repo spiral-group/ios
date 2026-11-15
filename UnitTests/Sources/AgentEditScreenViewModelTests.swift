@@ -9,9 +9,9 @@
 // ADR-0049): the avatar and the name only since decision 194.
 //
 
-@testable import ElementX
 import Combine
 import Foundation
+@testable import Spiral
 import Testing
 
 @MainActor
@@ -23,7 +23,6 @@ struct AgentEditScreenViewModelTests {
                                                     kind: "personal_assistant",
                                                     visibility: "public",
                                                     lifecycleState: "active",
-                                                    presence: .online,
                                                     roomCount: 1,
                                                     activeToolCount: 0)
     
@@ -45,10 +44,10 @@ struct AgentEditScreenViewModelTests {
                                              configVersionID: "cfg-1",
                                              versionNumber: 1)
     
-    private static func readModel(for card: AgentSpaceAgentCard, persona: PersonaView? = persona) -> AgentReadModel {
+    private static func readModel(for card: AgentSpaceAgentCard, displayName: String? = nil, persona: PersonaView? = persona) -> AgentReadModel {
         AgentReadModel(agentID: card.agentID,
                        matrixUserID: card.matrixUserID,
-                       displayName: card.displayName,
+                       displayName: displayName ?? card.displayName,
                        avatarMXC: card.avatarMXC,
                        kind: card.kind,
                        visibility: card.visibility,
@@ -62,12 +61,27 @@ struct AgentEditScreenViewModelTests {
 
     private func makeViewModel(service: AgentPlatformServiceMock,
                                card: AgentSpaceAgentCard = paCard,
+                               store: AgentsStore? = nil,
                                clientProxy: ClientProxyMock? = nil) -> AgentEditScreenViewModel {
-        AgentEditScreenViewModel(agent: card,
-                                 agentPlatformService: service,
-                                 userSession: UserSessionMock(.init(clientProxy: clientProxy ?? ClientProxyMock(.init()))),
-                                 userIndicatorController: UserIndicatorControllerMock(),
-                                 appSettings: .volatile())
+        service.fetchAgentRoomsAgentIDReturnValue = .success([])
+        service.listVerificationsForAgentAgentIDReturnValue = .success([])
+        return AgentEditScreenViewModel(agent: card,
+                                        agentPlatformService: service,
+                                        store: store ?? AgentsStore(service: service, retryDelays: []),
+                                        userSession: UserSessionMock(.init(clientProxy: clientProxy ?? ClientProxyMock(.init()))),
+                                        userIndicatorController: UserIndicatorControllerMock())
+    }
+    
+    /// A store that read the agent and its limits: what opening from the agent's screen finds.
+    private func storeHoldingTheAgent(displayName: String, service: AgentPlatformServiceMock) async -> AgentsStore {
+        service.fetchAgentEditSchemaAgentIDReturnValue = .success(Self.paSchema)
+        service.fetchAgentReadModelAgentIDReturnValue = .success(Self.readModel(for: Self.paCard, displayName: displayName))
+        service.fetchAgentRoomsAgentIDReturnValue = .success([])
+        service.listVerificationsForAgentAgentIDReturnValue = .success([])
+        let store = AgentsStore(service: service, retryDelays: [])
+        await store.reread(.agent(agentID: Self.paCard.agentID))
+        await store.reread(.editSchema(agentID: Self.paCard.agentID))
+        return store
     }
     
     private static func imageMediaInfo() -> MediaInfo {
@@ -91,6 +105,94 @@ struct AgentEditScreenViewModelTests {
         #expect(viewModel.context.viewState.canSave == false)
         viewModel.context.displayName = "Renamed"
         #expect(viewModel.context.viewState.canSave == true)
+    }
+    
+    /// Brief 0083, question 359: the first frame is the final form. The card can be stale after a save (0038 I1 fix),
+    /// so what the store holds comes first.
+    @Test
+    func theFormOpensFilledFromTheStore() async {
+        let service = AgentPlatformServiceMock()
+        let store = await storeHoldingTheAgent(displayName: "Renamed before", service: service)
+        
+        let viewModel = makeViewModel(service: service, store: store)
+        
+        #expect(viewModel.context.displayName == "Renamed before")
+        #expect(viewModel.context.viewState.initialDisplayName == "Renamed before")
+        #expect(viewModel.context.viewState.schema != nil)
+    }
+    
+    /// Brief 0083, question 359: the card fills the form, and nothing replaces it. The name can't be checked without
+    /// its limits, so it can't be saved.
+    @Test
+    func theCardFillsTheFormWhileTheLimitsAreOnTheirWay() async throws {
+        let service = AgentPlatformServiceMock()
+        let limits = HeldRead<AgentEditSchema>(answer: .success(Self.paSchema))
+        service.fetchAgentEditSchemaAgentIDClosure = { _ in await limits.answer() }
+        service.fetchAgentReadModelAgentIDReturnValue = .success(Self.readModel(for: Self.paCard))
+        
+        let viewModel = makeViewModel(service: service)
+        #expect(viewModel.context.displayName == "Personal Assistant")
+        #expect(viewModel.context.viewState.loadState == .loading)
+        
+        viewModel.context.displayName = "Typed anyway"
+        #expect(viewModel.context.viewState.canSave == false)
+        viewModel.context.displayName = "Personal Assistant"
+        
+        let loaded = deferFulfillment(viewModel.context.observe(\.viewState.loadState)) { $0 == .loaded(Self.paSchema) }
+        limits.release()
+        try await loaded.fulfill()
+    }
+    
+    /// Brief 0083, question 359: a failure keeps the form, says so and retries; it is never a schema to check against.
+    @Test
+    func aFailedLimitsReadKeepsTheFormAndCanBeRetried() async throws {
+        let service = AgentPlatformServiceMock()
+        service.fetchAgentEditSchemaAgentIDReturnValue = .failure(.serverError(status: 500))
+        service.fetchAgentReadModelAgentIDReturnValue = .success(Self.readModel(for: Self.paCard))
+        
+        let viewModel = makeViewModel(service: service)
+        let failed = deferFulfillment(viewModel.context.observe(\.viewState.loadState)) { $0 == .failure }
+        try await failed.fulfill()
+        #expect(viewModel.context.displayName == "Personal Assistant")
+        viewModel.context.displayName = "Renamed"
+        #expect(viewModel.context.viewState.canSave == false)
+        
+        service.fetchAgentEditSchemaAgentIDReturnValue = .success(Self.paSchema)
+        let loaded = deferFulfillment(viewModel.context.observe(\.viewState.loadState)) { $0 == .loaded(Self.paSchema) }
+        viewModel.context.send(viewAction: .retry)
+        try await loaded.fulfill()
+        #expect(viewModel.context.viewState.canSave == true)
+    }
+    
+    /// Brief 0083, question 359: a later read moves the baseline and leaves an edit alone.
+    @Test
+    func aLaterReadNeverOverwritesAnEdit() async throws {
+        let service = AgentPlatformServiceMock()
+        let store = await storeHoldingTheAgent(displayName: "Personal Assistant", service: service)
+        let viewModel = makeViewModel(service: service, store: store)
+        viewModel.context.displayName = "My edit"
+        
+        service.fetchAgentReadModelAgentIDReturnValue = .success(Self.readModel(for: Self.paCard, displayName: "From the server"))
+        let adopted = deferFulfillment(viewModel.context.observe(\.viewState.initialDisplayName)) { $0 == "From the server" }
+        await store.reread(.agent(agentID: Self.paCard.agentID))
+        try await adopted.fulfill()
+        
+        #expect(viewModel.context.displayName == "My edit")
+    }
+    
+    /// An untouched name follows what is read.
+    @Test
+    func aLaterReadFillsAnUntouchedName() async throws {
+        let service = AgentPlatformServiceMock()
+        service.fetchAgentEditSchemaAgentIDReturnValue = .success(Self.paSchema)
+        service.fetchAgentReadModelAgentIDReturnValue = .success(Self.readModel(for: Self.paCard, displayName: "From the server"))
+        
+        let viewModel = makeViewModel(service: service)
+        #expect(viewModel.context.displayName == "Personal Assistant")
+        
+        let adopted = deferFulfillment(viewModel.context.observe(\.viewState.initialDisplayName)) { $0 == "From the server" }
+        try await adopted.fulfill()
+        #expect(viewModel.context.displayName == "From the server")
     }
     
     @Test
@@ -160,6 +262,39 @@ struct AgentEditScreenViewModelTests {
         #expect(service.editAgentAgentIDPatchReceivedArguments?.patch == AgentEditPatch(avatarMXC: "mxc://host/new-avatar"))
     }
     
+    /// S5: the Agents tab's card holds the saved avatar before the form goes, without a read of its own.
+    @Test
+    func aSavedAvatarIsOnTheAgentsCardBeforeTheFormGoes() async throws {
+        let service = AgentPlatformServiceMock()
+        service.listMyAgentSpacesReturnValue = .success(.init(spaces: [.init(orgID: "org-1", name: "Personal", kind: .solo, avatarMXC: nil, agentCount: 1)],
+                                                              provisioningStatus: .ready))
+        service.fetchAgentSpaceOrgIDReturnValue = .success(AgentSpaceDetail(orgID: "org-1", name: "Personal", kind: .solo, avatarMXC: nil,
+                                                                            industry: nil, website: nil, agents: [Self.paCard]))
+        let store = await storeHoldingTheAgent(displayName: Self.paCard.displayName, service: service)
+        await store.reread(.spaces)
+        let answer = AgentReadModel(agentID: Self.paCard.agentID, matrixUserID: Self.paCard.matrixUserID, displayName: Self.paCard.displayName,
+                                    avatarMXC: "mxc://host/new-avatar", kind: Self.paCard.kind, visibility: Self.paCard.visibility,
+                                    lifecycleState: Self.paCard.lifecycleState, organizationID: "org-1", roomCount: 1, activeToolCount: 0,
+                                    configVersionNumber: 2, persona: Self.persona)
+        service.editAgentAgentIDPatchReturnValue = .success(answer)
+        let clientProxy = ClientProxyMock(.init())
+        clientProxy.uploadMediaReturnValue = .success("mxc://host/new-avatar")
+        let viewModel = makeViewModel(service: service, store: store, clientProxy: clientProxy)
+        viewModel.state.localMedia = Self.imageMediaInfo()
+
+        var cardAvatarOnSaved: String?
+        let saved = deferFulfillment(viewModel.actionsPublisher) { action in
+            guard case .saved = action else { return false }
+            cardAvatarOnSaved = store.card(agentID: Self.paCard.agentID)?.avatarMXC
+            return true
+        }
+        viewModel.context.send(viewAction: .save)
+        try await saved.fulfill()
+
+        #expect(cardAvatarOnSaved == "mxc://host/new-avatar")
+        #expect(service.listMyAgentSpacesCallsCount == 1, "the card shows the answer, not a read")
+    }
+
     @Test
     func removeAvatar_patchesEmptyStringClear() async throws {
         let cardWithAvatar = AgentSpaceAgentCard(agentID: "agent-1",
@@ -169,7 +304,6 @@ struct AgentEditScreenViewModelTests {
                                                  kind: "personal_assistant",
                                                  visibility: "public",
                                                  lifecycleState: "active",
-                                                 presence: .online,
                                                  roomCount: 1,
                                                  activeToolCount: 0)
         let service = AgentPlatformServiceMock()

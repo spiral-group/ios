@@ -31,7 +31,8 @@ class AgentInRoomScreenViewModel: AgentInRoomScreenViewModelType, AgentInRoomScr
         super.init(initialViewState: AgentInRoomScreenViewState(agent: agent,
                                                                 room: room,
                                                                 ownerDMRoomID: AgentRoomLabel.ownerDMRoomID(agentMatrixUserID: agent.matrixUserID,
-                                                                                                            clientProxy: clientProxy)),
+                                                                                                            clientProxy: clientProxy),
+                                                                deviceRoomName: AgentRoomLabel.name(for: room.roomID, clientProxy: clientProxy)),
                    mediaProvider: mediaProvider)
         
         Task { await nameAudienceMembers() }
@@ -44,6 +45,7 @@ class AgentInRoomScreenViewModel: AgentInRoomScreenViewModelType, AgentInRoomScr
         
         switch viewAction {
         case .removeTapped:
+            guard state.canRemoveFromRoom else { return }
             state.bindings.alertInfo = AlertInfo(id: .confirmRemove,
                                                  title: UntranslatedL10n.screenAgentInRoomRemoveAlertTitle,
                                                  message: UntranslatedL10n.screenAgentInRoomRemoveAlertMessage,
@@ -52,7 +54,10 @@ class AgentInRoomScreenViewModel: AgentInRoomScreenViewModelType, AgentInRoomScr
                                                  },
                                                  secondaryButton: .init(title: L10n.actionCancel, role: .cancel, action: nil))
         case .confirmRemove:
+            guard state.canRemoveFromRoom else { return }
             Task { await removeFromRoom() }
+        case .openChat:
+            actionsSubject.send(.openChat(roomID: state.room.roomID))
         case .addTool:
             actionsSubject.send(.addTool)
         case .selectTool(let id):
@@ -92,7 +97,7 @@ class AgentInRoomScreenViewModel: AgentInRoomScreenViewModelType, AgentInRoomScr
         defer { state.openingToolID = nil }
         
         guard case .success(let roomTools) = await agentPlatformService.fetchRoomTools(roomID: state.room.roomID),
-              let tool = AgentToolsListScreenViewModel.projectTools(from: roomTools, ownAgentID: state.agent.agentID).first(where: { $0.toolID == id }),
+              let tool = ActiveToolDetail.tools(in: roomTools, ownAgentID: state.agent.agentID).first(where: { $0.toolID == id }),
               tool.isEditable else {
             MXLog.error("Couldn't read tool \(id) in \(state.room.roomID) for its form")
             state.bindings.alertInfo = AlertInfo(id: .toolUnavailable,

@@ -16,6 +16,8 @@ class UserFlowTests: XCTestCase {
     private var app: XCUIApplication!
     
     override func setUp() async throws {
+        continueAfterFailure = false
+        
         app = Application.launch()
         try app.login(currentTestCase: self)
     }
@@ -34,7 +36,7 @@ class UserFlowTests: XCTestCase {
         searchField.clearAndTypeText(Self.integrationTestsRoomName, app: app)
         
         // And open it
-        let firstRoom = app.buttons.matching(NSPredicate(format: "identifier CONTAINS %@", Self.integrationTestsRoomName)).firstMatch
+        let firstRoom = app.buttons[A11yIdentifiers.searchScreen.roomName(Self.integrationTestsRoomName)].firstMatch
         
         // The backend is sometimes really slow and having a longer timeout
         // beats having to rerun the whole suite again.
@@ -48,11 +50,6 @@ class UserFlowTests: XCTestCase {
         
         // Go back to the room list
         tapOnBackButton("Chats")
-        
-        // Cancel initial the room search
-        let searchCancelButton = app.buttons["Close"].firstMatch
-        XCTAssertTrue(searchCancelButton.waitForExistence(timeout: 10.0))
-        searchCancelButton.tap(.center)
     }
     
     private func sendMessages() {

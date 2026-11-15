@@ -12,7 +12,7 @@ import SwiftUI
 typealias SettingsScreenViewModelType = StateStoreViewModelV2<SettingsScreenViewState, SettingsScreenViewAction>
 
 class SettingsScreenViewModel: SettingsScreenViewModelType, SettingsScreenViewModelProtocol {
-    private let appSettings: AppSettings
+    private let userSettings: UserSettings
     private let clientProxy: ClientProxyProtocol
     private let userIndicatorController: UserIndicatorControllerProtocol
     // AGENT-PLATFORM (Brief 0078): App Review 2.3.1 — no hidden features in a Release build.
@@ -26,12 +26,11 @@ class SettingsScreenViewModel: SettingsScreenViewModelType, SettingsScreenViewMo
     }
     
     init(userSession: UserSessionProtocol,
-         appSettings: AppSettings,
          isBugReportServiceEnabled: Bool,
          isInSecondaryWindow: Bool,
          userIndicatorController: UserIndicatorControllerProtocol,
          allowsDeveloperOptions: Bool = AppSettings.appBuildType != .release) { // AGENT-PLATFORM (Brief 0078)
-        self.appSettings = appSettings
+        userSettings = userSession.userSettings
         clientProxy = userSession.clientProxy
         self.userIndicatorController = userIndicatorController
         self.allowsDeveloperOptions = allowsDeveloperOptions
@@ -41,13 +40,14 @@ class SettingsScreenViewModel: SettingsScreenViewModelType, SettingsScreenViewMo
                                            // AGENT-PLATFORM (Brief 0078): a Spiral account is deleted through the platform.
                                            showAccountDeactivation: userSession.clientProxy.canDeactivateAccount || userSession.agentPlatformService != nil,
                                            showYourData: userSession.agentPlatformService != nil, // AGENT-PLATFORM (Brief 0078)
-                                           showDeveloperOptions: allowsDeveloperOptions && appSettings.developerOptionsEnabled, // AGENT-PLATFORM (Brief 0078)
-                                           showAnalyticsSettings: appSettings.canPromptForAnalytics,
+                                           showDeveloperOptions: allowsDeveloperOptions && userSettings.app.developerOptionsEnabled, // AGENT-PLATFORM (Brief 0078)
+                                           showAnalyticsSettings: userSettings.app.canPromptForAnalytics,
                                            isBugReportServiceEnabled: isBugReportServiceEnabled,
-                                           navigationBarVisibility: isInSecondaryWindow ? .hidden : .automatic),
+                                           navigationBarVisibility: isInSecondaryWindow ? .hidden : .automatic,
+                                           bindings: .init(userSettings: userSettings)),
                    mediaProvider: userSession.mediaProvider)
         
-        appSettings.developerOptionsEnabledPublisher
+        userSettings.app.developerOptionsEnabledPublisher
             .map { allowsDeveloperOptions && $0 } // AGENT-PLATFORM (Brief 0078): a stored `true` from an older build stays hidden.
             .weakAssign(to: \.state.showDeveloperOptions, on: self)
             .store(in: &cancellables)
@@ -66,8 +66,8 @@ class SettingsScreenViewModel: SettingsScreenViewModelType, SettingsScreenViewMo
             .store(in: &cancellables)
         
         Task {
-            if appSettings.userStatusEnabled, case .success(true) = await userSession.clientProxy.isUserStatusSupported() {
-                state.showUserStatus = true
+            if case .success(true) = await userSession.clientProxy.isUserStatusSupported() {
+                state.showUserStatusInput = true
             }
             await userSession.clientProxy.loadUserProfileIfNeeded()
         }
@@ -75,8 +75,7 @@ class SettingsScreenViewModel: SettingsScreenViewModelType, SettingsScreenViewMo
     
     override func process(viewAction: SettingsScreenViewAction) {
         switch viewAction {
-        case .close:
-            actionsSubject.send(.close)
+            
         case .userDetails:
             actionsSubject.send(.userDetails)
         case .userStatus(.pickStatus):
@@ -88,8 +87,8 @@ class SettingsScreenViewModel: SettingsScreenViewModelType, SettingsScreenViewMo
             pickCustomEmoji()
         case .userStatus(.set(let status)):
             Task { await setUserStatus(status) }
-        case .userStatus(.clear(let status)):
-            Task { await clearUserStatus(status) }
+        case .userStatus(.clear):
+            Task { await clearUserStatus() }
         case .userStatus(.cancel):
             state.bindings.isPresentingStatusPicker = false
             state.bindings.isShowingCustomStatusField = false
@@ -117,7 +116,7 @@ class SettingsScreenViewModel: SettingsScreenViewModelType, SettingsScreenViewMo
             actionsSubject.send(.logout)
         case .enableDeveloperOptions:
             guard allowsDeveloperOptions else { return } // AGENT-PLATFORM (Brief 0078): seven taps do nothing in Release.
-            appSettings.developerOptionsEnabled.toggle()
+            userSettings.app.developerOptionsEnabled.toggle()
         case .developerOptions:
             actionsSubject.send(.developerOptions)
         case .deactivateAccount:
@@ -140,42 +139,56 @@ class SettingsScreenViewModel: SettingsScreenViewModelType, SettingsScreenViewMo
         .asCancellable()
     }
     
-    func setUserStatus(_ status: UserStatus.Raw) async {
-        // Loading state tbc
+    private func setUserStatus(_ status: UserStatus.Raw) async {
+        showSavingIndicator()
+        defer { hideSavingIndicator() }
+        
         state.bindings.isPresentingStatusPicker = false
         state.bindings.isShowingCustomStatusField = false
         
-        switch await clientProxy.setUserStatus(status) {
-        case .success:
-            break // Loading/error state tbc
-        case .failure:
-            userIndicatorController.submitIndicator(.init(id: UUID().uuidString,
-                                                          type: .toast,
-                                                          title: L10n.errorUnknown,
-                                                          icon: \.close))
+        if case .failure = await clientProxy.setUserStatus(status) {
+            showFailureIndicator()
         }
     }
     
-    func clearUserStatus(_ status: UserStatus.Displayed) async {
-        // Loading state tbc
+    /// Clears both the `UserStatus.Raw` and `UserStatus.Call` values simultaneously.
+    private func clearUserStatus() async {
+        showSavingIndicator()
+        defer { hideSavingIndicator() }
+        
         state.bindings.isPresentingStatusPicker = false
         state.bindings.isShowingCustomStatusField = false
         
-        let result = switch status {
-        case .userSet:
-            await clientProxy.removeUserStatus()
-        case .inCall:
-            await clientProxy.removeCallStatus()
+        if case .failure = await clientProxy.clearUserStatus() {
+            showFailureIndicator()
         }
-        
-        switch result {
-        case .success:
-            break // Loading/error state tbc
-        case .failure:
-            userIndicatorController.submitIndicator(.init(id: UUID().uuidString,
-                                                          type: .toast,
-                                                          title: L10n.errorUnknown,
-                                                          icon: \.close))
-        }
+    }
+    
+    // MARK: - Indicators
+    
+    private static var savingIndicatorID: String {
+        "\(Self.self)-Saving"
+    }
+    
+    private static var failureIndicatorID: String {
+        "\(Self.self)-Failure"
+    }
+    
+    private func showSavingIndicator() {
+        userIndicatorController.submitIndicator(UserIndicator(id: Self.savingIndicatorID,
+                                                              type: .toast(progress: .indeterminate),
+                                                              title: L10n.commonSaving,
+                                                              persistent: true))
+    }
+    
+    private func hideSavingIndicator() {
+        userIndicatorController.retractIndicatorWithId(Self.savingIndicatorID)
+    }
+    
+    private func showFailureIndicator() {
+        userIndicatorController.submitIndicator(UserIndicator(id: Self.failureIndicatorID,
+                                                              type: .toast,
+                                                              title: L10n.commonFailed,
+                                                              icon: \.close))
     }
 }

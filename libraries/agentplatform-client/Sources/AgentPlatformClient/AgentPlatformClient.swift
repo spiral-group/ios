@@ -76,7 +76,7 @@ public struct AgentPlatformClient: Sendable {
         underlying = Client(serverURL: serverURL,
                             configuration: configuration,
                             transport: transport,
-                            middlewares: [authMiddleware])
+                            middlewares: [authMiddleware, RetryAfterMiddleware()])
         self.serverURL = serverURL
         self.urlSession = urlSession
         self.transport = transport
@@ -129,6 +129,12 @@ public struct AgentPlatformClient: Sendable {
 /// 401 it, which is the caller's cue to drive the OAuth2 re-
 /// login flow.
 ///
+/// A `401` to a token is answered once more with a newer token
+/// when the provider has one: an access token lives minutes,
+/// and the platform can refuse an expired one before the Matrix
+/// SDK has refreshed it. A body that can be sent only once is not
+/// replayed.
+///
 /// Implemented as a `ClientMiddleware` (OpenAPIRuntime 1.x) so
 /// the bearer-injection point is shared across every typed
 /// operation; we never have to remember to add headers in the
@@ -146,10 +152,38 @@ public struct AuthMiddleware: ClientMiddleware {
                           operationID: String,
                           next: @Sendable (HTTPRequest, HTTPBody?, URL) async throws -> (HTTPResponse, HTTPBody?)) async throws -> (HTTPResponse, HTTPBody?) {
         var mutableRequest = request
-        if let token = await provider.currentAccessToken() {
+        let token = await provider.currentAccessToken()
+        if let token {
             mutableRequest.headerFields[.authorization] = "Bearer \(token)"
         }
+        let (response, responseBody) = try await next(mutableRequest, body, baseURL)
+
+        guard response.status == .unauthorized, let token, body?.iterationBehavior != .single,
+              let refreshed = await provider.refreshedAccessToken(replacing: token), refreshed != token else {
+            return (response, responseBody)
+        }
+        mutableRequest.headerFields[.authorization] = "Bearer \(refreshed)"
         return try await next(mutableRequest, body, baseURL)
+    }
+}
+
+/// Drops a `Retry-After` that is not whole seconds before the generated
+/// decoder reads it. The spec types it as an integer, so a value such as an
+/// HTTP date would fail the whole response; without it the caller falls back
+/// to its own wait (Brief 0082: the feed's `503` retry).
+public struct RetryAfterMiddleware: ClientMiddleware {
+    public init() { }
+
+    public func intercept(_ request: HTTPRequest,
+                          body: HTTPBody?,
+                          baseURL: URL,
+                          operationID: String,
+                          next: @Sendable (HTTPRequest, HTTPBody?, URL) async throws -> (HTTPResponse, HTTPBody?)) async throws -> (HTTPResponse, HTTPBody?) {
+        var (response, responseBody) = try await next(request, body, baseURL)
+        if let value = response.headerFields[.retryAfter], UInt64(value.trimmingCharacters(in: .whitespaces)) == nil {
+            response.headerFields[.retryAfter] = nil
+        }
+        return (response, responseBody)
     }
 }
 

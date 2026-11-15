@@ -8,6 +8,7 @@
 
 import Combine
 import Compound
+import SpiralTokens // AGENT-PLATFORM (Brief 0083)
 import SwiftUI
 
 struct HomeScreenRecoveryKeyConfirmationBanner: View {
@@ -15,24 +16,25 @@ struct HomeScreenRecoveryKeyConfirmationBanner: View {
     let state: State
     var context: HomeScreenViewModel.Context
     
+    // AGENT-PLATFORM (Brief 0083, decision 314): Spiral's copy, through `Untranslated.strings`' `*_spiral` keys.
     var title: String {
         switch state {
-        case .setUpRecovery: L10n.bannerSetUpRecoveryTitle
-        case .recoveryOutOfSync: L10n.confirmRecoveryKeyBannerTitle
+        case .setUpRecovery: UntranslatedL10n.bannerSetUpRecoveryTitleSpiral
+        case .recoveryOutOfSync: UntranslatedL10n.confirmRecoveryKeyBannerTitleSpiral
         }
     }
     
     var message: String {
         switch state {
-        case .setUpRecovery: L10n.bannerSetUpRecoveryContent
-        case .recoveryOutOfSync: L10n.confirmRecoveryKeyBannerMessage
+        case .setUpRecovery: UntranslatedL10n.bannerSetUpRecoveryContentSpiral
+        case .recoveryOutOfSync: UntranslatedL10n.confirmRecoveryKeyBannerMessageSpiral
         }
     }
     
     var actionTitle: String {
         switch state {
-        case .setUpRecovery: L10n.bannerSetUpRecoverySubmit
-        case .recoveryOutOfSync: L10n.confirmRecoveryKeyBannerPrimaryButtonTitle
+        case .setUpRecovery: UntranslatedL10n.bannerSetUpRecoverySubmitSpiral
+        case .recoveryOutOfSync: UntranslatedL10n.confirmRecoveryKeyBannerPrimaryButtonTitleSpiral
         }
     }
     
@@ -44,19 +46,24 @@ struct HomeScreenRecoveryKeyConfirmationBanner: View {
     }
     
     var body: some View {
-        VStack(spacing: 16) {
+        // AGENT-PLATFORM (Brief 0083, decision 313): the identity path's look in a block: a small accent key before the
+        // title, the sentence, then the new buttons.
+        VStack(spacing: CompoundDesignTokens.space4X) {
             content
             buttons
         }
-        .padding(16)
-        .background(Color.compound.bgSubtleSecondary)
-        .cornerRadius(14)
-        .padding(.horizontal, 16)
+        .padding(CompoundDesignTokens.space4X)
+        .background(.compound.bgSubtleSecondary, in: RoundedRectangle(cornerRadius: SpiralRadius.block, style: .continuous))
+        .padding(.horizontal, CompoundDesignTokens.space4X)
     }
     
     var content: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack(alignment: .center, spacing: 16) {
+        VStack(alignment: .leading, spacing: CompoundDesignTokens.space1X) {
+            HStack(alignment: .center, spacing: CompoundDesignTokens.space3X) {
+                CompoundIcon(\.keySolid, size: .medium, relativeTo: .compound.bodyLGSemibold) // AGENT-PLATFORM (Brief 0083, decision 313)
+                    .foregroundStyle(.compound.iconAccentPrimary)
+                    .accessibilityHidden(true)
+                
                 Text(title)
                     .font(.compound.bodyLGSemibold)
                     .foregroundColor(.compound.textPrimary)
@@ -79,7 +86,7 @@ struct HomeScreenRecoveryKeyConfirmationBanner: View {
     }
     
     var buttons: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: CompoundDesignTokens.space3X) { // AGENT-PLATFORM (Brief 0083, decision 313)
             Button {
                 context.send(viewAction: primaryAction)
             } label: {
@@ -93,17 +100,19 @@ struct HomeScreenRecoveryKeyConfirmationBanner: View {
                 Button {
                     context.send(viewAction: .resetEncryption)
                 } label: {
-                    Text(L10n.confirmRecoveryKeyBannerSecondaryButtonTitle)
+                    Text(UntranslatedL10n.confirmRecoveryKeyBannerSecondaryButtonTitleSpiral) // AGENT-PLATFORM (Brief 0083, decision 314)
                         .frame(maxWidth: .infinity)
                 }
-                .buttonStyle(.compound(.tertiary, size: .medium))
+                // AGENT-PLATFORM (Brief 0083, decision 313): a quiet secondary, raised above the block's grey (decision 329).
+                .buttonStyle(.compound(.secondary, size: .medium, isRaised: true))
             }
         }
     }
 }
 
-struct HomeScreenRecoveryKeyConfirmationBanner_Previews: PreviewProvider, TestablePreview {
+struct HomeScreenRecoveryKeyConfirmationBanner_Previews: PreviewProvider, TestablePreview, SpiralGatedPreview { // AGENT-PLATFORM (Brief 0083)
     static let viewModel = makeViewModel()
+    static let chatsViewModel = makeViewModel(roomListState: .loaded(.mockRooms), recoveryState: .disabled) // AGENT-PLATFORM (Brief 0083)
     
     static var previews: some View {
         HomeScreenRecoveryKeyConfirmationBanner(state: .setUpRecovery,
@@ -112,19 +121,32 @@ struct HomeScreenRecoveryKeyConfirmationBanner_Previews: PreviewProvider, Testab
         HomeScreenRecoveryKeyConfirmationBanner(state: .recoveryOutOfSync,
                                                 context: viewModel.context)
             .previewDisplayName("Out of sync")
+        
+        // AGENT-PLATFORM (Brief 0083, decision 313): the banner where an account without recovery sees it.
+        ElementNavigationStack {
+            HomeScreen(context: chatsViewModel.context)
+        }
+        .snapshotPreferences(expect: chatsViewModel.context.$viewState.map { state in
+            state.roomListMode == .rooms && state.securityBannerMode == .show(.setUpRecovery)
+        })
+        .previewDisplayName("In Chats")
     }
     
-    static func makeViewModel() -> HomeScreenViewModel {
+    // AGENT-PLATFORM (Brief 0083): a room list and a recovery state, for the banner in Chats.
+    static func makeViewModel(roomListState: RoomSummaryProviderMockConfigurationState = .loading,
+                              recoveryState: SecureBackupRecoveryState = .enabled) -> HomeScreenViewModel {
         let clientProxy = ClientProxyMock(.init(userID: "@alice:example.com",
-                                                roomSummaryProvider: RoomSummaryProviderMock(.init(state: .loading))))
+                                                roomSummaryProvider: RoomSummaryProviderMock(.init(state: roomListState))))
         
         let userSession = UserSessionMock(.init(clientProxy: clientProxy))
+        let securityState = SessionSecurityState(verificationState: .verified, recoveryState: recoveryState)
+        userSession.sessionSecurityStatePublisher = CurrentValueSubject<SessionSecurityState, Never>(securityState).asCurrentValuePublisher()
         
         return HomeScreenViewModel(userSession: userSession,
+                                   availableSessionsPublisher: .init([.init(userSession: userSession)]),
                                    selectedRoomPublisher: CurrentValueSubject<String?, Never>(nil).asCurrentValuePublisher(),
-                                   appSettings: .volatile(),
                                    analyticsService: AnalyticsServiceMock(.init()),
-                                   notificationManager: NotificationManagerMock(),
+                                   bugReportService: BugReportServiceMock(.init()),
                                    userIndicatorController: UserIndicatorControllerMock())
     }
 }

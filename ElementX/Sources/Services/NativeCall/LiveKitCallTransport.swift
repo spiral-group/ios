@@ -284,15 +284,28 @@ final class LiveKitCallTransport: NSObject, NativeCallTransportProtocol {
     /// most of the screen each: they deserve the top layer. Past four, the
     /// tiles are small enough that the low layer both looks right and stops
     /// the downlink growing linearly with the roster.
-    nonisolated static func preferredVideoQuality(subscribedVideoCount: Int) -> VideoQuality {
-        switch subscribedVideoCount {
+    ///
+    /// A group's Focus (question 383) is not a grid: the staged person fills most of the screen and takes the top
+    /// layer, the filmstrip's tiles are thumbnails and take the lowest, however many there are.
+    nonisolated static func preferredVideoQuality(subscribedVideoCount: Int, isStaged: Bool? = nil) -> VideoQuality {
+        if let isStaged {
+            return isStaged ? .high : .low
+        }
+        return switch subscribedVideoCount {
         case ..<3: .high
         case 3...4: .medium
         default: .low
         }
     }
 
+    /// The layer for one sender: by the stage when there is one, else by how many videos are on screen.
+    nonisolated static func preferredVideoQuality(identity: String, stagedVideoIdentities: Set<String>, subscribedVideoCount: Int) -> VideoQuality {
+        preferredVideoQuality(subscribedVideoCount: subscribedVideoCount,
+                              isStaged: stagedVideoIdentities.isEmpty ? nil : stagedVideoIdentities.contains(identity))
+    }
+
     func setSubscriptions(authorizedIdentities: Set<String>,
+                          stagedVideoIdentities: Set<String>,
                           isTrackExcluded: @escaping @Sendable (NativeCallTransportTrack) -> Bool) async -> Bool {
         var allApplied = true
         // With simulcast published, a grid of tiles has no use for every
@@ -315,7 +328,6 @@ final class LiveKitCallTransport: NSObject, NativeCallTransportProtocol {
                 subscribedVideoCount += 1
             }
         }
-        let preferredQuality = Self.preferredVideoQuality(subscribedVideoCount: subscribedVideoCount)
 
         for participant in room.remoteParticipants.values {
             guard let identity = participant.identity?.stringValue else { continue }
@@ -336,6 +348,9 @@ final class LiveKitCallTransport: NSObject, NativeCallTransportProtocol {
                 }
 
                 if shouldSubscribe, track.kind == .video {
+                    let preferredQuality = Self.preferredVideoQuality(identity: identity,
+                                                                      stagedVideoIdentities: stagedVideoIdentities,
+                                                                      subscribedVideoCount: subscribedVideoCount)
                     do {
                         try await publication.set(videoQuality: preferredQuality)
                     } catch {

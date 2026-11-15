@@ -7,8 +7,8 @@
 //
 
 import Combine
-@testable import ElementX
 @testable import SnapshotTesting
+@testable import Spiral
 import SwiftUI
 import Testing
 
@@ -19,25 +19,32 @@ struct PreviewTests {
     }
     
     private let simulatorDevice: String? = "iPhone14,6" // iPhone SE 3rd Generation
-
-    private let requiredOSVersion = (major: 26, minor: 5)
+    private let requiredOSVersion = (major: 27, minor: 0)
     /// The key is the name we will give to the snapshot
     /// The value is the actual device that will be used to render the preview
     private let snapshotDevices: [SnapshotDevice] = [.init(name: "iPhone", device: "iPhone 17"),
                                                      .init(name: "iPad", device: "iPad")]
     private var recordMode: SnapshotTestingConfiguration.Record = .missing
+    // AGENT-PLATFORM (Brief 0083 L1c): the OS of the run picks the lane, and the lane picks the references.
+    private(set) var lane = SnapshotLane.current
     
     init() {
+        // AGENT-PLATFORM (Brief 0083 L1c): upstream's previews run in the current lane only.
+        self.init(lanes: [.current])
+    }
+    
+    // AGENT-PLATFORM (Brief 0083 L1c): SpiralGatedPreviewTests also run in the pre-glass lane.
+    init(lanes: [SnapshotLane]) {
         if ProcessInfo().environment["RECORD_FAILURES"].map(Bool.init) == true {
             recordMode = .failed
         }
         
-        checkEnvironments()
+        lane = checkEnvironments(lanes: lanes)
         UIView.setAnimationsEnabled(false)
     }
     
     /// Check environments to avoid problems with snapshots on different devices or OS.
-    private func checkEnvironments() {
+    private func checkEnvironments(lanes: [SnapshotLane]) -> SnapshotLane {
         if let simulatorDevice {
             let deviceModel = ProcessInfo().environment["SIMULATOR_MODEL_IDENTIFIER"]
             guard deviceModel?.contains(simulatorDevice) ?? false else {
@@ -45,19 +52,23 @@ struct PreviewTests {
             }
         }
         
+        // AGENT-PLATFORM (Brief 0083 L1c): each lane pins its own OS version.
         let osVersion = ProcessInfo().operatingSystemVersion
-        guard osVersion.majorVersion == requiredOSVersion.major, osVersion.minorVersion == requiredOSVersion.minor else {
-            fatalError("Switch to iOS \(requiredOSVersion) for these tests.")
+        guard let lane = SnapshotLane(osVersion: osVersion, requiredOSVersion: requiredOSVersion), lanes.contains(lane) else {
+            let preGlass = SnapshotLane.preGlassOSVersion
+            fatalError("Switch to iOS \(requiredOSVersion) for these tests. iOS \(preGlass.major).\(preGlass.minor), the pre-glass lane, runs SpiralGatedPreviewTests only.")
         }
         guard !snapshotDevices.isEmpty else {
             fatalError("Specify at least one snapshot device to test on.")
         }
+        return lane
     }
     
     // MARK: - Snapshots
     
     func assertSnapshots(matching preview: _Preview,
                          step: Int,
+                         variants: [SnapshotVariant] = [.standard], // AGENT-PLATFORM (Brief 0083 L1c)
                          testName: String = #function,
                          sourceLocation: SourceLocation = #_sourceLocation) async throws {
         let preferences = SnapshotPreferences()
@@ -68,8 +79,19 @@ struct PreviewTests {
             .onPreferenceChange(SnapshotFulfillmentPreferenceKey.self) { preferences.fulfillmentSource = $0?.source }
         
         // Render an image of the view in order to trigger the preference updates to occur.
-        let imageRenderer = ImageRenderer(content: preferenceReadingView)
+        let imageRenderer = ImageRenderer(content: AnyView(preferenceReadingView))
         _ = imageRenderer.uiImage
+        // AGENT-PLATFORM: empty the renderer inside a render pass before it is
+        // released. On iOS 27, releasing an ImageRenderer whose content nests a
+        // navigation stack below other views (RoomScreen's "Minimized call over
+        // room") removes the content's appearance effects outside any update,
+        // and SwiftUI stops the process with "no current update to enqueue
+        // action to". Only once the snapshots are taken: emptying it earlier
+        // drops the navigation bar from previews that wait for their state.
+        defer {
+            imageRenderer.content = AnyView(EmptyView())
+            _ = imageRenderer.uiImage
+        }
         
         switch preferences.fulfillmentSource {
         case .publisher(let publisher):
@@ -105,14 +127,33 @@ struct PreviewTests {
             case .device: true
             default: false
             }
-            if let failure = assertSnapshots(matching: preview.content,
-                                             name: testName,
-                                             isScreen: isScreen,
-                                             device: device,
-                                             testName: sanitizedSuiteName,
-                                             traits: traits,
-                                             preferences: preferences) {
-                Issue.record(Comment(rawValue: failure), sourceLocation: sourceLocation)
+            // AGENT-PLATFORM (Brief 0083 L1c): a SpiralGatedPreview renders more variants than upstream's one.
+            let rendersScreenTwice = isScreen && variants != [.standard] // AGENT-PLATFORM (Brief 0083)
+            // AGENT-PLATFORM (Brief 0083): Liquid Glass shows only in a render through the key window (`SpiralGlassRendering`).
+            let drawsGlass = lane.drawsGlass && SpiralGlassRendering.drawsGlass(suite: sanitizedSuiteName)
+            for variant in variants {
+                // AGENT-PLATFORM (Brief 0083, F2): UIKit's text styles take the variant's text size while it renders.
+                let failure = variant.withUIKitTextSize {
+                    assertSnapshots(matching: variant.content(preview.content),
+                                    name: testName + variant.nameSuffix,
+                                    isScreen: isScreen,
+                                    device: device,
+                                    testName: sanitizedSuiteName,
+                                    traits: variant.traits(traits),
+                                    preferences: preferences,
+                                    rendersTwice: rendersScreenTwice, // AGENT-PLATFORM (Brief 0083)
+                                    drawsGlass: drawsGlass)
+                }
+                if let failure {
+                    Issue.record(Comment(rawValue: failure), sourceLocation: sourceLocation)
+                }
+            }
+            // AGENT-PLATFORM (Brief 0083): the test that runs next, in whatever order, inherits a standard render, as after upstream's.
+            if rendersScreenTwice {
+                snapshotStrategy(isScreen: true, device: device, traits: SnapshotVariant.standard.traits(traits), preferences: preferences,
+                                 drawsGlass: drawsGlass)
+                    .snapshot(SnapshotVariant.standard.content(preview.content))
+                    .run { _ in }
             }
         }
     }
@@ -138,19 +179,58 @@ struct PreviewTests {
                                  device: ViewImageConfig,
                                  testName: String = #function,
                                  traits: UITraitCollection = .init(),
-                                 preferences: SnapshotPreferences) -> String? {
+                                 preferences: SnapshotPreferences,
+                                 rendersTwice: Bool = false, // AGENT-PLATFORM (Brief 0083)
+                                 drawsGlass: Bool = false) -> String? {
         let matchingView = isScreen ? AnyView(view) : AnyView(view
             .frame(width: device.size?.width)
             .fixedSize(horizontal: false, vertical: true))
+        // AGENT-PLATFORM (Brief 0083): a render through the key window compares at `SpiralGlassRendering`'s perceptual precision.
+        let preferences = drawsGlass ? preferences.forGlass : preferences
+        let strategy = snapshotStrategy(isScreen: isScreen, device: device, traits: traits, preferences: preferences, drawsGlass: drawsGlass) // AGENT-PLATFORM (Brief 0083)
         
-        return withSnapshotTesting(record: recordMode) {
+        // AGENT-PLATFORM (Brief 0083): a navigation stack's content first shows the appearance, text size and direction
+        // of the snapshot rendered before it, on iOS 18.6 and 27 alike, so a screen's Spiral variant is rendered once to
+        // throw away. Upstream's references were recorded without that render, so its suite keeps rendering once.
+        if rendersTwice {
+            strategy.snapshot(matchingView).run { _ in }
+        }
+        // AGENT-PLATFORM (Brief 0083): the render server settles glass over a few frames, so a render through the key
+        // window is repeated until two in a row are the same (`SpiralGlassRendering`).
+        // A render that doesn't settle fails the test: its reference would hold for no later run.
+        var settlingFailure: String?
+        if drawsGlass {
+            var previous: Data?
+            settlingFailure = "\(name ?? testName) didn't settle: no two renders in a row through the key window matched in \(SpiralGlassRendering.settlingRenders)"
+            for _ in 0..<SpiralGlassRendering.settlingRenders {
+                var current: Data?
+                strategy.snapshot(matchingView).run { current = $0.pngData() }
+                guard let current else {
+                    settlingFailure = "\(name ?? testName) gave no PNG when rendered through the key window"
+                    break
+                }
+                if current == previous {
+                    settlingFailure = nil
+                    break
+                }
+                previous = current
+            }
+        }
+        
+        let failure = withSnapshotTesting(record: recordMode) {
             verifySnapshot(of: matchingView,
-                           as: .prefireImage(preferences: preferences,
-                                             layout: isScreen ? .device(config: device) : .sizeThatFits,
-                                             traits: traits),
+                           as: strategy, // AGENT-PLATFORM (Brief 0083)
                            named: name,
+                           snapshotDirectory: lane.snapshotDirectory, // AGENT-PLATFORM (Brief 0083 L1c)
                            testName: testName)
         }
+        return [settlingFailure, failure].compactMap(\.self).joined(separator: "\n").nilIfEmpty
+    }
+    
+    // AGENT-PLATFORM (Brief 0083): one strategy for a snapshot and the renders thrown away around it.
+    private func snapshotStrategy(isScreen: Bool, device: ViewImageConfig, traits: UITraitCollection, preferences: SnapshotPreferences,
+                                  drawsGlass: Bool = false) -> Snapshotting<AnyView, UIImage> {
+        .prefireImage(drawHierarchyInKeyWindow: drawsGlass, preferences: preferences, layout: isScreen ? .device(config: device) : .sizeThatFits, traits: traits)
     }
 }
 
@@ -158,6 +238,15 @@ private class SnapshotPreferences: @unchecked Sendable {
     var precision: Float = 1
     var perceptualPrecision: Float = 1
     var fulfillmentSource: SnapshotFulfillmentPreferenceKey.Source?
+    
+    /// AGENT-PLATFORM (Brief 0083): the same, at most at `SpiralGlassRendering.perceptualPrecision`.
+    var forGlass: SnapshotPreferences {
+        let preferences = SnapshotPreferences()
+        preferences.precision = precision
+        preferences.perceptualPrecision = min(perceptualPrecision, SpiralGlassRendering.perceptualPrecision)
+        preferences.fulfillmentSource = fulfillmentSource
+        return preferences
+    }
 }
 
 // MARK: - SnapshotTesting + Extensions
@@ -217,6 +306,8 @@ private extension Snapshotting where Value: SwiftUI.View, Format == UIImage {
                     controller = UIHostingController(rootView: view)
                 } else {
                     let hostingController = UIHostingController(rootView: view)
+                    // iOS 27 applies the window's safe area when rendering, which sizeThatFits ignores, clipping the content.
+                    hostingController.safeAreaRegions = []
                     
                     let maxSize = CGSize.zero
                     config.size = hostingController.sizeThatFits(in: maxSize)
@@ -224,12 +315,54 @@ private extension Snapshotting where Value: SwiftUI.View, Format == UIImage {
                     controller = hostingController
                 }
                 
+                let sceneAttachingController = SceneAttachingViewController(child: controller)
+                
                 return snapshotView(config: config,
                                     drawHierarchyInKeyWindow: drawHierarchyInKeyWindow,
                                     traits: traits,
-                                    view: controller.view,
-                                    viewController: controller)
+                                    view: sceneAttachingController.view,
+                                    viewController: sceneAttachingController)
             }
+    }
+}
+
+/// Temporary workaround: swift-snapshot-testing doesn't manage which scene its render window belongs to, and on iOS 27 a
+/// navigation stack in a window without a scene reserves space for a large title it never shows. Drop this once
+/// swift-snapshot-testing handles its window's scene.
+private final class SceneAttachingViewController: UIViewController {
+    private let child: UIViewController
+    
+    init(child: UIViewController) {
+        self.child = child
+        super.init(nibName: nil, bundle: nil)
+    }
+    
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+    
+    override func loadView() {
+        view = SceneAttachingView()
+    }
+    
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        
+        addChild(child)
+        child.view.frame = view.bounds
+        child.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        view.addSubview(child.view)
+        child.didMove(toParent: self)
+    }
+}
+
+private final class SceneAttachingView: UIView {
+    override func didMoveToWindow() {
+        super.didMoveToWindow()
+        
+        guard let window, window.windowScene == nil else { return }
+        window.windowScene = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first
     }
 }
 
@@ -247,5 +380,12 @@ private extension UIEdgeInsets {
     /// origin at (10000, 10000) which breaks some of our views such as MessageText.
     static var one: UIEdgeInsets {
         UIEdgeInsets(top: 1, left: 1, bottom: 1, right: 1)
+    }
+}
+
+// AGENT-PLATFORM (Brief 0083)
+private extension String {
+    var nilIfEmpty: String? {
+        isEmpty ? nil : self
     }
 }

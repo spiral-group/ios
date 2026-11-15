@@ -31,6 +31,9 @@ final class SpiralAppSurface: UIView {
     var eventID: String? {
         didSet {
             guard eventID != oldValue else { return }
+            if let oldValue {
+                registry?.surfaceWillLeaveWindow(self, eventID: oldValue)
+            }
             // A recycled cell means THIS view now shows a different post.
             // Whatever the previous post left inside must go first, or the new
             // post's row shows the old post's app — grey, because the old app
@@ -149,12 +152,46 @@ final class SpiralAppSurface: UIView {
     ///
     /// The cap of four turned out to be right for that viewport. What was
     /// wrong was the question it was answering.
+    ///
+    /// A hidden row shows nothing, wherever it is: see `isHiddenInWindow`.
     var visibleFraction: CGFloat {
+        isHiddenInWindow ? 0 : fractionInsideWindow
+    }
+
+    /// How much of this surface lies inside its window, shown or not.
+    private var fractionInsideWindow: CGFloat {
         guard let window, bounds.height > 0 else { return 0 }
         let frame = convert(bounds, to: window)
         let visible = frame.intersection(window.bounds)
         guard !visible.isNull else { return 0 }
         return visible.height / frame.height
+    }
+
+    /// Whether this surface, or a view it sits in, is hidden.
+    ///
+    /// A table keeps the cells it may reuse as HIDDEN subviews, still in the
+    /// window and at the frame they last had, still holding the post they last
+    /// showed. Such a row asked for its post's app at every rest of the table
+    /// (`reclaim`), and the last surface to ask wins: on Dev-B a finished
+    /// tug-of-war went into a hidden cell lying under its visible row, the page
+    /// laid out and drew, and the row the reader saw stayed an empty grey frame
+    /// until the viewer took the app and gave it back (question 411, 2026-11-13).
+    var isHiddenInWindow: Bool {
+        var view: UIView? = self
+        while let current = view, current !== window {
+            if current.isHidden { return true }
+            view = current.superview
+        }
+        return false
+    }
+
+    /// The last moment the app's web view is in a window, which is what a
+    /// picture of it needs.
+    override func willMove(toWindow newWindow: UIWindow?) {
+        super.willMove(toWindow: newWindow)
+        if newWindow == nil, let eventID {
+            registry?.surfaceWillLeaveWindow(self, eventID: eventID)
+        }
     }
 
     override func didMoveToWindow() {
@@ -163,7 +200,7 @@ final class SpiralAppSurface: UIView {
             register()
             watchEnclosingScroll()
         } else {
-            scrollObservation = nil
+            registry?.scrollWatch.forget(self)
             unregister(eventID)
         }
     }
@@ -177,32 +214,16 @@ final class SpiralAppSurface: UIView {
     /// sat on screen as a grey rectangle with a running app it could not be
     /// handed (2026-09-17, six posts in view, 4 hosts). Registering is
     /// idempotent — the registry takes the newest asker and presents what it
-    /// has, or clears — so the surface simply asks again once each scroll
-    /// settles. Cheap, and it makes "who shows the app" answerable from what
-    /// is on screen rather than from what was remembered.
-    private var scrollObservation: NSKeyValueObservation?
-    private var reassertWork: DispatchWorkItem?
-
+    /// has, or clears — so `SpiralAppScrollWatch` has every surface ask again
+    /// once a scroll settles. It makes "who shows the app" answerable from
+    /// what is on screen rather than from what was remembered.
     private func watchEnclosingScroll() {
-        scrollObservation = nil
         var ancestor = superview
         while let view = ancestor, !(view is UIScrollView) {
             ancestor = view.superview
         }
         guard let scrollView = ancestor as? UIScrollView else { return }
-        scrollObservation = scrollView.observe(\.contentOffset, options: [.new]) { [weak self] _, _ in
-            self?.scheduleReassert()
-        }
-    }
-
-    private func scheduleReassert() {
-        reassertWork?.cancel()
-        let work = DispatchWorkItem { [weak self] in
-            guard let self, window != nil else { return }
-            register()
-        }
-        reassertWork = work
-        DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(150), execute: work)
+        registry?.scrollWatch.watch(scrollView, for: self)
     }
 
     /// Layout MOVES NOTHING. It only sizes what is already here.
@@ -230,12 +251,31 @@ final class SpiralAppSurface: UIView {
     func present(_ container: UIView) {
         guard presented !== container else { return }
         presented?.removeFromSuperview()
+        still?.removeFromSuperview()
         container.removeFromSuperview()
         container.frame = bounds
         container.autoresizingMask = [.flexibleWidth, .flexibleHeight]
         addSubview(container)
+        // The web view takes the new size now, not at the next layout pass:
+        // the page can only start laying itself out once it has it.
+        container.layoutIfNeeded()
         presentedContainer = container
     }
+
+    /// A picture of the app, where the app was: what a closing viewer shows
+    /// while it slides away, once the app has gone back to its row.
+    func showStill(_ image: UIImage) {
+        still?.removeFromSuperview()
+        let view = UIImageView(image: image)
+        view.frame = bounds
+        view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        view.contentMode = .scaleAspectFill
+        view.clipsToBounds = true
+        addSubview(view)
+        still = view
+    }
+
+    private weak var still: UIView?
 
     /// Ask for the app again while still in a window.
     ///
@@ -254,12 +294,25 @@ final class SpiralAppSurface: UIView {
     func clear() {
         presented?.removeFromSuperview()
         presentedContainer = nil
+        still?.removeFromSuperview()
     }
 
     // MARK: - Private
 
+    /// A hidden row never asks: it would take the app from the row the reader
+    /// sees. Once it is shown again, the table's next rest or the registry's
+    /// watch (`adoptRowsInSight`) has it ask.
     private func register() {
         guard let eventID, let post else { return }
+        guard !isHiddenInWindow else {
+            #if DEBUG || SPIRAL_STAGING
+            if fractionInsideWindow > 0 || registry?.remembers(eventID) == false {
+                SpiralAppReturnTrace.step(eventID, "a hidden row (\(String(format: "%.2f", fractionInsideWindow)) inside the window, "
+                    + "post known=\(registry?.remembers(eventID) ?? false)) asked for the app — not given")
+            }
+            #endif
+            return
+        }
         registry?.surfaceDidEnterWindow(self, eventID: eventID, post: post)
     }
 
@@ -274,5 +327,180 @@ extension SpiralAppSurface: UIGestureRecognizerDelegate {
     func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer,
                            shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer) -> Bool {
         true
+    }
+}
+
+/// Whether the timeline's table is moving, and who to tell when it stops.
+///
+/// One per registry, and one observation of the table's offset: each surface
+/// used to hold its own, and allocate a work item, on every scrolled frame.
+@MainActor
+final class SpiralAppScrollWatch {
+    /// How long the offset must hold before the table counts as still. A finger
+    /// resting on it counts: a reader who stopped to look is looking.
+    private static let stillAfter = Duration.milliseconds(120)
+    private static let checkEvery = Duration.milliseconds(40)
+    /// A frame, for the one wait that ends while the table still drifts.
+    private static let checkCalmEvery = Duration.milliseconds(16)
+
+    private weak var scrollView: UIScrollView?
+    private var observation: NSKeyValueObservation?
+    private var lastMoved: ContinuousClock.Instant?
+    private var pace = SpiralAppScrollPace()
+    private var settling: Task<Void, Never>?
+    private let surfaces = NSHashTable<SpiralAppSurface>.weakObjects()
+    #if DEBUG || SPIRAL_STAGING
+    private var frames: SpiralAppFrameProbe?
+    #endif
+    /// Called each time the table has stopped, once the surfaces have asked again.
+    var onSettled: (() -> Void)?
+
+    /// Covers a programmatic scroll too, which is the table moving with no
+    /// finger on it and no deceleration.
+    var isMoving: Bool {
+        if scrollView?.isDecelerating == true { return true }
+        guard let lastMoved else { return false }
+        return lastMoved.duration(to: .now) < Self.stillAfter
+    }
+
+    /// Still, or drifting slower than a reader can follow a post by. A flick
+    /// decelerates for about three seconds, and most of the last one and a half
+    /// is a few points a frame (Stage-A, 2026-11-12).
+    var isCalm: Bool {
+        !isMoving || pace.isCalm(at: .now)
+    }
+
+    /// How fast the table moved at its last sample, in points per second.
+    var speed: CGFloat {
+        isMoving ? pace.speed : 0
+    }
+
+    func watch(_ scrollView: UIScrollView, for surface: SpiralAppSurface) {
+        surfaces.add(surface)
+        guard scrollView !== self.scrollView else { return }
+        self.scrollView = scrollView
+        // KVO's handler is nonisolated, but UIKit only moves contentOffset on the main thread.
+        observation = scrollView.observe(\.contentOffset, options: []) { [weak self] _, _ in
+            MainActor.assumeIsolated {
+                self?.noteMovement()
+            }
+        }
+    }
+
+    func forget(_ surface: SpiralAppSurface) {
+        surfaces.remove(surface)
+    }
+
+    /// Every surface in the table's window, hidden ones included.
+    var watchedSurfaces: [SpiralAppSurface] {
+        surfaces.allObjects
+    }
+
+    /// Returns once the table is still, or at once if the caller is cancelled.
+    func untilStill() async {
+        while isMoving, !Task.isCancelled {
+            try? await Task.sleep(for: Self.checkEvery)
+        }
+    }
+
+    /// Returns once the table is calm (see `isCalm`), or at once if the caller is cancelled.
+    func untilCalm() async {
+        while !isCalm, !Task.isCancelled {
+            try? await Task.sleep(for: Self.checkCalmEvery)
+        }
+    }
+
+    func stop() {
+        #if DEBUG || SPIRAL_STAGING
+        _ = frames?.finish()
+        frames = nil
+        #endif
+        observation = nil
+        onSettled = nil
+        settling?.cancel()
+        settling = nil
+    }
+
+    private func noteMovement() {
+        lastMoved = .now
+        if let offset = scrollView?.contentOffset.y {
+            pace.note(offset: offset, at: .now)
+        }
+        guard settling == nil else { return }
+        #if DEBUG || SPIRAL_STAGING
+        let began = ContinuousClock.now
+        frames = SpiralAppFrameProbe()
+        #endif
+        // The main queue is served in every run loop mode, so this runs under
+        // a finger too.
+        settling = Task { [weak self] in
+            await self?.untilStill()
+            guard !Task.isCancelled, let self else { return }
+            #if DEBUG || SPIRAL_STAGING
+            let hitches = frames?.finish() ?? "-"
+            frames = nil
+            SpiralAppReturnTrace.note("table still after \(SpiralAppReturnTrace.milliseconds(began.duration(to: .now)))ms of movement — frames \(hitches)")
+            #endif
+            settling = nil
+            pace.reset()
+            for surface in surfaces.allObjects {
+                surface.reclaim()
+            }
+            onSettled?()
+        }
+    }
+}
+
+/// How fast the table is moving, from its offsets over time, and whether it
+/// has been slow for long enough to count as calm. Its own clock, so the rule
+/// can be tested without a table.
+struct SpiralAppScrollPace {
+    /// Points per second. A row drifting slower than this has a reader who can
+    /// see it, and a kept app may come back to it.
+    static let calmSpeed: CGFloat = 300
+    /// How long the table must stay under `calmSpeed`: one slow frame in a
+    /// fling is not the end of the fling.
+    static let calmFor = Duration.milliseconds(100)
+    /// KVO reports several offsets a frame; closer than this they say nothing about speed.
+    static let sampleSpacing = Duration.milliseconds(8)
+    /// Further apart than this, the table rested in between: a new movement, speed unknown.
+    static let restGap = Duration.milliseconds(100)
+
+    private(set) var speed: CGFloat = 0
+    private var anchor: (offset: CGFloat, at: ContinuousClock.Instant)?
+    private var calmSince: ContinuousClock.Instant?
+
+    mutating func note(offset: CGFloat, at now: ContinuousClock.Instant) {
+        guard let anchor else {
+            self.anchor = (offset, now)
+            return
+        }
+        let elapsed = anchor.at.duration(to: now)
+        guard elapsed >= Self.sampleSpacing else { return }
+        guard elapsed <= Self.restGap else {
+            reset()
+            self.anchor = (offset, now)
+            return
+        }
+
+        let seconds = Double(elapsed.components.seconds) + Double(elapsed.components.attoseconds) / 1e18
+        speed = abs(offset - anchor.offset) / CGFloat(seconds)
+        self.anchor = (offset, now)
+        if speed < Self.calmSpeed {
+            calmSince = calmSince ?? now
+        } else {
+            calmSince = nil
+        }
+    }
+
+    func isCalm(at now: ContinuousClock.Instant) -> Bool {
+        guard let calmSince else { return false }
+        return calmSince.duration(to: now) >= Self.calmFor
+    }
+
+    mutating func reset() {
+        speed = 0
+        anchor = nil
+        calmSince = nil
     }
 }

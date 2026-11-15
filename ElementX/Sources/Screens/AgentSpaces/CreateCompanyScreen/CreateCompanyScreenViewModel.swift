@@ -24,11 +24,10 @@ class CreateCompanyScreenViewModel: CreateCompanyScreenViewModelType, CreateComp
     
     init(agentPlatformService: AgentPlatformServiceProtocol,
          userSession: UserSessionProtocol,
-         userIndicatorController: UserIndicatorControllerProtocol,
-         appSettings: AppSettings) {
+         userIndicatorController: UserIndicatorControllerProtocol) {
         self.agentPlatformService = agentPlatformService
         self.userSession = userSession
-        mediaUploadingPreprocessor = MediaUploadingPreprocessor(appSettings: appSettings)
+        mediaUploadingPreprocessor = MediaUploadingPreprocessor(userSettings: userSession.userSettings)
         self.userIndicatorController = userIndicatorController
         
         super.init(initialViewState: CreateCompanyScreenViewState(),

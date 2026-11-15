@@ -16,9 +16,9 @@ enum TimelineReplyViewPlacement {
 
 struct TimelineReplyView: View {
     @Environment(\.timelineContext) private var timelineContext
+    @Environment(\.ownBubbleInk) private var ownBubbleInk // AGENT-PLATFORM (Brief 0083)
     
-    // periphery:ignore - might be useful to have
-    let placement: TimelineReplyViewPlacement
+    let placement: TimelineReplyViewPlacement // AGENT-PLATFORM (Brief 0083): read, so no periphery:ignore
     let timelineItemReplyDetails: TimelineItemReplyDetails?
     var maxWidth: CGFloat?
     
@@ -30,21 +30,31 @@ struct TimelineReplyView: View {
             content
                 .roundedContainer(padding: 4,
                                   maxWidth: maxWidth,
-                                  backgroundColor: .compound.bgCanvasDefault,
-                                  borderColor: .compound.separatorPrimary)
+                                  backgroundColor: quoteBackgroundColor,
+                                  borderColor: nil,
+                                  isBare: placement == .composer) // AGENT-PLATFORM (Brief 0083): the composer draws the block
         } scanningContent: {
             LoadingReplyView()
                 .roundedContainer(padding: 4,
                                   maxWidth: maxWidth,
-                                  backgroundColor: .compound.bgCanvasDefault,
-                                  borderColor: .compound.separatorPrimary)
+                                  backgroundColor: quoteBackgroundColor,
+                                  borderColor: nil,
+                                  isBare: placement == .composer) // AGENT-PLATFORM (Brief 0083): the composer draws the block
         } unsafeContent: { failure in
-            ContentScanningFailureView(failure: failure)
+            ContentScanningFailureView(failure: failure, isCompact: true)
                 .roundedContainer(padding: 8,
                                   maxWidth: maxWidth,
                                   backgroundColor: .compound.bgCriticalSubtle,
                                   borderColor: .compound.borderCriticalSubtle)
         }
+        .environment(\.isReplyInBubble, placement == .timeline) // AGENT-PLATFORM (Brief 0083)
+    }
+    
+    // AGENT-PLATFORM (Brief 0083, the room's timeline): in a bubble the quote is a translucent block without Element's
+    // outline: 6 % of the bubble's text colour on a neutral bubble, and the ink's own on an own bubble. In the composer
+    // the quote is bare: `SpiralComposerHeader` draws its block.
+    private var quoteBackgroundColor: Color {
+        ownBubbleInk?.quoteFill ?? .compound.textPrimary.opacity(0.06)
     }
     
     /// The media source validated by the content scanner when the replied to message contains media.
@@ -224,7 +234,9 @@ struct TimelineReplyView: View {
             let cornerRadii = 4.0
         }
         
-        @EnvironmentObject private var context: TimelineViewModel.Context
+        @Environment(\.timelineContext) private var context
+        @Environment(\.isReplyInBubble) private var isReplyInBubble // AGENT-PLATFORM (Brief 0083)
+        @Environment(\.ownBubbleInk) private var ownBubbleInk // AGENT-PLATFORM (Brief 0083)
         @ScaledMetric private var imageContainerSize = 36.0
         
         let sender: TimelineItemSender
@@ -233,24 +245,32 @@ struct TimelineReplyView: View {
         
         var icon: Icon?
         
+        // AGENT-PLATFORM (Brief 0083, question 357): a person's colour in an incoming bubble's quote. On the blue only white reads.
+        private var quotedNameForeground: BubbleForeground {
+            guard isReplyInBubble, ownBubbleInk == nil else { return .primary }
+            return .fixed(SenderHue(userID: sender.id).color)
+        }
+        
         var body: some View {
             HStack(spacing: 8) {
                 iconView
                     .frame(width: imageContainerSize, height: imageContainerSize)
-                    .foregroundColor(.compound.iconPrimary)
-                    .background(Color.compound.bgSubtlePrimary)
+                    .foregroundColor(ownBubbleInk?.onStrongFill ?? .compound.iconPrimary)
+                    .background(ownBubbleInk?.strongFill ?? .compound.bgSubtlePrimary)
                     .cornerRadius(icon?.cornerRadii ?? 0.0, corners: .allCorners)
                     .accessibilityHidden(true)
                 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(sender.disambiguatedDisplayName ?? sender.id)
                         .font(.compound.bodySMSemibold)
-                        .foregroundColor(.compound.textPrimary)
+                        .bubbleForegroundStyle(quotedNameForeground) // AGENT-PLATFORM (Brief 0083): white on an own bubble
                         .accessibilityLabel(L10n.commonInReplyTo(sender.disambiguatedDisplayName ?? sender.id))
                     
-                    Text(context.viewState.buildMessagePreview(formattedBody: formattedBody, plainBody: plainBody))
+                    Text(context?.viewState.buildMessagePreview(formattedBody: formattedBody, plainBody: plainBody) ?? plainBody)
                         .font(.compound.bodyMD)
-                        .foregroundColor(.compound.textSecondary)
+                        // AGENT-PLATFORM (Brief 0083): in a bubble the bubble's text colour, since grey on the tinted
+                        // block reads 4.11:1; the composer keeps the secondary grey.
+                        .bubbleForegroundStyle(isReplyInBubble ? .primary : .secondary)
                         .tint(.compound.textLinkExternal)
                         .lineLimit(2)
                 }
@@ -268,15 +288,15 @@ struct TimelineReplyView: View {
                     LoadableImage(mediaSource: mediaSource,
                                   size: .init(width: imageContainerSize,
                                               height: imageContainerSize),
-                                  mediaProvider: context.mediaProvider) {
+                                  mediaProvider: context?.mediaProvider) {
                         CompoundIcon(\.image)
                             .padding(4.0)
                     }
-                    .aspectRatio(contentMode: .fill)
+                    .scaledToFill()
                 case .iconAsset(let asset):
                     Image(asset: asset)
                         .resizable()
-                        .aspectRatio(contentMode: .fit)
+                        .scaledToFit()
                         .padding(8.0)
                 case .icon(let keyPath):
                     CompoundIcon(keyPath, size: .medium, relativeTo: .body)
@@ -286,22 +306,37 @@ struct TimelineReplyView: View {
     }
 }
 
+// AGENT-PLATFORM (Brief 0083): whether a quote is drawn inside a timeline bubble rather than over the composer.
+private extension EnvironmentValues {
+    @Entry var isReplyInBubble = false
+}
+
 private extension View {
+    // AGENT-PLATFORM (Brief 0083): a bare quote has neither; the composer's header draws its block (`SpiralComposerHeader`).
     /// Styles the view as a rounded container with a background fill and a border.
+    @ViewBuilder
     func roundedContainer(padding: CGFloat = 12,
                           maxWidth: CGFloat? = nil,
                           backgroundColor: Color,
-                          borderColor: Color) -> some View {
+                          borderColor: Color?, // AGENT-PLATFORM (Brief 0083): an optional border
+                          isBare: Bool = false) -> some View {
         let backgroundShape = RoundedRectangle(cornerRadius: 8)
-        return fixedSize(horizontal: false, vertical: true)
-            .frame(maxWidth: maxWidth, alignment: .leading)
-            .padding(padding)
-            .background {
-                ZStack {
-                    backgroundShape.fill(backgroundColor)
-                    backgroundShape.stroke(borderColor)
+        if isBare {
+            fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: maxWidth, alignment: .leading)
+        } else {
+            fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: maxWidth, alignment: .leading)
+                .padding(padding)
+                .background {
+                    ZStack {
+                        backgroundShape.fill(backgroundColor)
+                        if let borderColor { // AGENT-PLATFORM (Brief 0083)
+                            backgroundShape.stroke(borderColor)
+                        }
+                    }
                 }
-            }
+        }
     }
 }
 
@@ -482,16 +517,14 @@ struct TimelineReplyView_Previews: PreviewProvider, TestablePreview {
             }
         }
         .padding()
-        .environmentObject(viewModel.context)
+        .environment(\.timelineContext, viewModel.context)
         .previewLayout(.sizeThatFits)
         
         VStack(alignment: .leading, spacing: 20) {
             imageReply
-                .environmentObject(scanningViewModel.context)
                 .environment(\.timelineContext, scanningViewModel.context)
             
             imageReply
-                .environmentObject(unsafeViewModel.context)
                 .environment(\.timelineContext, unsafeViewModel.context)
         }
         .padding()

@@ -35,14 +35,15 @@ struct LanguagePickerScreenViewState: BindableState {
     let selectedCode: String
     /// The device's languages, most wanted first (`Locale.preferredLanguages`).
     var preferredLanguages: [String] = Locale.preferredLanguages
+    /// The languages of the keyboards turned on, read as the picker opens.
+    var keyboardLanguages: [String] = []
     var bindings = LanguagePickerScreenViewStateBindings()
 
-    /// Languages matching the search query (by localized display name or the
-    /// hidden wire code), sorted for the current app locale.
+    /// Languages matching the search query (`TranslationLanguageDisplayName.matches`),
+    /// sorted for the current app locale.
     var visibleLanguages: [AgentLanguage] {
-        let query = bindings.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        let filtered = query.isEmpty ? languages : languages.filter {
-            $0.displayName.lowercased().contains(query) || $0.code.contains(query)
+        let filtered = languages.filter {
+            TranslationLanguageDisplayName.matches(bindings.searchQuery, code: $0.code, shownName: $0.displayName)
         }
         return filtered.sorted {
             $0.displayName.localizedCaseInsensitiveCompare($1.displayName) == .orderedAscending
@@ -51,36 +52,22 @@ struct LanguagePickerScreenViewState: BindableState {
 }
 
 extension LanguagePickerScreenViewState {
-    /// Without a search, the languages most people here want come first
-    /// (step B.5): the device's, then English, Ukrainian and Russian.
+    /// Without a search, the languages this person uses come first (`SuggestedLanguages`, every list's rule): the
+    /// selected one, the phone's, the keyboards', as this list has them. None, and the section isn't there.
     var suggestedLanguages: [AgentLanguage] {
         guard bindings.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return [] }
-        var suggested: [AgentLanguage] = []
-        for code in Self.suggestedCodes(preferredLanguages: preferredLanguages) {
-            if let language = languages.first(where: { Self.languagePart($0.code) == code }),
-               !suggested.contains(language) {
-                suggested.append(language)
-            }
-        }
-        return suggested
+        return SuggestedLanguages.codes(selected: selectedCode,
+                                        preferred: preferredLanguages,
+                                        keyboards: keyboardLanguages,
+                                        catalog: languages.map(\.code),
+                                        limit: 5)
+            .compactMap { code in languages.first { $0.code == code } }
     }
     
     /// The rest, or everything that matches a search.
     var otherLanguages: [AgentLanguage] {
         let suggested = Set(suggestedLanguages)
         return visibleLanguages.filter { !suggested.contains($0) }
-    }
-    
-    static func suggestedCodes(preferredLanguages: [String]) -> [String] {
-        var codes: [String] = []
-        for code in preferredLanguages.map(languagePart) + ["en", "uk", "ru"] where !codes.contains(code) {
-            codes.append(code)
-        }
-        return codes
-    }
-    
-    static func languagePart(_ code: String) -> String {
-        code.replacingOccurrences(of: "_", with: "-").split(separator: "-").first.map { $0.lowercased() } ?? code.lowercased()
     }
 }
 

@@ -6,10 +6,10 @@
 // Please see LICENSE files in the repository root for full details.
 //
 
-@testable import ElementX
 import Foundation
 import MatrixRustSDK
 import MatrixRustSDKMocks
+@testable import Spiral
 import Testing
 
 struct MediaLoaderTests {

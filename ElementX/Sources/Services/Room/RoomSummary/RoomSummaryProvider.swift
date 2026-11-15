@@ -16,9 +16,12 @@ class RoomSummaryProvider: RoomSummaryProviderProtocol {
     private let name: String
     private let shouldUpdateVisibleRange: Bool
     private let notificationSettings: NotificationSettingsProxyProtocol
-    private let appSettings: AppSettings
+    private let userSettings: UserSettings
+    private let baseFilter: [RoomListEntriesDynamicFilterKind]
     
     private let roomListPageSize: UInt32
+    /// Remember how many rooms we had on the previous requests so we can deduplicate
+    private var roomCountOnLastPageAddRequest = -1
     
     private let visibleItemRangePublisher = CurrentValueSubject<Range<Int>, Never>(0..<0)
     
@@ -27,6 +30,7 @@ class RoomSummaryProvider: RoomSummaryProviderProtocol {
     
     private var cancellables = Set<AnyCancellable>()
     private var listUpdatesSubscriptionResult: RoomListEntriesWithDynamicAdaptersResult?
+    private var currentFilter: RoomSummaryProviderFilter?
     private var stateUpdatesTaskHandle: TaskHandle?
     
     private let roomListSubject = CurrentValueSubject<[RoomSummary], Never>([])
@@ -59,20 +63,33 @@ class RoomSummaryProvider: RoomSummaryProviderProtocol {
     ///   - shouldUpdateVisibleRange: whether this summary provider should forward visible ranges
     ///   to the room list service through the `applyInput(input: .viewport(ranges` api. Only useful for
     ///   lists that need to update the visible range on Sliding Sync
+    ///   - includesOnlyJoinedRooms: whether to leave out invites and other rooms the user hasn't joined, whatever the filter
+    ///   - includesJoinedSpaces: whether joined spaces are listed like rooms, rather than only space invites
     init(roomListService: RoomListServiceProtocol,
          eventStringBuilder: RoomEventStringBuilder,
          name: String,
          shouldUpdateVisibleRange: Bool = false,
+         includesOnlyJoinedRooms: Bool = false,
+         includesJoinedSpaces: Bool = false, // AGENT-PLATFORM (decision 301)
          roomListPageSize: UInt32 = 100,
          notificationSettings: NotificationSettingsProxyProtocol,
-         appSettings: AppSettings) {
+         userSettings: UserSettings) {
         self.roomListService = roomListService
         self.eventStringBuilder = eventStringBuilder
         self.name = name
         self.shouldUpdateVisibleRange = shouldUpdateVisibleRange
         self.notificationSettings = notificationSettings
-        self.appSettings = appSettings
+        self.userSettings = userSettings
         self.roomListPageSize = roomListPageSize
+        
+        // AGENT-PLATFORM (decision 301): with the Spaces tab hidden, the Chats list is where joined spaces open from.
+        let membershipFilter: RoomListEntriesDynamicFilterKind = if includesJoinedSpaces {
+            .nonLeft
+        } else {
+            .any(filters: [.all(filters: [.nonSpace, .nonLeft]),
+                           .all(filters: [.space, .invite])])
+        }
+        baseFilter = [membershipFilter, .deduplicateVersions] + (includesOnlyJoinedRooms ? [.joined] : [])
         
         let (diffsStream, diffsContinuation) = AsyncStream<[RoomListEntriesUpdate]>.makeStream()
         self.diffsContinuation = diffsContinuation
@@ -117,7 +134,9 @@ class RoomSummaryProvider: RoomSummaryProviderProtocol {
                                                                                 })
             
             // Forces the listener above to be called with the current state
-            setFilter(.all(filters: []))
+            let filter = currentFilter ?? .all(filters: [])
+            currentFilter = nil
+            setFilter(filter)
             
             let stateUpdatesSubscriptionResult = try roomList.loadingState(listener: SDKListener { [loadingStateContinuation] state in
                 loadingStateContinuation.yield(state)
@@ -136,26 +155,24 @@ class RoomSummaryProvider: RoomSummaryProviderProtocol {
     }
     
     func setFilter(_ filter: RoomSummaryProviderFilter) {
-        let baseFilter: [RoomListEntriesDynamicFilterKind] = [.any(filters: [.all(filters: [.nonSpace, .nonLeft]),
-                                                                             .all(filters: [.space, .invite])]),
-                                                              .deduplicateVersions]
+        guard filter != currentFilter else {
+            return
+        }
+        
+        currentFilter = filter
         
         switch filter {
         case .excludeAll:
             _ = listUpdatesSubscriptionResult?.controller().setFilter(kind: .none)
         case let .search(query):
-            let filters = if appSettings.fuzzyRoomListSearchEnabled {
-                [.fuzzyMatchRoomName(pattern: query)] + baseFilter
-            } else {
-                [.normalizedMatchRoomName(pattern: query)] + baseFilter
-            }
+            let filters = nameFilter(for: query) + baseFilter
             _ = listUpdatesSubscriptionResult?.controller().setFilter(kind: .all(filters: filters))
         case .rooms(let roomIDs, let filters):
             var rustFilters = filters.map(\.rustFilter) + baseFilter
             
             rustFilters.append(.identifiers(identifiers: Array(roomIDs)))
             
-            if !filters.contains(.lowPriority), appSettings.lowPriorityFilterEnabled {
+            if !filters.contains(.lowPriority), userSettings.app.lowPriorityFilterEnabled {
                 rustFilters.append(.nonLowPriority)
             }
             
@@ -163,7 +180,7 @@ class RoomSummaryProvider: RoomSummaryProviderProtocol {
         case let .all(filters):
             var rustFilters = filters.map(\.rustFilter) + baseFilter
             
-            if !filters.contains(.lowPriority), appSettings.lowPriorityFilterEnabled {
+            if !filters.contains(.lowPriority), userSettings.app.lowPriorityFilterEnabled {
                 rustFilters.append(.nonLowPriority)
             }
             
@@ -173,7 +190,30 @@ class RoomSummaryProvider: RoomSummaryProviderProtocol {
     
     // MARK: - Private
     
+    private func nameFilter(for query: String) -> [RoomListEntriesDynamicFilterKind] {
+        userSettings.app.fuzzyRoomListSearchEnabled ? [.fuzzyMatchRoomName(pattern: query)] : [.normalizedMatchRoomName(pattern: query)]
+    }
+    
     private func setupVisibleRangeObservers() {
+        // Unthrottled to add another page half way through the last one
+        visibleItemRangePublisher
+            .sink { [weak self] range in
+                guard let self,
+                      // Pickers send an empty `count..<count` range when reaching the bottom, so only ignore `0..<0` (the initial value or the top).
+                      range.upperBound > 0,
+                      range.upperBound >= rooms.count - Int(roomListPageSize) / 2,
+                      rooms.count != roomCountOnLastPageAddRequest else {
+                    return
+                }
+                
+                roomCountOnLastPageAddRequest = rooms.count
+                
+                MXLog.info("\(self.name): Adding a page at \(rooms.count) rooms, visible range: \(range)")
+                
+                listUpdatesSubscriptionResult?.controller().addOnePage()
+            }
+            .store(in: &cancellables)
+        
         visibleItemRangePublisher
             .throttle(for: 0.5, scheduler: DispatchQueue.main, latest: true)
             .removeDuplicates()
@@ -182,9 +222,8 @@ class RoomSummaryProvider: RoomSummaryProviderProtocol {
                 
                 MXLog.info("\(self.name): Updating visible range: \(range)")
                 
-                if range.upperBound >= rooms.count {
-                    listUpdatesSubscriptionResult?.controller().addOnePage()
-                } else if range.lowerBound == 0 {
+                if range.lowerBound == 0, range.upperBound < rooms.count {
+                    roomCountOnLastPageAddRequest = -1
                     listUpdatesSubscriptionResult?.controller().resetToOnePage()
                 }
             }
@@ -207,6 +246,8 @@ class RoomSummaryProvider: RoomSummaryProviderProtocol {
                     range = range.lowerBound..<upperBound
                 }
                 
+                MXLog.info("\(self.name): Subscribing to rooms in range: \(range)")
+                
                 return range
                     .filter { $0 < self.rooms.count }
                     .map { self.rooms[$0].id }
@@ -217,7 +258,7 @@ class RoomSummaryProvider: RoomSummaryProviderProtocol {
                 
                 Task { [weak self] in
                     do {
-                        try await self?.roomListService.subscribeToRooms(roomIds: roomIDs)
+                        try await self?.roomListService.setRoomSubscriptions(roomIds: roomIDs)
                     } catch {
                         MXLog.error("Failed subscribing to rooms with error: \(error)")
                     }
@@ -238,12 +279,6 @@ class RoomSummaryProvider: RoomSummaryProviderProtocol {
                                      on currentRooms: [RoomSummary],
                                      eventStringBuilder: RoomEventStringBuilder,
                                      name: String) async -> [RoomSummary] {
-        let span = MXLog.createSpan("\(name).process_room_list_diffs")
-        span.enter()
-        defer {
-            span.exit()
-        }
-        
         var updatedRooms = currentRooms
         for diff in diffs {
             updatedRooms = await processDiff(diff, on: updatedRooms, eventStringBuilder: eventStringBuilder, name: name)
@@ -349,6 +384,7 @@ class RoomSummaryProvider: RoomSummaryProviderProtocol {
         return RoomSummary(room: room,
                            id: roomInfo.id,
                            joinRequestType: joinRequestType,
+                           isJoined: roomInfo.membership == .joined,
                            name: roomInfo.displayName ?? roomInfo.id,
                            isDirect: roomInfo.isDirect,
                            isSpace: roomInfo.isSpace,
@@ -447,19 +483,13 @@ class RoomSummaryProvider: RoomSummaryProviderProtocol {
     private func rebuildRoomSummaries() async {
         MXLog.info("\(name): Rebuilding room summaries for \(rooms.count) rooms")
         
-        rooms = await Self.rebuiltRoomSummaries(from: rooms, eventStringBuilder: eventStringBuilder, name: name)
+        rooms = await Self.rebuiltRoomSummaries(from: rooms, eventStringBuilder: eventStringBuilder)
         
         MXLog.info("\(name): Finished rebuilding room summaries (\(rooms.count) rooms)")
     }
     
     @concurrent
-    private static func rebuiltRoomSummaries(from rooms: [RoomSummary], eventStringBuilder: RoomEventStringBuilder, name: String) async -> [RoomSummary] {
-        let span = MXLog.createSpan("\(name).rebuild_room_summaries")
-        span.enter()
-        defer {
-            span.exit()
-        }
-        
+    private static func rebuiltRoomSummaries(from rooms: [RoomSummary], eventStringBuilder: RoomEventStringBuilder) async -> [RoomSummary] {
         var rebuiltRooms = [RoomSummary]()
         rebuiltRooms.reserveCapacity(rooms.count)
         for room in rooms {

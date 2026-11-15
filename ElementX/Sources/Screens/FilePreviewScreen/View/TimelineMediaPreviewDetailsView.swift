@@ -8,6 +8,7 @@
 
 import Compound
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct TimelineMediaPreviewDetailsView: View {
     let item: TimelineMediaPreviewItem.Media
@@ -35,7 +36,7 @@ struct TimelineMediaPreviewDetailsView: View {
         .presentationDetents([.height(sheetHeight)])
         .presentationDragIndicator(.visible)
         .presentationBackground(.compound.bgCanvasDefault)
-        .preferredColorScheme(preferredColorScheme)
+        .presentationColorScheme(preferredColorScheme)
         .sheet(item: $context.redactConfirmationItem) { item in
             TimelineMediaPreviewRedactConfirmationView(item: item,
                                                        context: context,
@@ -58,7 +59,7 @@ struct TimelineMediaPreviewDetailsView: View {
                         if let displayName = item.sender.displayName {
                             Text(displayName)
                                 .font(.compound.bodyLGSemibold)
-                                .foregroundStyle(.compound.decorativeColor(for: item.sender.id).text)
+                                .foregroundStyle(.compound.textSecondary) // AGENT-PLATFORM (Brief 0083, decision 331): no hue
                         }
                         
                         Text(item.sender.id)
@@ -167,8 +168,6 @@ struct TimelineMediaPreviewDetailsView: View {
 
 // MARK: - Previews
 
-import UniformTypeIdentifiers
-
 @available(iOS 26.0, *)
 struct TimelineMediaPreviewDetailsView_Previews: PreviewProvider, TestablePreview {
     static let viewModel = makeViewModel(contentType: .jpeg, isOutgoing: true)
@@ -223,18 +222,21 @@ struct TimelineMediaPreviewDetailsView_Previews: PreviewProvider, TestablePrevie
         let timelineKind = TimelineKind.media(isPresentedOnRoomScreen ? .roomScreenLive : .mediaFilesScreen)
         let timelineController = TimelineControllerMock(.init(timelineKind: timelineKind, timelineItems: [item]))
         
-        let viewModel = TimelineMediaPreviewViewModel(initialItem: item,
-                                                      timelineViewModel: TimelineViewModel.mock(timelineKind: timelineKind,
-                                                                                                timelineController: timelineController),
-                                                      mediaProvider: MediaProviderMock(.init()),
-                                                      photoLibraryManager: PhotoLibraryManagerMock(.init()),
-                                                      userIndicatorController: UserIndicatorControllerMock(),
-                                                      appMediator: AppMediatorMock())
-        
-        if isDownloaded {
-            viewModel.context.send(viewAction: .updateCurrentItem(viewModel.state.currentItem))
+        let mediaProvider = MediaProviderMock(.init())
+        if !isDownloaded {
+            mediaProvider.loadFileFromSourceFilenameClosure = { _, _ in
+                try? await Task.sleep(for: .seconds(3600))
+                return .failure(.failedRetrievingFile)
+            }
         }
         
-        return viewModel
+        // The viewer loads the item it opens on by itself.
+        return TimelineMediaPreviewViewModel(initialItem: item,
+                                             timelineViewModel: TimelineViewModel.mock(timelineKind: timelineKind,
+                                                                                       timelineController: timelineController),
+                                             mediaProvider: mediaProvider,
+                                             photoLibraryManager: PhotoLibraryManagerMock(.init()),
+                                             userIndicatorController: UserIndicatorControllerMock(),
+                                             appMediator: AppMediatorMock())
     }
 }

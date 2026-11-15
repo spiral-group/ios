@@ -9,6 +9,8 @@ import Combine
 
 struct RoomThreadListProxyMockConfiguration {
     var items: [RoomThreadListItem] = .mocks
+    var paginationState: RoomThreadListPaginationState = .idle(endReached: true)
+    var paginateResult: Result<Void, RoomProxyError> = .success(())
 }
 
 extension RoomThreadListServiceProxyMock {
@@ -16,9 +18,9 @@ extension RoomThreadListServiceProxyMock {
         self.init()
         
         itemsPublisher = CurrentValueSubject(configuration.items).asCurrentValuePublisher()
-        paginationStatePublisher = CurrentValueSubject(.idle(endReached: true)).asCurrentValuePublisher()
+        paginationStatePublisher = CurrentValueSubject(configuration.paginationState).asCurrentValuePublisher()
         
-        paginateReturnValue = .success(())
+        paginateReturnValue = configuration.paginateResult
     }
 }
 

@@ -7,6 +7,7 @@
 //
 
 import Foundation
+import SpiralComponents
 
 // AGENT-PLATFORM: Brief 0037, reworked by the Agents tab step B (decision
 // 191): the room details layout — avatar, name with presence, handle, a kind
@@ -36,12 +37,18 @@ enum AgentDetailScreenViewModelAction {
     case changed
     /// Archived — the flow closes and the list reloads.
     case archived
+    /// The agent no longer exists (deleted elsewhere): the flow closes.
+    case gone
 }
 
 struct AgentDetailScreenViewState: BindableState {
     /// The card the user tapped — renders the header instantly
     /// (including presence, which the read-model doesn't carry).
     let selection: AgentSelection
+    /// The card as the spaces last read it (platform sync, decision 289): the header follows the list.
+    var liveCard: AgentSpaceAgentCard?
+    /// The sync's state at the top while the stream is not live.
+    var syncStatus: PlatformSyncStatus?
 
     var detailState: AgentDetailScreenDetailState = .loading
     var isArchiving = false
@@ -52,12 +59,18 @@ struct AgentDetailScreenViewState: BindableState {
     var pendingVerifications: [VerificationSummary] = []
     /// The owner's DM with this agent, so its row reads as that.
     var ownerDMRoomID: String?
-    /// This agent's approvals waiting for the owner; `nil` while the stream
-    /// isn't connected to say, never a made-up `0`.
+    /// The agent's chats' names on this device, by room id; a chat this device isn't in has none.
+    var deviceRoomNames: [String: String] = [:]
+    /// This agent's approvals waiting for the owner; `nil` until they are
+    /// read, never a made-up `0`.
     var pendingApprovalsCount: Int?
+    /// The first read of what waits is on its way: its slot shows a placeholder.
+    var isReadingPendingApprovals = true
     /// The people this agent blocks, from the first page; `nil` until read
     /// or when the read failed, never a made-up `0`.
     var blockedCount: AgentBlockedCount?
+    /// The first read of the blocks is on its way: its slot shows a placeholder.
+    var isReadingBlocked = true
     var isPausing = false
     /// The switch's new position while the write is on its way.
     var pendingPause: Bool?
@@ -66,12 +79,12 @@ struct AgentDetailScreenViewState: BindableState {
     var pendingShowInSearch: Bool?
 
     var card: AgentSpaceAgentCard {
-        selection.card
+        liveCard ?? selection.card
     }
 
     /// The title a room row shows.
     func title(for room: AgentRoomEntry) -> String {
-        room.title(ownerDMRoomID: ownerDMRoomID, agentName: displayName)
+        room.title(ownerDMRoomID: ownerDMRoomID, agentName: displayName, deviceName: deviceRoomNames[room.roomID])
     }
 
     /// Decision 153: the personal assistant is not archived.
@@ -79,9 +92,9 @@ struct AgentDetailScreenViewState: BindableState {
         !card.isPersonalAssistant
     }
 
-    /// The outreach queue: the backend refuses enqueue for every other role.
+    /// The outreach queue: the backend refuses enqueue for every other role. A company role, so off with them (396).
     var showsQueue: Bool {
-        card.kind == "outreach"
+        SpiralFeatures.companySpaces && card.kind == "outreach"
     }
 
     /// «ваш личный ассистент» / «Продажи · Кофейня Зерно».
@@ -106,10 +119,19 @@ struct AgentDetailScreenViewState: BindableState {
         readModel?.paused ?? card.isPaused
     }
     
-    /// The pause switch, once the agent is read.
-    var paused: Bool? {
-        guard let readModel else { return nil }
-        return pendingPause ?? readModel.paused
+    /// The profile card's status: the card's, with the pause this screen read.
+    var presence: SpiralAgentStatus? {
+        card.presence(isPaused: isPaused)
+    }
+    
+    /// The pause switch: the card's until the agent is read.
+    var paused: Bool {
+        pendingPause ?? isPaused
+    }
+    
+    /// A switch shows the card's value at once, and writes only over what was read.
+    var canWriteSwitches: Bool {
+        readModel != nil
     }
     
     /// A role agent's «Общение с людьми» would hold only «Показывать в
@@ -119,15 +141,18 @@ struct AgentDetailScreenViewState: BindableState {
         card.isPersonalAssistant
     }
     
-    /// The search switch on this screen, once the agent is read.
+    /// The search switch on this screen: the card's until the agent is read.
     var showInSearch: Bool? {
-        guard !showsPeopleSettings, let readModel else { return nil }
-        return pendingShowInSearch ?? (readModel.visibility == "public")
+        guard !showsPeopleSettings else { return nil }
+        return pendingShowInSearch ?? ((readModel?.visibility ?? card.visibility) == "public")
     }
     
-    /// «Звонки» holds only the call language, so it shows with it.
+    /// «Звонки» holds only the call language, which the card doesn't carry. Assistants are provisioned with one, so
+    /// the row keeps its place until a read says this one has none; only then does the row go.
     var showsCallsSettings: Bool {
-        card.isPersonalAssistant && readModel?.voiceLanguage != nil
+        guard card.isPersonalAssistant else { return false }
+        guard let readModel else { return true }
+        return readModel.voiceLanguage != nil
     }
     
     var characterTitle: String {
@@ -195,10 +220,8 @@ enum AgentDetailScreenViewAction {
     /// Archive — asks for confirmation first.
     case archiveTapped
     case confirmArchive
-    /// Full retry after a failure — flips back to `.loading` first.
+    /// Read again after a failure.
     case retry
-    /// Silent pull-to-refresh — keeps the current content on screen.
-    case refresh
 }
 
 extension AgentRoomEntry {

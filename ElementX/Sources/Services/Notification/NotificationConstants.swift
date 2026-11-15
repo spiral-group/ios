@@ -12,8 +12,8 @@ nonisolated enum NotificationConstants {
     enum UserInfoKey {
         static let roomIdentifier = "room_id"
         static let eventIdentifier = "event_id"
+        static let eventDate = "event_date"
         static let threadRootEventIdentifier = "thread_root_event_id"
-        static let unreadCount = "unread_count"
         static let pusherNotificationClientIdentifier = "pusher_notification_client_identifier"
         static let receiverIdentifier = "receiver_id"
         // AGENT-PLATFORM: the approval a Spiral direct push names;
@@ -25,6 +25,10 @@ nonisolated enum NotificationConstants {
         // AGENT-PLATFORM (Brief 0066, § 5.82): the Interactive Post a game's
         // ping was made in; a tap opens the room on it.
         static let spiralPostEventIdentifier = "spiral_post_event_id"
+        // AGENT-PLATFORM: feed (Brief 0082): the notice a `feed_notice` push
+        // names, and the post a like, comment or reply push is about.
+        static let feedNoticeIdentifier = "feed_notice_id"
+        static let feedPostIdentifier = "feed_post_id"
     }
     
     enum Category {
@@ -48,6 +52,10 @@ nonisolated enum NotificationConstants {
         // question 88). Tap-only: the owner sees whom it blocks on the card
         // before deciding, so the lock screen offers no Approve or Reject.
         static let blockRequest = "agent-platform.approval.block-request"
+        // AGENT-PLATFORM: feed (Brief 0082): tap-only; a notice opens the
+        // notices, a like, comment or reply its post.
+        static let feedNotice = "agent-platform.feed.notice"
+        static let feedPost = "agent-platform.feed.post"
     }
     
     enum Action {

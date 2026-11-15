@@ -37,6 +37,17 @@ final class SpiralAppSchemeHandler: NSObject, WKURLSchemeHandler {
     /// approved for it.
     private var artifactsByHost: [String: SpiralAppArtifact] = [:]
 
+    /// The bundle's files, read once per process: they can't change, and each
+    /// was read from disk on the main thread for every frame of every post.
+    private static var bundledFiles: [URL: Data] = [:]
+
+    #if DEBUG
+    /// What frames have asked for, so a test can see what WebKit really did.
+    static var requestedPathsForTesting: [String] = []
+    /// How often a bundled file came off the disk.
+    static var diskReadsForTesting = 0
+    #endif
+
     /// Whether the Brief 0066 probe may be served. Debug builds only; a
     /// release build must never hand an adversary to a user.
     private let allowsSpikeProbe: Bool
@@ -52,6 +63,11 @@ final class SpiralAppSchemeHandler: NSObject, WKURLSchemeHandler {
 
     func register(_ artifact: SpiralAppArtifact) {
         artifactsByHost[artifact.originHost] = artifact
+    }
+
+    /// Whether `host` is an artifact this handler serves right now.
+    func isServing(host: String) -> Bool {
+        artifactsByHost[host] != nil
     }
 
     func unregister(host: String) {
@@ -76,7 +92,10 @@ final class SpiralAppSchemeHandler: NSObject, WKURLSchemeHandler {
         // Every byte the web view gets is one of these. Tracing them is how
         // a blank frame is told apart from a refused subresource — the
         // sandboxed frame is opaque, so this log is often the only view in.
-        MXLog.info("[SpiralApp] request \(host)\(path)")
+        MXLog.verbose("[SpiralApp] request \(host)\(path)")
+        #if DEBUG
+        Self.requestedPathsForTesting.append(path)
+        #endif
 
         switch host {
         case SpiralAppScheme.shellHost:
@@ -101,7 +120,7 @@ final class SpiralAppSchemeHandler: NSObject, WKURLSchemeHandler {
         switch path {
         case "/", "/index.html":
             guard let file = SpiralAppShell.shellDocumentURL,
-                  let data = try? Data(contentsOf: file) else {
+                  let data = Self.contents(of: file) else {
                 fail(task, reason: "shell document missing from the bundle")
                 return
             }
@@ -144,7 +163,7 @@ final class SpiralAppSchemeHandler: NSObject, WKURLSchemeHandler {
             ])
 
         case "/runtime/v1/bootstrap.js", "/runtime/v1/react.js", "/runtime/v1/sdk.js",
-             "/runtime/v1/ui.js", "/runtime/v1/play.js":
+             "/runtime/v1/ui.js", "/runtime/v1/play.js", "/runtime/v1/compile.js":
             serveBundled(path: path,
                          task: task,
                          url: url,
@@ -169,13 +188,25 @@ final class SpiralAppSchemeHandler: NSObject, WKURLSchemeHandler {
                               mime: String,
                               origin: String) {
         guard let file = SpiralAppShell.bundledResource(forPath: path),
-              let data = try? Data(contentsOf: file) else {
+              let data = Self.contents(of: file) else {
             fail(task, reason: "bundled resource missing: \(path)")
             return
         }
         respond(task, url: url, data: data, mime: mime, extraHeaders: [
             "Content-Security-Policy": Self.artifactPolicy(origin: origin)
         ])
+    }
+
+    private static func contents(of file: URL) -> Data? {
+        if let data = bundledFiles[file] {
+            return data
+        }
+        #if DEBUG
+        diskReadsForTesting += 1
+        #endif
+        let data = try? Data(contentsOf: file)
+        bundledFiles[file] = data
+        return data
     }
 
     // MARK: - Documents and policy
@@ -191,6 +222,15 @@ final class SpiralAppSchemeHandler: NSObject, WKURLSchemeHandler {
     /// insides instead of the timeline — on a row with a tall app the
     /// timeline was unreachable from most of the screen (2026-09-17). The
     /// bootstrap marks the document from the host's `viewport.changed`.
+    ///
+    /// The preloads turn a waterfall into one fetch: an import is only found
+    /// once the module before it has run, and React waits on the bootstrap, the
+    /// SDK on the compiled app. They name our own runtime and nothing else, and
+    /// `script-src` governs them as it does the imports they stand in for.
+    /// The compiler is not among them: only a module that arrives as source
+    /// loads it (question 374). `data-compiled` is a fixed word, never text
+    /// from the manifest, and only spares the compiler — the bootstrap
+    /// checks a compiled module's imports as it checks a compiled source's.
     private static func synthesisedDocument(for artifact: SpiralAppArtifact) -> String {
         """
         <!doctype html>
@@ -200,6 +240,10 @@ final class SpiralAppSchemeHandler: NSObject, WKURLSchemeHandler {
         <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
         <meta name="color-scheme" content="light dark">
         <title>Spiral app</title>
+        <link rel="modulepreload" href="/runtime/v1/bootstrap.js">
+        <link rel="modulepreload" href="/runtime/v1/react.js">
+        <link rel="modulepreload" href="/runtime/v1/sdk.js">
+        <link rel="modulepreload" href="/runtime/v1/ui.js">
         <link rel="stylesheet" href="/runtime/v1/ui.css">
         <style>
           html,body{margin:0;padding:0;height:100%;background:transparent;overflow:hidden;
@@ -210,7 +254,7 @@ final class SpiralAppSchemeHandler: NSObject, WKURLSchemeHandler {
         </head>
         <body>
         <div id="root"></div>
-        <script type="application/json" id="spiral-artifact-source">\(embeddedSource(artifact.source))</script>
+        <script type="application/json" id="spiral-artifact-source"\(artifact.manifest.isCompiled ? " data-compiled" : "")>\(embeddedSource(artifact.source))</script>
         <script type="module" src="/runtime/v1/bootstrap.js"></script>
         </body>
         </html>

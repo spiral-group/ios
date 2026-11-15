@@ -22,7 +22,7 @@ struct ImageRoomTimelineView: View {
     var body: some View {
         TimelineStyler(timelineItem: timelineItem) {
             // The caption sits 8pts below the content scanner failure placeholder, 4pts below the media.
-            VStack(alignment: .leading, spacing: contentScanningFailure == nil ? 4 : 8) {
+            VStack(alignment: .leading, spacing: contentScanningFailure == nil ? captionSpacing : 8) {
                 ContentScanningView(contentScannerService: context?.contentScannerService,
                                     mediaSource: timelineItem.content.imageInfo.source,
                                     thumbnailSource: timelineItem.content.thumbnailInfo?.source) {
@@ -31,7 +31,7 @@ struct ImageRoomTimelineView: View {
                         .accessibilityLabel(L10n.commonImage)
                         // This clip shape is distinct from the one in the styler as that one
                         // operates on the entire message so wouldn't round the bottom corners.
-                        .clipShape(RoundedRectangle(cornerRadius: hasMediaCaption ? 6 : 0))
+                        .clipShape(RoundedRectangle(cornerRadius: hasMediaCaption && !reachesEdges ? 6 : 0))
                         .onTapGesture {
                             context?.send(viewAction: .mediaTapped(itemID: timelineItem.id))
                         }
@@ -44,9 +44,19 @@ struct ImageRoomTimelineView: View {
                 }
                 
                 caption
+                    .pictureCaptionInsets(isActive: reachesEdges)
             }
             .onPreferenceChange(ContentScanningFailurePreferenceKey.self) { contentScanningFailure = $0 }
         }
+    }
+    
+    // AGENT-PLATFORM (Brief 0083, question 357): the caption keeps the inset the picture gave up.
+    private var reachesEdges: Bool {
+        contentScanningFailure == nil
+    }
+    
+    private var captionSpacing: CGFloat {
+        reachesEdges ? 0 : 4
     }
     
     @ViewBuilder

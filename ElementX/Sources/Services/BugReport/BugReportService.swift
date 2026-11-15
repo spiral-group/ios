@@ -25,7 +25,7 @@ class BugReportService: NSObject, BugReportServiceProtocol {
         rageshakeURL != .disabled
     }
     
-    var lastCrashEventID: String?
+    let lastCrashEventIDSubject = CurrentValueSubject<String?, Never>(nil)
     
     init(rageshakeURLPublisher: CurrentValuePublisher<RageshakeConfiguration, Never>,
          applicationID: String,
@@ -46,11 +46,6 @@ class BugReportService: NSObject, BugReportServiceProtocol {
     }
     
     // MARK: - BugReportServiceProtocol
-    
-    // AGENT-PLATFORM (Brief 0078): Sentry detected crashes; Spiral links no crash reporter.
-    var crashedLastRun: Bool {
-        false
-    }
     
     // swiftlint:disable:next cyclomatic_complexity
     func submitBugReport(_ bugReport: BugReport,
@@ -81,10 +76,7 @@ class BugReportService: NSObject, BugReportServiceProtocol {
             params.append(.init(key: "device_keys", type: .text(value: compactKeys)))
         }
         
-        if let crashEventID = lastCrashEventID {
-            params.append(MultipartFormData(key: "crash_report", type: .text(value: "<https://sentry.tools.element.io/organizations/element/issues/?project=44&query=\(crashEventID)>")))
-            bugReport.githubLabels.append("crash")
-        }
+        // AGENT-PLATFORM (Brief 0083 L1b): no crash_report link to Element's Sentry.
         
         params.append(contentsOf: defaultParams)
         
@@ -155,7 +147,7 @@ class BugReportService: NSObject, BugReportServiceProtocol {
             let decoder = JSONDecoder()
             let uploadResponse = try decoder.decode(SubmitBugReportResponse.self, from: data)
             
-            lastCrashEventID = nil
+            lastCrashEventIDSubject.send(nil)
             
             MXLog.info("Feedback submitted.")
             

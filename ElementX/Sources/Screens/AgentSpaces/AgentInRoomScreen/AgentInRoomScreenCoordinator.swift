@@ -18,6 +18,8 @@ struct AgentInRoomScreenCoordinatorParameters {
 }
 
 enum AgentInRoomScreenCoordinatorAction {
+    /// The chat itself was asked for.
+    case openChat(roomID: String)
     /// The agent left the room — the flow pops and reloads upstream.
     case removed
     /// Hand off to the Brief 0036 arm flow for this room.
@@ -45,6 +47,8 @@ final class AgentInRoomScreenCoordinator: CoordinatorProtocol {
     func start() {
         viewModel.actionsPublisher.sink { [weak self] action in
             switch action {
+            case .openChat(let roomID):
+                self?.actionsSubject.send(.openChat(roomID: roomID))
             case .removed:
                 self?.actionsSubject.send(.removed)
             case .addTool:

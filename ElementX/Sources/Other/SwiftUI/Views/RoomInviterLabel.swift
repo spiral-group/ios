@@ -6,6 +6,7 @@
 // Please see LICENSE files in the repository root for full details.
 //
 
+import SpiralTokens // AGENT-PLATFORM (Brief 0083)
 import SwiftUI
 
 struct RoomInviterDetails: Equatable {
@@ -48,7 +49,7 @@ struct RoomInviterLabel: View {
             LoadableAvatarImage(url: shouldHideAvatar ? nil : inviter.avatarURL,
                                 name: inviter.displayName,
                                 contentID: inviter.id,
-                                avatarSize: .custom(16),
+                                avatarSize: .custom(SpiralAvatarSize.xxSmall), // AGENT-PLATFORM (Brief 0083, decision 300b)
                                 mediaProvider: mediaProvider)
                 .alignmentGuide(.firstTextBaseline) { $0[.bottom] * 0.8 }
                 .accessibilityHidden(true)

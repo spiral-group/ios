@@ -31,12 +31,18 @@ targets:
 
     dependencies:
     - target: ElementX
+    - target: MapLibreInterface
     - package: MatrixRustSDK
     - package: AsyncAlgorithms
+    # AGENT-PLATFORM (Brief 0067): CallKitServiceTests still use swift-clocks' TestClock (upstream moved to ManualClock).
     - package: Clocks
     - package: Dynamic
     - package: BuildExtensions
       product: Macros
+    # AGENT-PLATFORM (App Review F2, decision 252): the shell's first-party
+    # artifacts, for tests only — the app bundle no longer carries them.
+    - package: SpiralAppShell
+      product: SpiralAppTestArtifacts
 
     info:
       path: ../SupportingFiles/Info.plist
@@ -52,7 +58,7 @@ targets:
         TEST_HOST: $(BUILT_PRODUCTS_DIR)/$(APP_NAME).app/$(APP_NAME)
         # Requires iOS 26 so tests exercise the Observations-based observe(_:) overload.
         IPHONEOS_DEPLOYMENT_TARGET: '26.0'
-        SWIFT_VERSION: 6.2
+        SWIFT_VERSION: 6
         SWIFT_APPROACHABLE_CONCURRENCY: YES
         SWIFT_DEFAULT_ACTOR_ISOLATION: MainActor
       configs:
@@ -66,10 +72,14 @@ targets:
     sources:
     - path: ../Sources
     - path: ../SupportingFiles
-    - path: ../../DevelopmentAssets/Media
-    - path: ../../DevelopmentAssets/ClassicAppFixtures
-      buildPhase: resources # Necessary to add binary files to the target.
+    - path: ../../Components/DevelopmentAssets/Media
+    # AGENT-PLATFORM (Brief 0083 L1b): no ClassicAppFixtures, Element Classic's import is gone.
     - path: ../../ElementX/Sources/Other/Extensions/Publisher.swift
     - path: ../../ElementX/Sources/Other/InfoPlistReader.swift
     - path: ../../Tools/Scripts/Templates/SimpleScreenExample/Tests/Unit
+    # AGENT-PLATFORM (security pass 2): the post-sandbox attack corpus, a folder
+    # reference so each attack stays a readable .jsx file.
+    - path: ../Resources/SpiralAppAttackCorpus
+      type: folder
+      buildPhase: resources
     

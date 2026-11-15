@@ -20,6 +20,16 @@ nonisolated class AgentPlatformServiceMock: AgentPlatformServiceProtocol, @unche
         set(value) { underlyingOwnerBlocksResyncPublisher = value }
     }
     nonisolated(unsafe) var underlyingOwnerBlocksResyncPublisher: AnyPublisher<Void, Never>!
+    var feed: FeedServiceProtocol {
+        get { return underlyingFeed }
+        set(value) { underlyingFeed = value }
+    }
+    nonisolated(unsafe) var underlyingFeed: FeedServiceProtocol!
+    var sync: PlatformSyncServiceProtocol {
+        get { return underlyingSync }
+        set(value) { underlyingSync = value }
+    }
+    nonisolated(unsafe) var underlyingSync: PlatformSyncServiceProtocol!
 
     //MARK: - fetchNotifications
 
@@ -1645,46 +1655,32 @@ nonisolated class AgentPlatformServiceMock: AgentPlatformServiceProtocol, @unche
             return voiceSessionControlsSessionIDReturnValue
         }
     }
-    //MARK: - voiceControlsCatalog
+    //MARK: - voiceLanguages
 
-    private let voiceControlsCatalogAgentIDCallsCountLock = NSLock()
-    private nonisolated(unsafe) var voiceControlsCatalogAgentIDUnderlyingCallsCount = 0
-    var voiceControlsCatalogAgentIDCallsCount: Int {
-        get { voiceControlsCatalogAgentIDCallsCountLock.withLock { voiceControlsCatalogAgentIDUnderlyingCallsCount } }
-        set { voiceControlsCatalogAgentIDCallsCountLock.withLock { voiceControlsCatalogAgentIDUnderlyingCallsCount = newValue } }
+    private let voiceLanguagesCallsCountLock = NSLock()
+    private nonisolated(unsafe) var voiceLanguagesUnderlyingCallsCount = 0
+    var voiceLanguagesCallsCount: Int {
+        get { voiceLanguagesCallsCountLock.withLock { voiceLanguagesUnderlyingCallsCount } }
+        set { voiceLanguagesCallsCountLock.withLock { voiceLanguagesUnderlyingCallsCount = newValue } }
     }
-    var voiceControlsCatalogAgentIDCalled: Bool {
-        return voiceControlsCatalogAgentIDCallsCount > 0
-    }
-    private let voiceControlsCatalogAgentIDReceivedAgentIDLock = NSLock()
-    private nonisolated(unsafe) var voiceControlsCatalogAgentIDUnderlyingReceivedAgentID: String?
-    var voiceControlsCatalogAgentIDReceivedAgentID: String? {
-        get { voiceControlsCatalogAgentIDReceivedAgentIDLock.withLock { voiceControlsCatalogAgentIDUnderlyingReceivedAgentID } }
-        set { voiceControlsCatalogAgentIDReceivedAgentIDLock.withLock { voiceControlsCatalogAgentIDUnderlyingReceivedAgentID = newValue } }
-    }
-    private let voiceControlsCatalogAgentIDReceivedInvocationsLock = NSLock()
-    private nonisolated(unsafe) var voiceControlsCatalogAgentIDUnderlyingReceivedInvocations: [String] = []
-    var voiceControlsCatalogAgentIDReceivedInvocations: [String] {
-        get { voiceControlsCatalogAgentIDReceivedInvocationsLock.withLock { voiceControlsCatalogAgentIDUnderlyingReceivedInvocations } }
-        set { voiceControlsCatalogAgentIDReceivedInvocationsLock.withLock { voiceControlsCatalogAgentIDUnderlyingReceivedInvocations = newValue } }
+    var voiceLanguagesCalled: Bool {
+        return voiceLanguagesCallsCount > 0
     }
 
-    private let voiceControlsCatalogAgentIDReturnValueLock = NSLock()
-    private nonisolated(unsafe) var voiceControlsCatalogAgentIDUnderlyingReturnValue: Result<VoiceControlsCatalog, VoiceControlsError>!
-    var voiceControlsCatalogAgentIDReturnValue: Result<VoiceControlsCatalog, VoiceControlsError>! {
-        get { voiceControlsCatalogAgentIDReturnValueLock.withLock { voiceControlsCatalogAgentIDUnderlyingReturnValue } }
-        set { voiceControlsCatalogAgentIDReturnValueLock.withLock { voiceControlsCatalogAgentIDUnderlyingReturnValue = newValue } }
+    private let voiceLanguagesReturnValueLock = NSLock()
+    private nonisolated(unsafe) var voiceLanguagesUnderlyingReturnValue: Result<[VoiceControlsCatalogLanguage], VoiceControlsError>!
+    var voiceLanguagesReturnValue: Result<[VoiceControlsCatalogLanguage], VoiceControlsError>! {
+        get { voiceLanguagesReturnValueLock.withLock { voiceLanguagesUnderlyingReturnValue } }
+        set { voiceLanguagesReturnValueLock.withLock { voiceLanguagesUnderlyingReturnValue = newValue } }
     }
-    nonisolated(unsafe) var voiceControlsCatalogAgentIDClosure: ((String) async -> Result<VoiceControlsCatalog, VoiceControlsError>)?
+    nonisolated(unsafe) var voiceLanguagesClosure: (() async -> Result<[VoiceControlsCatalogLanguage], VoiceControlsError>)?
 
-    @concurrent func voiceControlsCatalog(agentID: String) async -> Result<VoiceControlsCatalog, VoiceControlsError> {
-        voiceControlsCatalogAgentIDCallsCountLock.withLock { voiceControlsCatalogAgentIDUnderlyingCallsCount += 1 }
-        voiceControlsCatalogAgentIDReceivedAgentID = agentID
-        voiceControlsCatalogAgentIDReceivedInvocationsLock.withLock { voiceControlsCatalogAgentIDUnderlyingReceivedInvocations.append(agentID) }
-        if let voiceControlsCatalogAgentIDClosure = voiceControlsCatalogAgentIDClosure {
-            return await voiceControlsCatalogAgentIDClosure(agentID)
+    @concurrent func voiceLanguages() async -> Result<[VoiceControlsCatalogLanguage], VoiceControlsError> {
+        voiceLanguagesCallsCountLock.withLock { voiceLanguagesUnderlyingCallsCount += 1 }
+        if let voiceLanguagesClosure = voiceLanguagesClosure {
+            return await voiceLanguagesClosure()
         } else {
-            return voiceControlsCatalogAgentIDReturnValue
+            return voiceLanguagesReturnValue
         }
     }
     //MARK: - setVoiceTranslation
@@ -1771,90 +1767,6 @@ nonisolated class AgentPlatformServiceMock: AgentPlatformServiceProtocol, @unche
             return disableVoiceTranslationSessionIDRevisionReturnValue
         }
     }
-    //MARK: - clearVoiceTranslationOverride
-
-    private let clearVoiceTranslationOverrideSessionIDCallsCountLock = NSLock()
-    private nonisolated(unsafe) var clearVoiceTranslationOverrideSessionIDUnderlyingCallsCount = 0
-    var clearVoiceTranslationOverrideSessionIDCallsCount: Int {
-        get { clearVoiceTranslationOverrideSessionIDCallsCountLock.withLock { clearVoiceTranslationOverrideSessionIDUnderlyingCallsCount } }
-        set { clearVoiceTranslationOverrideSessionIDCallsCountLock.withLock { clearVoiceTranslationOverrideSessionIDUnderlyingCallsCount = newValue } }
-    }
-    var clearVoiceTranslationOverrideSessionIDCalled: Bool {
-        return clearVoiceTranslationOverrideSessionIDCallsCount > 0
-    }
-    private let clearVoiceTranslationOverrideSessionIDReceivedSessionIDLock = NSLock()
-    private nonisolated(unsafe) var clearVoiceTranslationOverrideSessionIDUnderlyingReceivedSessionID: String?
-    var clearVoiceTranslationOverrideSessionIDReceivedSessionID: String? {
-        get { clearVoiceTranslationOverrideSessionIDReceivedSessionIDLock.withLock { clearVoiceTranslationOverrideSessionIDUnderlyingReceivedSessionID } }
-        set { clearVoiceTranslationOverrideSessionIDReceivedSessionIDLock.withLock { clearVoiceTranslationOverrideSessionIDUnderlyingReceivedSessionID = newValue } }
-    }
-    private let clearVoiceTranslationOverrideSessionIDReceivedInvocationsLock = NSLock()
-    private nonisolated(unsafe) var clearVoiceTranslationOverrideSessionIDUnderlyingReceivedInvocations: [String] = []
-    var clearVoiceTranslationOverrideSessionIDReceivedInvocations: [String] {
-        get { clearVoiceTranslationOverrideSessionIDReceivedInvocationsLock.withLock { clearVoiceTranslationOverrideSessionIDUnderlyingReceivedInvocations } }
-        set { clearVoiceTranslationOverrideSessionIDReceivedInvocationsLock.withLock { clearVoiceTranslationOverrideSessionIDUnderlyingReceivedInvocations = newValue } }
-    }
-
-    private let clearVoiceTranslationOverrideSessionIDReturnValueLock = NSLock()
-    private nonisolated(unsafe) var clearVoiceTranslationOverrideSessionIDUnderlyingReturnValue: Result<VoiceControlsState, VoiceControlsError>!
-    var clearVoiceTranslationOverrideSessionIDReturnValue: Result<VoiceControlsState, VoiceControlsError>! {
-        get { clearVoiceTranslationOverrideSessionIDReturnValueLock.withLock { clearVoiceTranslationOverrideSessionIDUnderlyingReturnValue } }
-        set { clearVoiceTranslationOverrideSessionIDReturnValueLock.withLock { clearVoiceTranslationOverrideSessionIDUnderlyingReturnValue = newValue } }
-    }
-    nonisolated(unsafe) var clearVoiceTranslationOverrideSessionIDClosure: ((String) async -> Result<VoiceControlsState, VoiceControlsError>)?
-
-    @concurrent func clearVoiceTranslationOverride(sessionID: String) async -> Result<VoiceControlsState, VoiceControlsError> {
-        clearVoiceTranslationOverrideSessionIDCallsCountLock.withLock { clearVoiceTranslationOverrideSessionIDUnderlyingCallsCount += 1 }
-        clearVoiceTranslationOverrideSessionIDReceivedSessionID = sessionID
-        clearVoiceTranslationOverrideSessionIDReceivedInvocationsLock.withLock { clearVoiceTranslationOverrideSessionIDUnderlyingReceivedInvocations.append(sessionID) }
-        if let clearVoiceTranslationOverrideSessionIDClosure = clearVoiceTranslationOverrideSessionIDClosure {
-            return await clearVoiceTranslationOverrideSessionIDClosure(sessionID)
-        } else {
-            return clearVoiceTranslationOverrideSessionIDReturnValue
-        }
-    }
-    //MARK: - saveVoiceTranslationAsRoomDefault
-
-    private let saveVoiceTranslationAsRoomDefaultSessionIDCallsCountLock = NSLock()
-    private nonisolated(unsafe) var saveVoiceTranslationAsRoomDefaultSessionIDUnderlyingCallsCount = 0
-    var saveVoiceTranslationAsRoomDefaultSessionIDCallsCount: Int {
-        get { saveVoiceTranslationAsRoomDefaultSessionIDCallsCountLock.withLock { saveVoiceTranslationAsRoomDefaultSessionIDUnderlyingCallsCount } }
-        set { saveVoiceTranslationAsRoomDefaultSessionIDCallsCountLock.withLock { saveVoiceTranslationAsRoomDefaultSessionIDUnderlyingCallsCount = newValue } }
-    }
-    var saveVoiceTranslationAsRoomDefaultSessionIDCalled: Bool {
-        return saveVoiceTranslationAsRoomDefaultSessionIDCallsCount > 0
-    }
-    private let saveVoiceTranslationAsRoomDefaultSessionIDReceivedSessionIDLock = NSLock()
-    private nonisolated(unsafe) var saveVoiceTranslationAsRoomDefaultSessionIDUnderlyingReceivedSessionID: String?
-    var saveVoiceTranslationAsRoomDefaultSessionIDReceivedSessionID: String? {
-        get { saveVoiceTranslationAsRoomDefaultSessionIDReceivedSessionIDLock.withLock { saveVoiceTranslationAsRoomDefaultSessionIDUnderlyingReceivedSessionID } }
-        set { saveVoiceTranslationAsRoomDefaultSessionIDReceivedSessionIDLock.withLock { saveVoiceTranslationAsRoomDefaultSessionIDUnderlyingReceivedSessionID = newValue } }
-    }
-    private let saveVoiceTranslationAsRoomDefaultSessionIDReceivedInvocationsLock = NSLock()
-    private nonisolated(unsafe) var saveVoiceTranslationAsRoomDefaultSessionIDUnderlyingReceivedInvocations: [String] = []
-    var saveVoiceTranslationAsRoomDefaultSessionIDReceivedInvocations: [String] {
-        get { saveVoiceTranslationAsRoomDefaultSessionIDReceivedInvocationsLock.withLock { saveVoiceTranslationAsRoomDefaultSessionIDUnderlyingReceivedInvocations } }
-        set { saveVoiceTranslationAsRoomDefaultSessionIDReceivedInvocationsLock.withLock { saveVoiceTranslationAsRoomDefaultSessionIDUnderlyingReceivedInvocations = newValue } }
-    }
-
-    private let saveVoiceTranslationAsRoomDefaultSessionIDReturnValueLock = NSLock()
-    private nonisolated(unsafe) var saveVoiceTranslationAsRoomDefaultSessionIDUnderlyingReturnValue: Result<Void, VoiceControlsError>!
-    var saveVoiceTranslationAsRoomDefaultSessionIDReturnValue: Result<Void, VoiceControlsError>! {
-        get { saveVoiceTranslationAsRoomDefaultSessionIDReturnValueLock.withLock { saveVoiceTranslationAsRoomDefaultSessionIDUnderlyingReturnValue } }
-        set { saveVoiceTranslationAsRoomDefaultSessionIDReturnValueLock.withLock { saveVoiceTranslationAsRoomDefaultSessionIDUnderlyingReturnValue = newValue } }
-    }
-    nonisolated(unsafe) var saveVoiceTranslationAsRoomDefaultSessionIDClosure: ((String) async -> Result<Void, VoiceControlsError>)?
-
-    @concurrent func saveVoiceTranslationAsRoomDefault(sessionID: String) async -> Result<Void, VoiceControlsError> {
-        saveVoiceTranslationAsRoomDefaultSessionIDCallsCountLock.withLock { saveVoiceTranslationAsRoomDefaultSessionIDUnderlyingCallsCount += 1 }
-        saveVoiceTranslationAsRoomDefaultSessionIDReceivedSessionID = sessionID
-        saveVoiceTranslationAsRoomDefaultSessionIDReceivedInvocationsLock.withLock { saveVoiceTranslationAsRoomDefaultSessionIDUnderlyingReceivedInvocations.append(sessionID) }
-        if let saveVoiceTranslationAsRoomDefaultSessionIDClosure = saveVoiceTranslationAsRoomDefaultSessionIDClosure {
-            return await saveVoiceTranslationAsRoomDefaultSessionIDClosure(sessionID)
-        } else {
-            return saveVoiceTranslationAsRoomDefaultSessionIDReturnValue
-        }
-    }
     //MARK: - attachVoiceAgent
 
     private let attachVoiceAgentAgentIDRoomIDParamsCallsCountLock = NSLock()
@@ -1937,6 +1849,90 @@ nonisolated class AgentPlatformServiceMock: AgentPlatformServiceProtocol, @unche
             return await endVoiceSessionSessionIDClosure(sessionID)
         } else {
             return endVoiceSessionSessionIDReturnValue
+        }
+    }
+    //MARK: - voiceSessionProgress
+
+    private let voiceSessionProgressSessionIDCallsCountLock = NSLock()
+    private nonisolated(unsafe) var voiceSessionProgressSessionIDUnderlyingCallsCount = 0
+    var voiceSessionProgressSessionIDCallsCount: Int {
+        get { voiceSessionProgressSessionIDCallsCountLock.withLock { voiceSessionProgressSessionIDUnderlyingCallsCount } }
+        set { voiceSessionProgressSessionIDCallsCountLock.withLock { voiceSessionProgressSessionIDUnderlyingCallsCount = newValue } }
+    }
+    var voiceSessionProgressSessionIDCalled: Bool {
+        return voiceSessionProgressSessionIDCallsCount > 0
+    }
+    private let voiceSessionProgressSessionIDReceivedSessionIDLock = NSLock()
+    private nonisolated(unsafe) var voiceSessionProgressSessionIDUnderlyingReceivedSessionID: String?
+    var voiceSessionProgressSessionIDReceivedSessionID: String? {
+        get { voiceSessionProgressSessionIDReceivedSessionIDLock.withLock { voiceSessionProgressSessionIDUnderlyingReceivedSessionID } }
+        set { voiceSessionProgressSessionIDReceivedSessionIDLock.withLock { voiceSessionProgressSessionIDUnderlyingReceivedSessionID = newValue } }
+    }
+    private let voiceSessionProgressSessionIDReceivedInvocationsLock = NSLock()
+    private nonisolated(unsafe) var voiceSessionProgressSessionIDUnderlyingReceivedInvocations: [String] = []
+    var voiceSessionProgressSessionIDReceivedInvocations: [String] {
+        get { voiceSessionProgressSessionIDReceivedInvocationsLock.withLock { voiceSessionProgressSessionIDUnderlyingReceivedInvocations } }
+        set { voiceSessionProgressSessionIDReceivedInvocationsLock.withLock { voiceSessionProgressSessionIDUnderlyingReceivedInvocations = newValue } }
+    }
+
+    private let voiceSessionProgressSessionIDReturnValueLock = NSLock()
+    private nonisolated(unsafe) var voiceSessionProgressSessionIDUnderlyingReturnValue: Result<VoiceSessionProgress, VoiceControlsError>!
+    var voiceSessionProgressSessionIDReturnValue: Result<VoiceSessionProgress, VoiceControlsError>! {
+        get { voiceSessionProgressSessionIDReturnValueLock.withLock { voiceSessionProgressSessionIDUnderlyingReturnValue } }
+        set { voiceSessionProgressSessionIDReturnValueLock.withLock { voiceSessionProgressSessionIDUnderlyingReturnValue = newValue } }
+    }
+    nonisolated(unsafe) var voiceSessionProgressSessionIDClosure: ((String) async -> Result<VoiceSessionProgress, VoiceControlsError>)?
+
+    @concurrent func voiceSessionProgress(sessionID: String) async -> Result<VoiceSessionProgress, VoiceControlsError> {
+        voiceSessionProgressSessionIDCallsCountLock.withLock { voiceSessionProgressSessionIDUnderlyingCallsCount += 1 }
+        voiceSessionProgressSessionIDReceivedSessionID = sessionID
+        voiceSessionProgressSessionIDReceivedInvocationsLock.withLock { voiceSessionProgressSessionIDUnderlyingReceivedInvocations.append(sessionID) }
+        if let voiceSessionProgressSessionIDClosure = voiceSessionProgressSessionIDClosure {
+            return await voiceSessionProgressSessionIDClosure(sessionID)
+        } else {
+            return voiceSessionProgressSessionIDReturnValue
+        }
+    }
+    //MARK: - voiceJoinCheck
+
+    private let voiceJoinCheckAgentIDRoomIDCallsCountLock = NSLock()
+    private nonisolated(unsafe) var voiceJoinCheckAgentIDRoomIDUnderlyingCallsCount = 0
+    var voiceJoinCheckAgentIDRoomIDCallsCount: Int {
+        get { voiceJoinCheckAgentIDRoomIDCallsCountLock.withLock { voiceJoinCheckAgentIDRoomIDUnderlyingCallsCount } }
+        set { voiceJoinCheckAgentIDRoomIDCallsCountLock.withLock { voiceJoinCheckAgentIDRoomIDUnderlyingCallsCount = newValue } }
+    }
+    var voiceJoinCheckAgentIDRoomIDCalled: Bool {
+        return voiceJoinCheckAgentIDRoomIDCallsCount > 0
+    }
+    private let voiceJoinCheckAgentIDRoomIDReceivedArgumentsLock = NSLock()
+    private nonisolated(unsafe) var voiceJoinCheckAgentIDRoomIDUnderlyingReceivedArguments: (agentID: String, roomID: String)?
+    var voiceJoinCheckAgentIDRoomIDReceivedArguments: (agentID: String, roomID: String)? {
+        get { voiceJoinCheckAgentIDRoomIDReceivedArgumentsLock.withLock { voiceJoinCheckAgentIDRoomIDUnderlyingReceivedArguments } }
+        set { voiceJoinCheckAgentIDRoomIDReceivedArgumentsLock.withLock { voiceJoinCheckAgentIDRoomIDUnderlyingReceivedArguments = newValue } }
+    }
+    private let voiceJoinCheckAgentIDRoomIDReceivedInvocationsLock = NSLock()
+    private nonisolated(unsafe) var voiceJoinCheckAgentIDRoomIDUnderlyingReceivedInvocations: [(agentID: String, roomID: String)] = []
+    var voiceJoinCheckAgentIDRoomIDReceivedInvocations: [(agentID: String, roomID: String)] {
+        get { voiceJoinCheckAgentIDRoomIDReceivedInvocationsLock.withLock { voiceJoinCheckAgentIDRoomIDUnderlyingReceivedInvocations } }
+        set { voiceJoinCheckAgentIDRoomIDReceivedInvocationsLock.withLock { voiceJoinCheckAgentIDRoomIDUnderlyingReceivedInvocations = newValue } }
+    }
+
+    private let voiceJoinCheckAgentIDRoomIDReturnValueLock = NSLock()
+    private nonisolated(unsafe) var voiceJoinCheckAgentIDRoomIDUnderlyingReturnValue: Result<VoiceJoinCheckReason, VoiceControlsError>!
+    var voiceJoinCheckAgentIDRoomIDReturnValue: Result<VoiceJoinCheckReason, VoiceControlsError>! {
+        get { voiceJoinCheckAgentIDRoomIDReturnValueLock.withLock { voiceJoinCheckAgentIDRoomIDUnderlyingReturnValue } }
+        set { voiceJoinCheckAgentIDRoomIDReturnValueLock.withLock { voiceJoinCheckAgentIDRoomIDUnderlyingReturnValue = newValue } }
+    }
+    nonisolated(unsafe) var voiceJoinCheckAgentIDRoomIDClosure: ((String, String) async -> Result<VoiceJoinCheckReason, VoiceControlsError>)?
+
+    @concurrent func voiceJoinCheck(agentID: String, roomID: String) async -> Result<VoiceJoinCheckReason, VoiceControlsError> {
+        voiceJoinCheckAgentIDRoomIDCallsCountLock.withLock { voiceJoinCheckAgentIDRoomIDUnderlyingCallsCount += 1 }
+        voiceJoinCheckAgentIDRoomIDReceivedArguments = (agentID: agentID, roomID: roomID)
+        voiceJoinCheckAgentIDRoomIDReceivedInvocationsLock.withLock { voiceJoinCheckAgentIDRoomIDUnderlyingReceivedInvocations.append((agentID: agentID, roomID: roomID)) }
+        if let voiceJoinCheckAgentIDRoomIDClosure = voiceJoinCheckAgentIDRoomIDClosure {
+            return await voiceJoinCheckAgentIDRoomIDClosure(agentID, roomID)
+        } else {
+            return voiceJoinCheckAgentIDRoomIDReturnValue
         }
     }
     //MARK: - setVoiceSwitch
@@ -3277,6 +3273,11 @@ nonisolated class AppMediatorMock: AppMediatorProtocol, @unchecked Sendable {
         set(value) { underlyingAppState = value }
     }
     nonisolated(unsafe) var underlyingAppState: UIApplication.State!
+    var isCameraAvailable: Bool {
+        get { return underlyingIsCameraAvailable }
+        set(value) { underlyingIsCameraAvailable = value }
+    }
+    nonisolated(unsafe) var underlyingIsCameraAvailable: Bool!
 
     //MARK: - open
 
@@ -3384,115 +3385,6 @@ nonisolated class AppMediatorMock: AppMediatorProtocol, @unchecked Sendable {
         } else {
             return requestAuthorizationIfNeededReturnValue
         }
-    }
-}
-nonisolated class ApprovalsStreamServiceMock: ApprovalsStreamServiceProtocol, @unchecked Sendable {
-    nonisolated(unsafe) var needsAction: [NeedsActionItem] = []
-    var pendingCount: Int {
-        get { return underlyingPendingCount }
-        set(value) { underlyingPendingCount = value }
-    }
-    nonisolated(unsafe) var underlyingPendingCount: Int!
-    var unseenCount: Int {
-        get { return underlyingUnseenCount }
-        set(value) { underlyingUnseenCount = value }
-    }
-    nonisolated(unsafe) var underlyingUnseenCount: Int!
-    var isSeeded: Bool {
-        get { return underlyingIsSeeded }
-        set(value) { underlyingIsSeeded = value }
-    }
-    nonisolated(unsafe) var underlyingIsSeeded: Bool!
-    var connectionState: ApprovalsStreamConnectionState {
-        get { return underlyingConnectionState }
-        set(value) { underlyingConnectionState = value }
-    }
-    nonisolated(unsafe) var underlyingConnectionState: ApprovalsStreamConnectionState!
-
-    //MARK: - connect
-
-    private let connectCallsCountLock = NSLock()
-    private nonisolated(unsafe) var connectUnderlyingCallsCount = 0
-    var connectCallsCount: Int {
-        get { connectCallsCountLock.withLock { connectUnderlyingCallsCount } }
-        set { connectCallsCountLock.withLock { connectUnderlyingCallsCount = newValue } }
-    }
-    var connectCalled: Bool {
-        return connectCallsCount > 0
-    }
-    nonisolated(unsafe) var connectClosure: (() -> Void)?
-
-    func connect() {
-        connectCallsCountLock.withLock { connectUnderlyingCallsCount += 1 }
-        connectClosure?()
-    }
-    //MARK: - disconnect
-
-    private let disconnectCallsCountLock = NSLock()
-    private nonisolated(unsafe) var disconnectUnderlyingCallsCount = 0
-    var disconnectCallsCount: Int {
-        get { disconnectCallsCountLock.withLock { disconnectUnderlyingCallsCount } }
-        set { disconnectCallsCountLock.withLock { disconnectUnderlyingCallsCount = newValue } }
-    }
-    var disconnectCalled: Bool {
-        return disconnectCallsCount > 0
-    }
-    nonisolated(unsafe) var disconnectClosure: (() -> Void)?
-
-    func disconnect() {
-        disconnectCallsCountLock.withLock { disconnectUnderlyingCallsCount += 1 }
-        disconnectClosure?()
-    }
-    //MARK: - stop
-
-    private let stopCallsCountLock = NSLock()
-    private nonisolated(unsafe) var stopUnderlyingCallsCount = 0
-    var stopCallsCount: Int {
-        get { stopCallsCountLock.withLock { stopUnderlyingCallsCount } }
-        set { stopCallsCountLock.withLock { stopUnderlyingCallsCount = newValue } }
-    }
-    var stopCalled: Bool {
-        return stopCallsCount > 0
-    }
-    nonisolated(unsafe) var stopClosure: (() -> Void)?
-
-    func stop() {
-        stopCallsCountLock.withLock { stopUnderlyingCallsCount += 1 }
-        stopClosure?()
-    }
-    //MARK: - reseed
-
-    private let reseedCallsCountLock = NSLock()
-    private nonisolated(unsafe) var reseedUnderlyingCallsCount = 0
-    var reseedCallsCount: Int {
-        get { reseedCallsCountLock.withLock { reseedUnderlyingCallsCount } }
-        set { reseedCallsCountLock.withLock { reseedUnderlyingCallsCount = newValue } }
-    }
-    var reseedCalled: Bool {
-        return reseedCallsCount > 0
-    }
-    nonisolated(unsafe) var reseedClosure: (() async -> Void)?
-
-    @concurrent func reseed() async {
-        reseedCallsCountLock.withLock { reseedUnderlyingCallsCount += 1 }
-        await reseedClosure?()
-    }
-    //MARK: - markSeen
-
-    private let markSeenCallsCountLock = NSLock()
-    private nonisolated(unsafe) var markSeenUnderlyingCallsCount = 0
-    var markSeenCallsCount: Int {
-        get { markSeenCallsCountLock.withLock { markSeenUnderlyingCallsCount } }
-        set { markSeenCallsCountLock.withLock { markSeenUnderlyingCallsCount = newValue } }
-    }
-    var markSeenCalled: Bool {
-        return markSeenCallsCount > 0
-    }
-    nonisolated(unsafe) var markSeenClosure: (() async -> Void)?
-
-    @concurrent func markSeen() async {
-        markSeenCallsCountLock.withLock { markSeenUnderlyingCallsCount += 1 }
-        await markSeenClosure?()
     }
 }
 nonisolated class AudioConverterMock: AudioConverterProtocol, @unchecked Sendable {
@@ -4005,101 +3897,6 @@ nonisolated class AudioSessionMock: AudioSessionProtocol, @unchecked Sendable {
         try setActiveOptionsClosure?(active, options)
     }
 }
-nonisolated class AuthenticationClientFactoryMock: AuthenticationClientFactoryProtocol, @unchecked Sendable {
-
-    //MARK: - makeClient
-
-    nonisolated(unsafe) var makeClientHomeserverAddressSessionDirectoriesPassphraseClientSessionDelegateAppSettingsAppHooksThrowableError: Error?
-    private let makeClientHomeserverAddressSessionDirectoriesPassphraseClientSessionDelegateAppSettingsAppHooksCallsCountLock = NSLock()
-    private nonisolated(unsafe) var makeClientHomeserverAddressSessionDirectoriesPassphraseClientSessionDelegateAppSettingsAppHooksUnderlyingCallsCount = 0
-    var makeClientHomeserverAddressSessionDirectoriesPassphraseClientSessionDelegateAppSettingsAppHooksCallsCount: Int {
-        get { makeClientHomeserverAddressSessionDirectoriesPassphraseClientSessionDelegateAppSettingsAppHooksCallsCountLock.withLock { makeClientHomeserverAddressSessionDirectoriesPassphraseClientSessionDelegateAppSettingsAppHooksUnderlyingCallsCount } }
-        set { makeClientHomeserverAddressSessionDirectoriesPassphraseClientSessionDelegateAppSettingsAppHooksCallsCountLock.withLock { makeClientHomeserverAddressSessionDirectoriesPassphraseClientSessionDelegateAppSettingsAppHooksUnderlyingCallsCount = newValue } }
-    }
-    var makeClientHomeserverAddressSessionDirectoriesPassphraseClientSessionDelegateAppSettingsAppHooksCalled: Bool {
-        return makeClientHomeserverAddressSessionDirectoriesPassphraseClientSessionDelegateAppSettingsAppHooksCallsCount > 0
-    }
-    private let makeClientHomeserverAddressSessionDirectoriesPassphraseClientSessionDelegateAppSettingsAppHooksReceivedArgumentsLock = NSLock()
-    private nonisolated(unsafe) var makeClientHomeserverAddressSessionDirectoriesPassphraseClientSessionDelegateAppSettingsAppHooksUnderlyingReceivedArguments: (homeserverAddress: String, sessionDirectories: SessionDirectories, passphrase: String, clientSessionDelegate: ClientSessionDelegate, appSettings: AppSettings, appHooks: AppHooks)?
-    var makeClientHomeserverAddressSessionDirectoriesPassphraseClientSessionDelegateAppSettingsAppHooksReceivedArguments: (homeserverAddress: String, sessionDirectories: SessionDirectories, passphrase: String, clientSessionDelegate: ClientSessionDelegate, appSettings: AppSettings, appHooks: AppHooks)? {
-        get { makeClientHomeserverAddressSessionDirectoriesPassphraseClientSessionDelegateAppSettingsAppHooksReceivedArgumentsLock.withLock { makeClientHomeserverAddressSessionDirectoriesPassphraseClientSessionDelegateAppSettingsAppHooksUnderlyingReceivedArguments } }
-        set { makeClientHomeserverAddressSessionDirectoriesPassphraseClientSessionDelegateAppSettingsAppHooksReceivedArgumentsLock.withLock { makeClientHomeserverAddressSessionDirectoriesPassphraseClientSessionDelegateAppSettingsAppHooksUnderlyingReceivedArguments = newValue } }
-    }
-    private let makeClientHomeserverAddressSessionDirectoriesPassphraseClientSessionDelegateAppSettingsAppHooksReceivedInvocationsLock = NSLock()
-    private nonisolated(unsafe) var makeClientHomeserverAddressSessionDirectoriesPassphraseClientSessionDelegateAppSettingsAppHooksUnderlyingReceivedInvocations: [(homeserverAddress: String, sessionDirectories: SessionDirectories, passphrase: String, clientSessionDelegate: ClientSessionDelegate, appSettings: AppSettings, appHooks: AppHooks)] = []
-    var makeClientHomeserverAddressSessionDirectoriesPassphraseClientSessionDelegateAppSettingsAppHooksReceivedInvocations: [(homeserverAddress: String, sessionDirectories: SessionDirectories, passphrase: String, clientSessionDelegate: ClientSessionDelegate, appSettings: AppSettings, appHooks: AppHooks)] {
-        get { makeClientHomeserverAddressSessionDirectoriesPassphraseClientSessionDelegateAppSettingsAppHooksReceivedInvocationsLock.withLock { makeClientHomeserverAddressSessionDirectoriesPassphraseClientSessionDelegateAppSettingsAppHooksUnderlyingReceivedInvocations } }
-        set { makeClientHomeserverAddressSessionDirectoriesPassphraseClientSessionDelegateAppSettingsAppHooksReceivedInvocationsLock.withLock { makeClientHomeserverAddressSessionDirectoriesPassphraseClientSessionDelegateAppSettingsAppHooksUnderlyingReceivedInvocations = newValue } }
-    }
-
-    private let makeClientHomeserverAddressSessionDirectoriesPassphraseClientSessionDelegateAppSettingsAppHooksReturnValueLock = NSLock()
-    private nonisolated(unsafe) var makeClientHomeserverAddressSessionDirectoriesPassphraseClientSessionDelegateAppSettingsAppHooksUnderlyingReturnValue: ClientProtocol!
-    var makeClientHomeserverAddressSessionDirectoriesPassphraseClientSessionDelegateAppSettingsAppHooksReturnValue: ClientProtocol! {
-        get { makeClientHomeserverAddressSessionDirectoriesPassphraseClientSessionDelegateAppSettingsAppHooksReturnValueLock.withLock { makeClientHomeserverAddressSessionDirectoriesPassphraseClientSessionDelegateAppSettingsAppHooksUnderlyingReturnValue } }
-        set { makeClientHomeserverAddressSessionDirectoriesPassphraseClientSessionDelegateAppSettingsAppHooksReturnValueLock.withLock { makeClientHomeserverAddressSessionDirectoriesPassphraseClientSessionDelegateAppSettingsAppHooksUnderlyingReturnValue = newValue } }
-    }
-    nonisolated(unsafe) var makeClientHomeserverAddressSessionDirectoriesPassphraseClientSessionDelegateAppSettingsAppHooksClosure: ((String, SessionDirectories, String, ClientSessionDelegate, AppSettings, AppHooks) async throws -> ClientProtocol)?
-
-    @concurrent func makeClient(homeserverAddress: String, sessionDirectories: SessionDirectories, passphrase: String, clientSessionDelegate: ClientSessionDelegate, appSettings: AppSettings, appHooks: AppHooks) async throws -> ClientProtocol {
-        if let error = makeClientHomeserverAddressSessionDirectoriesPassphraseClientSessionDelegateAppSettingsAppHooksThrowableError {
-            throw error
-        }
-        makeClientHomeserverAddressSessionDirectoriesPassphraseClientSessionDelegateAppSettingsAppHooksCallsCountLock.withLock { makeClientHomeserverAddressSessionDirectoriesPassphraseClientSessionDelegateAppSettingsAppHooksUnderlyingCallsCount += 1 }
-        makeClientHomeserverAddressSessionDirectoriesPassphraseClientSessionDelegateAppSettingsAppHooksReceivedArguments = (homeserverAddress: homeserverAddress, sessionDirectories: sessionDirectories, passphrase: passphrase, clientSessionDelegate: clientSessionDelegate, appSettings: appSettings, appHooks: appHooks)
-        makeClientHomeserverAddressSessionDirectoriesPassphraseClientSessionDelegateAppSettingsAppHooksReceivedInvocationsLock.withLock { makeClientHomeserverAddressSessionDirectoriesPassphraseClientSessionDelegateAppSettingsAppHooksUnderlyingReceivedInvocations.append((homeserverAddress: homeserverAddress, sessionDirectories: sessionDirectories, passphrase: passphrase, clientSessionDelegate: clientSessionDelegate, appSettings: appSettings, appHooks: appHooks)) }
-        if let makeClientHomeserverAddressSessionDirectoriesPassphraseClientSessionDelegateAppSettingsAppHooksClosure = makeClientHomeserverAddressSessionDirectoriesPassphraseClientSessionDelegateAppSettingsAppHooksClosure {
-            return try await makeClientHomeserverAddressSessionDirectoriesPassphraseClientSessionDelegateAppSettingsAppHooksClosure(homeserverAddress, sessionDirectories, passphrase, clientSessionDelegate, appSettings, appHooks)
-        } else {
-            return makeClientHomeserverAddressSessionDirectoriesPassphraseClientSessionDelegateAppSettingsAppHooksReturnValue
-        }
-    }
-    //MARK: - makeInMemoryClient
-
-    nonisolated(unsafe) var makeInMemoryClientHomeserverAddressClientSessionDelegateAppSettingsAppHooksThrowableError: Error?
-    private let makeInMemoryClientHomeserverAddressClientSessionDelegateAppSettingsAppHooksCallsCountLock = NSLock()
-    private nonisolated(unsafe) var makeInMemoryClientHomeserverAddressClientSessionDelegateAppSettingsAppHooksUnderlyingCallsCount = 0
-    var makeInMemoryClientHomeserverAddressClientSessionDelegateAppSettingsAppHooksCallsCount: Int {
-        get { makeInMemoryClientHomeserverAddressClientSessionDelegateAppSettingsAppHooksCallsCountLock.withLock { makeInMemoryClientHomeserverAddressClientSessionDelegateAppSettingsAppHooksUnderlyingCallsCount } }
-        set { makeInMemoryClientHomeserverAddressClientSessionDelegateAppSettingsAppHooksCallsCountLock.withLock { makeInMemoryClientHomeserverAddressClientSessionDelegateAppSettingsAppHooksUnderlyingCallsCount = newValue } }
-    }
-    var makeInMemoryClientHomeserverAddressClientSessionDelegateAppSettingsAppHooksCalled: Bool {
-        return makeInMemoryClientHomeserverAddressClientSessionDelegateAppSettingsAppHooksCallsCount > 0
-    }
-    private let makeInMemoryClientHomeserverAddressClientSessionDelegateAppSettingsAppHooksReceivedArgumentsLock = NSLock()
-    private nonisolated(unsafe) var makeInMemoryClientHomeserverAddressClientSessionDelegateAppSettingsAppHooksUnderlyingReceivedArguments: (homeserverAddress: String, clientSessionDelegate: ClientSessionDelegate, appSettings: AppSettings, appHooks: AppHooks)?
-    var makeInMemoryClientHomeserverAddressClientSessionDelegateAppSettingsAppHooksReceivedArguments: (homeserverAddress: String, clientSessionDelegate: ClientSessionDelegate, appSettings: AppSettings, appHooks: AppHooks)? {
-        get { makeInMemoryClientHomeserverAddressClientSessionDelegateAppSettingsAppHooksReceivedArgumentsLock.withLock { makeInMemoryClientHomeserverAddressClientSessionDelegateAppSettingsAppHooksUnderlyingReceivedArguments } }
-        set { makeInMemoryClientHomeserverAddressClientSessionDelegateAppSettingsAppHooksReceivedArgumentsLock.withLock { makeInMemoryClientHomeserverAddressClientSessionDelegateAppSettingsAppHooksUnderlyingReceivedArguments = newValue } }
-    }
-    private let makeInMemoryClientHomeserverAddressClientSessionDelegateAppSettingsAppHooksReceivedInvocationsLock = NSLock()
-    private nonisolated(unsafe) var makeInMemoryClientHomeserverAddressClientSessionDelegateAppSettingsAppHooksUnderlyingReceivedInvocations: [(homeserverAddress: String, clientSessionDelegate: ClientSessionDelegate, appSettings: AppSettings, appHooks: AppHooks)] = []
-    var makeInMemoryClientHomeserverAddressClientSessionDelegateAppSettingsAppHooksReceivedInvocations: [(homeserverAddress: String, clientSessionDelegate: ClientSessionDelegate, appSettings: AppSettings, appHooks: AppHooks)] {
-        get { makeInMemoryClientHomeserverAddressClientSessionDelegateAppSettingsAppHooksReceivedInvocationsLock.withLock { makeInMemoryClientHomeserverAddressClientSessionDelegateAppSettingsAppHooksUnderlyingReceivedInvocations } }
-        set { makeInMemoryClientHomeserverAddressClientSessionDelegateAppSettingsAppHooksReceivedInvocationsLock.withLock { makeInMemoryClientHomeserverAddressClientSessionDelegateAppSettingsAppHooksUnderlyingReceivedInvocations = newValue } }
-    }
-
-    private let makeInMemoryClientHomeserverAddressClientSessionDelegateAppSettingsAppHooksReturnValueLock = NSLock()
-    private nonisolated(unsafe) var makeInMemoryClientHomeserverAddressClientSessionDelegateAppSettingsAppHooksUnderlyingReturnValue: ClientProtocol!
-    var makeInMemoryClientHomeserverAddressClientSessionDelegateAppSettingsAppHooksReturnValue: ClientProtocol! {
-        get { makeInMemoryClientHomeserverAddressClientSessionDelegateAppSettingsAppHooksReturnValueLock.withLock { makeInMemoryClientHomeserverAddressClientSessionDelegateAppSettingsAppHooksUnderlyingReturnValue } }
-        set { makeInMemoryClientHomeserverAddressClientSessionDelegateAppSettingsAppHooksReturnValueLock.withLock { makeInMemoryClientHomeserverAddressClientSessionDelegateAppSettingsAppHooksUnderlyingReturnValue = newValue } }
-    }
-    nonisolated(unsafe) var makeInMemoryClientHomeserverAddressClientSessionDelegateAppSettingsAppHooksClosure: ((String, ClientSessionDelegate, AppSettings, AppHooks) async throws -> ClientProtocol)?
-
-    @concurrent func makeInMemoryClient(homeserverAddress: String, clientSessionDelegate: ClientSessionDelegate, appSettings: AppSettings, appHooks: AppHooks) async throws -> ClientProtocol {
-        if let error = makeInMemoryClientHomeserverAddressClientSessionDelegateAppSettingsAppHooksThrowableError {
-            throw error
-        }
-        makeInMemoryClientHomeserverAddressClientSessionDelegateAppSettingsAppHooksCallsCountLock.withLock { makeInMemoryClientHomeserverAddressClientSessionDelegateAppSettingsAppHooksUnderlyingCallsCount += 1 }
-        makeInMemoryClientHomeserverAddressClientSessionDelegateAppSettingsAppHooksReceivedArguments = (homeserverAddress: homeserverAddress, clientSessionDelegate: clientSessionDelegate, appSettings: appSettings, appHooks: appHooks)
-        makeInMemoryClientHomeserverAddressClientSessionDelegateAppSettingsAppHooksReceivedInvocationsLock.withLock { makeInMemoryClientHomeserverAddressClientSessionDelegateAppSettingsAppHooksUnderlyingReceivedInvocations.append((homeserverAddress: homeserverAddress, clientSessionDelegate: clientSessionDelegate, appSettings: appSettings, appHooks: appHooks)) }
-        if let makeInMemoryClientHomeserverAddressClientSessionDelegateAppSettingsAppHooksClosure = makeInMemoryClientHomeserverAddressClientSessionDelegateAppSettingsAppHooksClosure {
-            return try await makeInMemoryClientHomeserverAddressClientSessionDelegateAppSettingsAppHooksClosure(homeserverAddress, clientSessionDelegate, appSettings, appHooks)
-        } else {
-            return makeInMemoryClientHomeserverAddressClientSessionDelegateAppSettingsAppHooksReturnValue
-        }
-    }
-}
 nonisolated class BannedRoomProxyMock: BannedRoomProxyProtocol, @unchecked Sendable {
     var info: BaseRoomInfoProxyProtocol {
         get { return underlyingInfo }
@@ -4152,12 +3949,11 @@ nonisolated class BugReportServiceMock: BugReportServiceProtocol, @unchecked Sen
         set(value) { underlyingIsEnabled = value }
     }
     nonisolated(unsafe) var underlyingIsEnabled: Bool!
-    var crashedLastRun: Bool {
-        get { return underlyingCrashedLastRun }
-        set(value) { underlyingCrashedLastRun = value }
+    var lastCrashEventIDSubject: CurrentValueSubject<String?, Never> {
+        get { return underlyingLastCrashEventIDSubject }
+        set(value) { underlyingLastCrashEventIDSubject = value }
     }
-    nonisolated(unsafe) var underlyingCrashedLastRun: Bool!
-    nonisolated(unsafe) var lastCrashEventID: String?
+    nonisolated(unsafe) var underlyingLastCrashEventIDSubject: CurrentValueSubject<String?, Never>!
 
     //MARK: - submitBugReport
 
@@ -4933,130 +4729,144 @@ nonisolated class CallKitServiceMock: CallKitServiceProtocol, @unchecked Sendabl
         }
     }
 }
-nonisolated class ClassicAppManagerMock: ClassicAppManagerProtocol, @unchecked Sendable {
+nonisolated class ClientFactoryMock: ClientFactoryProtocol, @unchecked Sendable {
 
-    //MARK: - loadAccounts
+    //MARK: - makeAuthenticationClient
 
-    nonisolated(unsafe) var loadAccountsThrowableError: Error?
-    private let loadAccountsCallsCountLock = NSLock()
-    private nonisolated(unsafe) var loadAccountsUnderlyingCallsCount = 0
-    var loadAccountsCallsCount: Int {
-        get { loadAccountsCallsCountLock.withLock { loadAccountsUnderlyingCallsCount } }
-        set { loadAccountsCallsCountLock.withLock { loadAccountsUnderlyingCallsCount = newValue } }
+    nonisolated(unsafe) var makeAuthenticationClientServerNameOrBaseURLSessionDirectoriesPassphraseClientSessionDelegateAppSettingsAppHooksThrowableError: Error?
+    private let makeAuthenticationClientServerNameOrBaseURLSessionDirectoriesPassphraseClientSessionDelegateAppSettingsAppHooksCallsCountLock = NSLock()
+    private nonisolated(unsafe) var makeAuthenticationClientServerNameOrBaseURLSessionDirectoriesPassphraseClientSessionDelegateAppSettingsAppHooksUnderlyingCallsCount = 0
+    var makeAuthenticationClientServerNameOrBaseURLSessionDirectoriesPassphraseClientSessionDelegateAppSettingsAppHooksCallsCount: Int {
+        get { makeAuthenticationClientServerNameOrBaseURLSessionDirectoriesPassphraseClientSessionDelegateAppSettingsAppHooksCallsCountLock.withLock { makeAuthenticationClientServerNameOrBaseURLSessionDirectoriesPassphraseClientSessionDelegateAppSettingsAppHooksUnderlyingCallsCount } }
+        set { makeAuthenticationClientServerNameOrBaseURLSessionDirectoriesPassphraseClientSessionDelegateAppSettingsAppHooksCallsCountLock.withLock { makeAuthenticationClientServerNameOrBaseURLSessionDirectoriesPassphraseClientSessionDelegateAppSettingsAppHooksUnderlyingCallsCount = newValue } }
     }
-    var loadAccountsCalled: Bool {
-        return loadAccountsCallsCount > 0
+    var makeAuthenticationClientServerNameOrBaseURLSessionDirectoriesPassphraseClientSessionDelegateAppSettingsAppHooksCalled: Bool {
+        return makeAuthenticationClientServerNameOrBaseURLSessionDirectoriesPassphraseClientSessionDelegateAppSettingsAppHooksCallsCount > 0
+    }
+    private let makeAuthenticationClientServerNameOrBaseURLSessionDirectoriesPassphraseClientSessionDelegateAppSettingsAppHooksReceivedArgumentsLock = NSLock()
+    private nonisolated(unsafe) var makeAuthenticationClientServerNameOrBaseURLSessionDirectoriesPassphraseClientSessionDelegateAppSettingsAppHooksUnderlyingReceivedArguments: (serverNameOrBaseURL: String, sessionDirectories: SessionDirectories, passphrase: Data, clientSessionDelegate: ClientSessionDelegate, appSettings: AppSettings, appHooks: AppHooks)?
+    var makeAuthenticationClientServerNameOrBaseURLSessionDirectoriesPassphraseClientSessionDelegateAppSettingsAppHooksReceivedArguments: (serverNameOrBaseURL: String, sessionDirectories: SessionDirectories, passphrase: Data, clientSessionDelegate: ClientSessionDelegate, appSettings: AppSettings, appHooks: AppHooks)? {
+        get { makeAuthenticationClientServerNameOrBaseURLSessionDirectoriesPassphraseClientSessionDelegateAppSettingsAppHooksReceivedArgumentsLock.withLock { makeAuthenticationClientServerNameOrBaseURLSessionDirectoriesPassphraseClientSessionDelegateAppSettingsAppHooksUnderlyingReceivedArguments } }
+        set { makeAuthenticationClientServerNameOrBaseURLSessionDirectoriesPassphraseClientSessionDelegateAppSettingsAppHooksReceivedArgumentsLock.withLock { makeAuthenticationClientServerNameOrBaseURLSessionDirectoriesPassphraseClientSessionDelegateAppSettingsAppHooksUnderlyingReceivedArguments = newValue } }
+    }
+    private let makeAuthenticationClientServerNameOrBaseURLSessionDirectoriesPassphraseClientSessionDelegateAppSettingsAppHooksReceivedInvocationsLock = NSLock()
+    private nonisolated(unsafe) var makeAuthenticationClientServerNameOrBaseURLSessionDirectoriesPassphraseClientSessionDelegateAppSettingsAppHooksUnderlyingReceivedInvocations: [(serverNameOrBaseURL: String, sessionDirectories: SessionDirectories, passphrase: Data, clientSessionDelegate: ClientSessionDelegate, appSettings: AppSettings, appHooks: AppHooks)] = []
+    var makeAuthenticationClientServerNameOrBaseURLSessionDirectoriesPassphraseClientSessionDelegateAppSettingsAppHooksReceivedInvocations: [(serverNameOrBaseURL: String, sessionDirectories: SessionDirectories, passphrase: Data, clientSessionDelegate: ClientSessionDelegate, appSettings: AppSettings, appHooks: AppHooks)] {
+        get { makeAuthenticationClientServerNameOrBaseURLSessionDirectoriesPassphraseClientSessionDelegateAppSettingsAppHooksReceivedInvocationsLock.withLock { makeAuthenticationClientServerNameOrBaseURLSessionDirectoriesPassphraseClientSessionDelegateAppSettingsAppHooksUnderlyingReceivedInvocations } }
+        set { makeAuthenticationClientServerNameOrBaseURLSessionDirectoriesPassphraseClientSessionDelegateAppSettingsAppHooksReceivedInvocationsLock.withLock { makeAuthenticationClientServerNameOrBaseURLSessionDirectoriesPassphraseClientSessionDelegateAppSettingsAppHooksUnderlyingReceivedInvocations = newValue } }
     }
 
-    private let loadAccountsReturnValueLock = NSLock()
-    private nonisolated(unsafe) var loadAccountsUnderlyingReturnValue: [ClassicAppAccount]!
-    var loadAccountsReturnValue: [ClassicAppAccount]! {
-        get { loadAccountsReturnValueLock.withLock { loadAccountsUnderlyingReturnValue } }
-        set { loadAccountsReturnValueLock.withLock { loadAccountsUnderlyingReturnValue = newValue } }
+    private let makeAuthenticationClientServerNameOrBaseURLSessionDirectoriesPassphraseClientSessionDelegateAppSettingsAppHooksReturnValueLock = NSLock()
+    private nonisolated(unsafe) var makeAuthenticationClientServerNameOrBaseURLSessionDirectoriesPassphraseClientSessionDelegateAppSettingsAppHooksUnderlyingReturnValue: ClientProtocol!
+    var makeAuthenticationClientServerNameOrBaseURLSessionDirectoriesPassphraseClientSessionDelegateAppSettingsAppHooksReturnValue: ClientProtocol! {
+        get { makeAuthenticationClientServerNameOrBaseURLSessionDirectoriesPassphraseClientSessionDelegateAppSettingsAppHooksReturnValueLock.withLock { makeAuthenticationClientServerNameOrBaseURLSessionDirectoriesPassphraseClientSessionDelegateAppSettingsAppHooksUnderlyingReturnValue } }
+        set { makeAuthenticationClientServerNameOrBaseURLSessionDirectoriesPassphraseClientSessionDelegateAppSettingsAppHooksReturnValueLock.withLock { makeAuthenticationClientServerNameOrBaseURLSessionDirectoriesPassphraseClientSessionDelegateAppSettingsAppHooksUnderlyingReturnValue = newValue } }
     }
-    nonisolated(unsafe) var loadAccountsClosure: (() throws -> [ClassicAppAccount])?
+    nonisolated(unsafe) var makeAuthenticationClientServerNameOrBaseURLSessionDirectoriesPassphraseClientSessionDelegateAppSettingsAppHooksClosure: ((String, SessionDirectories, Data, ClientSessionDelegate, AppSettings, AppHooks) async throws -> ClientProtocol)?
 
-    func loadAccounts() throws -> [ClassicAppAccount] {
-        if let error = loadAccountsThrowableError {
+    @concurrent func makeAuthenticationClient(serverNameOrBaseURL: String, sessionDirectories: SessionDirectories, passphrase: Data, clientSessionDelegate: ClientSessionDelegate, appSettings: AppSettings, appHooks: AppHooks) async throws -> ClientProtocol {
+        if let error = makeAuthenticationClientServerNameOrBaseURLSessionDirectoriesPassphraseClientSessionDelegateAppSettingsAppHooksThrowableError {
             throw error
         }
-        loadAccountsCallsCountLock.withLock { loadAccountsUnderlyingCallsCount += 1 }
-        if let loadAccountsClosure = loadAccountsClosure {
-            return try loadAccountsClosure()
+        makeAuthenticationClientServerNameOrBaseURLSessionDirectoriesPassphraseClientSessionDelegateAppSettingsAppHooksCallsCountLock.withLock { makeAuthenticationClientServerNameOrBaseURLSessionDirectoriesPassphraseClientSessionDelegateAppSettingsAppHooksUnderlyingCallsCount += 1 }
+        makeAuthenticationClientServerNameOrBaseURLSessionDirectoriesPassphraseClientSessionDelegateAppSettingsAppHooksReceivedArguments = (serverNameOrBaseURL: serverNameOrBaseURL, sessionDirectories: sessionDirectories, passphrase: passphrase, clientSessionDelegate: clientSessionDelegate, appSettings: appSettings, appHooks: appHooks)
+        makeAuthenticationClientServerNameOrBaseURLSessionDirectoriesPassphraseClientSessionDelegateAppSettingsAppHooksReceivedInvocationsLock.withLock { makeAuthenticationClientServerNameOrBaseURLSessionDirectoriesPassphraseClientSessionDelegateAppSettingsAppHooksUnderlyingReceivedInvocations.append((serverNameOrBaseURL: serverNameOrBaseURL, sessionDirectories: sessionDirectories, passphrase: passphrase, clientSessionDelegate: clientSessionDelegate, appSettings: appSettings, appHooks: appHooks)) }
+        if let makeAuthenticationClientServerNameOrBaseURLSessionDirectoriesPassphraseClientSessionDelegateAppSettingsAppHooksClosure = makeAuthenticationClientServerNameOrBaseURLSessionDirectoriesPassphraseClientSessionDelegateAppSettingsAppHooksClosure {
+            return try await makeAuthenticationClientServerNameOrBaseURLSessionDirectoriesPassphraseClientSessionDelegateAppSettingsAppHooksClosure(serverNameOrBaseURL, sessionDirectories, passphrase, clientSessionDelegate, appSettings, appHooks)
         } else {
-            return loadAccountsReturnValue
+            return makeAuthenticationClientServerNameOrBaseURLSessionDirectoriesPassphraseClientSessionDelegateAppSettingsAppHooksReturnValue
         }
     }
-    //MARK: - availableSecrets
+    //MARK: - makeAppClient
 
-    nonisolated(unsafe) var availableSecretsForThrowableError: Error?
-    private let availableSecretsForCallsCountLock = NSLock()
-    private nonisolated(unsafe) var availableSecretsForUnderlyingCallsCount = 0
-    var availableSecretsForCallsCount: Int {
-        get { availableSecretsForCallsCountLock.withLock { availableSecretsForUnderlyingCallsCount } }
-        set { availableSecretsForCallsCountLock.withLock { availableSecretsForUnderlyingCallsCount = newValue } }
+    nonisolated(unsafe) var makeAppClientCredentialsClientSessionDelegateAppSettingsAppHooksThrowableError: Error?
+    private let makeAppClientCredentialsClientSessionDelegateAppSettingsAppHooksCallsCountLock = NSLock()
+    private nonisolated(unsafe) var makeAppClientCredentialsClientSessionDelegateAppSettingsAppHooksUnderlyingCallsCount = 0
+    var makeAppClientCredentialsClientSessionDelegateAppSettingsAppHooksCallsCount: Int {
+        get { makeAppClientCredentialsClientSessionDelegateAppSettingsAppHooksCallsCountLock.withLock { makeAppClientCredentialsClientSessionDelegateAppSettingsAppHooksUnderlyingCallsCount } }
+        set { makeAppClientCredentialsClientSessionDelegateAppSettingsAppHooksCallsCountLock.withLock { makeAppClientCredentialsClientSessionDelegateAppSettingsAppHooksUnderlyingCallsCount = newValue } }
     }
-    var availableSecretsForCalled: Bool {
-        return availableSecretsForCallsCount > 0
+    var makeAppClientCredentialsClientSessionDelegateAppSettingsAppHooksCalled: Bool {
+        return makeAppClientCredentialsClientSessionDelegateAppSettingsAppHooksCallsCount > 0
     }
-    private let availableSecretsForReceivedAccountLock = NSLock()
-    private nonisolated(unsafe) var availableSecretsForUnderlyingReceivedAccount: ClassicAppAccount?
-    var availableSecretsForReceivedAccount: ClassicAppAccount? {
-        get { availableSecretsForReceivedAccountLock.withLock { availableSecretsForUnderlyingReceivedAccount } }
-        set { availableSecretsForReceivedAccountLock.withLock { availableSecretsForUnderlyingReceivedAccount = newValue } }
+    private let makeAppClientCredentialsClientSessionDelegateAppSettingsAppHooksReceivedArgumentsLock = NSLock()
+    private nonisolated(unsafe) var makeAppClientCredentialsClientSessionDelegateAppSettingsAppHooksUnderlyingReceivedArguments: (credentials: KeychainCredentials, clientSessionDelegate: ClientSessionDelegate, appSettings: AppSettings, appHooks: AppHooks)?
+    var makeAppClientCredentialsClientSessionDelegateAppSettingsAppHooksReceivedArguments: (credentials: KeychainCredentials, clientSessionDelegate: ClientSessionDelegate, appSettings: AppSettings, appHooks: AppHooks)? {
+        get { makeAppClientCredentialsClientSessionDelegateAppSettingsAppHooksReceivedArgumentsLock.withLock { makeAppClientCredentialsClientSessionDelegateAppSettingsAppHooksUnderlyingReceivedArguments } }
+        set { makeAppClientCredentialsClientSessionDelegateAppSettingsAppHooksReceivedArgumentsLock.withLock { makeAppClientCredentialsClientSessionDelegateAppSettingsAppHooksUnderlyingReceivedArguments = newValue } }
     }
-    private let availableSecretsForReceivedInvocationsLock = NSLock()
-    private nonisolated(unsafe) var availableSecretsForUnderlyingReceivedInvocations: [ClassicAppAccount] = []
-    var availableSecretsForReceivedInvocations: [ClassicAppAccount] {
-        get { availableSecretsForReceivedInvocationsLock.withLock { availableSecretsForUnderlyingReceivedInvocations } }
-        set { availableSecretsForReceivedInvocationsLock.withLock { availableSecretsForUnderlyingReceivedInvocations = newValue } }
+    private let makeAppClientCredentialsClientSessionDelegateAppSettingsAppHooksReceivedInvocationsLock = NSLock()
+    private nonisolated(unsafe) var makeAppClientCredentialsClientSessionDelegateAppSettingsAppHooksUnderlyingReceivedInvocations: [(credentials: KeychainCredentials, clientSessionDelegate: ClientSessionDelegate, appSettings: AppSettings, appHooks: AppHooks)] = []
+    var makeAppClientCredentialsClientSessionDelegateAppSettingsAppHooksReceivedInvocations: [(credentials: KeychainCredentials, clientSessionDelegate: ClientSessionDelegate, appSettings: AppSettings, appHooks: AppHooks)] {
+        get { makeAppClientCredentialsClientSessionDelegateAppSettingsAppHooksReceivedInvocationsLock.withLock { makeAppClientCredentialsClientSessionDelegateAppSettingsAppHooksUnderlyingReceivedInvocations } }
+        set { makeAppClientCredentialsClientSessionDelegateAppSettingsAppHooksReceivedInvocationsLock.withLock { makeAppClientCredentialsClientSessionDelegateAppSettingsAppHooksUnderlyingReceivedInvocations = newValue } }
     }
 
-    private let availableSecretsForReturnValueLock = NSLock()
-    private nonisolated(unsafe) var availableSecretsForUnderlyingReturnValue: ClassicAppAccount.AvailableSecrets!
-    var availableSecretsForReturnValue: ClassicAppAccount.AvailableSecrets! {
-        get { availableSecretsForReturnValueLock.withLock { availableSecretsForUnderlyingReturnValue } }
-        set { availableSecretsForReturnValueLock.withLock { availableSecretsForUnderlyingReturnValue = newValue } }
+    private let makeAppClientCredentialsClientSessionDelegateAppSettingsAppHooksReturnValueLock = NSLock()
+    private nonisolated(unsafe) var makeAppClientCredentialsClientSessionDelegateAppSettingsAppHooksUnderlyingReturnValue: ClientProtocol!
+    var makeAppClientCredentialsClientSessionDelegateAppSettingsAppHooksReturnValue: ClientProtocol! {
+        get { makeAppClientCredentialsClientSessionDelegateAppSettingsAppHooksReturnValueLock.withLock { makeAppClientCredentialsClientSessionDelegateAppSettingsAppHooksUnderlyingReturnValue } }
+        set { makeAppClientCredentialsClientSessionDelegateAppSettingsAppHooksReturnValueLock.withLock { makeAppClientCredentialsClientSessionDelegateAppSettingsAppHooksUnderlyingReturnValue = newValue } }
     }
-    nonisolated(unsafe) var availableSecretsForClosure: ((ClassicAppAccount) async throws -> ClassicAppAccount.AvailableSecrets)?
+    nonisolated(unsafe) var makeAppClientCredentialsClientSessionDelegateAppSettingsAppHooksClosure: ((KeychainCredentials, ClientSessionDelegate, AppSettings, AppHooks) async throws -> ClientProtocol)?
 
-    @concurrent func availableSecrets(for account: ClassicAppAccount) async throws -> ClassicAppAccount.AvailableSecrets {
-        if let error = availableSecretsForThrowableError {
+    @concurrent func makeAppClient(credentials: KeychainCredentials, clientSessionDelegate: ClientSessionDelegate, appSettings: AppSettings, appHooks: AppHooks) async throws -> ClientProtocol {
+        if let error = makeAppClientCredentialsClientSessionDelegateAppSettingsAppHooksThrowableError {
             throw error
         }
-        availableSecretsForCallsCountLock.withLock { availableSecretsForUnderlyingCallsCount += 1 }
-        availableSecretsForReceivedAccount = account
-        availableSecretsForReceivedInvocationsLock.withLock { availableSecretsForUnderlyingReceivedInvocations.append(account) }
-        if let availableSecretsForClosure = availableSecretsForClosure {
-            return try await availableSecretsForClosure(account)
+        makeAppClientCredentialsClientSessionDelegateAppSettingsAppHooksCallsCountLock.withLock { makeAppClientCredentialsClientSessionDelegateAppSettingsAppHooksUnderlyingCallsCount += 1 }
+        makeAppClientCredentialsClientSessionDelegateAppSettingsAppHooksReceivedArguments = (credentials: credentials, clientSessionDelegate: clientSessionDelegate, appSettings: appSettings, appHooks: appHooks)
+        makeAppClientCredentialsClientSessionDelegateAppSettingsAppHooksReceivedInvocationsLock.withLock { makeAppClientCredentialsClientSessionDelegateAppSettingsAppHooksUnderlyingReceivedInvocations.append((credentials: credentials, clientSessionDelegate: clientSessionDelegate, appSettings: appSettings, appHooks: appHooks)) }
+        if let makeAppClientCredentialsClientSessionDelegateAppSettingsAppHooksClosure = makeAppClientCredentialsClientSessionDelegateAppSettingsAppHooksClosure {
+            return try await makeAppClientCredentialsClientSessionDelegateAppSettingsAppHooksClosure(credentials, clientSessionDelegate, appSettings, appHooks)
         } else {
-            return availableSecretsForReturnValue
+            return makeAppClientCredentialsClientSessionDelegateAppSettingsAppHooksReturnValue
         }
     }
-    //MARK: - secretsBundle
+    //MARK: - makeNSEClient
 
-    nonisolated(unsafe) var secretsBundleForThrowableError: Error?
-    private let secretsBundleForCallsCountLock = NSLock()
-    private nonisolated(unsafe) var secretsBundleForUnderlyingCallsCount = 0
-    var secretsBundleForCallsCount: Int {
-        get { secretsBundleForCallsCountLock.withLock { secretsBundleForUnderlyingCallsCount } }
-        set { secretsBundleForCallsCountLock.withLock { secretsBundleForUnderlyingCallsCount = newValue } }
+    nonisolated(unsafe) var makeNSEClientCredentialsRoomIDClientSessionDelegateUserSettingsAppHooksLockHolderThrowableError: Error?
+    private let makeNSEClientCredentialsRoomIDClientSessionDelegateUserSettingsAppHooksLockHolderCallsCountLock = NSLock()
+    private nonisolated(unsafe) var makeNSEClientCredentialsRoomIDClientSessionDelegateUserSettingsAppHooksLockHolderUnderlyingCallsCount = 0
+    var makeNSEClientCredentialsRoomIDClientSessionDelegateUserSettingsAppHooksLockHolderCallsCount: Int {
+        get { makeNSEClientCredentialsRoomIDClientSessionDelegateUserSettingsAppHooksLockHolderCallsCountLock.withLock { makeNSEClientCredentialsRoomIDClientSessionDelegateUserSettingsAppHooksLockHolderUnderlyingCallsCount } }
+        set { makeNSEClientCredentialsRoomIDClientSessionDelegateUserSettingsAppHooksLockHolderCallsCountLock.withLock { makeNSEClientCredentialsRoomIDClientSessionDelegateUserSettingsAppHooksLockHolderUnderlyingCallsCount = newValue } }
     }
-    var secretsBundleForCalled: Bool {
-        return secretsBundleForCallsCount > 0
+    var makeNSEClientCredentialsRoomIDClientSessionDelegateUserSettingsAppHooksLockHolderCalled: Bool {
+        return makeNSEClientCredentialsRoomIDClientSessionDelegateUserSettingsAppHooksLockHolderCallsCount > 0
     }
-    private let secretsBundleForReceivedAccountLock = NSLock()
-    private nonisolated(unsafe) var secretsBundleForUnderlyingReceivedAccount: ClassicAppAccount?
-    var secretsBundleForReceivedAccount: ClassicAppAccount? {
-        get { secretsBundleForReceivedAccountLock.withLock { secretsBundleForUnderlyingReceivedAccount } }
-        set { secretsBundleForReceivedAccountLock.withLock { secretsBundleForUnderlyingReceivedAccount = newValue } }
+    private let makeNSEClientCredentialsRoomIDClientSessionDelegateUserSettingsAppHooksLockHolderReceivedArgumentsLock = NSLock()
+    private nonisolated(unsafe) var makeNSEClientCredentialsRoomIDClientSessionDelegateUserSettingsAppHooksLockHolderUnderlyingReceivedArguments: (credentials: KeychainCredentials, roomID: String, clientSessionDelegate: ClientSessionDelegate, userSettings: UserSettings, appHooks: AppHooks, lockHolder: NSEClientLockHolder)?
+    var makeNSEClientCredentialsRoomIDClientSessionDelegateUserSettingsAppHooksLockHolderReceivedArguments: (credentials: KeychainCredentials, roomID: String, clientSessionDelegate: ClientSessionDelegate, userSettings: UserSettings, appHooks: AppHooks, lockHolder: NSEClientLockHolder)? {
+        get { makeNSEClientCredentialsRoomIDClientSessionDelegateUserSettingsAppHooksLockHolderReceivedArgumentsLock.withLock { makeNSEClientCredentialsRoomIDClientSessionDelegateUserSettingsAppHooksLockHolderUnderlyingReceivedArguments } }
+        set { makeNSEClientCredentialsRoomIDClientSessionDelegateUserSettingsAppHooksLockHolderReceivedArgumentsLock.withLock { makeNSEClientCredentialsRoomIDClientSessionDelegateUserSettingsAppHooksLockHolderUnderlyingReceivedArguments = newValue } }
     }
-    private let secretsBundleForReceivedInvocationsLock = NSLock()
-    private nonisolated(unsafe) var secretsBundleForUnderlyingReceivedInvocations: [ClassicAppAccount] = []
-    var secretsBundleForReceivedInvocations: [ClassicAppAccount] {
-        get { secretsBundleForReceivedInvocationsLock.withLock { secretsBundleForUnderlyingReceivedInvocations } }
-        set { secretsBundleForReceivedInvocationsLock.withLock { secretsBundleForUnderlyingReceivedInvocations = newValue } }
+    private let makeNSEClientCredentialsRoomIDClientSessionDelegateUserSettingsAppHooksLockHolderReceivedInvocationsLock = NSLock()
+    private nonisolated(unsafe) var makeNSEClientCredentialsRoomIDClientSessionDelegateUserSettingsAppHooksLockHolderUnderlyingReceivedInvocations: [(credentials: KeychainCredentials, roomID: String, clientSessionDelegate: ClientSessionDelegate, userSettings: UserSettings, appHooks: AppHooks, lockHolder: NSEClientLockHolder)] = []
+    var makeNSEClientCredentialsRoomIDClientSessionDelegateUserSettingsAppHooksLockHolderReceivedInvocations: [(credentials: KeychainCredentials, roomID: String, clientSessionDelegate: ClientSessionDelegate, userSettings: UserSettings, appHooks: AppHooks, lockHolder: NSEClientLockHolder)] {
+        get { makeNSEClientCredentialsRoomIDClientSessionDelegateUserSettingsAppHooksLockHolderReceivedInvocationsLock.withLock { makeNSEClientCredentialsRoomIDClientSessionDelegateUserSettingsAppHooksLockHolderUnderlyingReceivedInvocations } }
+        set { makeNSEClientCredentialsRoomIDClientSessionDelegateUserSettingsAppHooksLockHolderReceivedInvocationsLock.withLock { makeNSEClientCredentialsRoomIDClientSessionDelegateUserSettingsAppHooksLockHolderUnderlyingReceivedInvocations = newValue } }
     }
 
-    private let secretsBundleForReturnValueLock = NSLock()
-    private nonisolated(unsafe) var secretsBundleForUnderlyingReturnValue: SecretsBundleWithUserId!
-    var secretsBundleForReturnValue: SecretsBundleWithUserId! {
-        get { secretsBundleForReturnValueLock.withLock { secretsBundleForUnderlyingReturnValue } }
-        set { secretsBundleForReturnValueLock.withLock { secretsBundleForUnderlyingReturnValue = newValue } }
+    private let makeNSEClientCredentialsRoomIDClientSessionDelegateUserSettingsAppHooksLockHolderReturnValueLock = NSLock()
+    private nonisolated(unsafe) var makeNSEClientCredentialsRoomIDClientSessionDelegateUserSettingsAppHooksLockHolderUnderlyingReturnValue: ClientProtocol!
+    var makeNSEClientCredentialsRoomIDClientSessionDelegateUserSettingsAppHooksLockHolderReturnValue: ClientProtocol! {
+        get { makeNSEClientCredentialsRoomIDClientSessionDelegateUserSettingsAppHooksLockHolderReturnValueLock.withLock { makeNSEClientCredentialsRoomIDClientSessionDelegateUserSettingsAppHooksLockHolderUnderlyingReturnValue } }
+        set { makeNSEClientCredentialsRoomIDClientSessionDelegateUserSettingsAppHooksLockHolderReturnValueLock.withLock { makeNSEClientCredentialsRoomIDClientSessionDelegateUserSettingsAppHooksLockHolderUnderlyingReturnValue = newValue } }
     }
-    nonisolated(unsafe) var secretsBundleForClosure: ((ClassicAppAccount) async throws -> SecretsBundleWithUserId)?
+    nonisolated(unsafe) var makeNSEClientCredentialsRoomIDClientSessionDelegateUserSettingsAppHooksLockHolderClosure: ((KeychainCredentials, String, ClientSessionDelegate, UserSettings, AppHooks, NSEClientLockHolder) async throws -> ClientProtocol)?
 
-    @concurrent func secretsBundle(for account: ClassicAppAccount) async throws -> SecretsBundleWithUserId {
-        if let error = secretsBundleForThrowableError {
+    @concurrent func makeNSEClient(credentials: KeychainCredentials, roomID: String, clientSessionDelegate: ClientSessionDelegate, userSettings: UserSettings, appHooks: AppHooks, lockHolder: NSEClientLockHolder) async throws -> ClientProtocol {
+        if let error = makeNSEClientCredentialsRoomIDClientSessionDelegateUserSettingsAppHooksLockHolderThrowableError {
             throw error
         }
-        secretsBundleForCallsCountLock.withLock { secretsBundleForUnderlyingCallsCount += 1 }
-        secretsBundleForReceivedAccount = account
-        secretsBundleForReceivedInvocationsLock.withLock { secretsBundleForUnderlyingReceivedInvocations.append(account) }
-        if let secretsBundleForClosure = secretsBundleForClosure {
-            return try await secretsBundleForClosure(account)
+        makeNSEClientCredentialsRoomIDClientSessionDelegateUserSettingsAppHooksLockHolderCallsCountLock.withLock { makeNSEClientCredentialsRoomIDClientSessionDelegateUserSettingsAppHooksLockHolderUnderlyingCallsCount += 1 }
+        makeNSEClientCredentialsRoomIDClientSessionDelegateUserSettingsAppHooksLockHolderReceivedArguments = (credentials: credentials, roomID: roomID, clientSessionDelegate: clientSessionDelegate, userSettings: userSettings, appHooks: appHooks, lockHolder: lockHolder)
+        makeNSEClientCredentialsRoomIDClientSessionDelegateUserSettingsAppHooksLockHolderReceivedInvocationsLock.withLock { makeNSEClientCredentialsRoomIDClientSessionDelegateUserSettingsAppHooksLockHolderUnderlyingReceivedInvocations.append((credentials: credentials, roomID: roomID, clientSessionDelegate: clientSessionDelegate, userSettings: userSettings, appHooks: appHooks, lockHolder: lockHolder)) }
+        if let makeNSEClientCredentialsRoomIDClientSessionDelegateUserSettingsAppHooksLockHolderClosure = makeNSEClientCredentialsRoomIDClientSessionDelegateUserSettingsAppHooksLockHolderClosure {
+            return try await makeNSEClientCredentialsRoomIDClientSessionDelegateUserSettingsAppHooksLockHolderClosure(credentials, roomID, clientSessionDelegate, userSettings, appHooks, lockHolder)
         } else {
-            return secretsBundleForReturnValue
+            return makeNSEClientCredentialsRoomIDClientSessionDelegateUserSettingsAppHooksLockHolderReturnValue
         }
     }
 }
@@ -5119,6 +4929,11 @@ nonisolated class ClientProxyMock: ClientProxyProtocol, @unchecked Sendable {
     }
     nonisolated(unsafe) var underlyingHideInviteAvatarsPublisher: CurrentValuePublisher<Bool, Never>!
     nonisolated(unsafe) var pusherNotificationClientIdentifier: String?
+    var totalUnreadNotifications: UInt64 {
+        get { return underlyingTotalUnreadNotifications }
+        set(value) { underlyingTotalUnreadNotifications = value }
+    }
+    nonisolated(unsafe) var underlyingTotalUnreadNotifications: UInt64!
     var mediaLoader: MediaLoaderProtocol {
         get { return underlyingMediaLoader }
         set(value) { underlyingMediaLoader = value }
@@ -5239,6 +5054,11 @@ nonisolated class ClientProxyMock: ClientProxyProtocol, @unchecked Sendable {
     }
     nonisolated(unsafe) var underlyingMaxMediaUploadSize: Result<UInt, ClientProxyError>!
     nonisolated(unsafe) var maxMediaUploadSizeClosure: (() async -> Result<UInt, ClientProxyError>)?
+    var isSearchBackfillRunning: Bool {
+        get { return underlyingIsSearchBackfillRunning }
+        set(value) { underlyingIsSearchBackfillRunning = value }
+    }
+    nonisolated(unsafe) var underlyingIsSearchBackfillRunning: Bool!
     var liveLocationOwnInfoUpdatesPublisher: AnyPublisher<LiveLocationOwnInfoUpdate, Never> {
         get { return underlyingLiveLocationOwnInfoUpdatesPublisher }
         set(value) { underlyingLiveLocationOwnInfoUpdatesPublisher = value }
@@ -5334,6 +5154,54 @@ nonisolated class ClientProxyMock: ClientProxyProtocol, @unchecked Sendable {
     @concurrent func pauseServices() async {
         pauseServicesCallsCountLock.withLock { pauseServicesUnderlyingCallsCount += 1 }
         await pauseServicesClosure?()
+    }
+    //MARK: - startSearchBackfill
+
+    private let startSearchBackfillStrategyCallsCountLock = NSLock()
+    private nonisolated(unsafe) var startSearchBackfillStrategyUnderlyingCallsCount = 0
+    var startSearchBackfillStrategyCallsCount: Int {
+        get { startSearchBackfillStrategyCallsCountLock.withLock { startSearchBackfillStrategyUnderlyingCallsCount } }
+        set { startSearchBackfillStrategyCallsCountLock.withLock { startSearchBackfillStrategyUnderlyingCallsCount = newValue } }
+    }
+    var startSearchBackfillStrategyCalled: Bool {
+        return startSearchBackfillStrategyCallsCount > 0
+    }
+    private let startSearchBackfillStrategyReceivedStrategyLock = NSLock()
+    private nonisolated(unsafe) var startSearchBackfillStrategyUnderlyingReceivedStrategy: SearchBackfillStrategy?
+    var startSearchBackfillStrategyReceivedStrategy: SearchBackfillStrategy? {
+        get { startSearchBackfillStrategyReceivedStrategyLock.withLock { startSearchBackfillStrategyUnderlyingReceivedStrategy } }
+        set { startSearchBackfillStrategyReceivedStrategyLock.withLock { startSearchBackfillStrategyUnderlyingReceivedStrategy = newValue } }
+    }
+    private let startSearchBackfillStrategyReceivedInvocationsLock = NSLock()
+    private nonisolated(unsafe) var startSearchBackfillStrategyUnderlyingReceivedInvocations: [SearchBackfillStrategy] = []
+    var startSearchBackfillStrategyReceivedInvocations: [SearchBackfillStrategy] {
+        get { startSearchBackfillStrategyReceivedInvocationsLock.withLock { startSearchBackfillStrategyUnderlyingReceivedInvocations } }
+        set { startSearchBackfillStrategyReceivedInvocationsLock.withLock { startSearchBackfillStrategyUnderlyingReceivedInvocations = newValue } }
+    }
+    nonisolated(unsafe) var startSearchBackfillStrategyClosure: ((SearchBackfillStrategy) -> Void)?
+
+    func startSearchBackfill(strategy: SearchBackfillStrategy) {
+        startSearchBackfillStrategyCallsCountLock.withLock { startSearchBackfillStrategyUnderlyingCallsCount += 1 }
+        startSearchBackfillStrategyReceivedStrategy = strategy
+        startSearchBackfillStrategyReceivedInvocationsLock.withLock { startSearchBackfillStrategyUnderlyingReceivedInvocations.append(strategy) }
+        startSearchBackfillStrategyClosure?(strategy)
+    }
+    //MARK: - stopSearchBackfill
+
+    private let stopSearchBackfillCallsCountLock = NSLock()
+    private nonisolated(unsafe) var stopSearchBackfillUnderlyingCallsCount = 0
+    var stopSearchBackfillCallsCount: Int {
+        get { stopSearchBackfillCallsCountLock.withLock { stopSearchBackfillUnderlyingCallsCount } }
+        set { stopSearchBackfillCallsCountLock.withLock { stopSearchBackfillUnderlyingCallsCount = newValue } }
+    }
+    var stopSearchBackfillCalled: Bool {
+        return stopSearchBackfillCallsCount > 0
+    }
+    nonisolated(unsafe) var stopSearchBackfillClosure: (() -> Void)?
+
+    func stopSearchBackfill() {
+        stopSearchBackfillCallsCountLock.withLock { stopSearchBackfillUnderlyingCallsCount += 1 }
+        stopSearchBackfillClosure?()
     }
     //MARK: - expireSyncSessions
 
@@ -6277,60 +6145,158 @@ nonisolated class ClientProxyMock: ClientProxyProtocol, @unchecked Sendable {
             return setUserStatusReturnValue
         }
     }
-    //MARK: - removeUserStatus
+    //MARK: - clearUserStatus
 
-    private let removeUserStatusCallsCountLock = NSLock()
-    private nonisolated(unsafe) var removeUserStatusUnderlyingCallsCount = 0
-    var removeUserStatusCallsCount: Int {
-        get { removeUserStatusCallsCountLock.withLock { removeUserStatusUnderlyingCallsCount } }
-        set { removeUserStatusCallsCountLock.withLock { removeUserStatusUnderlyingCallsCount = newValue } }
+    private let clearUserStatusCallsCountLock = NSLock()
+    private nonisolated(unsafe) var clearUserStatusUnderlyingCallsCount = 0
+    var clearUserStatusCallsCount: Int {
+        get { clearUserStatusCallsCountLock.withLock { clearUserStatusUnderlyingCallsCount } }
+        set { clearUserStatusCallsCountLock.withLock { clearUserStatusUnderlyingCallsCount = newValue } }
     }
-    var removeUserStatusCalled: Bool {
-        return removeUserStatusCallsCount > 0
+    var clearUserStatusCalled: Bool {
+        return clearUserStatusCallsCount > 0
     }
 
-    private let removeUserStatusReturnValueLock = NSLock()
-    private nonisolated(unsafe) var removeUserStatusUnderlyingReturnValue: Result<Void, ClientProxyError>!
-    var removeUserStatusReturnValue: Result<Void, ClientProxyError>! {
-        get { removeUserStatusReturnValueLock.withLock { removeUserStatusUnderlyingReturnValue } }
-        set { removeUserStatusReturnValueLock.withLock { removeUserStatusUnderlyingReturnValue = newValue } }
+    private let clearUserStatusReturnValueLock = NSLock()
+    private nonisolated(unsafe) var clearUserStatusUnderlyingReturnValue: Result<Void, ClientProxyError>!
+    var clearUserStatusReturnValue: Result<Void, ClientProxyError>! {
+        get { clearUserStatusReturnValueLock.withLock { clearUserStatusUnderlyingReturnValue } }
+        set { clearUserStatusReturnValueLock.withLock { clearUserStatusUnderlyingReturnValue = newValue } }
     }
-    nonisolated(unsafe) var removeUserStatusClosure: (() async -> Result<Void, ClientProxyError>)?
+    nonisolated(unsafe) var clearUserStatusClosure: (() async -> Result<Void, ClientProxyError>)?
 
-    @concurrent func removeUserStatus() async -> Result<Void, ClientProxyError> {
-        removeUserStatusCallsCountLock.withLock { removeUserStatusUnderlyingCallsCount += 1 }
-        if let removeUserStatusClosure = removeUserStatusClosure {
-            return await removeUserStatusClosure()
+    @concurrent func clearUserStatus() async -> Result<Void, ClientProxyError> {
+        clearUserStatusCallsCountLock.withLock { clearUserStatusUnderlyingCallsCount += 1 }
+        if let clearUserStatusClosure = clearUserStatusClosure {
+            return await clearUserStatusClosure()
         } else {
-            return removeUserStatusReturnValue
+            return clearUserStatusReturnValue
         }
     }
-    //MARK: - removeCallStatus
+    //MARK: - canSetUserBio
 
-    private let removeCallStatusCallsCountLock = NSLock()
-    private nonisolated(unsafe) var removeCallStatusUnderlyingCallsCount = 0
-    var removeCallStatusCallsCount: Int {
-        get { removeCallStatusCallsCountLock.withLock { removeCallStatusUnderlyingCallsCount } }
-        set { removeCallStatusCallsCountLock.withLock { removeCallStatusUnderlyingCallsCount = newValue } }
+    private let canSetUserBioCallsCountLock = NSLock()
+    private nonisolated(unsafe) var canSetUserBioUnderlyingCallsCount = 0
+    var canSetUserBioCallsCount: Int {
+        get { canSetUserBioCallsCountLock.withLock { canSetUserBioUnderlyingCallsCount } }
+        set { canSetUserBioCallsCountLock.withLock { canSetUserBioUnderlyingCallsCount = newValue } }
     }
-    var removeCallStatusCalled: Bool {
-        return removeCallStatusCallsCount > 0
+    var canSetUserBioCalled: Bool {
+        return canSetUserBioCallsCount > 0
     }
 
-    private let removeCallStatusReturnValueLock = NSLock()
-    private nonisolated(unsafe) var removeCallStatusUnderlyingReturnValue: Result<Void, ClientProxyError>!
-    var removeCallStatusReturnValue: Result<Void, ClientProxyError>! {
-        get { removeCallStatusReturnValueLock.withLock { removeCallStatusUnderlyingReturnValue } }
-        set { removeCallStatusReturnValueLock.withLock { removeCallStatusUnderlyingReturnValue = newValue } }
+    private let canSetUserBioReturnValueLock = NSLock()
+    private nonisolated(unsafe) var canSetUserBioUnderlyingReturnValue: Bool!
+    var canSetUserBioReturnValue: Bool! {
+        get { canSetUserBioReturnValueLock.withLock { canSetUserBioUnderlyingReturnValue } }
+        set { canSetUserBioReturnValueLock.withLock { canSetUserBioUnderlyingReturnValue = newValue } }
     }
-    nonisolated(unsafe) var removeCallStatusClosure: (() async -> Result<Void, ClientProxyError>)?
+    nonisolated(unsafe) var canSetUserBioClosure: (() async -> Bool)?
 
-    @concurrent func removeCallStatus() async -> Result<Void, ClientProxyError> {
-        removeCallStatusCallsCountLock.withLock { removeCallStatusUnderlyingCallsCount += 1 }
-        if let removeCallStatusClosure = removeCallStatusClosure {
-            return await removeCallStatusClosure()
+    @concurrent func canSetUserBio() async -> Bool {
+        canSetUserBioCallsCountLock.withLock { canSetUserBioUnderlyingCallsCount += 1 }
+        if let canSetUserBioClosure = canSetUserBioClosure {
+            return await canSetUserBioClosure()
         } else {
-            return removeCallStatusReturnValue
+            return canSetUserBioReturnValue
+        }
+    }
+    //MARK: - userBio
+
+    private let userBioCallsCountLock = NSLock()
+    private nonisolated(unsafe) var userBioUnderlyingCallsCount = 0
+    var userBioCallsCount: Int {
+        get { userBioCallsCountLock.withLock { userBioUnderlyingCallsCount } }
+        set { userBioCallsCountLock.withLock { userBioUnderlyingCallsCount = newValue } }
+    }
+    var userBioCalled: Bool {
+        return userBioCallsCount > 0
+    }
+
+    private let userBioReturnValueLock = NSLock()
+    private nonisolated(unsafe) var userBioUnderlyingReturnValue: Result<String?, ClientProxyError>!
+    var userBioReturnValue: Result<String?, ClientProxyError>! {
+        get { userBioReturnValueLock.withLock { userBioUnderlyingReturnValue } }
+        set { userBioReturnValueLock.withLock { userBioUnderlyingReturnValue = newValue } }
+    }
+    nonisolated(unsafe) var userBioClosure: (() async -> Result<String?, ClientProxyError>)?
+
+    @concurrent func userBio() async -> Result<String?, ClientProxyError> {
+        userBioCallsCountLock.withLock { userBioUnderlyingCallsCount += 1 }
+        if let userBioClosure = userBioClosure {
+            return await userBioClosure()
+        } else {
+            return userBioReturnValue
+        }
+    }
+    //MARK: - setUserBio
+
+    private let setUserBioCallsCountLock = NSLock()
+    private nonisolated(unsafe) var setUserBioUnderlyingCallsCount = 0
+    var setUserBioCallsCount: Int {
+        get { setUserBioCallsCountLock.withLock { setUserBioUnderlyingCallsCount } }
+        set { setUserBioCallsCountLock.withLock { setUserBioUnderlyingCallsCount = newValue } }
+    }
+    var setUserBioCalled: Bool {
+        return setUserBioCallsCount > 0
+    }
+    private let setUserBioReceivedBioLock = NSLock()
+    private nonisolated(unsafe) var setUserBioUnderlyingReceivedBio: String?
+    var setUserBioReceivedBio: String? {
+        get { setUserBioReceivedBioLock.withLock { setUserBioUnderlyingReceivedBio } }
+        set { setUserBioReceivedBioLock.withLock { setUserBioUnderlyingReceivedBio = newValue } }
+    }
+    private let setUserBioReceivedInvocationsLock = NSLock()
+    private nonisolated(unsafe) var setUserBioUnderlyingReceivedInvocations: [String] = []
+    var setUserBioReceivedInvocations: [String] {
+        get { setUserBioReceivedInvocationsLock.withLock { setUserBioUnderlyingReceivedInvocations } }
+        set { setUserBioReceivedInvocationsLock.withLock { setUserBioUnderlyingReceivedInvocations = newValue } }
+    }
+
+    private let setUserBioReturnValueLock = NSLock()
+    private nonisolated(unsafe) var setUserBioUnderlyingReturnValue: Result<Void, ClientProxyError>!
+    var setUserBioReturnValue: Result<Void, ClientProxyError>! {
+        get { setUserBioReturnValueLock.withLock { setUserBioUnderlyingReturnValue } }
+        set { setUserBioReturnValueLock.withLock { setUserBioUnderlyingReturnValue = newValue } }
+    }
+    nonisolated(unsafe) var setUserBioClosure: ((String) async -> Result<Void, ClientProxyError>)?
+
+    @concurrent func setUserBio(_ bio: String) async -> Result<Void, ClientProxyError> {
+        setUserBioCallsCountLock.withLock { setUserBioUnderlyingCallsCount += 1 }
+        setUserBioReceivedBio = bio
+        setUserBioReceivedInvocationsLock.withLock { setUserBioUnderlyingReceivedInvocations.append(bio) }
+        if let setUserBioClosure = setUserBioClosure {
+            return await setUserBioClosure(bio)
+        } else {
+            return setUserBioReturnValue
+        }
+    }
+    //MARK: - removeUserBio
+
+    private let removeUserBioCallsCountLock = NSLock()
+    private nonisolated(unsafe) var removeUserBioUnderlyingCallsCount = 0
+    var removeUserBioCallsCount: Int {
+        get { removeUserBioCallsCountLock.withLock { removeUserBioUnderlyingCallsCount } }
+        set { removeUserBioCallsCountLock.withLock { removeUserBioUnderlyingCallsCount = newValue } }
+    }
+    var removeUserBioCalled: Bool {
+        return removeUserBioCallsCount > 0
+    }
+
+    private let removeUserBioReturnValueLock = NSLock()
+    private nonisolated(unsafe) var removeUserBioUnderlyingReturnValue: Result<Void, ClientProxyError>!
+    var removeUserBioReturnValue: Result<Void, ClientProxyError>! {
+        get { removeUserBioReturnValueLock.withLock { removeUserBioUnderlyingReturnValue } }
+        set { removeUserBioReturnValueLock.withLock { removeUserBioUnderlyingReturnValue = newValue } }
+    }
+    nonisolated(unsafe) var removeUserBioClosure: (() async -> Result<Void, ClientProxyError>)?
+
+    @concurrent func removeUserBio() async -> Result<Void, ClientProxyError> {
+        removeUserBioCallsCountLock.withLock { removeUserBioUnderlyingCallsCount += 1 }
+        if let removeUserBioClosure = removeUserBioClosure {
+            return await removeUserBioClosure()
+        } else {
+            return removeUserBioReturnValue
         }
     }
     //MARK: - linkNewDeviceService
@@ -6373,14 +6339,14 @@ nonisolated class ClientProxyMock: ClientProxyProtocol, @unchecked Sendable {
         return deactivateAccountPasswordEraseDataCallsCount > 0
     }
     private let deactivateAccountPasswordEraseDataReceivedArgumentsLock = NSLock()
-    private nonisolated(unsafe) var deactivateAccountPasswordEraseDataUnderlyingReceivedArguments: (password: String?, eraseData: Bool)?
-    var deactivateAccountPasswordEraseDataReceivedArguments: (password: String?, eraseData: Bool)? {
+    private nonisolated(unsafe) var deactivateAccountPasswordEraseDataUnderlyingReceivedArguments: (password: String, eraseData: Bool)?
+    var deactivateAccountPasswordEraseDataReceivedArguments: (password: String, eraseData: Bool)? {
         get { deactivateAccountPasswordEraseDataReceivedArgumentsLock.withLock { deactivateAccountPasswordEraseDataUnderlyingReceivedArguments } }
         set { deactivateAccountPasswordEraseDataReceivedArgumentsLock.withLock { deactivateAccountPasswordEraseDataUnderlyingReceivedArguments = newValue } }
     }
     private let deactivateAccountPasswordEraseDataReceivedInvocationsLock = NSLock()
-    private nonisolated(unsafe) var deactivateAccountPasswordEraseDataUnderlyingReceivedInvocations: [(password: String?, eraseData: Bool)] = []
-    var deactivateAccountPasswordEraseDataReceivedInvocations: [(password: String?, eraseData: Bool)] {
+    private nonisolated(unsafe) var deactivateAccountPasswordEraseDataUnderlyingReceivedInvocations: [(password: String, eraseData: Bool)] = []
+    var deactivateAccountPasswordEraseDataReceivedInvocations: [(password: String, eraseData: Bool)] {
         get { deactivateAccountPasswordEraseDataReceivedInvocationsLock.withLock { deactivateAccountPasswordEraseDataUnderlyingReceivedInvocations } }
         set { deactivateAccountPasswordEraseDataReceivedInvocationsLock.withLock { deactivateAccountPasswordEraseDataUnderlyingReceivedInvocations = newValue } }
     }
@@ -6391,9 +6357,9 @@ nonisolated class ClientProxyMock: ClientProxyProtocol, @unchecked Sendable {
         get { deactivateAccountPasswordEraseDataReturnValueLock.withLock { deactivateAccountPasswordEraseDataUnderlyingReturnValue } }
         set { deactivateAccountPasswordEraseDataReturnValueLock.withLock { deactivateAccountPasswordEraseDataUnderlyingReturnValue = newValue } }
     }
-    nonisolated(unsafe) var deactivateAccountPasswordEraseDataClosure: ((String?, Bool) async -> Result<Void, ClientProxyError>)?
+    nonisolated(unsafe) var deactivateAccountPasswordEraseDataClosure: ((String, Bool) async -> Result<Void, ClientProxyError>)?
 
-    @concurrent func deactivateAccount(password: String?, eraseData: Bool) async -> Result<Void, ClientProxyError> {
+    @concurrent func deactivateAccount(password: String, eraseData: Bool) async -> Result<Void, ClientProxyError> {
         deactivateAccountPasswordEraseDataCallsCountLock.withLock { deactivateAccountPasswordEraseDataUnderlyingCallsCount += 1 }
         deactivateAccountPasswordEraseDataReceivedArguments = (password: password, eraseData: eraseData)
         deactivateAccountPasswordEraseDataReceivedInvocationsLock.withLock { deactivateAccountPasswordEraseDataUnderlyingReceivedInvocations.append((password: password, eraseData: eraseData)) }
@@ -6454,6 +6420,41 @@ nonisolated class ClientProxyMock: ClientProxyProtocol, @unchecked Sendable {
         setPusherWithReceivedConfiguration = configuration
         setPusherWithReceivedInvocationsLock.withLock { setPusherWithUnderlyingReceivedInvocations.append(configuration) }
         try await setPusherWithClosure?(configuration)
+    }
+    //MARK: - deletePusher
+
+    nonisolated(unsafe) var deletePusherWithThrowableError: Error?
+    private let deletePusherWithCallsCountLock = NSLock()
+    private nonisolated(unsafe) var deletePusherWithUnderlyingCallsCount = 0
+    var deletePusherWithCallsCount: Int {
+        get { deletePusherWithCallsCountLock.withLock { deletePusherWithUnderlyingCallsCount } }
+        set { deletePusherWithCallsCountLock.withLock { deletePusherWithUnderlyingCallsCount = newValue } }
+    }
+    var deletePusherWithCalled: Bool {
+        return deletePusherWithCallsCount > 0
+    }
+    private let deletePusherWithReceivedIdentifiersLock = NSLock()
+    private nonisolated(unsafe) var deletePusherWithUnderlyingReceivedIdentifiers: PusherIdentifiers?
+    var deletePusherWithReceivedIdentifiers: PusherIdentifiers? {
+        get { deletePusherWithReceivedIdentifiersLock.withLock { deletePusherWithUnderlyingReceivedIdentifiers } }
+        set { deletePusherWithReceivedIdentifiersLock.withLock { deletePusherWithUnderlyingReceivedIdentifiers = newValue } }
+    }
+    private let deletePusherWithReceivedInvocationsLock = NSLock()
+    private nonisolated(unsafe) var deletePusherWithUnderlyingReceivedInvocations: [PusherIdentifiers] = []
+    var deletePusherWithReceivedInvocations: [PusherIdentifiers] {
+        get { deletePusherWithReceivedInvocationsLock.withLock { deletePusherWithUnderlyingReceivedInvocations } }
+        set { deletePusherWithReceivedInvocationsLock.withLock { deletePusherWithUnderlyingReceivedInvocations = newValue } }
+    }
+    nonisolated(unsafe) var deletePusherWithClosure: ((PusherIdentifiers) async throws -> Void)?
+
+    @concurrent func deletePusher(with identifiers: PusherIdentifiers) async throws {
+        if let error = deletePusherWithThrowableError {
+            throw error
+        }
+        deletePusherWithCallsCountLock.withLock { deletePusherWithUnderlyingCallsCount += 1 }
+        deletePusherWithReceivedIdentifiers = identifiers
+        deletePusherWithReceivedInvocationsLock.withLock { deletePusherWithUnderlyingReceivedInvocations.append(identifiers) }
+        try await deletePusherWithClosure?(identifiers)
     }
     //MARK: - searchUsers
 
@@ -6794,6 +6795,23 @@ nonisolated class ClientProxyMock: ClientProxyProtocol, @unchecked Sendable {
             return fetchMediaPreviewConfigurationReturnValue
         }
     }
+    //MARK: - refreshAccessTokenIfExpired
+
+    private let refreshAccessTokenIfExpiredCallsCountLock = NSLock()
+    private nonisolated(unsafe) var refreshAccessTokenIfExpiredUnderlyingCallsCount = 0
+    var refreshAccessTokenIfExpiredCallsCount: Int {
+        get { refreshAccessTokenIfExpiredCallsCountLock.withLock { refreshAccessTokenIfExpiredUnderlyingCallsCount } }
+        set { refreshAccessTokenIfExpiredCallsCountLock.withLock { refreshAccessTokenIfExpiredUnderlyingCallsCount = newValue } }
+    }
+    var refreshAccessTokenIfExpiredCalled: Bool {
+        return refreshAccessTokenIfExpiredCallsCount > 0
+    }
+    nonisolated(unsafe) var refreshAccessTokenIfExpiredClosure: (() async -> Void)?
+
+    @concurrent func refreshAccessTokenIfExpired() async {
+        refreshAccessTokenIfExpiredCallsCountLock.withLock { refreshAccessTokenIfExpiredUnderlyingCallsCount += 1 }
+        await refreshAccessTokenIfExpiredClosure?()
+    }
     //MARK: - ignoreUser
 
     private let ignoreUserCallsCountLock = NSLock()
@@ -6920,6 +6938,34 @@ nonisolated class ClientProxyMock: ClientProxyProtocol, @unchecked Sendable {
             return trackRecentlyVisitedRoomReturnValue
         }
     }
+    //MARK: - recentlyVisitedRoomIDs
+
+    private let recentlyVisitedRoomIDsCallsCountLock = NSLock()
+    private nonisolated(unsafe) var recentlyVisitedRoomIDsUnderlyingCallsCount = 0
+    var recentlyVisitedRoomIDsCallsCount: Int {
+        get { recentlyVisitedRoomIDsCallsCountLock.withLock { recentlyVisitedRoomIDsUnderlyingCallsCount } }
+        set { recentlyVisitedRoomIDsCallsCountLock.withLock { recentlyVisitedRoomIDsUnderlyingCallsCount = newValue } }
+    }
+    var recentlyVisitedRoomIDsCalled: Bool {
+        return recentlyVisitedRoomIDsCallsCount > 0
+    }
+
+    private let recentlyVisitedRoomIDsReturnValueLock = NSLock()
+    private nonisolated(unsafe) var recentlyVisitedRoomIDsUnderlyingReturnValue: Result<[String], ClientProxyError>!
+    var recentlyVisitedRoomIDsReturnValue: Result<[String], ClientProxyError>! {
+        get { recentlyVisitedRoomIDsReturnValueLock.withLock { recentlyVisitedRoomIDsUnderlyingReturnValue } }
+        set { recentlyVisitedRoomIDsReturnValueLock.withLock { recentlyVisitedRoomIDsUnderlyingReturnValue = newValue } }
+    }
+    nonisolated(unsafe) var recentlyVisitedRoomIDsClosure: (() async -> Result<[String], ClientProxyError>)?
+
+    @concurrent func recentlyVisitedRoomIDs() async -> Result<[String], ClientProxyError> {
+        recentlyVisitedRoomIDsCallsCountLock.withLock { recentlyVisitedRoomIDsUnderlyingCallsCount += 1 }
+        if let recentlyVisitedRoomIDsClosure = recentlyVisitedRoomIDsClosure {
+            return await recentlyVisitedRoomIDsClosure()
+        } else {
+            return recentlyVisitedRoomIDsReturnValue
+        }
+    }
     //MARK: - recentlyVisitedRooms
 
     private let recentlyVisitedRoomsFilterCallsCountLock = NSLock()
@@ -6938,9 +6984,9 @@ nonisolated class ClientProxyMock: ClientProxyProtocol, @unchecked Sendable {
         get { recentlyVisitedRoomsFilterReturnValueLock.withLock { recentlyVisitedRoomsFilterUnderlyingReturnValue } }
         set { recentlyVisitedRoomsFilterReturnValueLock.withLock { recentlyVisitedRoomsFilterUnderlyingReturnValue = newValue } }
     }
-    nonisolated(unsafe) var recentlyVisitedRoomsFilterClosure: ((@Sendable (JoinedRoomProxyProtocol) -> Bool) async -> [JoinedRoomProxyProtocol])?
+    nonisolated(unsafe) var recentlyVisitedRoomsFilterClosure: ((@Sendable (JoinedRoomProxyProtocol) async -> Bool) async -> [JoinedRoomProxyProtocol])?
 
-    @concurrent func recentlyVisitedRooms(filter: @Sendable (JoinedRoomProxyProtocol) -> Bool) async -> [JoinedRoomProxyProtocol] {
+    @concurrent func recentlyVisitedRooms(filter: @Sendable (JoinedRoomProxyProtocol) async -> Bool) async -> [JoinedRoomProxyProtocol] {
         recentlyVisitedRoomsFilterCallsCountLock.withLock { recentlyVisitedRoomsFilterUnderlyingCallsCount += 1 }
         if let recentlyVisitedRoomsFilterClosure = recentlyVisitedRoomsFilterClosure {
             return await recentlyVisitedRoomsFilterClosure(filter)
@@ -7903,6 +7949,1061 @@ nonisolated class DeviceOwnerAuthenticatorMock: DeviceOwnerAuthenticatorProtocol
             return await authenticateReasonClosure(reason)
         } else {
             return authenticateReasonReturnValue
+        }
+    }
+}
+nonisolated class FeedServiceMock: FeedServiceProtocol, @unchecked Sendable {
+    var noticesUnreadPublisher: AnyPublisher<Int, Never> {
+        get { return underlyingNoticesUnreadPublisher }
+        set(value) { underlyingNoticesUnreadPublisher = value }
+    }
+    nonisolated(unsafe) var underlyingNoticesUnreadPublisher: AnyPublisher<Int, Never>!
+    var activityUnreadPublisher: AnyPublisher<Int, Never> {
+        get { return underlyingActivityUnreadPublisher }
+        set(value) { underlyingActivityUnreadPublisher = value }
+    }
+    nonisolated(unsafe) var underlyingActivityUnreadPublisher: AnyPublisher<Int, Never>!
+
+    //MARK: - latest
+
+    private let latestCursorLimitCallsCountLock = NSLock()
+    private nonisolated(unsafe) var latestCursorLimitUnderlyingCallsCount = 0
+    var latestCursorLimitCallsCount: Int {
+        get { latestCursorLimitCallsCountLock.withLock { latestCursorLimitUnderlyingCallsCount } }
+        set { latestCursorLimitCallsCountLock.withLock { latestCursorLimitUnderlyingCallsCount = newValue } }
+    }
+    var latestCursorLimitCalled: Bool {
+        return latestCursorLimitCallsCount > 0
+    }
+    private let latestCursorLimitReceivedArgumentsLock = NSLock()
+    private nonisolated(unsafe) var latestCursorLimitUnderlyingReceivedArguments: (cursor: String?, limit: Int)?
+    var latestCursorLimitReceivedArguments: (cursor: String?, limit: Int)? {
+        get { latestCursorLimitReceivedArgumentsLock.withLock { latestCursorLimitUnderlyingReceivedArguments } }
+        set { latestCursorLimitReceivedArgumentsLock.withLock { latestCursorLimitUnderlyingReceivedArguments = newValue } }
+    }
+    private let latestCursorLimitReceivedInvocationsLock = NSLock()
+    private nonisolated(unsafe) var latestCursorLimitUnderlyingReceivedInvocations: [(cursor: String?, limit: Int)] = []
+    var latestCursorLimitReceivedInvocations: [(cursor: String?, limit: Int)] {
+        get { latestCursorLimitReceivedInvocationsLock.withLock { latestCursorLimitUnderlyingReceivedInvocations } }
+        set { latestCursorLimitReceivedInvocationsLock.withLock { latestCursorLimitUnderlyingReceivedInvocations = newValue } }
+    }
+
+    private let latestCursorLimitReturnValueLock = NSLock()
+    private nonisolated(unsafe) var latestCursorLimitUnderlyingReturnValue: Result<FeedPage, FeedError>!
+    var latestCursorLimitReturnValue: Result<FeedPage, FeedError>! {
+        get { latestCursorLimitReturnValueLock.withLock { latestCursorLimitUnderlyingReturnValue } }
+        set { latestCursorLimitReturnValueLock.withLock { latestCursorLimitUnderlyingReturnValue = newValue } }
+    }
+    nonisolated(unsafe) var latestCursorLimitClosure: ((String?, Int) async -> Result<FeedPage, FeedError>)?
+
+    @concurrent func latest(cursor: String?, limit: Int) async -> Result<FeedPage, FeedError> {
+        latestCursorLimitCallsCountLock.withLock { latestCursorLimitUnderlyingCallsCount += 1 }
+        latestCursorLimitReceivedArguments = (cursor: cursor, limit: limit)
+        latestCursorLimitReceivedInvocationsLock.withLock { latestCursorLimitUnderlyingReceivedInvocations.append((cursor: cursor, limit: limit)) }
+        if let latestCursorLimitClosure = latestCursorLimitClosure {
+            return await latestCursorLimitClosure(cursor, limit)
+        } else {
+            return latestCursorLimitReturnValue
+        }
+    }
+    //MARK: - post
+
+    private let postIdCallsCountLock = NSLock()
+    private nonisolated(unsafe) var postIdUnderlyingCallsCount = 0
+    var postIdCallsCount: Int {
+        get { postIdCallsCountLock.withLock { postIdUnderlyingCallsCount } }
+        set { postIdCallsCountLock.withLock { postIdUnderlyingCallsCount = newValue } }
+    }
+    var postIdCalled: Bool {
+        return postIdCallsCount > 0
+    }
+    private let postIdReceivedIdLock = NSLock()
+    private nonisolated(unsafe) var postIdUnderlyingReceivedId: String?
+    var postIdReceivedId: String? {
+        get { postIdReceivedIdLock.withLock { postIdUnderlyingReceivedId } }
+        set { postIdReceivedIdLock.withLock { postIdUnderlyingReceivedId = newValue } }
+    }
+    private let postIdReceivedInvocationsLock = NSLock()
+    private nonisolated(unsafe) var postIdUnderlyingReceivedInvocations: [String] = []
+    var postIdReceivedInvocations: [String] {
+        get { postIdReceivedInvocationsLock.withLock { postIdUnderlyingReceivedInvocations } }
+        set { postIdReceivedInvocationsLock.withLock { postIdUnderlyingReceivedInvocations = newValue } }
+    }
+
+    private let postIdReturnValueLock = NSLock()
+    private nonisolated(unsafe) var postIdUnderlyingReturnValue: Result<FeedPost, FeedError>!
+    var postIdReturnValue: Result<FeedPost, FeedError>! {
+        get { postIdReturnValueLock.withLock { postIdUnderlyingReturnValue } }
+        set { postIdReturnValueLock.withLock { postIdUnderlyingReturnValue = newValue } }
+    }
+    nonisolated(unsafe) var postIdClosure: ((String) async -> Result<FeedPost, FeedError>)?
+
+    @concurrent func post(id: String) async -> Result<FeedPost, FeedError> {
+        postIdCallsCountLock.withLock { postIdUnderlyingCallsCount += 1 }
+        postIdReceivedId = id
+        postIdReceivedInvocationsLock.withLock { postIdUnderlyingReceivedInvocations.append(id) }
+        if let postIdClosure = postIdClosure {
+            return await postIdClosure(id)
+        } else {
+            return postIdReturnValue
+        }
+    }
+    //MARK: - authorPosts
+
+    private let authorPostsUserIDCursorLimitCallsCountLock = NSLock()
+    private nonisolated(unsafe) var authorPostsUserIDCursorLimitUnderlyingCallsCount = 0
+    var authorPostsUserIDCursorLimitCallsCount: Int {
+        get { authorPostsUserIDCursorLimitCallsCountLock.withLock { authorPostsUserIDCursorLimitUnderlyingCallsCount } }
+        set { authorPostsUserIDCursorLimitCallsCountLock.withLock { authorPostsUserIDCursorLimitUnderlyingCallsCount = newValue } }
+    }
+    var authorPostsUserIDCursorLimitCalled: Bool {
+        return authorPostsUserIDCursorLimitCallsCount > 0
+    }
+    private let authorPostsUserIDCursorLimitReceivedArgumentsLock = NSLock()
+    private nonisolated(unsafe) var authorPostsUserIDCursorLimitUnderlyingReceivedArguments: (userID: String, cursor: String?, limit: Int)?
+    var authorPostsUserIDCursorLimitReceivedArguments: (userID: String, cursor: String?, limit: Int)? {
+        get { authorPostsUserIDCursorLimitReceivedArgumentsLock.withLock { authorPostsUserIDCursorLimitUnderlyingReceivedArguments } }
+        set { authorPostsUserIDCursorLimitReceivedArgumentsLock.withLock { authorPostsUserIDCursorLimitUnderlyingReceivedArguments = newValue } }
+    }
+    private let authorPostsUserIDCursorLimitReceivedInvocationsLock = NSLock()
+    private nonisolated(unsafe) var authorPostsUserIDCursorLimitUnderlyingReceivedInvocations: [(userID: String, cursor: String?, limit: Int)] = []
+    var authorPostsUserIDCursorLimitReceivedInvocations: [(userID: String, cursor: String?, limit: Int)] {
+        get { authorPostsUserIDCursorLimitReceivedInvocationsLock.withLock { authorPostsUserIDCursorLimitUnderlyingReceivedInvocations } }
+        set { authorPostsUserIDCursorLimitReceivedInvocationsLock.withLock { authorPostsUserIDCursorLimitUnderlyingReceivedInvocations = newValue } }
+    }
+
+    private let authorPostsUserIDCursorLimitReturnValueLock = NSLock()
+    private nonisolated(unsafe) var authorPostsUserIDCursorLimitUnderlyingReturnValue: Result<FeedPage, FeedError>!
+    var authorPostsUserIDCursorLimitReturnValue: Result<FeedPage, FeedError>! {
+        get { authorPostsUserIDCursorLimitReturnValueLock.withLock { authorPostsUserIDCursorLimitUnderlyingReturnValue } }
+        set { authorPostsUserIDCursorLimitReturnValueLock.withLock { authorPostsUserIDCursorLimitUnderlyingReturnValue = newValue } }
+    }
+    nonisolated(unsafe) var authorPostsUserIDCursorLimitClosure: ((String, String?, Int) async -> Result<FeedPage, FeedError>)?
+
+    @concurrent func authorPosts(userID: String, cursor: String?, limit: Int) async -> Result<FeedPage, FeedError> {
+        authorPostsUserIDCursorLimitCallsCountLock.withLock { authorPostsUserIDCursorLimitUnderlyingCallsCount += 1 }
+        authorPostsUserIDCursorLimitReceivedArguments = (userID: userID, cursor: cursor, limit: limit)
+        authorPostsUserIDCursorLimitReceivedInvocationsLock.withLock { authorPostsUserIDCursorLimitUnderlyingReceivedInvocations.append((userID: userID, cursor: cursor, limit: limit)) }
+        if let authorPostsUserIDCursorLimitClosure = authorPostsUserIDCursorLimitClosure {
+            return await authorPostsUserIDCursorLimitClosure(userID, cursor, limit)
+        } else {
+            return authorPostsUserIDCursorLimitReturnValue
+        }
+    }
+    //MARK: - cachedFirstPage
+
+    private let cachedFirstPageCallsCountLock = NSLock()
+    private nonisolated(unsafe) var cachedFirstPageUnderlyingCallsCount = 0
+    var cachedFirstPageCallsCount: Int {
+        get { cachedFirstPageCallsCountLock.withLock { cachedFirstPageUnderlyingCallsCount } }
+        set { cachedFirstPageCallsCountLock.withLock { cachedFirstPageUnderlyingCallsCount = newValue } }
+    }
+    var cachedFirstPageCalled: Bool {
+        return cachedFirstPageCallsCount > 0
+    }
+
+    private let cachedFirstPageReturnValueLock = NSLock()
+    private nonisolated(unsafe) var cachedFirstPageUnderlyingReturnValue: FeedPage?
+    var cachedFirstPageReturnValue: FeedPage? {
+        get { cachedFirstPageReturnValueLock.withLock { cachedFirstPageUnderlyingReturnValue } }
+        set { cachedFirstPageReturnValueLock.withLock { cachedFirstPageUnderlyingReturnValue = newValue } }
+    }
+    nonisolated(unsafe) var cachedFirstPageClosure: (() -> FeedPage?)?
+
+    func cachedFirstPage() -> FeedPage? {
+        cachedFirstPageCallsCountLock.withLock { cachedFirstPageUnderlyingCallsCount += 1 }
+        if let cachedFirstPageClosure = cachedFirstPageClosure {
+            return cachedFirstPageClosure()
+        } else {
+            return cachedFirstPageReturnValue
+        }
+    }
+    //MARK: - ownPosts
+
+    private let ownPostsCursorLimitCallsCountLock = NSLock()
+    private nonisolated(unsafe) var ownPostsCursorLimitUnderlyingCallsCount = 0
+    var ownPostsCursorLimitCallsCount: Int {
+        get { ownPostsCursorLimitCallsCountLock.withLock { ownPostsCursorLimitUnderlyingCallsCount } }
+        set { ownPostsCursorLimitCallsCountLock.withLock { ownPostsCursorLimitUnderlyingCallsCount = newValue } }
+    }
+    var ownPostsCursorLimitCalled: Bool {
+        return ownPostsCursorLimitCallsCount > 0
+    }
+    private let ownPostsCursorLimitReceivedArgumentsLock = NSLock()
+    private nonisolated(unsafe) var ownPostsCursorLimitUnderlyingReceivedArguments: (cursor: String?, limit: Int)?
+    var ownPostsCursorLimitReceivedArguments: (cursor: String?, limit: Int)? {
+        get { ownPostsCursorLimitReceivedArgumentsLock.withLock { ownPostsCursorLimitUnderlyingReceivedArguments } }
+        set { ownPostsCursorLimitReceivedArgumentsLock.withLock { ownPostsCursorLimitUnderlyingReceivedArguments = newValue } }
+    }
+    private let ownPostsCursorLimitReceivedInvocationsLock = NSLock()
+    private nonisolated(unsafe) var ownPostsCursorLimitUnderlyingReceivedInvocations: [(cursor: String?, limit: Int)] = []
+    var ownPostsCursorLimitReceivedInvocations: [(cursor: String?, limit: Int)] {
+        get { ownPostsCursorLimitReceivedInvocationsLock.withLock { ownPostsCursorLimitUnderlyingReceivedInvocations } }
+        set { ownPostsCursorLimitReceivedInvocationsLock.withLock { ownPostsCursorLimitUnderlyingReceivedInvocations = newValue } }
+    }
+
+    private let ownPostsCursorLimitReturnValueLock = NSLock()
+    private nonisolated(unsafe) var ownPostsCursorLimitUnderlyingReturnValue: Result<FeedPage, FeedError>!
+    var ownPostsCursorLimitReturnValue: Result<FeedPage, FeedError>! {
+        get { ownPostsCursorLimitReturnValueLock.withLock { ownPostsCursorLimitUnderlyingReturnValue } }
+        set { ownPostsCursorLimitReturnValueLock.withLock { ownPostsCursorLimitUnderlyingReturnValue = newValue } }
+    }
+    nonisolated(unsafe) var ownPostsCursorLimitClosure: ((String?, Int) async -> Result<FeedPage, FeedError>)?
+
+    @concurrent func ownPosts(cursor: String?, limit: Int) async -> Result<FeedPage, FeedError> {
+        ownPostsCursorLimitCallsCountLock.withLock { ownPostsCursorLimitUnderlyingCallsCount += 1 }
+        ownPostsCursorLimitReceivedArguments = (cursor: cursor, limit: limit)
+        ownPostsCursorLimitReceivedInvocationsLock.withLock { ownPostsCursorLimitUnderlyingReceivedInvocations.append((cursor: cursor, limit: limit)) }
+        if let ownPostsCursorLimitClosure = ownPostsCursorLimitClosure {
+            return await ownPostsCursorLimitClosure(cursor, limit)
+        } else {
+            return ownPostsCursorLimitReturnValue
+        }
+    }
+    //MARK: - createPost
+
+    private let createPostTextIdempotencyKeyCallsCountLock = NSLock()
+    private nonisolated(unsafe) var createPostTextIdempotencyKeyUnderlyingCallsCount = 0
+    var createPostTextIdempotencyKeyCallsCount: Int {
+        get { createPostTextIdempotencyKeyCallsCountLock.withLock { createPostTextIdempotencyKeyUnderlyingCallsCount } }
+        set { createPostTextIdempotencyKeyCallsCountLock.withLock { createPostTextIdempotencyKeyUnderlyingCallsCount = newValue } }
+    }
+    var createPostTextIdempotencyKeyCalled: Bool {
+        return createPostTextIdempotencyKeyCallsCount > 0
+    }
+    private let createPostTextIdempotencyKeyReceivedArgumentsLock = NSLock()
+    private nonisolated(unsafe) var createPostTextIdempotencyKeyUnderlyingReceivedArguments: (text: String, idempotencyKey: UUID)?
+    var createPostTextIdempotencyKeyReceivedArguments: (text: String, idempotencyKey: UUID)? {
+        get { createPostTextIdempotencyKeyReceivedArgumentsLock.withLock { createPostTextIdempotencyKeyUnderlyingReceivedArguments } }
+        set { createPostTextIdempotencyKeyReceivedArgumentsLock.withLock { createPostTextIdempotencyKeyUnderlyingReceivedArguments = newValue } }
+    }
+    private let createPostTextIdempotencyKeyReceivedInvocationsLock = NSLock()
+    private nonisolated(unsafe) var createPostTextIdempotencyKeyUnderlyingReceivedInvocations: [(text: String, idempotencyKey: UUID)] = []
+    var createPostTextIdempotencyKeyReceivedInvocations: [(text: String, idempotencyKey: UUID)] {
+        get { createPostTextIdempotencyKeyReceivedInvocationsLock.withLock { createPostTextIdempotencyKeyUnderlyingReceivedInvocations } }
+        set { createPostTextIdempotencyKeyReceivedInvocationsLock.withLock { createPostTextIdempotencyKeyUnderlyingReceivedInvocations = newValue } }
+    }
+
+    private let createPostTextIdempotencyKeyReturnValueLock = NSLock()
+    private nonisolated(unsafe) var createPostTextIdempotencyKeyUnderlyingReturnValue: Result<FeedPost, FeedError>!
+    var createPostTextIdempotencyKeyReturnValue: Result<FeedPost, FeedError>! {
+        get { createPostTextIdempotencyKeyReturnValueLock.withLock { createPostTextIdempotencyKeyUnderlyingReturnValue } }
+        set { createPostTextIdempotencyKeyReturnValueLock.withLock { createPostTextIdempotencyKeyUnderlyingReturnValue = newValue } }
+    }
+    nonisolated(unsafe) var createPostTextIdempotencyKeyClosure: ((String, UUID) async -> Result<FeedPost, FeedError>)?
+
+    @concurrent func createPost(text: String, idempotencyKey: UUID) async -> Result<FeedPost, FeedError> {
+        createPostTextIdempotencyKeyCallsCountLock.withLock { createPostTextIdempotencyKeyUnderlyingCallsCount += 1 }
+        createPostTextIdempotencyKeyReceivedArguments = (text: text, idempotencyKey: idempotencyKey)
+        createPostTextIdempotencyKeyReceivedInvocationsLock.withLock { createPostTextIdempotencyKeyUnderlyingReceivedInvocations.append((text: text, idempotencyKey: idempotencyKey)) }
+        if let createPostTextIdempotencyKeyClosure = createPostTextIdempotencyKeyClosure {
+            return await createPostTextIdempotencyKeyClosure(text, idempotencyKey)
+        } else {
+            return createPostTextIdempotencyKeyReturnValue
+        }
+    }
+    //MARK: - deletePost
+
+    private let deletePostIdCallsCountLock = NSLock()
+    private nonisolated(unsafe) var deletePostIdUnderlyingCallsCount = 0
+    var deletePostIdCallsCount: Int {
+        get { deletePostIdCallsCountLock.withLock { deletePostIdUnderlyingCallsCount } }
+        set { deletePostIdCallsCountLock.withLock { deletePostIdUnderlyingCallsCount = newValue } }
+    }
+    var deletePostIdCalled: Bool {
+        return deletePostIdCallsCount > 0
+    }
+    private let deletePostIdReceivedIdLock = NSLock()
+    private nonisolated(unsafe) var deletePostIdUnderlyingReceivedId: String?
+    var deletePostIdReceivedId: String? {
+        get { deletePostIdReceivedIdLock.withLock { deletePostIdUnderlyingReceivedId } }
+        set { deletePostIdReceivedIdLock.withLock { deletePostIdUnderlyingReceivedId = newValue } }
+    }
+    private let deletePostIdReceivedInvocationsLock = NSLock()
+    private nonisolated(unsafe) var deletePostIdUnderlyingReceivedInvocations: [String] = []
+    var deletePostIdReceivedInvocations: [String] {
+        get { deletePostIdReceivedInvocationsLock.withLock { deletePostIdUnderlyingReceivedInvocations } }
+        set { deletePostIdReceivedInvocationsLock.withLock { deletePostIdUnderlyingReceivedInvocations = newValue } }
+    }
+
+    private let deletePostIdReturnValueLock = NSLock()
+    private nonisolated(unsafe) var deletePostIdUnderlyingReturnValue: Result<Void, FeedError>!
+    var deletePostIdReturnValue: Result<Void, FeedError>! {
+        get { deletePostIdReturnValueLock.withLock { deletePostIdUnderlyingReturnValue } }
+        set { deletePostIdReturnValueLock.withLock { deletePostIdUnderlyingReturnValue = newValue } }
+    }
+    nonisolated(unsafe) var deletePostIdClosure: ((String) async -> Result<Void, FeedError>)?
+
+    @concurrent func deletePost(id: String) async -> Result<Void, FeedError> {
+        deletePostIdCallsCountLock.withLock { deletePostIdUnderlyingCallsCount += 1 }
+        deletePostIdReceivedId = id
+        deletePostIdReceivedInvocationsLock.withLock { deletePostIdUnderlyingReceivedInvocations.append(id) }
+        if let deletePostIdClosure = deletePostIdClosure {
+            return await deletePostIdClosure(id)
+        } else {
+            return deletePostIdReturnValue
+        }
+    }
+    //MARK: - standing
+
+    private let standingCallsCountLock = NSLock()
+    private nonisolated(unsafe) var standingUnderlyingCallsCount = 0
+    var standingCallsCount: Int {
+        get { standingCallsCountLock.withLock { standingUnderlyingCallsCount } }
+        set { standingCallsCountLock.withLock { standingUnderlyingCallsCount = newValue } }
+    }
+    var standingCalled: Bool {
+        return standingCallsCount > 0
+    }
+
+    private let standingReturnValueLock = NSLock()
+    private nonisolated(unsafe) var standingUnderlyingReturnValue: Result<FeedStanding, FeedError>!
+    var standingReturnValue: Result<FeedStanding, FeedError>! {
+        get { standingReturnValueLock.withLock { standingUnderlyingReturnValue } }
+        set { standingReturnValueLock.withLock { standingUnderlyingReturnValue = newValue } }
+    }
+    nonisolated(unsafe) var standingClosure: (() async -> Result<FeedStanding, FeedError>)?
+
+    @concurrent func standing() async -> Result<FeedStanding, FeedError> {
+        standingCallsCountLock.withLock { standingUnderlyingCallsCount += 1 }
+        if let standingClosure = standingClosure {
+            return await standingClosure()
+        } else {
+            return standingReturnValue
+        }
+    }
+    //MARK: - acceptRules
+
+    private let acceptRulesVersionCallsCountLock = NSLock()
+    private nonisolated(unsafe) var acceptRulesVersionUnderlyingCallsCount = 0
+    var acceptRulesVersionCallsCount: Int {
+        get { acceptRulesVersionCallsCountLock.withLock { acceptRulesVersionUnderlyingCallsCount } }
+        set { acceptRulesVersionCallsCountLock.withLock { acceptRulesVersionUnderlyingCallsCount = newValue } }
+    }
+    var acceptRulesVersionCalled: Bool {
+        return acceptRulesVersionCallsCount > 0
+    }
+    private let acceptRulesVersionReceivedVersionLock = NSLock()
+    private nonisolated(unsafe) var acceptRulesVersionUnderlyingReceivedVersion: String?
+    var acceptRulesVersionReceivedVersion: String? {
+        get { acceptRulesVersionReceivedVersionLock.withLock { acceptRulesVersionUnderlyingReceivedVersion } }
+        set { acceptRulesVersionReceivedVersionLock.withLock { acceptRulesVersionUnderlyingReceivedVersion = newValue } }
+    }
+    private let acceptRulesVersionReceivedInvocationsLock = NSLock()
+    private nonisolated(unsafe) var acceptRulesVersionUnderlyingReceivedInvocations: [String] = []
+    var acceptRulesVersionReceivedInvocations: [String] {
+        get { acceptRulesVersionReceivedInvocationsLock.withLock { acceptRulesVersionUnderlyingReceivedInvocations } }
+        set { acceptRulesVersionReceivedInvocationsLock.withLock { acceptRulesVersionUnderlyingReceivedInvocations = newValue } }
+    }
+
+    private let acceptRulesVersionReturnValueLock = NSLock()
+    private nonisolated(unsafe) var acceptRulesVersionUnderlyingReturnValue: Result<FeedStanding, FeedError>!
+    var acceptRulesVersionReturnValue: Result<FeedStanding, FeedError>! {
+        get { acceptRulesVersionReturnValueLock.withLock { acceptRulesVersionUnderlyingReturnValue } }
+        set { acceptRulesVersionReturnValueLock.withLock { acceptRulesVersionUnderlyingReturnValue = newValue } }
+    }
+    nonisolated(unsafe) var acceptRulesVersionClosure: ((String) async -> Result<FeedStanding, FeedError>)?
+
+    @concurrent func acceptRules(version: String) async -> Result<FeedStanding, FeedError> {
+        acceptRulesVersionCallsCountLock.withLock { acceptRulesVersionUnderlyingCallsCount += 1 }
+        acceptRulesVersionReceivedVersion = version
+        acceptRulesVersionReceivedInvocationsLock.withLock { acceptRulesVersionUnderlyingReceivedInvocations.append(version) }
+        if let acceptRulesVersionClosure = acceptRulesVersionClosure {
+            return await acceptRulesVersionClosure(version)
+        } else {
+            return acceptRulesVersionReturnValue
+        }
+    }
+    //MARK: - draft
+
+    private let draftCallsCountLock = NSLock()
+    private nonisolated(unsafe) var draftUnderlyingCallsCount = 0
+    var draftCallsCount: Int {
+        get { draftCallsCountLock.withLock { draftUnderlyingCallsCount } }
+        set { draftCallsCountLock.withLock { draftUnderlyingCallsCount = newValue } }
+    }
+    var draftCalled: Bool {
+        return draftCallsCount > 0
+    }
+
+    private let draftReturnValueLock = NSLock()
+    private nonisolated(unsafe) var draftUnderlyingReturnValue: FeedDraft?
+    var draftReturnValue: FeedDraft? {
+        get { draftReturnValueLock.withLock { draftUnderlyingReturnValue } }
+        set { draftReturnValueLock.withLock { draftUnderlyingReturnValue = newValue } }
+    }
+    nonisolated(unsafe) var draftClosure: (() -> FeedDraft?)?
+
+    func draft() -> FeedDraft? {
+        draftCallsCountLock.withLock { draftUnderlyingCallsCount += 1 }
+        if let draftClosure = draftClosure {
+            return draftClosure()
+        } else {
+            return draftReturnValue
+        }
+    }
+    //MARK: - saveDraft
+
+    private let saveDraftCallsCountLock = NSLock()
+    private nonisolated(unsafe) var saveDraftUnderlyingCallsCount = 0
+    var saveDraftCallsCount: Int {
+        get { saveDraftCallsCountLock.withLock { saveDraftUnderlyingCallsCount } }
+        set { saveDraftCallsCountLock.withLock { saveDraftUnderlyingCallsCount = newValue } }
+    }
+    var saveDraftCalled: Bool {
+        return saveDraftCallsCount > 0
+    }
+    private let saveDraftReceivedDraftLock = NSLock()
+    private nonisolated(unsafe) var saveDraftUnderlyingReceivedDraft: FeedDraft?
+    var saveDraftReceivedDraft: FeedDraft? {
+        get { saveDraftReceivedDraftLock.withLock { saveDraftUnderlyingReceivedDraft } }
+        set { saveDraftReceivedDraftLock.withLock { saveDraftUnderlyingReceivedDraft = newValue } }
+    }
+    private let saveDraftReceivedInvocationsLock = NSLock()
+    private nonisolated(unsafe) var saveDraftUnderlyingReceivedInvocations: [FeedDraft] = []
+    var saveDraftReceivedInvocations: [FeedDraft] {
+        get { saveDraftReceivedInvocationsLock.withLock { saveDraftUnderlyingReceivedInvocations } }
+        set { saveDraftReceivedInvocationsLock.withLock { saveDraftUnderlyingReceivedInvocations = newValue } }
+    }
+    nonisolated(unsafe) var saveDraftClosure: ((FeedDraft) -> Void)?
+
+    func saveDraft(_ draft: FeedDraft) {
+        saveDraftCallsCountLock.withLock { saveDraftUnderlyingCallsCount += 1 }
+        saveDraftReceivedDraft = draft
+        saveDraftReceivedInvocationsLock.withLock { saveDraftUnderlyingReceivedInvocations.append(draft) }
+        saveDraftClosure?(draft)
+    }
+    //MARK: - deleteDraft
+
+    private let deleteDraftCallsCountLock = NSLock()
+    private nonisolated(unsafe) var deleteDraftUnderlyingCallsCount = 0
+    var deleteDraftCallsCount: Int {
+        get { deleteDraftCallsCountLock.withLock { deleteDraftUnderlyingCallsCount } }
+        set { deleteDraftCallsCountLock.withLock { deleteDraftUnderlyingCallsCount = newValue } }
+    }
+    var deleteDraftCalled: Bool {
+        return deleteDraftCallsCount > 0
+    }
+    nonisolated(unsafe) var deleteDraftClosure: (() -> Void)?
+
+    func deleteDraft() {
+        deleteDraftCallsCountLock.withLock { deleteDraftUnderlyingCallsCount += 1 }
+        deleteDraftClosure?()
+    }
+    //MARK: - setLiked
+
+    private let setLikedPostIDCallsCountLock = NSLock()
+    private nonisolated(unsafe) var setLikedPostIDUnderlyingCallsCount = 0
+    var setLikedPostIDCallsCount: Int {
+        get { setLikedPostIDCallsCountLock.withLock { setLikedPostIDUnderlyingCallsCount } }
+        set { setLikedPostIDCallsCountLock.withLock { setLikedPostIDUnderlyingCallsCount = newValue } }
+    }
+    var setLikedPostIDCalled: Bool {
+        return setLikedPostIDCallsCount > 0
+    }
+    private let setLikedPostIDReceivedArgumentsLock = NSLock()
+    private nonisolated(unsafe) var setLikedPostIDUnderlyingReceivedArguments: (liked: Bool, postID: String)?
+    var setLikedPostIDReceivedArguments: (liked: Bool, postID: String)? {
+        get { setLikedPostIDReceivedArgumentsLock.withLock { setLikedPostIDUnderlyingReceivedArguments } }
+        set { setLikedPostIDReceivedArgumentsLock.withLock { setLikedPostIDUnderlyingReceivedArguments = newValue } }
+    }
+    private let setLikedPostIDReceivedInvocationsLock = NSLock()
+    private nonisolated(unsafe) var setLikedPostIDUnderlyingReceivedInvocations: [(liked: Bool, postID: String)] = []
+    var setLikedPostIDReceivedInvocations: [(liked: Bool, postID: String)] {
+        get { setLikedPostIDReceivedInvocationsLock.withLock { setLikedPostIDUnderlyingReceivedInvocations } }
+        set { setLikedPostIDReceivedInvocationsLock.withLock { setLikedPostIDUnderlyingReceivedInvocations = newValue } }
+    }
+
+    private let setLikedPostIDReturnValueLock = NSLock()
+    private nonisolated(unsafe) var setLikedPostIDUnderlyingReturnValue: Result<FeedLikes, FeedError>!
+    var setLikedPostIDReturnValue: Result<FeedLikes, FeedError>! {
+        get { setLikedPostIDReturnValueLock.withLock { setLikedPostIDUnderlyingReturnValue } }
+        set { setLikedPostIDReturnValueLock.withLock { setLikedPostIDUnderlyingReturnValue = newValue } }
+    }
+    nonisolated(unsafe) var setLikedPostIDClosure: ((Bool, String) async -> Result<FeedLikes, FeedError>)?
+
+    @concurrent func setLiked(_ liked: Bool, postID: String) async -> Result<FeedLikes, FeedError> {
+        setLikedPostIDCallsCountLock.withLock { setLikedPostIDUnderlyingCallsCount += 1 }
+        setLikedPostIDReceivedArguments = (liked: liked, postID: postID)
+        setLikedPostIDReceivedInvocationsLock.withLock { setLikedPostIDUnderlyingReceivedInvocations.append((liked: liked, postID: postID)) }
+        if let setLikedPostIDClosure = setLikedPostIDClosure {
+            return await setLikedPostIDClosure(liked, postID)
+        } else {
+            return setLikedPostIDReturnValue
+        }
+    }
+    //MARK: - setHidden
+
+    private let setHiddenPostIDCallsCountLock = NSLock()
+    private nonisolated(unsafe) var setHiddenPostIDUnderlyingCallsCount = 0
+    var setHiddenPostIDCallsCount: Int {
+        get { setHiddenPostIDCallsCountLock.withLock { setHiddenPostIDUnderlyingCallsCount } }
+        set { setHiddenPostIDCallsCountLock.withLock { setHiddenPostIDUnderlyingCallsCount = newValue } }
+    }
+    var setHiddenPostIDCalled: Bool {
+        return setHiddenPostIDCallsCount > 0
+    }
+    private let setHiddenPostIDReceivedArgumentsLock = NSLock()
+    private nonisolated(unsafe) var setHiddenPostIDUnderlyingReceivedArguments: (hidden: Bool, postID: String)?
+    var setHiddenPostIDReceivedArguments: (hidden: Bool, postID: String)? {
+        get { setHiddenPostIDReceivedArgumentsLock.withLock { setHiddenPostIDUnderlyingReceivedArguments } }
+        set { setHiddenPostIDReceivedArgumentsLock.withLock { setHiddenPostIDUnderlyingReceivedArguments = newValue } }
+    }
+    private let setHiddenPostIDReceivedInvocationsLock = NSLock()
+    private nonisolated(unsafe) var setHiddenPostIDUnderlyingReceivedInvocations: [(hidden: Bool, postID: String)] = []
+    var setHiddenPostIDReceivedInvocations: [(hidden: Bool, postID: String)] {
+        get { setHiddenPostIDReceivedInvocationsLock.withLock { setHiddenPostIDUnderlyingReceivedInvocations } }
+        set { setHiddenPostIDReceivedInvocationsLock.withLock { setHiddenPostIDUnderlyingReceivedInvocations = newValue } }
+    }
+
+    private let setHiddenPostIDReturnValueLock = NSLock()
+    private nonisolated(unsafe) var setHiddenPostIDUnderlyingReturnValue: Result<Void, FeedError>!
+    var setHiddenPostIDReturnValue: Result<Void, FeedError>! {
+        get { setHiddenPostIDReturnValueLock.withLock { setHiddenPostIDUnderlyingReturnValue } }
+        set { setHiddenPostIDReturnValueLock.withLock { setHiddenPostIDUnderlyingReturnValue = newValue } }
+    }
+    nonisolated(unsafe) var setHiddenPostIDClosure: ((Bool, String) async -> Result<Void, FeedError>)?
+
+    @concurrent func setHidden(_ hidden: Bool, postID: String) async -> Result<Void, FeedError> {
+        setHiddenPostIDCallsCountLock.withLock { setHiddenPostIDUnderlyingCallsCount += 1 }
+        setHiddenPostIDReceivedArguments = (hidden: hidden, postID: postID)
+        setHiddenPostIDReceivedInvocationsLock.withLock { setHiddenPostIDUnderlyingReceivedInvocations.append((hidden: hidden, postID: postID)) }
+        if let setHiddenPostIDClosure = setHiddenPostIDClosure {
+            return await setHiddenPostIDClosure(hidden, postID)
+        } else {
+            return setHiddenPostIDReturnValue
+        }
+    }
+    //MARK: - comments
+
+    private let commentsPostIDCursorLimitCallsCountLock = NSLock()
+    private nonisolated(unsafe) var commentsPostIDCursorLimitUnderlyingCallsCount = 0
+    var commentsPostIDCursorLimitCallsCount: Int {
+        get { commentsPostIDCursorLimitCallsCountLock.withLock { commentsPostIDCursorLimitUnderlyingCallsCount } }
+        set { commentsPostIDCursorLimitCallsCountLock.withLock { commentsPostIDCursorLimitUnderlyingCallsCount = newValue } }
+    }
+    var commentsPostIDCursorLimitCalled: Bool {
+        return commentsPostIDCursorLimitCallsCount > 0
+    }
+    private let commentsPostIDCursorLimitReceivedArgumentsLock = NSLock()
+    private nonisolated(unsafe) var commentsPostIDCursorLimitUnderlyingReceivedArguments: (postID: String, cursor: String?, limit: Int)?
+    var commentsPostIDCursorLimitReceivedArguments: (postID: String, cursor: String?, limit: Int)? {
+        get { commentsPostIDCursorLimitReceivedArgumentsLock.withLock { commentsPostIDCursorLimitUnderlyingReceivedArguments } }
+        set { commentsPostIDCursorLimitReceivedArgumentsLock.withLock { commentsPostIDCursorLimitUnderlyingReceivedArguments = newValue } }
+    }
+    private let commentsPostIDCursorLimitReceivedInvocationsLock = NSLock()
+    private nonisolated(unsafe) var commentsPostIDCursorLimitUnderlyingReceivedInvocations: [(postID: String, cursor: String?, limit: Int)] = []
+    var commentsPostIDCursorLimitReceivedInvocations: [(postID: String, cursor: String?, limit: Int)] {
+        get { commentsPostIDCursorLimitReceivedInvocationsLock.withLock { commentsPostIDCursorLimitUnderlyingReceivedInvocations } }
+        set { commentsPostIDCursorLimitReceivedInvocationsLock.withLock { commentsPostIDCursorLimitUnderlyingReceivedInvocations = newValue } }
+    }
+
+    private let commentsPostIDCursorLimitReturnValueLock = NSLock()
+    private nonisolated(unsafe) var commentsPostIDCursorLimitUnderlyingReturnValue: Result<FeedCommentPage, FeedError>!
+    var commentsPostIDCursorLimitReturnValue: Result<FeedCommentPage, FeedError>! {
+        get { commentsPostIDCursorLimitReturnValueLock.withLock { commentsPostIDCursorLimitUnderlyingReturnValue } }
+        set { commentsPostIDCursorLimitReturnValueLock.withLock { commentsPostIDCursorLimitUnderlyingReturnValue = newValue } }
+    }
+    nonisolated(unsafe) var commentsPostIDCursorLimitClosure: ((String, String?, Int) async -> Result<FeedCommentPage, FeedError>)?
+
+    @concurrent func comments(postID: String, cursor: String?, limit: Int) async -> Result<FeedCommentPage, FeedError> {
+        commentsPostIDCursorLimitCallsCountLock.withLock { commentsPostIDCursorLimitUnderlyingCallsCount += 1 }
+        commentsPostIDCursorLimitReceivedArguments = (postID: postID, cursor: cursor, limit: limit)
+        commentsPostIDCursorLimitReceivedInvocationsLock.withLock { commentsPostIDCursorLimitUnderlyingReceivedInvocations.append((postID: postID, cursor: cursor, limit: limit)) }
+        if let commentsPostIDCursorLimitClosure = commentsPostIDCursorLimitClosure {
+            return await commentsPostIDCursorLimitClosure(postID, cursor, limit)
+        } else {
+            return commentsPostIDCursorLimitReturnValue
+        }
+    }
+    //MARK: - createComment
+
+    private let createCommentPostIDTextReplyToIdempotencyKeyCallsCountLock = NSLock()
+    private nonisolated(unsafe) var createCommentPostIDTextReplyToIdempotencyKeyUnderlyingCallsCount = 0
+    var createCommentPostIDTextReplyToIdempotencyKeyCallsCount: Int {
+        get { createCommentPostIDTextReplyToIdempotencyKeyCallsCountLock.withLock { createCommentPostIDTextReplyToIdempotencyKeyUnderlyingCallsCount } }
+        set { createCommentPostIDTextReplyToIdempotencyKeyCallsCountLock.withLock { createCommentPostIDTextReplyToIdempotencyKeyUnderlyingCallsCount = newValue } }
+    }
+    var createCommentPostIDTextReplyToIdempotencyKeyCalled: Bool {
+        return createCommentPostIDTextReplyToIdempotencyKeyCallsCount > 0
+    }
+    private let createCommentPostIDTextReplyToIdempotencyKeyReceivedArgumentsLock = NSLock()
+    private nonisolated(unsafe) var createCommentPostIDTextReplyToIdempotencyKeyUnderlyingReceivedArguments: (postID: String, text: String, replyTo: String?, idempotencyKey: UUID)?
+    var createCommentPostIDTextReplyToIdempotencyKeyReceivedArguments: (postID: String, text: String, replyTo: String?, idempotencyKey: UUID)? {
+        get { createCommentPostIDTextReplyToIdempotencyKeyReceivedArgumentsLock.withLock { createCommentPostIDTextReplyToIdempotencyKeyUnderlyingReceivedArguments } }
+        set { createCommentPostIDTextReplyToIdempotencyKeyReceivedArgumentsLock.withLock { createCommentPostIDTextReplyToIdempotencyKeyUnderlyingReceivedArguments = newValue } }
+    }
+    private let createCommentPostIDTextReplyToIdempotencyKeyReceivedInvocationsLock = NSLock()
+    private nonisolated(unsafe) var createCommentPostIDTextReplyToIdempotencyKeyUnderlyingReceivedInvocations: [(postID: String, text: String, replyTo: String?, idempotencyKey: UUID)] = []
+    var createCommentPostIDTextReplyToIdempotencyKeyReceivedInvocations: [(postID: String, text: String, replyTo: String?, idempotencyKey: UUID)] {
+        get { createCommentPostIDTextReplyToIdempotencyKeyReceivedInvocationsLock.withLock { createCommentPostIDTextReplyToIdempotencyKeyUnderlyingReceivedInvocations } }
+        set { createCommentPostIDTextReplyToIdempotencyKeyReceivedInvocationsLock.withLock { createCommentPostIDTextReplyToIdempotencyKeyUnderlyingReceivedInvocations = newValue } }
+    }
+
+    private let createCommentPostIDTextReplyToIdempotencyKeyReturnValueLock = NSLock()
+    private nonisolated(unsafe) var createCommentPostIDTextReplyToIdempotencyKeyUnderlyingReturnValue: Result<FeedComment, FeedError>!
+    var createCommentPostIDTextReplyToIdempotencyKeyReturnValue: Result<FeedComment, FeedError>! {
+        get { createCommentPostIDTextReplyToIdempotencyKeyReturnValueLock.withLock { createCommentPostIDTextReplyToIdempotencyKeyUnderlyingReturnValue } }
+        set { createCommentPostIDTextReplyToIdempotencyKeyReturnValueLock.withLock { createCommentPostIDTextReplyToIdempotencyKeyUnderlyingReturnValue = newValue } }
+    }
+    nonisolated(unsafe) var createCommentPostIDTextReplyToIdempotencyKeyClosure: ((String, String, String?, UUID) async -> Result<FeedComment, FeedError>)?
+
+    @concurrent func createComment(postID: String, text: String, replyTo: String?, idempotencyKey: UUID) async -> Result<FeedComment, FeedError> {
+        createCommentPostIDTextReplyToIdempotencyKeyCallsCountLock.withLock { createCommentPostIDTextReplyToIdempotencyKeyUnderlyingCallsCount += 1 }
+        createCommentPostIDTextReplyToIdempotencyKeyReceivedArguments = (postID: postID, text: text, replyTo: replyTo, idempotencyKey: idempotencyKey)
+        createCommentPostIDTextReplyToIdempotencyKeyReceivedInvocationsLock.withLock { createCommentPostIDTextReplyToIdempotencyKeyUnderlyingReceivedInvocations.append((postID: postID, text: text, replyTo: replyTo, idempotencyKey: idempotencyKey)) }
+        if let createCommentPostIDTextReplyToIdempotencyKeyClosure = createCommentPostIDTextReplyToIdempotencyKeyClosure {
+            return await createCommentPostIDTextReplyToIdempotencyKeyClosure(postID, text, replyTo, idempotencyKey)
+        } else {
+            return createCommentPostIDTextReplyToIdempotencyKeyReturnValue
+        }
+    }
+    //MARK: - deleteComment
+
+    private let deleteCommentIdCallsCountLock = NSLock()
+    private nonisolated(unsafe) var deleteCommentIdUnderlyingCallsCount = 0
+    var deleteCommentIdCallsCount: Int {
+        get { deleteCommentIdCallsCountLock.withLock { deleteCommentIdUnderlyingCallsCount } }
+        set { deleteCommentIdCallsCountLock.withLock { deleteCommentIdUnderlyingCallsCount = newValue } }
+    }
+    var deleteCommentIdCalled: Bool {
+        return deleteCommentIdCallsCount > 0
+    }
+    private let deleteCommentIdReceivedIdLock = NSLock()
+    private nonisolated(unsafe) var deleteCommentIdUnderlyingReceivedId: String?
+    var deleteCommentIdReceivedId: String? {
+        get { deleteCommentIdReceivedIdLock.withLock { deleteCommentIdUnderlyingReceivedId } }
+        set { deleteCommentIdReceivedIdLock.withLock { deleteCommentIdUnderlyingReceivedId = newValue } }
+    }
+    private let deleteCommentIdReceivedInvocationsLock = NSLock()
+    private nonisolated(unsafe) var deleteCommentIdUnderlyingReceivedInvocations: [String] = []
+    var deleteCommentIdReceivedInvocations: [String] {
+        get { deleteCommentIdReceivedInvocationsLock.withLock { deleteCommentIdUnderlyingReceivedInvocations } }
+        set { deleteCommentIdReceivedInvocationsLock.withLock { deleteCommentIdUnderlyingReceivedInvocations = newValue } }
+    }
+
+    private let deleteCommentIdReturnValueLock = NSLock()
+    private nonisolated(unsafe) var deleteCommentIdUnderlyingReturnValue: Result<Void, FeedError>!
+    var deleteCommentIdReturnValue: Result<Void, FeedError>! {
+        get { deleteCommentIdReturnValueLock.withLock { deleteCommentIdUnderlyingReturnValue } }
+        set { deleteCommentIdReturnValueLock.withLock { deleteCommentIdUnderlyingReturnValue = newValue } }
+    }
+    nonisolated(unsafe) var deleteCommentIdClosure: ((String) async -> Result<Void, FeedError>)?
+
+    @concurrent func deleteComment(id: String) async -> Result<Void, FeedError> {
+        deleteCommentIdCallsCountLock.withLock { deleteCommentIdUnderlyingCallsCount += 1 }
+        deleteCommentIdReceivedId = id
+        deleteCommentIdReceivedInvocationsLock.withLock { deleteCommentIdUnderlyingReceivedInvocations.append(id) }
+        if let deleteCommentIdClosure = deleteCommentIdClosure {
+            return await deleteCommentIdClosure(id)
+        } else {
+            return deleteCommentIdReturnValue
+        }
+    }
+    //MARK: - setCommentsEnabled
+
+    private let setCommentsEnabledPostIDCallsCountLock = NSLock()
+    private nonisolated(unsafe) var setCommentsEnabledPostIDUnderlyingCallsCount = 0
+    var setCommentsEnabledPostIDCallsCount: Int {
+        get { setCommentsEnabledPostIDCallsCountLock.withLock { setCommentsEnabledPostIDUnderlyingCallsCount } }
+        set { setCommentsEnabledPostIDCallsCountLock.withLock { setCommentsEnabledPostIDUnderlyingCallsCount = newValue } }
+    }
+    var setCommentsEnabledPostIDCalled: Bool {
+        return setCommentsEnabledPostIDCallsCount > 0
+    }
+    private let setCommentsEnabledPostIDReceivedArgumentsLock = NSLock()
+    private nonisolated(unsafe) var setCommentsEnabledPostIDUnderlyingReceivedArguments: (enabled: Bool, postID: String)?
+    var setCommentsEnabledPostIDReceivedArguments: (enabled: Bool, postID: String)? {
+        get { setCommentsEnabledPostIDReceivedArgumentsLock.withLock { setCommentsEnabledPostIDUnderlyingReceivedArguments } }
+        set { setCommentsEnabledPostIDReceivedArgumentsLock.withLock { setCommentsEnabledPostIDUnderlyingReceivedArguments = newValue } }
+    }
+    private let setCommentsEnabledPostIDReceivedInvocationsLock = NSLock()
+    private nonisolated(unsafe) var setCommentsEnabledPostIDUnderlyingReceivedInvocations: [(enabled: Bool, postID: String)] = []
+    var setCommentsEnabledPostIDReceivedInvocations: [(enabled: Bool, postID: String)] {
+        get { setCommentsEnabledPostIDReceivedInvocationsLock.withLock { setCommentsEnabledPostIDUnderlyingReceivedInvocations } }
+        set { setCommentsEnabledPostIDReceivedInvocationsLock.withLock { setCommentsEnabledPostIDUnderlyingReceivedInvocations = newValue } }
+    }
+
+    private let setCommentsEnabledPostIDReturnValueLock = NSLock()
+    private nonisolated(unsafe) var setCommentsEnabledPostIDUnderlyingReturnValue: Result<FeedPost, FeedError>!
+    var setCommentsEnabledPostIDReturnValue: Result<FeedPost, FeedError>! {
+        get { setCommentsEnabledPostIDReturnValueLock.withLock { setCommentsEnabledPostIDUnderlyingReturnValue } }
+        set { setCommentsEnabledPostIDReturnValueLock.withLock { setCommentsEnabledPostIDUnderlyingReturnValue = newValue } }
+    }
+    nonisolated(unsafe) var setCommentsEnabledPostIDClosure: ((Bool, String) async -> Result<FeedPost, FeedError>)?
+
+    @concurrent func setCommentsEnabled(_ enabled: Bool, postID: String) async -> Result<FeedPost, FeedError> {
+        setCommentsEnabledPostIDCallsCountLock.withLock { setCommentsEnabledPostIDUnderlyingCallsCount += 1 }
+        setCommentsEnabledPostIDReceivedArguments = (enabled: enabled, postID: postID)
+        setCommentsEnabledPostIDReceivedInvocationsLock.withLock { setCommentsEnabledPostIDUnderlyingReceivedInvocations.append((enabled: enabled, postID: postID)) }
+        if let setCommentsEnabledPostIDClosure = setCommentsEnabledPostIDClosure {
+            return await setCommentsEnabledPostIDClosure(enabled, postID)
+        } else {
+            return setCommentsEnabledPostIDReturnValue
+        }
+    }
+    //MARK: - share
+
+    private let sharePostIDRoomIDLanguageCallsCountLock = NSLock()
+    private nonisolated(unsafe) var sharePostIDRoomIDLanguageUnderlyingCallsCount = 0
+    var sharePostIDRoomIDLanguageCallsCount: Int {
+        get { sharePostIDRoomIDLanguageCallsCountLock.withLock { sharePostIDRoomIDLanguageUnderlyingCallsCount } }
+        set { sharePostIDRoomIDLanguageCallsCountLock.withLock { sharePostIDRoomIDLanguageUnderlyingCallsCount = newValue } }
+    }
+    var sharePostIDRoomIDLanguageCalled: Bool {
+        return sharePostIDRoomIDLanguageCallsCount > 0
+    }
+    private let sharePostIDRoomIDLanguageReceivedArgumentsLock = NSLock()
+    private nonisolated(unsafe) var sharePostIDRoomIDLanguageUnderlyingReceivedArguments: (postID: String, roomID: String, language: String?)?
+    var sharePostIDRoomIDLanguageReceivedArguments: (postID: String, roomID: String, language: String?)? {
+        get { sharePostIDRoomIDLanguageReceivedArgumentsLock.withLock { sharePostIDRoomIDLanguageUnderlyingReceivedArguments } }
+        set { sharePostIDRoomIDLanguageReceivedArgumentsLock.withLock { sharePostIDRoomIDLanguageUnderlyingReceivedArguments = newValue } }
+    }
+    private let sharePostIDRoomIDLanguageReceivedInvocationsLock = NSLock()
+    private nonisolated(unsafe) var sharePostIDRoomIDLanguageUnderlyingReceivedInvocations: [(postID: String, roomID: String, language: String?)] = []
+    var sharePostIDRoomIDLanguageReceivedInvocations: [(postID: String, roomID: String, language: String?)] {
+        get { sharePostIDRoomIDLanguageReceivedInvocationsLock.withLock { sharePostIDRoomIDLanguageUnderlyingReceivedInvocations } }
+        set { sharePostIDRoomIDLanguageReceivedInvocationsLock.withLock { sharePostIDRoomIDLanguageUnderlyingReceivedInvocations = newValue } }
+    }
+
+    private let sharePostIDRoomIDLanguageReturnValueLock = NSLock()
+    private nonisolated(unsafe) var sharePostIDRoomIDLanguageUnderlyingReturnValue: Result<FeedShareMessage, FeedError>!
+    var sharePostIDRoomIDLanguageReturnValue: Result<FeedShareMessage, FeedError>! {
+        get { sharePostIDRoomIDLanguageReturnValueLock.withLock { sharePostIDRoomIDLanguageUnderlyingReturnValue } }
+        set { sharePostIDRoomIDLanguageReturnValueLock.withLock { sharePostIDRoomIDLanguageUnderlyingReturnValue = newValue } }
+    }
+    nonisolated(unsafe) var sharePostIDRoomIDLanguageClosure: ((String, String, String?) async -> Result<FeedShareMessage, FeedError>)?
+
+    @concurrent func share(postID: String, roomID: String, language: String?) async -> Result<FeedShareMessage, FeedError> {
+        sharePostIDRoomIDLanguageCallsCountLock.withLock { sharePostIDRoomIDLanguageUnderlyingCallsCount += 1 }
+        sharePostIDRoomIDLanguageReceivedArguments = (postID: postID, roomID: roomID, language: language)
+        sharePostIDRoomIDLanguageReceivedInvocationsLock.withLock { sharePostIDRoomIDLanguageUnderlyingReceivedInvocations.append((postID: postID, roomID: roomID, language: language)) }
+        if let sharePostIDRoomIDLanguageClosure = sharePostIDRoomIDLanguageClosure {
+            return await sharePostIDRoomIDLanguageClosure(postID, roomID, language)
+        } else {
+            return sharePostIDRoomIDLanguageReturnValue
+        }
+    }
+    //MARK: - report
+
+    private let reportReasonDetailCallsCountLock = NSLock()
+    private nonisolated(unsafe) var reportReasonDetailUnderlyingCallsCount = 0
+    var reportReasonDetailCallsCount: Int {
+        get { reportReasonDetailCallsCountLock.withLock { reportReasonDetailUnderlyingCallsCount } }
+        set { reportReasonDetailCallsCountLock.withLock { reportReasonDetailUnderlyingCallsCount = newValue } }
+    }
+    var reportReasonDetailCalled: Bool {
+        return reportReasonDetailCallsCount > 0
+    }
+    private let reportReasonDetailReceivedArgumentsLock = NSLock()
+    private nonisolated(unsafe) var reportReasonDetailUnderlyingReceivedArguments: (target: FeedReportTarget, reason: FeedReportReason, detail: String?)?
+    var reportReasonDetailReceivedArguments: (target: FeedReportTarget, reason: FeedReportReason, detail: String?)? {
+        get { reportReasonDetailReceivedArgumentsLock.withLock { reportReasonDetailUnderlyingReceivedArguments } }
+        set { reportReasonDetailReceivedArgumentsLock.withLock { reportReasonDetailUnderlyingReceivedArguments = newValue } }
+    }
+    private let reportReasonDetailReceivedInvocationsLock = NSLock()
+    private nonisolated(unsafe) var reportReasonDetailUnderlyingReceivedInvocations: [(target: FeedReportTarget, reason: FeedReportReason, detail: String?)] = []
+    var reportReasonDetailReceivedInvocations: [(target: FeedReportTarget, reason: FeedReportReason, detail: String?)] {
+        get { reportReasonDetailReceivedInvocationsLock.withLock { reportReasonDetailUnderlyingReceivedInvocations } }
+        set { reportReasonDetailReceivedInvocationsLock.withLock { reportReasonDetailUnderlyingReceivedInvocations = newValue } }
+    }
+
+    private let reportReasonDetailReturnValueLock = NSLock()
+    private nonisolated(unsafe) var reportReasonDetailUnderlyingReturnValue: Result<FeedReportReceipt, FeedError>!
+    var reportReasonDetailReturnValue: Result<FeedReportReceipt, FeedError>! {
+        get { reportReasonDetailReturnValueLock.withLock { reportReasonDetailUnderlyingReturnValue } }
+        set { reportReasonDetailReturnValueLock.withLock { reportReasonDetailUnderlyingReturnValue = newValue } }
+    }
+    nonisolated(unsafe) var reportReasonDetailClosure: ((FeedReportTarget, FeedReportReason, String?) async -> Result<FeedReportReceipt, FeedError>)?
+
+    @concurrent func report(_ target: FeedReportTarget, reason: FeedReportReason, detail: String?) async -> Result<FeedReportReceipt, FeedError> {
+        reportReasonDetailCallsCountLock.withLock { reportReasonDetailUnderlyingCallsCount += 1 }
+        reportReasonDetailReceivedArguments = (target: target, reason: reason, detail: detail)
+        reportReasonDetailReceivedInvocationsLock.withLock { reportReasonDetailUnderlyingReceivedInvocations.append((target: target, reason: reason, detail: detail)) }
+        if let reportReasonDetailClosure = reportReasonDetailClosure {
+            return await reportReasonDetailClosure(target, reason, detail)
+        } else {
+            return reportReasonDetailReturnValue
+        }
+    }
+    //MARK: - notices
+
+    private let noticesCursorLimitLanguageCallsCountLock = NSLock()
+    private nonisolated(unsafe) var noticesCursorLimitLanguageUnderlyingCallsCount = 0
+    var noticesCursorLimitLanguageCallsCount: Int {
+        get { noticesCursorLimitLanguageCallsCountLock.withLock { noticesCursorLimitLanguageUnderlyingCallsCount } }
+        set { noticesCursorLimitLanguageCallsCountLock.withLock { noticesCursorLimitLanguageUnderlyingCallsCount = newValue } }
+    }
+    var noticesCursorLimitLanguageCalled: Bool {
+        return noticesCursorLimitLanguageCallsCount > 0
+    }
+    private let noticesCursorLimitLanguageReceivedArgumentsLock = NSLock()
+    private nonisolated(unsafe) var noticesCursorLimitLanguageUnderlyingReceivedArguments: (cursor: String?, limit: Int, language: String?)?
+    var noticesCursorLimitLanguageReceivedArguments: (cursor: String?, limit: Int, language: String?)? {
+        get { noticesCursorLimitLanguageReceivedArgumentsLock.withLock { noticesCursorLimitLanguageUnderlyingReceivedArguments } }
+        set { noticesCursorLimitLanguageReceivedArgumentsLock.withLock { noticesCursorLimitLanguageUnderlyingReceivedArguments = newValue } }
+    }
+    private let noticesCursorLimitLanguageReceivedInvocationsLock = NSLock()
+    private nonisolated(unsafe) var noticesCursorLimitLanguageUnderlyingReceivedInvocations: [(cursor: String?, limit: Int, language: String?)] = []
+    var noticesCursorLimitLanguageReceivedInvocations: [(cursor: String?, limit: Int, language: String?)] {
+        get { noticesCursorLimitLanguageReceivedInvocationsLock.withLock { noticesCursorLimitLanguageUnderlyingReceivedInvocations } }
+        set { noticesCursorLimitLanguageReceivedInvocationsLock.withLock { noticesCursorLimitLanguageUnderlyingReceivedInvocations = newValue } }
+    }
+
+    private let noticesCursorLimitLanguageReturnValueLock = NSLock()
+    private nonisolated(unsafe) var noticesCursorLimitLanguageUnderlyingReturnValue: Result<FeedNoticePage, FeedError>!
+    var noticesCursorLimitLanguageReturnValue: Result<FeedNoticePage, FeedError>! {
+        get { noticesCursorLimitLanguageReturnValueLock.withLock { noticesCursorLimitLanguageUnderlyingReturnValue } }
+        set { noticesCursorLimitLanguageReturnValueLock.withLock { noticesCursorLimitLanguageUnderlyingReturnValue = newValue } }
+    }
+    nonisolated(unsafe) var noticesCursorLimitLanguageClosure: ((String?, Int, String?) async -> Result<FeedNoticePage, FeedError>)?
+
+    @concurrent func notices(cursor: String?, limit: Int, language: String?) async -> Result<FeedNoticePage, FeedError> {
+        noticesCursorLimitLanguageCallsCountLock.withLock { noticesCursorLimitLanguageUnderlyingCallsCount += 1 }
+        noticesCursorLimitLanguageReceivedArguments = (cursor: cursor, limit: limit, language: language)
+        noticesCursorLimitLanguageReceivedInvocationsLock.withLock { noticesCursorLimitLanguageUnderlyingReceivedInvocations.append((cursor: cursor, limit: limit, language: language)) }
+        if let noticesCursorLimitLanguageClosure = noticesCursorLimitLanguageClosure {
+            return await noticesCursorLimitLanguageClosure(cursor, limit, language)
+        } else {
+            return noticesCursorLimitLanguageReturnValue
+        }
+    }
+    //MARK: - markNoticeRead
+
+    private let markNoticeReadIdCallsCountLock = NSLock()
+    private nonisolated(unsafe) var markNoticeReadIdUnderlyingCallsCount = 0
+    var markNoticeReadIdCallsCount: Int {
+        get { markNoticeReadIdCallsCountLock.withLock { markNoticeReadIdUnderlyingCallsCount } }
+        set { markNoticeReadIdCallsCountLock.withLock { markNoticeReadIdUnderlyingCallsCount = newValue } }
+    }
+    var markNoticeReadIdCalled: Bool {
+        return markNoticeReadIdCallsCount > 0
+    }
+    private let markNoticeReadIdReceivedIdLock = NSLock()
+    private nonisolated(unsafe) var markNoticeReadIdUnderlyingReceivedId: String?
+    var markNoticeReadIdReceivedId: String? {
+        get { markNoticeReadIdReceivedIdLock.withLock { markNoticeReadIdUnderlyingReceivedId } }
+        set { markNoticeReadIdReceivedIdLock.withLock { markNoticeReadIdUnderlyingReceivedId = newValue } }
+    }
+    private let markNoticeReadIdReceivedInvocationsLock = NSLock()
+    private nonisolated(unsafe) var markNoticeReadIdUnderlyingReceivedInvocations: [String] = []
+    var markNoticeReadIdReceivedInvocations: [String] {
+        get { markNoticeReadIdReceivedInvocationsLock.withLock { markNoticeReadIdUnderlyingReceivedInvocations } }
+        set { markNoticeReadIdReceivedInvocationsLock.withLock { markNoticeReadIdUnderlyingReceivedInvocations = newValue } }
+    }
+
+    private let markNoticeReadIdReturnValueLock = NSLock()
+    private nonisolated(unsafe) var markNoticeReadIdUnderlyingReturnValue: Result<Void, FeedError>!
+    var markNoticeReadIdReturnValue: Result<Void, FeedError>! {
+        get { markNoticeReadIdReturnValueLock.withLock { markNoticeReadIdUnderlyingReturnValue } }
+        set { markNoticeReadIdReturnValueLock.withLock { markNoticeReadIdUnderlyingReturnValue = newValue } }
+    }
+    nonisolated(unsafe) var markNoticeReadIdClosure: ((String) async -> Result<Void, FeedError>)?
+
+    @concurrent func markNoticeRead(id: String) async -> Result<Void, FeedError> {
+        markNoticeReadIdCallsCountLock.withLock { markNoticeReadIdUnderlyingCallsCount += 1 }
+        markNoticeReadIdReceivedId = id
+        markNoticeReadIdReceivedInvocationsLock.withLock { markNoticeReadIdUnderlyingReceivedInvocations.append(id) }
+        if let markNoticeReadIdClosure = markNoticeReadIdClosure {
+            return await markNoticeReadIdClosure(id)
+        } else {
+            return markNoticeReadIdReturnValue
+        }
+    }
+    //MARK: - activity
+
+    private let activityCursorLimitCallsCountLock = NSLock()
+    private nonisolated(unsafe) var activityCursorLimitUnderlyingCallsCount = 0
+    var activityCursorLimitCallsCount: Int {
+        get { activityCursorLimitCallsCountLock.withLock { activityCursorLimitUnderlyingCallsCount } }
+        set { activityCursorLimitCallsCountLock.withLock { activityCursorLimitUnderlyingCallsCount = newValue } }
+    }
+    var activityCursorLimitCalled: Bool {
+        return activityCursorLimitCallsCount > 0
+    }
+    private let activityCursorLimitReceivedArgumentsLock = NSLock()
+    private nonisolated(unsafe) var activityCursorLimitUnderlyingReceivedArguments: (cursor: String?, limit: Int)?
+    var activityCursorLimitReceivedArguments: (cursor: String?, limit: Int)? {
+        get { activityCursorLimitReceivedArgumentsLock.withLock { activityCursorLimitUnderlyingReceivedArguments } }
+        set { activityCursorLimitReceivedArgumentsLock.withLock { activityCursorLimitUnderlyingReceivedArguments = newValue } }
+    }
+    private let activityCursorLimitReceivedInvocationsLock = NSLock()
+    private nonisolated(unsafe) var activityCursorLimitUnderlyingReceivedInvocations: [(cursor: String?, limit: Int)] = []
+    var activityCursorLimitReceivedInvocations: [(cursor: String?, limit: Int)] {
+        get { activityCursorLimitReceivedInvocationsLock.withLock { activityCursorLimitUnderlyingReceivedInvocations } }
+        set { activityCursorLimitReceivedInvocationsLock.withLock { activityCursorLimitUnderlyingReceivedInvocations = newValue } }
+    }
+
+    private let activityCursorLimitReturnValueLock = NSLock()
+    private nonisolated(unsafe) var activityCursorLimitUnderlyingReturnValue: Result<FeedActivityPage, FeedError>!
+    var activityCursorLimitReturnValue: Result<FeedActivityPage, FeedError>! {
+        get { activityCursorLimitReturnValueLock.withLock { activityCursorLimitUnderlyingReturnValue } }
+        set { activityCursorLimitReturnValueLock.withLock { activityCursorLimitUnderlyingReturnValue = newValue } }
+    }
+    nonisolated(unsafe) var activityCursorLimitClosure: ((String?, Int) async -> Result<FeedActivityPage, FeedError>)?
+
+    @concurrent func activity(cursor: String?, limit: Int) async -> Result<FeedActivityPage, FeedError> {
+        activityCursorLimitCallsCountLock.withLock { activityCursorLimitUnderlyingCallsCount += 1 }
+        activityCursorLimitReceivedArguments = (cursor: cursor, limit: limit)
+        activityCursorLimitReceivedInvocationsLock.withLock { activityCursorLimitUnderlyingReceivedInvocations.append((cursor: cursor, limit: limit)) }
+        if let activityCursorLimitClosure = activityCursorLimitClosure {
+            return await activityCursorLimitClosure(cursor, limit)
+        } else {
+            return activityCursorLimitReturnValue
+        }
+    }
+    //MARK: - markActivitySeen
+
+    private let markActivitySeenUpToCallsCountLock = NSLock()
+    private nonisolated(unsafe) var markActivitySeenUpToUnderlyingCallsCount = 0
+    var markActivitySeenUpToCallsCount: Int {
+        get { markActivitySeenUpToCallsCountLock.withLock { markActivitySeenUpToUnderlyingCallsCount } }
+        set { markActivitySeenUpToCallsCountLock.withLock { markActivitySeenUpToUnderlyingCallsCount = newValue } }
+    }
+    var markActivitySeenUpToCalled: Bool {
+        return markActivitySeenUpToCallsCount > 0
+    }
+    private let markActivitySeenUpToReceivedDateLock = NSLock()
+    private nonisolated(unsafe) var markActivitySeenUpToUnderlyingReceivedDate: Date?
+    var markActivitySeenUpToReceivedDate: Date? {
+        get { markActivitySeenUpToReceivedDateLock.withLock { markActivitySeenUpToUnderlyingReceivedDate } }
+        set { markActivitySeenUpToReceivedDateLock.withLock { markActivitySeenUpToUnderlyingReceivedDate = newValue } }
+    }
+    private let markActivitySeenUpToReceivedInvocationsLock = NSLock()
+    private nonisolated(unsafe) var markActivitySeenUpToUnderlyingReceivedInvocations: [Date?] = []
+    var markActivitySeenUpToReceivedInvocations: [Date?] {
+        get { markActivitySeenUpToReceivedInvocationsLock.withLock { markActivitySeenUpToUnderlyingReceivedInvocations } }
+        set { markActivitySeenUpToReceivedInvocationsLock.withLock { markActivitySeenUpToUnderlyingReceivedInvocations = newValue } }
+    }
+
+    private let markActivitySeenUpToReturnValueLock = NSLock()
+    private nonisolated(unsafe) var markActivitySeenUpToUnderlyingReturnValue: Result<Int, FeedError>!
+    var markActivitySeenUpToReturnValue: Result<Int, FeedError>! {
+        get { markActivitySeenUpToReturnValueLock.withLock { markActivitySeenUpToUnderlyingReturnValue } }
+        set { markActivitySeenUpToReturnValueLock.withLock { markActivitySeenUpToUnderlyingReturnValue = newValue } }
+    }
+    nonisolated(unsafe) var markActivitySeenUpToClosure: ((Date?) async -> Result<Int, FeedError>)?
+
+    @concurrent func markActivitySeen(upTo date: Date?) async -> Result<Int, FeedError> {
+        markActivitySeenUpToCallsCountLock.withLock { markActivitySeenUpToUnderlyingCallsCount += 1 }
+        markActivitySeenUpToReceivedDate = date
+        markActivitySeenUpToReceivedInvocationsLock.withLock { markActivitySeenUpToUnderlyingReceivedInvocations.append(date) }
+        if let markActivitySeenUpToClosure = markActivitySeenUpToClosure {
+            return await markActivitySeenUpToClosure(date)
+        } else {
+            return markActivitySeenUpToReturnValue
+        }
+    }
+    //MARK: - likers
+
+    private let likersPostIDCursorLimitCallsCountLock = NSLock()
+    private nonisolated(unsafe) var likersPostIDCursorLimitUnderlyingCallsCount = 0
+    var likersPostIDCursorLimitCallsCount: Int {
+        get { likersPostIDCursorLimitCallsCountLock.withLock { likersPostIDCursorLimitUnderlyingCallsCount } }
+        set { likersPostIDCursorLimitCallsCountLock.withLock { likersPostIDCursorLimitUnderlyingCallsCount = newValue } }
+    }
+    var likersPostIDCursorLimitCalled: Bool {
+        return likersPostIDCursorLimitCallsCount > 0
+    }
+    private let likersPostIDCursorLimitReceivedArgumentsLock = NSLock()
+    private nonisolated(unsafe) var likersPostIDCursorLimitUnderlyingReceivedArguments: (postID: String, cursor: String?, limit: Int)?
+    var likersPostIDCursorLimitReceivedArguments: (postID: String, cursor: String?, limit: Int)? {
+        get { likersPostIDCursorLimitReceivedArgumentsLock.withLock { likersPostIDCursorLimitUnderlyingReceivedArguments } }
+        set { likersPostIDCursorLimitReceivedArgumentsLock.withLock { likersPostIDCursorLimitUnderlyingReceivedArguments = newValue } }
+    }
+    private let likersPostIDCursorLimitReceivedInvocationsLock = NSLock()
+    private nonisolated(unsafe) var likersPostIDCursorLimitUnderlyingReceivedInvocations: [(postID: String, cursor: String?, limit: Int)] = []
+    var likersPostIDCursorLimitReceivedInvocations: [(postID: String, cursor: String?, limit: Int)] {
+        get { likersPostIDCursorLimitReceivedInvocationsLock.withLock { likersPostIDCursorLimitUnderlyingReceivedInvocations } }
+        set { likersPostIDCursorLimitReceivedInvocationsLock.withLock { likersPostIDCursorLimitUnderlyingReceivedInvocations = newValue } }
+    }
+
+    private let likersPostIDCursorLimitReturnValueLock = NSLock()
+    private nonisolated(unsafe) var likersPostIDCursorLimitUnderlyingReturnValue: Result<FeedLikersPage, FeedError>!
+    var likersPostIDCursorLimitReturnValue: Result<FeedLikersPage, FeedError>! {
+        get { likersPostIDCursorLimitReturnValueLock.withLock { likersPostIDCursorLimitUnderlyingReturnValue } }
+        set { likersPostIDCursorLimitReturnValueLock.withLock { likersPostIDCursorLimitUnderlyingReturnValue = newValue } }
+    }
+    nonisolated(unsafe) var likersPostIDCursorLimitClosure: ((String, String?, Int) async -> Result<FeedLikersPage, FeedError>)?
+
+    @concurrent func likers(postID: String, cursor: String?, limit: Int) async -> Result<FeedLikersPage, FeedError> {
+        likersPostIDCursorLimitCallsCountLock.withLock { likersPostIDCursorLimitUnderlyingCallsCount += 1 }
+        likersPostIDCursorLimitReceivedArguments = (postID: postID, cursor: cursor, limit: limit)
+        likersPostIDCursorLimitReceivedInvocationsLock.withLock { likersPostIDCursorLimitUnderlyingReceivedInvocations.append((postID: postID, cursor: cursor, limit: limit)) }
+        if let likersPostIDCursorLimitClosure = likersPostIDCursorLimitClosure {
+            return await likersPostIDCursorLimitClosure(postID, cursor, limit)
+        } else {
+            return likersPostIDCursorLimitReturnValue
+        }
+    }
+    //MARK: - notificationSettings
+
+    private let notificationSettingsCallsCountLock = NSLock()
+    private nonisolated(unsafe) var notificationSettingsUnderlyingCallsCount = 0
+    var notificationSettingsCallsCount: Int {
+        get { notificationSettingsCallsCountLock.withLock { notificationSettingsUnderlyingCallsCount } }
+        set { notificationSettingsCallsCountLock.withLock { notificationSettingsUnderlyingCallsCount = newValue } }
+    }
+    var notificationSettingsCalled: Bool {
+        return notificationSettingsCallsCount > 0
+    }
+
+    private let notificationSettingsReturnValueLock = NSLock()
+    private nonisolated(unsafe) var notificationSettingsUnderlyingReturnValue: Result<FeedNotificationSettings, FeedError>!
+    var notificationSettingsReturnValue: Result<FeedNotificationSettings, FeedError>! {
+        get { notificationSettingsReturnValueLock.withLock { notificationSettingsUnderlyingReturnValue } }
+        set { notificationSettingsReturnValueLock.withLock { notificationSettingsUnderlyingReturnValue = newValue } }
+    }
+    nonisolated(unsafe) var notificationSettingsClosure: (() async -> Result<FeedNotificationSettings, FeedError>)?
+
+    @concurrent func notificationSettings() async -> Result<FeedNotificationSettings, FeedError> {
+        notificationSettingsCallsCountLock.withLock { notificationSettingsUnderlyingCallsCount += 1 }
+        if let notificationSettingsClosure = notificationSettingsClosure {
+            return await notificationSettingsClosure()
+        } else {
+            return notificationSettingsReturnValue
+        }
+    }
+    //MARK: - setNotificationSettings
+
+    private let setNotificationSettingsCallsCountLock = NSLock()
+    private nonisolated(unsafe) var setNotificationSettingsUnderlyingCallsCount = 0
+    var setNotificationSettingsCallsCount: Int {
+        get { setNotificationSettingsCallsCountLock.withLock { setNotificationSettingsUnderlyingCallsCount } }
+        set { setNotificationSettingsCallsCountLock.withLock { setNotificationSettingsUnderlyingCallsCount = newValue } }
+    }
+    var setNotificationSettingsCalled: Bool {
+        return setNotificationSettingsCallsCount > 0
+    }
+    private let setNotificationSettingsReceivedSettingsLock = NSLock()
+    private nonisolated(unsafe) var setNotificationSettingsUnderlyingReceivedSettings: FeedNotificationSettings?
+    var setNotificationSettingsReceivedSettings: FeedNotificationSettings? {
+        get { setNotificationSettingsReceivedSettingsLock.withLock { setNotificationSettingsUnderlyingReceivedSettings } }
+        set { setNotificationSettingsReceivedSettingsLock.withLock { setNotificationSettingsUnderlyingReceivedSettings = newValue } }
+    }
+    private let setNotificationSettingsReceivedInvocationsLock = NSLock()
+    private nonisolated(unsafe) var setNotificationSettingsUnderlyingReceivedInvocations: [FeedNotificationSettings] = []
+    var setNotificationSettingsReceivedInvocations: [FeedNotificationSettings] {
+        get { setNotificationSettingsReceivedInvocationsLock.withLock { setNotificationSettingsUnderlyingReceivedInvocations } }
+        set { setNotificationSettingsReceivedInvocationsLock.withLock { setNotificationSettingsUnderlyingReceivedInvocations = newValue } }
+    }
+
+    private let setNotificationSettingsReturnValueLock = NSLock()
+    private nonisolated(unsafe) var setNotificationSettingsUnderlyingReturnValue: Result<FeedNotificationSettings, FeedError>!
+    var setNotificationSettingsReturnValue: Result<FeedNotificationSettings, FeedError>! {
+        get { setNotificationSettingsReturnValueLock.withLock { setNotificationSettingsUnderlyingReturnValue } }
+        set { setNotificationSettingsReturnValueLock.withLock { setNotificationSettingsUnderlyingReturnValue = newValue } }
+    }
+    nonisolated(unsafe) var setNotificationSettingsClosure: ((FeedNotificationSettings) async -> Result<FeedNotificationSettings, FeedError>)?
+
+    @concurrent func setNotificationSettings(_ settings: FeedNotificationSettings) async -> Result<FeedNotificationSettings, FeedError> {
+        setNotificationSettingsCallsCountLock.withLock { setNotificationSettingsUnderlyingCallsCount += 1 }
+        setNotificationSettingsReceivedSettings = settings
+        setNotificationSettingsReceivedInvocationsLock.withLock { setNotificationSettingsUnderlyingReceivedInvocations.append(settings) }
+        if let setNotificationSettingsClosure = setNotificationSettingsClosure {
+            return await setNotificationSettingsClosure(settings)
+        } else {
+            return setNotificationSettingsReturnValue
         }
     }
 }
@@ -9709,6 +10810,48 @@ nonisolated class JoinedRoomProxyMock: JoinedRoomProxyProtocol, @unchecked Senda
             return kickUserReasonReturnValue
         }
     }
+    //MARK: - membership
+
+    private let membershipOfCallsCountLock = NSLock()
+    private nonisolated(unsafe) var membershipOfUnderlyingCallsCount = 0
+    var membershipOfCallsCount: Int {
+        get { membershipOfCallsCountLock.withLock { membershipOfUnderlyingCallsCount } }
+        set { membershipOfCallsCountLock.withLock { membershipOfUnderlyingCallsCount = newValue } }
+    }
+    var membershipOfCalled: Bool {
+        return membershipOfCallsCount > 0
+    }
+    private let membershipOfReceivedUserIDLock = NSLock()
+    private nonisolated(unsafe) var membershipOfUnderlyingReceivedUserID: String?
+    var membershipOfReceivedUserID: String? {
+        get { membershipOfReceivedUserIDLock.withLock { membershipOfUnderlyingReceivedUserID } }
+        set { membershipOfReceivedUserIDLock.withLock { membershipOfUnderlyingReceivedUserID = newValue } }
+    }
+    private let membershipOfReceivedInvocationsLock = NSLock()
+    private nonisolated(unsafe) var membershipOfUnderlyingReceivedInvocations: [String] = []
+    var membershipOfReceivedInvocations: [String] {
+        get { membershipOfReceivedInvocationsLock.withLock { membershipOfUnderlyingReceivedInvocations } }
+        set { membershipOfReceivedInvocationsLock.withLock { membershipOfUnderlyingReceivedInvocations = newValue } }
+    }
+
+    private let membershipOfReturnValueLock = NSLock()
+    private nonisolated(unsafe) var membershipOfUnderlyingReturnValue: MembershipState?
+    var membershipOfReturnValue: MembershipState? {
+        get { membershipOfReturnValueLock.withLock { membershipOfUnderlyingReturnValue } }
+        set { membershipOfReturnValueLock.withLock { membershipOfUnderlyingReturnValue = newValue } }
+    }
+    nonisolated(unsafe) var membershipOfClosure: ((String) async -> MembershipState?)?
+
+    @concurrent func membership(of userID: String) async -> MembershipState? {
+        membershipOfCallsCountLock.withLock { membershipOfUnderlyingCallsCount += 1 }
+        membershipOfReceivedUserID = userID
+        membershipOfReceivedInvocationsLock.withLock { membershipOfUnderlyingReceivedInvocations.append(userID) }
+        if let membershipOfClosure = membershipOfClosure {
+            return await membershipOfClosure(userID)
+        } else {
+            return membershipOfReturnValue
+        }
+    }
     //MARK: - banUser
 
     private let banUserReasonCallsCountLock = NSLock()
@@ -10767,14 +11910,14 @@ nonisolated class LinkNewDeviceServiceMock: LinkNewDeviceServiceProtocol, @unche
     }
 
     private let linkMobileDeviceReturnValueLock = NSLock()
-    private nonisolated(unsafe) var linkMobileDeviceUnderlyingReturnValue: LinkNewDeviceService.LinkMobileProgressPublisher!
-    var linkMobileDeviceReturnValue: LinkNewDeviceService.LinkMobileProgressPublisher! {
+    private nonisolated(unsafe) var linkMobileDeviceUnderlyingReturnValue: LinkNewDeviceService.LinkMobileOperation!
+    var linkMobileDeviceReturnValue: LinkNewDeviceService.LinkMobileOperation! {
         get { linkMobileDeviceReturnValueLock.withLock { linkMobileDeviceUnderlyingReturnValue } }
         set { linkMobileDeviceReturnValueLock.withLock { linkMobileDeviceUnderlyingReturnValue = newValue } }
     }
-    nonisolated(unsafe) var linkMobileDeviceClosure: (() -> LinkNewDeviceService.LinkMobileProgressPublisher)?
+    nonisolated(unsafe) var linkMobileDeviceClosure: (() -> LinkNewDeviceService.LinkMobileOperation)?
 
-    func linkMobileDevice() -> LinkNewDeviceService.LinkMobileProgressPublisher {
+    func linkMobileDevice() -> LinkNewDeviceService.LinkMobileOperation {
         linkMobileDeviceCallsCountLock.withLock { linkMobileDeviceUnderlyingCallsCount += 1 }
         if let linkMobileDeviceClosure = linkMobileDeviceClosure {
             return linkMobileDeviceClosure()
@@ -10807,14 +11950,14 @@ nonisolated class LinkNewDeviceServiceMock: LinkNewDeviceServiceProtocol, @unche
     }
 
     private let linkDesktopDeviceWithReturnValueLock = NSLock()
-    private nonisolated(unsafe) var linkDesktopDeviceWithUnderlyingReturnValue: LinkNewDeviceService.LinkDesktopProgressPublisher!
-    var linkDesktopDeviceWithReturnValue: LinkNewDeviceService.LinkDesktopProgressPublisher! {
+    private nonisolated(unsafe) var linkDesktopDeviceWithUnderlyingReturnValue: LinkNewDeviceService.LinkDesktopOperation!
+    var linkDesktopDeviceWithReturnValue: LinkNewDeviceService.LinkDesktopOperation! {
         get { linkDesktopDeviceWithReturnValueLock.withLock { linkDesktopDeviceWithUnderlyingReturnValue } }
         set { linkDesktopDeviceWithReturnValueLock.withLock { linkDesktopDeviceWithUnderlyingReturnValue = newValue } }
     }
-    nonisolated(unsafe) var linkDesktopDeviceWithClosure: ((Data) -> LinkNewDeviceService.LinkDesktopProgressPublisher)?
+    nonisolated(unsafe) var linkDesktopDeviceWithClosure: ((Data) -> LinkNewDeviceService.LinkDesktopOperation)?
 
-    func linkDesktopDevice(with scannedQRData: Data) -> LinkNewDeviceService.LinkDesktopProgressPublisher {
+    func linkDesktopDevice(with scannedQRData: Data) -> LinkNewDeviceService.LinkDesktopOperation {
         linkDesktopDeviceWithCallsCountLock.withLock { linkDesktopDeviceWithUnderlyingCallsCount += 1 }
         linkDesktopDeviceWithReceivedScannedQRData = scannedQRData
         linkDesktopDeviceWithReceivedInvocationsLock.withLock { linkDesktopDeviceWithUnderlyingReceivedInvocations.append(scannedQRData) }
@@ -10826,6 +11969,86 @@ nonisolated class LinkNewDeviceServiceMock: LinkNewDeviceServiceProtocol, @unche
     }
 }
 nonisolated class LiveLocationManagerMock: LiveLocationManagerProtocol, @unchecked Sendable {
+
+    //MARK: - add
+
+    private let addCallsCountLock = NSLock()
+    private nonisolated(unsafe) var addUnderlyingCallsCount = 0
+    var addCallsCount: Int {
+        get { addCallsCountLock.withLock { addUnderlyingCallsCount } }
+        set { addCallsCountLock.withLock { addUnderlyingCallsCount = newValue } }
+    }
+    var addCalled: Bool {
+        return addCallsCount > 0
+    }
+    private let addReceivedServiceLock = NSLock()
+    private nonisolated(unsafe) var addUnderlyingReceivedService: LiveLocationServiceProtocol?
+    var addReceivedService: LiveLocationServiceProtocol? {
+        get { addReceivedServiceLock.withLock { addUnderlyingReceivedService } }
+        set { addReceivedServiceLock.withLock { addUnderlyingReceivedService = newValue } }
+    }
+    private let addReceivedInvocationsLock = NSLock()
+    private nonisolated(unsafe) var addUnderlyingReceivedInvocations: [LiveLocationServiceProtocol] = []
+    var addReceivedInvocations: [LiveLocationServiceProtocol] {
+        get { addReceivedInvocationsLock.withLock { addUnderlyingReceivedInvocations } }
+        set { addReceivedInvocationsLock.withLock { addUnderlyingReceivedInvocations = newValue } }
+    }
+    nonisolated(unsafe) var addClosure: ((LiveLocationServiceProtocol) -> Void)?
+
+    func add(_ service: LiveLocationServiceProtocol) {
+        addCallsCountLock.withLock { addUnderlyingCallsCount += 1 }
+        addReceivedService = service
+        addReceivedInvocationsLock.withLock { addUnderlyingReceivedInvocations.append(service) }
+        addClosure?(service)
+    }
+    //MARK: - remove
+
+    private let removeUserIDCallsCountLock = NSLock()
+    private nonisolated(unsafe) var removeUserIDUnderlyingCallsCount = 0
+    var removeUserIDCallsCount: Int {
+        get { removeUserIDCallsCountLock.withLock { removeUserIDUnderlyingCallsCount } }
+        set { removeUserIDCallsCountLock.withLock { removeUserIDUnderlyingCallsCount = newValue } }
+    }
+    var removeUserIDCalled: Bool {
+        return removeUserIDCallsCount > 0
+    }
+    private let removeUserIDReceivedUserIDLock = NSLock()
+    private nonisolated(unsafe) var removeUserIDUnderlyingReceivedUserID: String?
+    var removeUserIDReceivedUserID: String? {
+        get { removeUserIDReceivedUserIDLock.withLock { removeUserIDUnderlyingReceivedUserID } }
+        set { removeUserIDReceivedUserIDLock.withLock { removeUserIDUnderlyingReceivedUserID = newValue } }
+    }
+    private let removeUserIDReceivedInvocationsLock = NSLock()
+    private nonisolated(unsafe) var removeUserIDUnderlyingReceivedInvocations: [String] = []
+    var removeUserIDReceivedInvocations: [String] {
+        get { removeUserIDReceivedInvocationsLock.withLock { removeUserIDUnderlyingReceivedInvocations } }
+        set { removeUserIDReceivedInvocationsLock.withLock { removeUserIDUnderlyingReceivedInvocations = newValue } }
+    }
+    nonisolated(unsafe) var removeUserIDClosure: ((String) -> Void)?
+
+    func remove(userID: String) {
+        removeUserIDCallsCountLock.withLock { removeUserIDUnderlyingCallsCount += 1 }
+        removeUserIDReceivedUserID = userID
+        removeUserIDReceivedInvocationsLock.withLock { removeUserIDUnderlyingReceivedInvocations.append(userID) }
+        removeUserIDClosure?(userID)
+    }
+}
+nonisolated class LiveLocationServiceMock: LiveLocationServiceProtocol, @unchecked Sendable {
+    var userID: String {
+        get { return underlyingUserID }
+        set(value) { underlyingUserID = value }
+    }
+    nonisolated(unsafe) var underlyingUserID: String!
+    var actionsPublisher: AnyPublisher<LiveLocationServiceAction, Never> {
+        get { return underlyingActionsPublisher }
+        set(value) { underlyingActionsPublisher = value }
+    }
+    nonisolated(unsafe) var underlyingActionsPublisher: AnyPublisher<LiveLocationServiceAction, Never>!
+    var isSharingPublisher: CurrentValuePublisher<Bool, Never> {
+        get { return underlyingIsSharingPublisher }
+        set(value) { underlyingIsSharingPublisher = value }
+    }
+    nonisolated(unsafe) var underlyingIsSharingPublisher: CurrentValuePublisher<Bool, Never>!
     var authorizationStatus: CurrentValuePublisher<CLAuthorizationStatus, Never> {
         get { return underlyingAuthorizationStatus }
         set(value) { underlyingAuthorizationStatus = value }
@@ -10886,14 +12109,14 @@ nonisolated class LiveLocationManagerMock: LiveLocationManagerProtocol, @uncheck
     }
 
     private let startLiveLocationRoomIDDurationReturnValueLock = NSLock()
-    private nonisolated(unsafe) var startLiveLocationRoomIDDurationUnderlyingReturnValue: Result<Void, LiveLocationManagerError>!
-    var startLiveLocationRoomIDDurationReturnValue: Result<Void, LiveLocationManagerError>! {
+    private nonisolated(unsafe) var startLiveLocationRoomIDDurationUnderlyingReturnValue: Result<Void, LiveLocationServiceError>!
+    var startLiveLocationRoomIDDurationReturnValue: Result<Void, LiveLocationServiceError>! {
         get { startLiveLocationRoomIDDurationReturnValueLock.withLock { startLiveLocationRoomIDDurationUnderlyingReturnValue } }
         set { startLiveLocationRoomIDDurationReturnValueLock.withLock { startLiveLocationRoomIDDurationUnderlyingReturnValue = newValue } }
     }
-    nonisolated(unsafe) var startLiveLocationRoomIDDurationClosure: ((String, Duration) async -> Result<Void, LiveLocationManagerError>)?
+    nonisolated(unsafe) var startLiveLocationRoomIDDurationClosure: ((String, Duration) async -> Result<Void, LiveLocationServiceError>)?
 
-    @concurrent func startLiveLocation(roomID: String, duration: Duration) async -> Result<Void, LiveLocationManagerError> {
+    @concurrent func startLiveLocation(roomID: String, duration: Duration) async -> Result<Void, LiveLocationServiceError> {
         startLiveLocationRoomIDDurationCallsCountLock.withLock { startLiveLocationRoomIDDurationUnderlyingCallsCount += 1 }
         startLiveLocationRoomIDDurationReceivedArguments = (roomID: roomID, duration: duration)
         startLiveLocationRoomIDDurationReceivedInvocationsLock.withLock { startLiveLocationRoomIDDurationUnderlyingReceivedInvocations.append((roomID: roomID, duration: duration)) }
@@ -10934,6 +12157,85 @@ nonisolated class LiveLocationManagerMock: LiveLocationManagerProtocol, @uncheck
         stopLiveLocationRoomIDReceivedInvocationsLock.withLock { stopLiveLocationRoomIDUnderlyingReceivedInvocations.append(roomID) }
         await stopLiveLocationRoomIDClosure?(roomID)
     }
+    //MARK: - authorizationStatusChanged
+
+    private let authorizationStatusChangedToCallsCountLock = NSLock()
+    private nonisolated(unsafe) var authorizationStatusChangedToUnderlyingCallsCount = 0
+    var authorizationStatusChangedToCallsCount: Int {
+        get { authorizationStatusChangedToCallsCountLock.withLock { authorizationStatusChangedToUnderlyingCallsCount } }
+        set { authorizationStatusChangedToCallsCountLock.withLock { authorizationStatusChangedToUnderlyingCallsCount = newValue } }
+    }
+    var authorizationStatusChangedToCalled: Bool {
+        return authorizationStatusChangedToCallsCount > 0
+    }
+    private let authorizationStatusChangedToReceivedStatusLock = NSLock()
+    private nonisolated(unsafe) var authorizationStatusChangedToUnderlyingReceivedStatus: CLAuthorizationStatus?
+    var authorizationStatusChangedToReceivedStatus: CLAuthorizationStatus? {
+        get { authorizationStatusChangedToReceivedStatusLock.withLock { authorizationStatusChangedToUnderlyingReceivedStatus } }
+        set { authorizationStatusChangedToReceivedStatusLock.withLock { authorizationStatusChangedToUnderlyingReceivedStatus = newValue } }
+    }
+    private let authorizationStatusChangedToReceivedInvocationsLock = NSLock()
+    private nonisolated(unsafe) var authorizationStatusChangedToUnderlyingReceivedInvocations: [CLAuthorizationStatus] = []
+    var authorizationStatusChangedToReceivedInvocations: [CLAuthorizationStatus] {
+        get { authorizationStatusChangedToReceivedInvocationsLock.withLock { authorizationStatusChangedToUnderlyingReceivedInvocations } }
+        set { authorizationStatusChangedToReceivedInvocationsLock.withLock { authorizationStatusChangedToUnderlyingReceivedInvocations = newValue } }
+    }
+    nonisolated(unsafe) var authorizationStatusChangedToClosure: ((CLAuthorizationStatus) -> Void)?
+
+    func authorizationStatusChanged(to status: CLAuthorizationStatus) {
+        authorizationStatusChangedToCallsCountLock.withLock { authorizationStatusChangedToUnderlyingCallsCount += 1 }
+        authorizationStatusChangedToReceivedStatus = status
+        authorizationStatusChangedToReceivedInvocationsLock.withLock { authorizationStatusChangedToUnderlyingReceivedInvocations.append(status) }
+        authorizationStatusChangedToClosure?(status)
+    }
+    //MARK: - locationUpdated
+
+    private let locationUpdatedCallsCountLock = NSLock()
+    private nonisolated(unsafe) var locationUpdatedUnderlyingCallsCount = 0
+    var locationUpdatedCallsCount: Int {
+        get { locationUpdatedCallsCountLock.withLock { locationUpdatedUnderlyingCallsCount } }
+        set { locationUpdatedCallsCountLock.withLock { locationUpdatedUnderlyingCallsCount = newValue } }
+    }
+    var locationUpdatedCalled: Bool {
+        return locationUpdatedCallsCount > 0
+    }
+    private let locationUpdatedReceivedCoordinateLock = NSLock()
+    private nonisolated(unsafe) var locationUpdatedUnderlyingReceivedCoordinate: CLLocationCoordinate2D?
+    var locationUpdatedReceivedCoordinate: CLLocationCoordinate2D? {
+        get { locationUpdatedReceivedCoordinateLock.withLock { locationUpdatedUnderlyingReceivedCoordinate } }
+        set { locationUpdatedReceivedCoordinateLock.withLock { locationUpdatedUnderlyingReceivedCoordinate = newValue } }
+    }
+    private let locationUpdatedReceivedInvocationsLock = NSLock()
+    private nonisolated(unsafe) var locationUpdatedUnderlyingReceivedInvocations: [CLLocationCoordinate2D] = []
+    var locationUpdatedReceivedInvocations: [CLLocationCoordinate2D] {
+        get { locationUpdatedReceivedInvocationsLock.withLock { locationUpdatedUnderlyingReceivedInvocations } }
+        set { locationUpdatedReceivedInvocationsLock.withLock { locationUpdatedUnderlyingReceivedInvocations = newValue } }
+    }
+    nonisolated(unsafe) var locationUpdatedClosure: ((CLLocationCoordinate2D) -> Void)?
+
+    func locationUpdated(_ coordinate: CLLocationCoordinate2D) {
+        locationUpdatedCallsCountLock.withLock { locationUpdatedUnderlyingCallsCount += 1 }
+        locationUpdatedReceivedCoordinate = coordinate
+        locationUpdatedReceivedInvocationsLock.withLock { locationUpdatedUnderlyingReceivedInvocations.append(coordinate) }
+        locationUpdatedClosure?(coordinate)
+    }
+    //MARK: - stopAllLiveLocations
+
+    private let stopAllLiveLocationsCallsCountLock = NSLock()
+    private nonisolated(unsafe) var stopAllLiveLocationsUnderlyingCallsCount = 0
+    var stopAllLiveLocationsCallsCount: Int {
+        get { stopAllLiveLocationsCallsCountLock.withLock { stopAllLiveLocationsUnderlyingCallsCount } }
+        set { stopAllLiveLocationsCallsCountLock.withLock { stopAllLiveLocationsUnderlyingCallsCount = newValue } }
+    }
+    var stopAllLiveLocationsCalled: Bool {
+        return stopAllLiveLocationsCallsCount > 0
+    }
+    nonisolated(unsafe) var stopAllLiveLocationsClosure: (() async -> Void)?
+
+    @concurrent func stopAllLiveLocations() async {
+        stopAllLiveLocationsCallsCountLock.withLock { stopAllLiveLocationsUnderlyingCallsCount += 1 }
+        await stopAllLiveLocationsClosure?()
+    }
 }
 nonisolated class MatrixRTCSessionMock: MatrixRTCSessionProtocol, @unchecked Sendable {
     var ownIdentity: String {
@@ -10949,44 +12251,86 @@ nonisolated class MatrixRTCSessionMock: MatrixRTCSessionProtocol, @unchecked Sen
 
     //MARK: - join
 
-    private let joinEncryptMediaNotificationMediaCallsCountLock = NSLock()
-    private nonisolated(unsafe) var joinEncryptMediaNotificationMediaUnderlyingCallsCount = 0
-    var joinEncryptMediaNotificationMediaCallsCount: Int {
-        get { joinEncryptMediaNotificationMediaCallsCountLock.withLock { joinEncryptMediaNotificationMediaUnderlyingCallsCount } }
-        set { joinEncryptMediaNotificationMediaCallsCountLock.withLock { joinEncryptMediaNotificationMediaUnderlyingCallsCount = newValue } }
+    private let joinEncryptMediaNotificationMediaLanguageCallsCountLock = NSLock()
+    private nonisolated(unsafe) var joinEncryptMediaNotificationMediaLanguageUnderlyingCallsCount = 0
+    var joinEncryptMediaNotificationMediaLanguageCallsCount: Int {
+        get { joinEncryptMediaNotificationMediaLanguageCallsCountLock.withLock { joinEncryptMediaNotificationMediaLanguageUnderlyingCallsCount } }
+        set { joinEncryptMediaNotificationMediaLanguageCallsCountLock.withLock { joinEncryptMediaNotificationMediaLanguageUnderlyingCallsCount = newValue } }
     }
-    var joinEncryptMediaNotificationMediaCalled: Bool {
-        return joinEncryptMediaNotificationMediaCallsCount > 0
+    var joinEncryptMediaNotificationMediaLanguageCalled: Bool {
+        return joinEncryptMediaNotificationMediaLanguageCallsCount > 0
     }
-    private let joinEncryptMediaNotificationMediaReceivedArgumentsLock = NSLock()
-    private nonisolated(unsafe) var joinEncryptMediaNotificationMediaUnderlyingReceivedArguments: (encryptMedia: Bool, notification: NativeCallNotification?, media: NativeCallMedia)?
-    var joinEncryptMediaNotificationMediaReceivedArguments: (encryptMedia: Bool, notification: NativeCallNotification?, media: NativeCallMedia)? {
-        get { joinEncryptMediaNotificationMediaReceivedArgumentsLock.withLock { joinEncryptMediaNotificationMediaUnderlyingReceivedArguments } }
-        set { joinEncryptMediaNotificationMediaReceivedArgumentsLock.withLock { joinEncryptMediaNotificationMediaUnderlyingReceivedArguments = newValue } }
+    private let joinEncryptMediaNotificationMediaLanguageReceivedArgumentsLock = NSLock()
+    private nonisolated(unsafe) var joinEncryptMediaNotificationMediaLanguageUnderlyingReceivedArguments: (encryptMedia: Bool, notification: NativeCallNotification?, media: NativeCallMedia, language: String?)?
+    var joinEncryptMediaNotificationMediaLanguageReceivedArguments: (encryptMedia: Bool, notification: NativeCallNotification?, media: NativeCallMedia, language: String?)? {
+        get { joinEncryptMediaNotificationMediaLanguageReceivedArgumentsLock.withLock { joinEncryptMediaNotificationMediaLanguageUnderlyingReceivedArguments } }
+        set { joinEncryptMediaNotificationMediaLanguageReceivedArgumentsLock.withLock { joinEncryptMediaNotificationMediaLanguageUnderlyingReceivedArguments = newValue } }
     }
-    private let joinEncryptMediaNotificationMediaReceivedInvocationsLock = NSLock()
-    private nonisolated(unsafe) var joinEncryptMediaNotificationMediaUnderlyingReceivedInvocations: [(encryptMedia: Bool, notification: NativeCallNotification?, media: NativeCallMedia)] = []
-    var joinEncryptMediaNotificationMediaReceivedInvocations: [(encryptMedia: Bool, notification: NativeCallNotification?, media: NativeCallMedia)] {
-        get { joinEncryptMediaNotificationMediaReceivedInvocationsLock.withLock { joinEncryptMediaNotificationMediaUnderlyingReceivedInvocations } }
-        set { joinEncryptMediaNotificationMediaReceivedInvocationsLock.withLock { joinEncryptMediaNotificationMediaUnderlyingReceivedInvocations = newValue } }
+    private let joinEncryptMediaNotificationMediaLanguageReceivedInvocationsLock = NSLock()
+    private nonisolated(unsafe) var joinEncryptMediaNotificationMediaLanguageUnderlyingReceivedInvocations: [(encryptMedia: Bool, notification: NativeCallNotification?, media: NativeCallMedia, language: String?)] = []
+    var joinEncryptMediaNotificationMediaLanguageReceivedInvocations: [(encryptMedia: Bool, notification: NativeCallNotification?, media: NativeCallMedia, language: String?)] {
+        get { joinEncryptMediaNotificationMediaLanguageReceivedInvocationsLock.withLock { joinEncryptMediaNotificationMediaLanguageUnderlyingReceivedInvocations } }
+        set { joinEncryptMediaNotificationMediaLanguageReceivedInvocationsLock.withLock { joinEncryptMediaNotificationMediaLanguageUnderlyingReceivedInvocations = newValue } }
     }
 
-    private let joinEncryptMediaNotificationMediaReturnValueLock = NSLock()
-    private nonisolated(unsafe) var joinEncryptMediaNotificationMediaUnderlyingReturnValue: Result<Void, MatrixRTCSessionError>!
-    var joinEncryptMediaNotificationMediaReturnValue: Result<Void, MatrixRTCSessionError>! {
-        get { joinEncryptMediaNotificationMediaReturnValueLock.withLock { joinEncryptMediaNotificationMediaUnderlyingReturnValue } }
-        set { joinEncryptMediaNotificationMediaReturnValueLock.withLock { joinEncryptMediaNotificationMediaUnderlyingReturnValue = newValue } }
+    private let joinEncryptMediaNotificationMediaLanguageReturnValueLock = NSLock()
+    private nonisolated(unsafe) var joinEncryptMediaNotificationMediaLanguageUnderlyingReturnValue: Result<Void, MatrixRTCSessionError>!
+    var joinEncryptMediaNotificationMediaLanguageReturnValue: Result<Void, MatrixRTCSessionError>! {
+        get { joinEncryptMediaNotificationMediaLanguageReturnValueLock.withLock { joinEncryptMediaNotificationMediaLanguageUnderlyingReturnValue } }
+        set { joinEncryptMediaNotificationMediaLanguageReturnValueLock.withLock { joinEncryptMediaNotificationMediaLanguageUnderlyingReturnValue = newValue } }
     }
-    nonisolated(unsafe) var joinEncryptMediaNotificationMediaClosure: ((Bool, NativeCallNotification?, NativeCallMedia) async -> Result<Void, MatrixRTCSessionError>)?
+    nonisolated(unsafe) var joinEncryptMediaNotificationMediaLanguageClosure: ((Bool, NativeCallNotification?, NativeCallMedia, String?) async -> Result<Void, MatrixRTCSessionError>)?
 
-    @concurrent func join(encryptMedia: Bool, notification: NativeCallNotification?, media: NativeCallMedia) async -> Result<Void, MatrixRTCSessionError> {
-        joinEncryptMediaNotificationMediaCallsCountLock.withLock { joinEncryptMediaNotificationMediaUnderlyingCallsCount += 1 }
-        joinEncryptMediaNotificationMediaReceivedArguments = (encryptMedia: encryptMedia, notification: notification, media: media)
-        joinEncryptMediaNotificationMediaReceivedInvocationsLock.withLock { joinEncryptMediaNotificationMediaUnderlyingReceivedInvocations.append((encryptMedia: encryptMedia, notification: notification, media: media)) }
-        if let joinEncryptMediaNotificationMediaClosure = joinEncryptMediaNotificationMediaClosure {
-            return await joinEncryptMediaNotificationMediaClosure(encryptMedia, notification, media)
+    @concurrent func join(encryptMedia: Bool, notification: NativeCallNotification?, media: NativeCallMedia, language: String?) async -> Result<Void, MatrixRTCSessionError> {
+        joinEncryptMediaNotificationMediaLanguageCallsCountLock.withLock { joinEncryptMediaNotificationMediaLanguageUnderlyingCallsCount += 1 }
+        joinEncryptMediaNotificationMediaLanguageReceivedArguments = (encryptMedia: encryptMedia, notification: notification, media: media, language: language)
+        joinEncryptMediaNotificationMediaLanguageReceivedInvocationsLock.withLock { joinEncryptMediaNotificationMediaLanguageUnderlyingReceivedInvocations.append((encryptMedia: encryptMedia, notification: notification, media: media, language: language)) }
+        if let joinEncryptMediaNotificationMediaLanguageClosure = joinEncryptMediaNotificationMediaLanguageClosure {
+            return await joinEncryptMediaNotificationMediaLanguageClosure(encryptMedia, notification, media, language)
         } else {
-            return joinEncryptMediaNotificationMediaReturnValue
+            return joinEncryptMediaNotificationMediaLanguageReturnValue
+        }
+    }
+    //MARK: - updateLanguage
+
+    private let updateLanguageCallsCountLock = NSLock()
+    private nonisolated(unsafe) var updateLanguageUnderlyingCallsCount = 0
+    var updateLanguageCallsCount: Int {
+        get { updateLanguageCallsCountLock.withLock { updateLanguageUnderlyingCallsCount } }
+        set { updateLanguageCallsCountLock.withLock { updateLanguageUnderlyingCallsCount = newValue } }
+    }
+    var updateLanguageCalled: Bool {
+        return updateLanguageCallsCount > 0
+    }
+    private let updateLanguageReceivedLanguageLock = NSLock()
+    private nonisolated(unsafe) var updateLanguageUnderlyingReceivedLanguage: String?
+    var updateLanguageReceivedLanguage: String? {
+        get { updateLanguageReceivedLanguageLock.withLock { updateLanguageUnderlyingReceivedLanguage } }
+        set { updateLanguageReceivedLanguageLock.withLock { updateLanguageUnderlyingReceivedLanguage = newValue } }
+    }
+    private let updateLanguageReceivedInvocationsLock = NSLock()
+    private nonisolated(unsafe) var updateLanguageUnderlyingReceivedInvocations: [String?] = []
+    var updateLanguageReceivedInvocations: [String?] {
+        get { updateLanguageReceivedInvocationsLock.withLock { updateLanguageUnderlyingReceivedInvocations } }
+        set { updateLanguageReceivedInvocationsLock.withLock { updateLanguageUnderlyingReceivedInvocations = newValue } }
+    }
+
+    private let updateLanguageReturnValueLock = NSLock()
+    private nonisolated(unsafe) var updateLanguageUnderlyingReturnValue: Result<Void, MatrixRTCSessionError>!
+    var updateLanguageReturnValue: Result<Void, MatrixRTCSessionError>! {
+        get { updateLanguageReturnValueLock.withLock { updateLanguageUnderlyingReturnValue } }
+        set { updateLanguageReturnValueLock.withLock { updateLanguageUnderlyingReturnValue = newValue } }
+    }
+    nonisolated(unsafe) var updateLanguageClosure: ((String?) async -> Result<Void, MatrixRTCSessionError>)?
+
+    @concurrent func updateLanguage(_ language: String?) async -> Result<Void, MatrixRTCSessionError> {
+        updateLanguageCallsCountLock.withLock { updateLanguageUnderlyingCallsCount += 1 }
+        updateLanguageReceivedLanguage = language
+        updateLanguageReceivedInvocationsLock.withLock { updateLanguageUnderlyingReceivedInvocations.append(language) }
+        if let updateLanguageClosure = updateLanguageClosure {
+            return await updateLanguageClosure(language)
+        } else {
+            return updateLanguageReturnValue
         }
     }
     //MARK: - setMedia
@@ -11427,6 +12771,37 @@ nonisolated class MediaPlayerProviderMock: MediaPlayerProviderProtocol, @uncheck
         detachAllStatesExceptReceivedInvocationsLock.withLock { detachAllStatesExceptUnderlyingReceivedInvocations.append(exception) }
         await detachAllStatesExceptClosure?(exception)
     }
+    //MARK: - play
+
+    private let playSoundEffectCallsCountLock = NSLock()
+    private nonisolated(unsafe) var playSoundEffectUnderlyingCallsCount = 0
+    var playSoundEffectCallsCount: Int {
+        get { playSoundEffectCallsCountLock.withLock { playSoundEffectUnderlyingCallsCount } }
+        set { playSoundEffectCallsCountLock.withLock { playSoundEffectUnderlyingCallsCount = newValue } }
+    }
+    var playSoundEffectCalled: Bool {
+        return playSoundEffectCallsCount > 0
+    }
+    private let playSoundEffectReceivedSoundEffectLock = NSLock()
+    private nonisolated(unsafe) var playSoundEffectUnderlyingReceivedSoundEffect: SoundEffect?
+    var playSoundEffectReceivedSoundEffect: SoundEffect? {
+        get { playSoundEffectReceivedSoundEffectLock.withLock { playSoundEffectUnderlyingReceivedSoundEffect } }
+        set { playSoundEffectReceivedSoundEffectLock.withLock { playSoundEffectUnderlyingReceivedSoundEffect = newValue } }
+    }
+    private let playSoundEffectReceivedInvocationsLock = NSLock()
+    private nonisolated(unsafe) var playSoundEffectUnderlyingReceivedInvocations: [SoundEffect] = []
+    var playSoundEffectReceivedInvocations: [SoundEffect] {
+        get { playSoundEffectReceivedInvocationsLock.withLock { playSoundEffectUnderlyingReceivedInvocations } }
+        set { playSoundEffectReceivedInvocationsLock.withLock { playSoundEffectUnderlyingReceivedInvocations = newValue } }
+    }
+    nonisolated(unsafe) var playSoundEffectClosure: ((SoundEffect) -> Void)?
+
+    func play(soundEffect: SoundEffect) {
+        playSoundEffectCallsCountLock.withLock { playSoundEffectUnderlyingCallsCount += 1 }
+        playSoundEffectReceivedSoundEffect = soundEffect
+        playSoundEffectReceivedInvocationsLock.withLock { playSoundEffectUnderlyingReceivedInvocations.append(soundEffect) }
+        playSoundEffectClosure?(soundEffect)
+    }
 }
 nonisolated class MediaProviderMock: MediaProviderProtocol, @unchecked Sendable {
 
@@ -11642,6 +13017,11 @@ nonisolated class MediaProviderMock: MediaProviderProtocol, @unchecked Sendable 
     }
 }
 nonisolated class NSEUserSessionMock: NSEUserSessionProtocol, @unchecked Sendable {
+    var userSettings: UserSettings {
+        get { return underlyingUserSettings }
+        set(value) { underlyingUserSettings = value }
+    }
+    nonisolated(unsafe) var underlyingUserSettings: UserSettings!
     nonisolated(unsafe) var inviteAvatarsVisibilityCallsCount = 0
     var inviteAvatarsVisibilityCalled: Bool {
         return inviteAvatarsVisibilityCallsCount > 0
@@ -11920,44 +13300,44 @@ nonisolated class NativeCallTransportMock: NativeCallTransportProtocol, @uncheck
     }
     //MARK: - setSubscriptions
 
-    private let setSubscriptionsAuthorizedIdentitiesIsTrackExcludedCallsCountLock = NSLock()
-    private nonisolated(unsafe) var setSubscriptionsAuthorizedIdentitiesIsTrackExcludedUnderlyingCallsCount = 0
-    var setSubscriptionsAuthorizedIdentitiesIsTrackExcludedCallsCount: Int {
-        get { setSubscriptionsAuthorizedIdentitiesIsTrackExcludedCallsCountLock.withLock { setSubscriptionsAuthorizedIdentitiesIsTrackExcludedUnderlyingCallsCount } }
-        set { setSubscriptionsAuthorizedIdentitiesIsTrackExcludedCallsCountLock.withLock { setSubscriptionsAuthorizedIdentitiesIsTrackExcludedUnderlyingCallsCount = newValue } }
+    private let setSubscriptionsAuthorizedIdentitiesStagedVideoIdentitiesIsTrackExcludedCallsCountLock = NSLock()
+    private nonisolated(unsafe) var setSubscriptionsAuthorizedIdentitiesStagedVideoIdentitiesIsTrackExcludedUnderlyingCallsCount = 0
+    var setSubscriptionsAuthorizedIdentitiesStagedVideoIdentitiesIsTrackExcludedCallsCount: Int {
+        get { setSubscriptionsAuthorizedIdentitiesStagedVideoIdentitiesIsTrackExcludedCallsCountLock.withLock { setSubscriptionsAuthorizedIdentitiesStagedVideoIdentitiesIsTrackExcludedUnderlyingCallsCount } }
+        set { setSubscriptionsAuthorizedIdentitiesStagedVideoIdentitiesIsTrackExcludedCallsCountLock.withLock { setSubscriptionsAuthorizedIdentitiesStagedVideoIdentitiesIsTrackExcludedUnderlyingCallsCount = newValue } }
     }
-    var setSubscriptionsAuthorizedIdentitiesIsTrackExcludedCalled: Bool {
-        return setSubscriptionsAuthorizedIdentitiesIsTrackExcludedCallsCount > 0
+    var setSubscriptionsAuthorizedIdentitiesStagedVideoIdentitiesIsTrackExcludedCalled: Bool {
+        return setSubscriptionsAuthorizedIdentitiesStagedVideoIdentitiesIsTrackExcludedCallsCount > 0
     }
-    private let setSubscriptionsAuthorizedIdentitiesIsTrackExcludedReceivedArgumentsLock = NSLock()
-    private nonisolated(unsafe) var setSubscriptionsAuthorizedIdentitiesIsTrackExcludedUnderlyingReceivedArguments: (authorizedIdentities: Set<String>, isTrackExcluded: (NativeCallTransportTrack) -> Bool)?
-    var setSubscriptionsAuthorizedIdentitiesIsTrackExcludedReceivedArguments: (authorizedIdentities: Set<String>, isTrackExcluded: (NativeCallTransportTrack) -> Bool)? {
-        get { setSubscriptionsAuthorizedIdentitiesIsTrackExcludedReceivedArgumentsLock.withLock { setSubscriptionsAuthorizedIdentitiesIsTrackExcludedUnderlyingReceivedArguments } }
-        set { setSubscriptionsAuthorizedIdentitiesIsTrackExcludedReceivedArgumentsLock.withLock { setSubscriptionsAuthorizedIdentitiesIsTrackExcludedUnderlyingReceivedArguments = newValue } }
+    private let setSubscriptionsAuthorizedIdentitiesStagedVideoIdentitiesIsTrackExcludedReceivedArgumentsLock = NSLock()
+    private nonisolated(unsafe) var setSubscriptionsAuthorizedIdentitiesStagedVideoIdentitiesIsTrackExcludedUnderlyingReceivedArguments: (authorizedIdentities: Set<String>, stagedVideoIdentities: Set<String>, isTrackExcluded: (NativeCallTransportTrack) -> Bool)?
+    var setSubscriptionsAuthorizedIdentitiesStagedVideoIdentitiesIsTrackExcludedReceivedArguments: (authorizedIdentities: Set<String>, stagedVideoIdentities: Set<String>, isTrackExcluded: (NativeCallTransportTrack) -> Bool)? {
+        get { setSubscriptionsAuthorizedIdentitiesStagedVideoIdentitiesIsTrackExcludedReceivedArgumentsLock.withLock { setSubscriptionsAuthorizedIdentitiesStagedVideoIdentitiesIsTrackExcludedUnderlyingReceivedArguments } }
+        set { setSubscriptionsAuthorizedIdentitiesStagedVideoIdentitiesIsTrackExcludedReceivedArgumentsLock.withLock { setSubscriptionsAuthorizedIdentitiesStagedVideoIdentitiesIsTrackExcludedUnderlyingReceivedArguments = newValue } }
     }
-    private let setSubscriptionsAuthorizedIdentitiesIsTrackExcludedReceivedInvocationsLock = NSLock()
-    private nonisolated(unsafe) var setSubscriptionsAuthorizedIdentitiesIsTrackExcludedUnderlyingReceivedInvocations: [(authorizedIdentities: Set<String>, isTrackExcluded: (NativeCallTransportTrack) -> Bool)] = []
-    var setSubscriptionsAuthorizedIdentitiesIsTrackExcludedReceivedInvocations: [(authorizedIdentities: Set<String>, isTrackExcluded: (NativeCallTransportTrack) -> Bool)] {
-        get { setSubscriptionsAuthorizedIdentitiesIsTrackExcludedReceivedInvocationsLock.withLock { setSubscriptionsAuthorizedIdentitiesIsTrackExcludedUnderlyingReceivedInvocations } }
-        set { setSubscriptionsAuthorizedIdentitiesIsTrackExcludedReceivedInvocationsLock.withLock { setSubscriptionsAuthorizedIdentitiesIsTrackExcludedUnderlyingReceivedInvocations = newValue } }
+    private let setSubscriptionsAuthorizedIdentitiesStagedVideoIdentitiesIsTrackExcludedReceivedInvocationsLock = NSLock()
+    private nonisolated(unsafe) var setSubscriptionsAuthorizedIdentitiesStagedVideoIdentitiesIsTrackExcludedUnderlyingReceivedInvocations: [(authorizedIdentities: Set<String>, stagedVideoIdentities: Set<String>, isTrackExcluded: (NativeCallTransportTrack) -> Bool)] = []
+    var setSubscriptionsAuthorizedIdentitiesStagedVideoIdentitiesIsTrackExcludedReceivedInvocations: [(authorizedIdentities: Set<String>, stagedVideoIdentities: Set<String>, isTrackExcluded: (NativeCallTransportTrack) -> Bool)] {
+        get { setSubscriptionsAuthorizedIdentitiesStagedVideoIdentitiesIsTrackExcludedReceivedInvocationsLock.withLock { setSubscriptionsAuthorizedIdentitiesStagedVideoIdentitiesIsTrackExcludedUnderlyingReceivedInvocations } }
+        set { setSubscriptionsAuthorizedIdentitiesStagedVideoIdentitiesIsTrackExcludedReceivedInvocationsLock.withLock { setSubscriptionsAuthorizedIdentitiesStagedVideoIdentitiesIsTrackExcludedUnderlyingReceivedInvocations = newValue } }
     }
 
-    private let setSubscriptionsAuthorizedIdentitiesIsTrackExcludedReturnValueLock = NSLock()
-    private nonisolated(unsafe) var setSubscriptionsAuthorizedIdentitiesIsTrackExcludedUnderlyingReturnValue: Bool!
-    var setSubscriptionsAuthorizedIdentitiesIsTrackExcludedReturnValue: Bool! {
-        get { setSubscriptionsAuthorizedIdentitiesIsTrackExcludedReturnValueLock.withLock { setSubscriptionsAuthorizedIdentitiesIsTrackExcludedUnderlyingReturnValue } }
-        set { setSubscriptionsAuthorizedIdentitiesIsTrackExcludedReturnValueLock.withLock { setSubscriptionsAuthorizedIdentitiesIsTrackExcludedUnderlyingReturnValue = newValue } }
+    private let setSubscriptionsAuthorizedIdentitiesStagedVideoIdentitiesIsTrackExcludedReturnValueLock = NSLock()
+    private nonisolated(unsafe) var setSubscriptionsAuthorizedIdentitiesStagedVideoIdentitiesIsTrackExcludedUnderlyingReturnValue: Bool!
+    var setSubscriptionsAuthorizedIdentitiesStagedVideoIdentitiesIsTrackExcludedReturnValue: Bool! {
+        get { setSubscriptionsAuthorizedIdentitiesStagedVideoIdentitiesIsTrackExcludedReturnValueLock.withLock { setSubscriptionsAuthorizedIdentitiesStagedVideoIdentitiesIsTrackExcludedUnderlyingReturnValue } }
+        set { setSubscriptionsAuthorizedIdentitiesStagedVideoIdentitiesIsTrackExcludedReturnValueLock.withLock { setSubscriptionsAuthorizedIdentitiesStagedVideoIdentitiesIsTrackExcludedUnderlyingReturnValue = newValue } }
     }
-    nonisolated(unsafe) var setSubscriptionsAuthorizedIdentitiesIsTrackExcludedClosure: ((Set<String>, @Sendable @escaping (NativeCallTransportTrack) -> Bool) async -> Bool)?
+    nonisolated(unsafe) var setSubscriptionsAuthorizedIdentitiesStagedVideoIdentitiesIsTrackExcludedClosure: ((Set<String>, Set<String>, @Sendable @escaping (NativeCallTransportTrack) -> Bool) async -> Bool)?
 
-    @concurrent func setSubscriptions(authorizedIdentities: Set<String>, isTrackExcluded: @Sendable @escaping (NativeCallTransportTrack) -> Bool) async -> Bool {
-        setSubscriptionsAuthorizedIdentitiesIsTrackExcludedCallsCountLock.withLock { setSubscriptionsAuthorizedIdentitiesIsTrackExcludedUnderlyingCallsCount += 1 }
-        setSubscriptionsAuthorizedIdentitiesIsTrackExcludedReceivedArguments = (authorizedIdentities: authorizedIdentities, isTrackExcluded: isTrackExcluded)
-        setSubscriptionsAuthorizedIdentitiesIsTrackExcludedReceivedInvocationsLock.withLock { setSubscriptionsAuthorizedIdentitiesIsTrackExcludedUnderlyingReceivedInvocations.append((authorizedIdentities: authorizedIdentities, isTrackExcluded: isTrackExcluded)) }
-        if let setSubscriptionsAuthorizedIdentitiesIsTrackExcludedClosure = setSubscriptionsAuthorizedIdentitiesIsTrackExcludedClosure {
-            return await setSubscriptionsAuthorizedIdentitiesIsTrackExcludedClosure(authorizedIdentities, isTrackExcluded)
+    @concurrent func setSubscriptions(authorizedIdentities: Set<String>, stagedVideoIdentities: Set<String>, isTrackExcluded: @Sendable @escaping (NativeCallTransportTrack) -> Bool) async -> Bool {
+        setSubscriptionsAuthorizedIdentitiesStagedVideoIdentitiesIsTrackExcludedCallsCountLock.withLock { setSubscriptionsAuthorizedIdentitiesStagedVideoIdentitiesIsTrackExcludedUnderlyingCallsCount += 1 }
+        setSubscriptionsAuthorizedIdentitiesStagedVideoIdentitiesIsTrackExcludedReceivedArguments = (authorizedIdentities: authorizedIdentities, stagedVideoIdentities: stagedVideoIdentities, isTrackExcluded: isTrackExcluded)
+        setSubscriptionsAuthorizedIdentitiesStagedVideoIdentitiesIsTrackExcludedReceivedInvocationsLock.withLock { setSubscriptionsAuthorizedIdentitiesStagedVideoIdentitiesIsTrackExcludedUnderlyingReceivedInvocations.append((authorizedIdentities: authorizedIdentities, stagedVideoIdentities: stagedVideoIdentities, isTrackExcluded: isTrackExcluded)) }
+        if let setSubscriptionsAuthorizedIdentitiesStagedVideoIdentitiesIsTrackExcludedClosure = setSubscriptionsAuthorizedIdentitiesStagedVideoIdentitiesIsTrackExcludedClosure {
+            return await setSubscriptionsAuthorizedIdentitiesStagedVideoIdentitiesIsTrackExcludedClosure(authorizedIdentities, stagedVideoIdentities, isTrackExcluded)
         } else {
-            return setSubscriptionsAuthorizedIdentitiesIsTrackExcludedReturnValue
+            return setSubscriptionsAuthorizedIdentitiesStagedVideoIdentitiesIsTrackExcludedReturnValue
         }
     }
     //MARK: - setOriginalDucking
@@ -12128,24 +13508,13 @@ nonisolated class NotificationManagerMock: NotificationManagerProtocol, @uncheck
         get { registerWithReceivedInvocationsLock.withLock { registerWithUnderlyingReceivedInvocations } }
         set { registerWithReceivedInvocationsLock.withLock { registerWithUnderlyingReceivedInvocations = newValue } }
     }
+    nonisolated(unsafe) var registerWithClosure: ((Data) async -> Void)?
 
-    private let registerWithReturnValueLock = NSLock()
-    private nonisolated(unsafe) var registerWithUnderlyingReturnValue: Bool!
-    var registerWithReturnValue: Bool! {
-        get { registerWithReturnValueLock.withLock { registerWithUnderlyingReturnValue } }
-        set { registerWithReturnValueLock.withLock { registerWithUnderlyingReturnValue = newValue } }
-    }
-    nonisolated(unsafe) var registerWithClosure: ((Data) async -> Bool)?
-
-    @concurrent func register(with deviceToken: Data) async -> Bool {
+    @concurrent func register(with deviceToken: Data) async {
         registerWithCallsCountLock.withLock { registerWithUnderlyingCallsCount += 1 }
         registerWithReceivedDeviceToken = deviceToken
         registerWithReceivedInvocationsLock.withLock { registerWithUnderlyingReceivedInvocations.append(deviceToken) }
-        if let registerWithClosure = registerWithClosure {
-            return await registerWithClosure(deviceToken)
-        } else {
-            return registerWithReturnValue
-        }
+        await registerWithClosure?(deviceToken)
     }
     //MARK: - registrationFailed
 
@@ -12209,36 +13578,155 @@ nonisolated class NotificationManagerMock: NotificationManagerProtocol, @uncheck
         showLocalNotificationWithSubtitleReceivedInvocationsLock.withLock { showLocalNotificationWithSubtitleUnderlyingReceivedInvocations.append((title: title, subtitle: subtitle)) }
         await showLocalNotificationWithSubtitleClosure?(title, subtitle)
     }
-    //MARK: - setUserSession
+    //MARK: - add
 
-    private let setUserSessionCallsCountLock = NSLock()
-    private nonisolated(unsafe) var setUserSessionUnderlyingCallsCount = 0
-    var setUserSessionCallsCount: Int {
-        get { setUserSessionCallsCountLock.withLock { setUserSessionUnderlyingCallsCount } }
-        set { setUserSessionCallsCountLock.withLock { setUserSessionUnderlyingCallsCount = newValue } }
+    private let addCallsCountLock = NSLock()
+    private nonisolated(unsafe) var addUnderlyingCallsCount = 0
+    var addCallsCount: Int {
+        get { addCallsCountLock.withLock { addUnderlyingCallsCount } }
+        set { addCallsCountLock.withLock { addUnderlyingCallsCount = newValue } }
     }
-    var setUserSessionCalled: Bool {
-        return setUserSessionCallsCount > 0
+    var addCalled: Bool {
+        return addCallsCount > 0
     }
-    private let setUserSessionReceivedUserSessionLock = NSLock()
-    private nonisolated(unsafe) var setUserSessionUnderlyingReceivedUserSession: UserSessionProtocol?
-    var setUserSessionReceivedUserSession: UserSessionProtocol? {
-        get { setUserSessionReceivedUserSessionLock.withLock { setUserSessionUnderlyingReceivedUserSession } }
-        set { setUserSessionReceivedUserSessionLock.withLock { setUserSessionUnderlyingReceivedUserSession = newValue } }
+    private let addReceivedServiceLock = NSLock()
+    private nonisolated(unsafe) var addUnderlyingReceivedService: NotificationServiceProtocol?
+    var addReceivedService: NotificationServiceProtocol? {
+        get { addReceivedServiceLock.withLock { addUnderlyingReceivedService } }
+        set { addReceivedServiceLock.withLock { addUnderlyingReceivedService = newValue } }
     }
-    private let setUserSessionReceivedInvocationsLock = NSLock()
-    private nonisolated(unsafe) var setUserSessionUnderlyingReceivedInvocations: [UserSessionProtocol?] = []
-    var setUserSessionReceivedInvocations: [UserSessionProtocol?] {
-        get { setUserSessionReceivedInvocationsLock.withLock { setUserSessionUnderlyingReceivedInvocations } }
-        set { setUserSessionReceivedInvocationsLock.withLock { setUserSessionUnderlyingReceivedInvocations = newValue } }
+    private let addReceivedInvocationsLock = NSLock()
+    private nonisolated(unsafe) var addUnderlyingReceivedInvocations: [NotificationServiceProtocol] = []
+    var addReceivedInvocations: [NotificationServiceProtocol] {
+        get { addReceivedInvocationsLock.withLock { addUnderlyingReceivedInvocations } }
+        set { addReceivedInvocationsLock.withLock { addUnderlyingReceivedInvocations = newValue } }
     }
-    nonisolated(unsafe) var setUserSessionClosure: ((UserSessionProtocol?) -> Void)?
+    nonisolated(unsafe) var addClosure: ((NotificationServiceProtocol) -> Void)?
 
-    func setUserSession(_ userSession: UserSessionProtocol?) {
-        setUserSessionCallsCountLock.withLock { setUserSessionUnderlyingCallsCount += 1 }
-        setUserSessionReceivedUserSession = userSession
-        setUserSessionReceivedInvocationsLock.withLock { setUserSessionUnderlyingReceivedInvocations.append(userSession) }
-        setUserSessionClosure?(userSession)
+    func add(_ service: NotificationServiceProtocol) {
+        addCallsCountLock.withLock { addUnderlyingCallsCount += 1 }
+        addReceivedService = service
+        addReceivedInvocationsLock.withLock { addUnderlyingReceivedInvocations.append(service) }
+        addClosure?(service)
+    }
+    //MARK: - remove
+
+    private let removeUserIDCallsCountLock = NSLock()
+    private nonisolated(unsafe) var removeUserIDUnderlyingCallsCount = 0
+    var removeUserIDCallsCount: Int {
+        get { removeUserIDCallsCountLock.withLock { removeUserIDUnderlyingCallsCount } }
+        set { removeUserIDCallsCountLock.withLock { removeUserIDUnderlyingCallsCount = newValue } }
+    }
+    var removeUserIDCalled: Bool {
+        return removeUserIDCallsCount > 0
+    }
+    private let removeUserIDReceivedUserIDLock = NSLock()
+    private nonisolated(unsafe) var removeUserIDUnderlyingReceivedUserID: String?
+    var removeUserIDReceivedUserID: String? {
+        get { removeUserIDReceivedUserIDLock.withLock { removeUserIDUnderlyingReceivedUserID } }
+        set { removeUserIDReceivedUserIDLock.withLock { removeUserIDUnderlyingReceivedUserID = newValue } }
+    }
+    private let removeUserIDReceivedInvocationsLock = NSLock()
+    private nonisolated(unsafe) var removeUserIDUnderlyingReceivedInvocations: [String] = []
+    var removeUserIDReceivedInvocations: [String] {
+        get { removeUserIDReceivedInvocationsLock.withLock { removeUserIDUnderlyingReceivedInvocations } }
+        set { removeUserIDReceivedInvocationsLock.withLock { removeUserIDUnderlyingReceivedInvocations = newValue } }
+    }
+    nonisolated(unsafe) var removeUserIDClosure: ((String) -> Void)?
+
+    func remove(userID: String) {
+        removeUserIDCallsCountLock.withLock { removeUserIDUnderlyingCallsCount += 1 }
+        removeUserIDReceivedUserID = userID
+        removeUserIDReceivedInvocationsLock.withLock { removeUserIDUnderlyingReceivedInvocations.append(userID) }
+        removeUserIDClosure?(userID)
+    }
+    //MARK: - reset
+
+    private let resetCallsCountLock = NSLock()
+    private nonisolated(unsafe) var resetUnderlyingCallsCount = 0
+    var resetCallsCount: Int {
+        get { resetCallsCountLock.withLock { resetUnderlyingCallsCount } }
+        set { resetCallsCountLock.withLock { resetUnderlyingCallsCount = newValue } }
+    }
+    var resetCalled: Bool {
+        return resetCallsCount > 0
+    }
+    nonisolated(unsafe) var resetClosure: (() -> Void)?
+
+    func reset() {
+        resetCallsCountLock.withLock { resetUnderlyingCallsCount += 1 }
+        resetClosure?()
+    }
+    //MARK: - updateAppBadgeCount
+
+    private let updateAppBadgeCountCallsCountLock = NSLock()
+    private nonisolated(unsafe) var updateAppBadgeCountUnderlyingCallsCount = 0
+    var updateAppBadgeCountCallsCount: Int {
+        get { updateAppBadgeCountCallsCountLock.withLock { updateAppBadgeCountUnderlyingCallsCount } }
+        set { updateAppBadgeCountCallsCountLock.withLock { updateAppBadgeCountUnderlyingCallsCount = newValue } }
+    }
+    var updateAppBadgeCountCalled: Bool {
+        return updateAppBadgeCountCallsCount > 0
+    }
+    nonisolated(unsafe) var updateAppBadgeCountClosure: (() -> Void)?
+
+    func updateAppBadgeCount() {
+        updateAppBadgeCountCallsCountLock.withLock { updateAppBadgeCountUnderlyingCallsCount += 1 }
+        updateAppBadgeCountClosure?()
+    }
+}
+nonisolated class NotificationServiceMock: NotificationServiceProtocol, @unchecked Sendable {
+    var userID: String {
+        get { return underlyingUserID }
+        set(value) { underlyingUserID = value }
+    }
+    nonisolated(unsafe) var underlyingUserID: String!
+    var actionsPublisher: AnyPublisher<NotificationServiceAction, Never> {
+        get { return underlyingActionsPublisher }
+        set(value) { underlyingActionsPublisher = value }
+    }
+    nonisolated(unsafe) var underlyingActionsPublisher: AnyPublisher<NotificationServiceAction, Never>!
+    var isEnabled: Bool {
+        get { return underlyingIsEnabled }
+        set(value) { underlyingIsEnabled = value }
+    }
+    nonisolated(unsafe) var underlyingIsEnabled: Bool!
+    var badgeCountPublisher: CurrentValuePublisher<Int, Never> {
+        get { return underlyingBadgeCountPublisher }
+        set(value) { underlyingBadgeCountPublisher = value }
+    }
+    nonisolated(unsafe) var underlyingBadgeCountPublisher: CurrentValuePublisher<Int, Never>!
+
+    //MARK: - register
+
+    private let registerDeviceTokenCallsCountLock = NSLock()
+    private nonisolated(unsafe) var registerDeviceTokenUnderlyingCallsCount = 0
+    var registerDeviceTokenCallsCount: Int {
+        get { registerDeviceTokenCallsCountLock.withLock { registerDeviceTokenUnderlyingCallsCount } }
+        set { registerDeviceTokenCallsCountLock.withLock { registerDeviceTokenUnderlyingCallsCount = newValue } }
+    }
+    var registerDeviceTokenCalled: Bool {
+        return registerDeviceTokenCallsCount > 0
+    }
+    private let registerDeviceTokenReceivedDeviceTokenLock = NSLock()
+    private nonisolated(unsafe) var registerDeviceTokenUnderlyingReceivedDeviceToken: Data?
+    var registerDeviceTokenReceivedDeviceToken: Data? {
+        get { registerDeviceTokenReceivedDeviceTokenLock.withLock { registerDeviceTokenUnderlyingReceivedDeviceToken } }
+        set { registerDeviceTokenReceivedDeviceTokenLock.withLock { registerDeviceTokenUnderlyingReceivedDeviceToken = newValue } }
+    }
+    private let registerDeviceTokenReceivedInvocationsLock = NSLock()
+    private nonisolated(unsafe) var registerDeviceTokenUnderlyingReceivedInvocations: [Data] = []
+    var registerDeviceTokenReceivedInvocations: [Data] {
+        get { registerDeviceTokenReceivedInvocationsLock.withLock { registerDeviceTokenUnderlyingReceivedInvocations } }
+        set { registerDeviceTokenReceivedInvocationsLock.withLock { registerDeviceTokenUnderlyingReceivedInvocations = newValue } }
+    }
+    nonisolated(unsafe) var registerDeviceTokenClosure: ((Data) async -> Void)?
+
+    @concurrent func register(deviceToken: Data) async {
+        registerDeviceTokenCallsCountLock.withLock { registerDeviceTokenUnderlyingCallsCount += 1 }
+        registerDeviceTokenReceivedDeviceToken = deviceToken
+        registerDeviceTokenReceivedInvocationsLock.withLock { registerDeviceTokenUnderlyingReceivedInvocations.append(deviceToken) }
+        await registerDeviceTokenClosure?(deviceToken)
     }
     //MARK: - requestAuthorization
 
@@ -12280,75 +13768,30 @@ nonisolated class NotificationManagerMock: NotificationManagerProtocol, @uncheck
         get { removeDeliveredMessageNotificationsForReceivedInvocationsLock.withLock { removeDeliveredMessageNotificationsForUnderlyingReceivedInvocations } }
         set { removeDeliveredMessageNotificationsForReceivedInvocationsLock.withLock { removeDeliveredMessageNotificationsForUnderlyingReceivedInvocations = newValue } }
     }
-    nonisolated(unsafe) var removeDeliveredMessageNotificationsForClosure: ((String) async -> Void)?
+    nonisolated(unsafe) var removeDeliveredMessageNotificationsForClosure: ((String) -> Void)?
 
-    @concurrent func removeDeliveredMessageNotifications(for roomID: String) async {
+    func removeDeliveredMessageNotifications(for roomID: String) {
         removeDeliveredMessageNotificationsForCallsCountLock.withLock { removeDeliveredMessageNotificationsForUnderlyingCallsCount += 1 }
         removeDeliveredMessageNotificationsForReceivedRoomID = roomID
         removeDeliveredMessageNotificationsForReceivedInvocationsLock.withLock { removeDeliveredMessageNotificationsForUnderlyingReceivedInvocations.append(roomID) }
-        await removeDeliveredMessageNotificationsForClosure?(roomID)
+        removeDeliveredMessageNotificationsForClosure?(roomID)
     }
-    //MARK: - removeDeliveredNotificationsForFullyReadRooms
+    //MARK: - tearDown
 
-    private let removeDeliveredNotificationsForFullyReadRoomsCallsCountLock = NSLock()
-    private nonisolated(unsafe) var removeDeliveredNotificationsForFullyReadRoomsUnderlyingCallsCount = 0
-    var removeDeliveredNotificationsForFullyReadRoomsCallsCount: Int {
-        get { removeDeliveredNotificationsForFullyReadRoomsCallsCountLock.withLock { removeDeliveredNotificationsForFullyReadRoomsUnderlyingCallsCount } }
-        set { removeDeliveredNotificationsForFullyReadRoomsCallsCountLock.withLock { removeDeliveredNotificationsForFullyReadRoomsUnderlyingCallsCount = newValue } }
+    private let tearDownCallsCountLock = NSLock()
+    private nonisolated(unsafe) var tearDownUnderlyingCallsCount = 0
+    var tearDownCallsCount: Int {
+        get { tearDownCallsCountLock.withLock { tearDownUnderlyingCallsCount } }
+        set { tearDownCallsCountLock.withLock { tearDownUnderlyingCallsCount = newValue } }
     }
-    var removeDeliveredNotificationsForFullyReadRoomsCalled: Bool {
-        return removeDeliveredNotificationsForFullyReadRoomsCallsCount > 0
+    var tearDownCalled: Bool {
+        return tearDownCallsCount > 0
     }
-    private let removeDeliveredNotificationsForFullyReadRoomsReceivedRoomsLock = NSLock()
-    private nonisolated(unsafe) var removeDeliveredNotificationsForFullyReadRoomsUnderlyingReceivedRooms: [RoomSummary]?
-    var removeDeliveredNotificationsForFullyReadRoomsReceivedRooms: [RoomSummary]? {
-        get { removeDeliveredNotificationsForFullyReadRoomsReceivedRoomsLock.withLock { removeDeliveredNotificationsForFullyReadRoomsUnderlyingReceivedRooms } }
-        set { removeDeliveredNotificationsForFullyReadRoomsReceivedRoomsLock.withLock { removeDeliveredNotificationsForFullyReadRoomsUnderlyingReceivedRooms = newValue } }
-    }
-    private let removeDeliveredNotificationsForFullyReadRoomsReceivedInvocationsLock = NSLock()
-    private nonisolated(unsafe) var removeDeliveredNotificationsForFullyReadRoomsUnderlyingReceivedInvocations: [[RoomSummary]] = []
-    var removeDeliveredNotificationsForFullyReadRoomsReceivedInvocations: [[RoomSummary]] {
-        get { removeDeliveredNotificationsForFullyReadRoomsReceivedInvocationsLock.withLock { removeDeliveredNotificationsForFullyReadRoomsUnderlyingReceivedInvocations } }
-        set { removeDeliveredNotificationsForFullyReadRoomsReceivedInvocationsLock.withLock { removeDeliveredNotificationsForFullyReadRoomsUnderlyingReceivedInvocations = newValue } }
-    }
-    nonisolated(unsafe) var removeDeliveredNotificationsForFullyReadRoomsClosure: (([RoomSummary]) async -> Void)?
+    nonisolated(unsafe) var tearDownClosure: (() async -> Void)?
 
-    @concurrent func removeDeliveredNotificationsForFullyReadRooms(_ rooms: [RoomSummary]) async {
-        removeDeliveredNotificationsForFullyReadRoomsCallsCountLock.withLock { removeDeliveredNotificationsForFullyReadRoomsUnderlyingCallsCount += 1 }
-        removeDeliveredNotificationsForFullyReadRoomsReceivedRooms = rooms
-        removeDeliveredNotificationsForFullyReadRoomsReceivedInvocationsLock.withLock { removeDeliveredNotificationsForFullyReadRoomsUnderlyingReceivedInvocations.append(rooms) }
-        await removeDeliveredNotificationsForFullyReadRoomsClosure?(rooms)
-    }
-    //MARK: - updateBadgeCount
-
-    private let updateBadgeCountWithCallsCountLock = NSLock()
-    private nonisolated(unsafe) var updateBadgeCountWithUnderlyingCallsCount = 0
-    var updateBadgeCountWithCallsCount: Int {
-        get { updateBadgeCountWithCallsCountLock.withLock { updateBadgeCountWithUnderlyingCallsCount } }
-        set { updateBadgeCountWithCallsCountLock.withLock { updateBadgeCountWithUnderlyingCallsCount = newValue } }
-    }
-    var updateBadgeCountWithCalled: Bool {
-        return updateBadgeCountWithCallsCount > 0
-    }
-    private let updateBadgeCountWithReceivedRoomsLock = NSLock()
-    private nonisolated(unsafe) var updateBadgeCountWithUnderlyingReceivedRooms: [RoomSummary]?
-    var updateBadgeCountWithReceivedRooms: [RoomSummary]? {
-        get { updateBadgeCountWithReceivedRoomsLock.withLock { updateBadgeCountWithUnderlyingReceivedRooms } }
-        set { updateBadgeCountWithReceivedRoomsLock.withLock { updateBadgeCountWithUnderlyingReceivedRooms = newValue } }
-    }
-    private let updateBadgeCountWithReceivedInvocationsLock = NSLock()
-    private nonisolated(unsafe) var updateBadgeCountWithUnderlyingReceivedInvocations: [[RoomSummary]] = []
-    var updateBadgeCountWithReceivedInvocations: [[RoomSummary]] {
-        get { updateBadgeCountWithReceivedInvocationsLock.withLock { updateBadgeCountWithUnderlyingReceivedInvocations } }
-        set { updateBadgeCountWithReceivedInvocationsLock.withLock { updateBadgeCountWithUnderlyingReceivedInvocations = newValue } }
-    }
-    nonisolated(unsafe) var updateBadgeCountWithClosure: (([RoomSummary]) async -> Void)?
-
-    @concurrent func updateBadgeCount(with rooms: [RoomSummary]) async {
-        updateBadgeCountWithCallsCountLock.withLock { updateBadgeCountWithUnderlyingCallsCount += 1 }
-        updateBadgeCountWithReceivedRooms = rooms
-        updateBadgeCountWithReceivedInvocationsLock.withLock { updateBadgeCountWithUnderlyingReceivedInvocations.append(rooms) }
-        await updateBadgeCountWithClosure?(rooms)
+    @concurrent func tearDown() async {
+        tearDownCallsCountLock.withLock { tearDownUnderlyingCallsCount += 1 }
+        await tearDownClosure?()
     }
 }
 nonisolated class NotificationSettingsProxyMock: NotificationSettingsProxyProtocol, @unchecked Sendable {
@@ -13165,6 +14608,51 @@ nonisolated class PhotoLibraryManagerMock: PhotoLibraryManagerProtocol, @uncheck
         }
     }
 }
+nonisolated class PlatformSyncServiceMock: PlatformSyncServiceProtocol, @unchecked Sendable {
+
+    //MARK: - open
+
+    private let openSinceCallsCountLock = NSLock()
+    private nonisolated(unsafe) var openSinceUnderlyingCallsCount = 0
+    var openSinceCallsCount: Int {
+        get { openSinceCallsCountLock.withLock { openSinceUnderlyingCallsCount } }
+        set { openSinceCallsCountLock.withLock { openSinceUnderlyingCallsCount = newValue } }
+    }
+    var openSinceCalled: Bool {
+        return openSinceCallsCount > 0
+    }
+    private let openSinceReceivedPositionLock = NSLock()
+    private nonisolated(unsafe) var openSinceUnderlyingReceivedPosition: String?
+    var openSinceReceivedPosition: String? {
+        get { openSinceReceivedPositionLock.withLock { openSinceUnderlyingReceivedPosition } }
+        set { openSinceReceivedPositionLock.withLock { openSinceUnderlyingReceivedPosition = newValue } }
+    }
+    private let openSinceReceivedInvocationsLock = NSLock()
+    private nonisolated(unsafe) var openSinceUnderlyingReceivedInvocations: [String?] = []
+    var openSinceReceivedInvocations: [String?] {
+        get { openSinceReceivedInvocationsLock.withLock { openSinceUnderlyingReceivedInvocations } }
+        set { openSinceReceivedInvocationsLock.withLock { openSinceUnderlyingReceivedInvocations = newValue } }
+    }
+
+    private let openSinceReturnValueLock = NSLock()
+    private nonisolated(unsafe) var openSinceUnderlyingReturnValue: Result<PlatformSyncEventStream, PlatformSyncError>!
+    var openSinceReturnValue: Result<PlatformSyncEventStream, PlatformSyncError>! {
+        get { openSinceReturnValueLock.withLock { openSinceUnderlyingReturnValue } }
+        set { openSinceReturnValueLock.withLock { openSinceUnderlyingReturnValue = newValue } }
+    }
+    nonisolated(unsafe) var openSinceClosure: ((String?) async -> Result<PlatformSyncEventStream, PlatformSyncError>)?
+
+    @concurrent func open(since position: String?) async -> Result<PlatformSyncEventStream, PlatformSyncError> {
+        openSinceCallsCountLock.withLock { openSinceUnderlyingCallsCount += 1 }
+        openSinceReceivedPosition = position
+        openSinceReceivedInvocationsLock.withLock { openSinceUnderlyingReceivedInvocations.append(position) }
+        if let openSinceClosure = openSinceClosure {
+            return await openSinceClosure(position)
+        } else {
+            return openSinceReturnValue
+        }
+    }
+}
 nonisolated class PollInteractionHandlerMock: PollInteractionHandlerProtocol, @unchecked Sendable {
 
     //MARK: - sendPollResponse
@@ -13380,14 +14868,14 @@ nonisolated class QRCodeLoginServiceMock: QRCodeLoginServiceProtocol, @unchecked
     }
 
     private let loginWithQRCodeDataReturnValueLock = NSLock()
-    private nonisolated(unsafe) var loginWithQRCodeDataUnderlyingReturnValue: QRLoginProgressPublisher!
-    var loginWithQRCodeDataReturnValue: QRLoginProgressPublisher! {
+    private nonisolated(unsafe) var loginWithQRCodeDataUnderlyingReturnValue: QRLoginOperation!
+    var loginWithQRCodeDataReturnValue: QRLoginOperation! {
         get { loginWithQRCodeDataReturnValueLock.withLock { loginWithQRCodeDataUnderlyingReturnValue } }
         set { loginWithQRCodeDataReturnValueLock.withLock { loginWithQRCodeDataUnderlyingReturnValue = newValue } }
     }
-    nonisolated(unsafe) var loginWithQRCodeDataClosure: ((Data) -> QRLoginProgressPublisher)?
+    nonisolated(unsafe) var loginWithQRCodeDataClosure: ((Data) -> QRLoginOperation)?
 
-    func loginWithQRCode(data: Data) -> QRLoginProgressPublisher {
+    func loginWithQRCode(data: Data) -> QRLoginOperation {
         loginWithQRCodeDataCallsCountLock.withLock { loginWithQRCodeDataUnderlyingCallsCount += 1 }
         loginWithQRCodeDataReceivedData = data
         loginWithQRCodeDataReceivedInvocationsLock.withLock { loginWithQRCodeDataUnderlyingReceivedInvocations.append(data) }
@@ -15297,6 +16785,11 @@ nonisolated class TimelineControllerMock: TimelineControllerProtocol, @unchecked
     nonisolated(unsafe) var underlyingTimelineKind: TimelineKind!
     nonisolated(unsafe) var allowedGalleryItemTypes: [TimelineAllowedGalleryItemType]?
     nonisolated(unsafe) var timelineItems: [RoomTimelineItemProtocol] = []
+    var readProgress: TimelineReadProgress {
+        get { return underlyingReadProgress }
+        set(value) { underlyingReadProgress = value }
+    }
+    nonisolated(unsafe) var underlyingReadProgress: TimelineReadProgress!
     var paginationState: TimelinePaginationState {
         get { return underlyingPaginationState }
         set(value) { underlyingPaginationState = value }
@@ -15670,34 +17163,34 @@ nonisolated class TimelineControllerMock: TimelineControllerProtocol, @unchecked
     }
     //MARK: - redact
 
-    private let redactCallsCountLock = NSLock()
-    private nonisolated(unsafe) var redactUnderlyingCallsCount = 0
-    var redactCallsCount: Int {
-        get { redactCallsCountLock.withLock { redactUnderlyingCallsCount } }
-        set { redactCallsCountLock.withLock { redactUnderlyingCallsCount = newValue } }
+    private let redactReasonCallsCountLock = NSLock()
+    private nonisolated(unsafe) var redactReasonUnderlyingCallsCount = 0
+    var redactReasonCallsCount: Int {
+        get { redactReasonCallsCountLock.withLock { redactReasonUnderlyingCallsCount } }
+        set { redactReasonCallsCountLock.withLock { redactReasonUnderlyingCallsCount = newValue } }
     }
-    var redactCalled: Bool {
-        return redactCallsCount > 0
+    var redactReasonCalled: Bool {
+        return redactReasonCallsCount > 0
     }
-    private let redactReceivedEventOrTransactionIDLock = NSLock()
-    private nonisolated(unsafe) var redactUnderlyingReceivedEventOrTransactionID: TimelineItemIdentifier.EventOrTransactionID?
-    var redactReceivedEventOrTransactionID: TimelineItemIdentifier.EventOrTransactionID? {
-        get { redactReceivedEventOrTransactionIDLock.withLock { redactUnderlyingReceivedEventOrTransactionID } }
-        set { redactReceivedEventOrTransactionIDLock.withLock { redactUnderlyingReceivedEventOrTransactionID = newValue } }
+    private let redactReasonReceivedArgumentsLock = NSLock()
+    private nonisolated(unsafe) var redactReasonUnderlyingReceivedArguments: (eventOrTransactionID: TimelineItemIdentifier.EventOrTransactionID, reason: String?)?
+    var redactReasonReceivedArguments: (eventOrTransactionID: TimelineItemIdentifier.EventOrTransactionID, reason: String?)? {
+        get { redactReasonReceivedArgumentsLock.withLock { redactReasonUnderlyingReceivedArguments } }
+        set { redactReasonReceivedArgumentsLock.withLock { redactReasonUnderlyingReceivedArguments = newValue } }
     }
-    private let redactReceivedInvocationsLock = NSLock()
-    private nonisolated(unsafe) var redactUnderlyingReceivedInvocations: [TimelineItemIdentifier.EventOrTransactionID] = []
-    var redactReceivedInvocations: [TimelineItemIdentifier.EventOrTransactionID] {
-        get { redactReceivedInvocationsLock.withLock { redactUnderlyingReceivedInvocations } }
-        set { redactReceivedInvocationsLock.withLock { redactUnderlyingReceivedInvocations = newValue } }
+    private let redactReasonReceivedInvocationsLock = NSLock()
+    private nonisolated(unsafe) var redactReasonUnderlyingReceivedInvocations: [(eventOrTransactionID: TimelineItemIdentifier.EventOrTransactionID, reason: String?)] = []
+    var redactReasonReceivedInvocations: [(eventOrTransactionID: TimelineItemIdentifier.EventOrTransactionID, reason: String?)] {
+        get { redactReasonReceivedInvocationsLock.withLock { redactReasonUnderlyingReceivedInvocations } }
+        set { redactReasonReceivedInvocationsLock.withLock { redactReasonUnderlyingReceivedInvocations = newValue } }
     }
-    nonisolated(unsafe) var redactClosure: ((TimelineItemIdentifier.EventOrTransactionID) async -> Void)?
+    nonisolated(unsafe) var redactReasonClosure: ((TimelineItemIdentifier.EventOrTransactionID, String?) async -> Void)?
 
-    @concurrent func redact(_ eventOrTransactionID: TimelineItemIdentifier.EventOrTransactionID) async {
-        redactCallsCountLock.withLock { redactUnderlyingCallsCount += 1 }
-        redactReceivedEventOrTransactionID = eventOrTransactionID
-        redactReceivedInvocationsLock.withLock { redactUnderlyingReceivedInvocations.append(eventOrTransactionID) }
-        await redactClosure?(eventOrTransactionID)
+    @concurrent func redact(_ eventOrTransactionID: TimelineItemIdentifier.EventOrTransactionID, reason: String?) async {
+        redactReasonCallsCountLock.withLock { redactReasonUnderlyingCallsCount += 1 }
+        redactReasonReceivedArguments = (eventOrTransactionID: eventOrTransactionID, reason: reason)
+        redactReasonReceivedInvocationsLock.withLock { redactReasonUnderlyingReceivedInvocations.append((eventOrTransactionID: eventOrTransactionID, reason: reason)) }
+        await redactReasonClosure?(eventOrTransactionID, reason)
     }
     //MARK: - pin
 
@@ -15886,6 +17379,110 @@ nonisolated class TimelineControllerMock: TimelineControllerProtocol, @unchecked
         } else {
             return sendHandleForReturnValue
         }
+    }
+    //MARK: - pendingSendTarget
+
+    private let pendingSendTargetForCallsCountLock = NSLock()
+    private nonisolated(unsafe) var pendingSendTargetForUnderlyingCallsCount = 0
+    var pendingSendTargetForCallsCount: Int {
+        get { pendingSendTargetForCallsCountLock.withLock { pendingSendTargetForUnderlyingCallsCount } }
+        set { pendingSendTargetForCallsCountLock.withLock { pendingSendTargetForUnderlyingCallsCount = newValue } }
+    }
+    var pendingSendTargetForCalled: Bool {
+        return pendingSendTargetForCallsCount > 0
+    }
+    private let pendingSendTargetForReceivedItemIDLock = NSLock()
+    private nonisolated(unsafe) var pendingSendTargetForUnderlyingReceivedItemID: TimelineItemIdentifier?
+    var pendingSendTargetForReceivedItemID: TimelineItemIdentifier? {
+        get { pendingSendTargetForReceivedItemIDLock.withLock { pendingSendTargetForUnderlyingReceivedItemID } }
+        set { pendingSendTargetForReceivedItemIDLock.withLock { pendingSendTargetForUnderlyingReceivedItemID = newValue } }
+    }
+    private let pendingSendTargetForReceivedInvocationsLock = NSLock()
+    private nonisolated(unsafe) var pendingSendTargetForUnderlyingReceivedInvocations: [TimelineItemIdentifier] = []
+    var pendingSendTargetForReceivedInvocations: [TimelineItemIdentifier] {
+        get { pendingSendTargetForReceivedInvocationsLock.withLock { pendingSendTargetForUnderlyingReceivedInvocations } }
+        set { pendingSendTargetForReceivedInvocationsLock.withLock { pendingSendTargetForUnderlyingReceivedInvocations = newValue } }
+    }
+
+    private let pendingSendTargetForReturnValueLock = NSLock()
+    private nonisolated(unsafe) var pendingSendTargetForUnderlyingReturnValue: SendTarget?
+    var pendingSendTargetForReturnValue: SendTarget? {
+        get { pendingSendTargetForReturnValueLock.withLock { pendingSendTargetForUnderlyingReturnValue } }
+        set { pendingSendTargetForReturnValueLock.withLock { pendingSendTargetForUnderlyingReturnValue = newValue } }
+    }
+    nonisolated(unsafe) var pendingSendTargetForClosure: ((TimelineItemIdentifier) -> SendTarget?)?
+
+    func pendingSendTarget(for itemID: TimelineItemIdentifier) -> SendTarget? {
+        pendingSendTargetForCallsCountLock.withLock { pendingSendTargetForUnderlyingCallsCount += 1 }
+        pendingSendTargetForReceivedItemID = itemID
+        pendingSendTargetForReceivedInvocationsLock.withLock { pendingSendTargetForUnderlyingReceivedInvocations.append(itemID) }
+        if let pendingSendTargetForClosure = pendingSendTargetForClosure {
+            return pendingSendTargetForClosure(itemID)
+        } else {
+            return pendingSendTargetForReturnValue
+        }
+    }
+    //MARK: - retrySend
+
+    private let retrySendTargetCallsCountLock = NSLock()
+    private nonisolated(unsafe) var retrySendTargetUnderlyingCallsCount = 0
+    var retrySendTargetCallsCount: Int {
+        get { retrySendTargetCallsCountLock.withLock { retrySendTargetUnderlyingCallsCount } }
+        set { retrySendTargetCallsCountLock.withLock { retrySendTargetUnderlyingCallsCount = newValue } }
+    }
+    var retrySendTargetCalled: Bool {
+        return retrySendTargetCallsCount > 0
+    }
+    private let retrySendTargetReceivedArgumentsLock = NSLock()
+    private nonisolated(unsafe) var retrySendTargetUnderlyingReceivedArguments: (itemID: TimelineItemIdentifier, target: SendTarget)?
+    var retrySendTargetReceivedArguments: (itemID: TimelineItemIdentifier, target: SendTarget)? {
+        get { retrySendTargetReceivedArgumentsLock.withLock { retrySendTargetUnderlyingReceivedArguments } }
+        set { retrySendTargetReceivedArgumentsLock.withLock { retrySendTargetUnderlyingReceivedArguments = newValue } }
+    }
+    private let retrySendTargetReceivedInvocationsLock = NSLock()
+    private nonisolated(unsafe) var retrySendTargetUnderlyingReceivedInvocations: [(itemID: TimelineItemIdentifier, target: SendTarget)] = []
+    var retrySendTargetReceivedInvocations: [(itemID: TimelineItemIdentifier, target: SendTarget)] {
+        get { retrySendTargetReceivedInvocationsLock.withLock { retrySendTargetUnderlyingReceivedInvocations } }
+        set { retrySendTargetReceivedInvocationsLock.withLock { retrySendTargetUnderlyingReceivedInvocations = newValue } }
+    }
+    nonisolated(unsafe) var retrySendTargetClosure: ((TimelineItemIdentifier, SendTarget) async -> Void)?
+
+    @concurrent func retrySend(_ itemID: TimelineItemIdentifier, target: SendTarget) async {
+        retrySendTargetCallsCountLock.withLock { retrySendTargetUnderlyingCallsCount += 1 }
+        retrySendTargetReceivedArguments = (itemID: itemID, target: target)
+        retrySendTargetReceivedInvocationsLock.withLock { retrySendTargetUnderlyingReceivedInvocations.append((itemID: itemID, target: target)) }
+        await retrySendTargetClosure?(itemID, target)
+    }
+    //MARK: - abortSend
+
+    private let abortSendTargetCallsCountLock = NSLock()
+    private nonisolated(unsafe) var abortSendTargetUnderlyingCallsCount = 0
+    var abortSendTargetCallsCount: Int {
+        get { abortSendTargetCallsCountLock.withLock { abortSendTargetUnderlyingCallsCount } }
+        set { abortSendTargetCallsCountLock.withLock { abortSendTargetUnderlyingCallsCount = newValue } }
+    }
+    var abortSendTargetCalled: Bool {
+        return abortSendTargetCallsCount > 0
+    }
+    private let abortSendTargetReceivedArgumentsLock = NSLock()
+    private nonisolated(unsafe) var abortSendTargetUnderlyingReceivedArguments: (itemID: TimelineItemIdentifier, target: SendTarget)?
+    var abortSendTargetReceivedArguments: (itemID: TimelineItemIdentifier, target: SendTarget)? {
+        get { abortSendTargetReceivedArgumentsLock.withLock { abortSendTargetUnderlyingReceivedArguments } }
+        set { abortSendTargetReceivedArgumentsLock.withLock { abortSendTargetUnderlyingReceivedArguments = newValue } }
+    }
+    private let abortSendTargetReceivedInvocationsLock = NSLock()
+    private nonisolated(unsafe) var abortSendTargetUnderlyingReceivedInvocations: [(itemID: TimelineItemIdentifier, target: SendTarget)] = []
+    var abortSendTargetReceivedInvocations: [(itemID: TimelineItemIdentifier, target: SendTarget)] {
+        get { abortSendTargetReceivedInvocationsLock.withLock { abortSendTargetUnderlyingReceivedInvocations } }
+        set { abortSendTargetReceivedInvocationsLock.withLock { abortSendTargetUnderlyingReceivedInvocations = newValue } }
+    }
+    nonisolated(unsafe) var abortSendTargetClosure: ((TimelineItemIdentifier, SendTarget) async -> Void)?
+
+    @concurrent func abortSend(_ itemID: TimelineItemIdentifier, target: SendTarget) async {
+        abortSendTargetCallsCountLock.withLock { abortSendTargetUnderlyingCallsCount += 1 }
+        abortSendTargetReceivedArguments = (itemID: itemID, target: target)
+        abortSendTargetReceivedInvocationsLock.withLock { abortSendTargetUnderlyingReceivedInvocations.append((itemID: itemID, target: target)) }
+        await abortSendTargetClosure?(itemID, target)
     }
     //MARK: - eventTimestamp
 
@@ -16671,6 +18268,90 @@ nonisolated class TimelineProxyMock: TimelineProxyProtocol, @unchecked Sendable 
             return await redactReasonClosure(eventOrTransactionID, reason)
         } else {
             return redactReasonReturnValue
+        }
+    }
+    //MARK: - retrySend
+
+    private let retrySendTargetCallsCountLock = NSLock()
+    private nonisolated(unsafe) var retrySendTargetUnderlyingCallsCount = 0
+    var retrySendTargetCallsCount: Int {
+        get { retrySendTargetCallsCountLock.withLock { retrySendTargetUnderlyingCallsCount } }
+        set { retrySendTargetCallsCountLock.withLock { retrySendTargetUnderlyingCallsCount = newValue } }
+    }
+    var retrySendTargetCalled: Bool {
+        return retrySendTargetCallsCount > 0
+    }
+    private let retrySendTargetReceivedArgumentsLock = NSLock()
+    private nonisolated(unsafe) var retrySendTargetUnderlyingReceivedArguments: (eventOrTransactionID: TimelineItemIdentifier.EventOrTransactionID, target: SendTarget)?
+    var retrySendTargetReceivedArguments: (eventOrTransactionID: TimelineItemIdentifier.EventOrTransactionID, target: SendTarget)? {
+        get { retrySendTargetReceivedArgumentsLock.withLock { retrySendTargetUnderlyingReceivedArguments } }
+        set { retrySendTargetReceivedArgumentsLock.withLock { retrySendTargetUnderlyingReceivedArguments = newValue } }
+    }
+    private let retrySendTargetReceivedInvocationsLock = NSLock()
+    private nonisolated(unsafe) var retrySendTargetUnderlyingReceivedInvocations: [(eventOrTransactionID: TimelineItemIdentifier.EventOrTransactionID, target: SendTarget)] = []
+    var retrySendTargetReceivedInvocations: [(eventOrTransactionID: TimelineItemIdentifier.EventOrTransactionID, target: SendTarget)] {
+        get { retrySendTargetReceivedInvocationsLock.withLock { retrySendTargetUnderlyingReceivedInvocations } }
+        set { retrySendTargetReceivedInvocationsLock.withLock { retrySendTargetUnderlyingReceivedInvocations = newValue } }
+    }
+
+    private let retrySendTargetReturnValueLock = NSLock()
+    private nonisolated(unsafe) var retrySendTargetUnderlyingReturnValue: Result<Bool, TimelineProxyError>!
+    var retrySendTargetReturnValue: Result<Bool, TimelineProxyError>! {
+        get { retrySendTargetReturnValueLock.withLock { retrySendTargetUnderlyingReturnValue } }
+        set { retrySendTargetReturnValueLock.withLock { retrySendTargetUnderlyingReturnValue = newValue } }
+    }
+    nonisolated(unsafe) var retrySendTargetClosure: ((TimelineItemIdentifier.EventOrTransactionID, SendTarget) async -> Result<Bool, TimelineProxyError>)?
+
+    @concurrent func retrySend(_ eventOrTransactionID: TimelineItemIdentifier.EventOrTransactionID, target: SendTarget) async -> Result<Bool, TimelineProxyError> {
+        retrySendTargetCallsCountLock.withLock { retrySendTargetUnderlyingCallsCount += 1 }
+        retrySendTargetReceivedArguments = (eventOrTransactionID: eventOrTransactionID, target: target)
+        retrySendTargetReceivedInvocationsLock.withLock { retrySendTargetUnderlyingReceivedInvocations.append((eventOrTransactionID: eventOrTransactionID, target: target)) }
+        if let retrySendTargetClosure = retrySendTargetClosure {
+            return await retrySendTargetClosure(eventOrTransactionID, target)
+        } else {
+            return retrySendTargetReturnValue
+        }
+    }
+    //MARK: - abortSend
+
+    private let abortSendTargetCallsCountLock = NSLock()
+    private nonisolated(unsafe) var abortSendTargetUnderlyingCallsCount = 0
+    var abortSendTargetCallsCount: Int {
+        get { abortSendTargetCallsCountLock.withLock { abortSendTargetUnderlyingCallsCount } }
+        set { abortSendTargetCallsCountLock.withLock { abortSendTargetUnderlyingCallsCount = newValue } }
+    }
+    var abortSendTargetCalled: Bool {
+        return abortSendTargetCallsCount > 0
+    }
+    private let abortSendTargetReceivedArgumentsLock = NSLock()
+    private nonisolated(unsafe) var abortSendTargetUnderlyingReceivedArguments: (eventOrTransactionID: TimelineItemIdentifier.EventOrTransactionID, target: SendTarget)?
+    var abortSendTargetReceivedArguments: (eventOrTransactionID: TimelineItemIdentifier.EventOrTransactionID, target: SendTarget)? {
+        get { abortSendTargetReceivedArgumentsLock.withLock { abortSendTargetUnderlyingReceivedArguments } }
+        set { abortSendTargetReceivedArgumentsLock.withLock { abortSendTargetUnderlyingReceivedArguments = newValue } }
+    }
+    private let abortSendTargetReceivedInvocationsLock = NSLock()
+    private nonisolated(unsafe) var abortSendTargetUnderlyingReceivedInvocations: [(eventOrTransactionID: TimelineItemIdentifier.EventOrTransactionID, target: SendTarget)] = []
+    var abortSendTargetReceivedInvocations: [(eventOrTransactionID: TimelineItemIdentifier.EventOrTransactionID, target: SendTarget)] {
+        get { abortSendTargetReceivedInvocationsLock.withLock { abortSendTargetUnderlyingReceivedInvocations } }
+        set { abortSendTargetReceivedInvocationsLock.withLock { abortSendTargetUnderlyingReceivedInvocations = newValue } }
+    }
+
+    private let abortSendTargetReturnValueLock = NSLock()
+    private nonisolated(unsafe) var abortSendTargetUnderlyingReturnValue: Result<Bool, TimelineProxyError>!
+    var abortSendTargetReturnValue: Result<Bool, TimelineProxyError>! {
+        get { abortSendTargetReturnValueLock.withLock { abortSendTargetUnderlyingReturnValue } }
+        set { abortSendTargetReturnValueLock.withLock { abortSendTargetUnderlyingReturnValue = newValue } }
+    }
+    nonisolated(unsafe) var abortSendTargetClosure: ((TimelineItemIdentifier.EventOrTransactionID, SendTarget) async -> Result<Bool, TimelineProxyError>)?
+
+    @concurrent func abortSend(_ eventOrTransactionID: TimelineItemIdentifier.EventOrTransactionID, target: SendTarget) async -> Result<Bool, TimelineProxyError> {
+        abortSendTargetCallsCountLock.withLock { abortSendTargetUnderlyingCallsCount += 1 }
+        abortSendTargetReceivedArguments = (eventOrTransactionID: eventOrTransactionID, target: target)
+        abortSendTargetReceivedInvocationsLock.withLock { abortSendTargetUnderlyingReceivedInvocations.append((eventOrTransactionID: eventOrTransactionID, target: target)) }
+        if let abortSendTargetClosure = abortSendTargetClosure {
+            return await abortSendTargetClosure(eventOrTransactionID, target)
+        } else {
+            return abortSendTargetReturnValue
         }
     }
     //MARK: - pin
@@ -17785,6 +19466,41 @@ nonisolated class UserNotificationCenterMock: UserNotificationCenterProtocol, @u
         removeDeliveredNotificationsWithIdentifiersReceivedInvocationsLock.withLock { removeDeliveredNotificationsWithIdentifiersUnderlyingReceivedInvocations.append(identifiers) }
         removeDeliveredNotificationsWithIdentifiersClosure?(identifiers)
     }
+    //MARK: - setBadgeCount
+
+    nonisolated(unsafe) var setBadgeCountThrowableError: Error?
+    private let setBadgeCountCallsCountLock = NSLock()
+    private nonisolated(unsafe) var setBadgeCountUnderlyingCallsCount = 0
+    var setBadgeCountCallsCount: Int {
+        get { setBadgeCountCallsCountLock.withLock { setBadgeCountUnderlyingCallsCount } }
+        set { setBadgeCountCallsCountLock.withLock { setBadgeCountUnderlyingCallsCount = newValue } }
+    }
+    var setBadgeCountCalled: Bool {
+        return setBadgeCountCallsCount > 0
+    }
+    private let setBadgeCountReceivedNewBadgeCountLock = NSLock()
+    private nonisolated(unsafe) var setBadgeCountUnderlyingReceivedNewBadgeCount: Int?
+    var setBadgeCountReceivedNewBadgeCount: Int? {
+        get { setBadgeCountReceivedNewBadgeCountLock.withLock { setBadgeCountUnderlyingReceivedNewBadgeCount } }
+        set { setBadgeCountReceivedNewBadgeCountLock.withLock { setBadgeCountUnderlyingReceivedNewBadgeCount = newValue } }
+    }
+    private let setBadgeCountReceivedInvocationsLock = NSLock()
+    private nonisolated(unsafe) var setBadgeCountUnderlyingReceivedInvocations: [Int] = []
+    var setBadgeCountReceivedInvocations: [Int] {
+        get { setBadgeCountReceivedInvocationsLock.withLock { setBadgeCountUnderlyingReceivedInvocations } }
+        set { setBadgeCountReceivedInvocationsLock.withLock { setBadgeCountUnderlyingReceivedInvocations = newValue } }
+    }
+    nonisolated(unsafe) var setBadgeCountClosure: ((Int) async throws -> Void)?
+
+    @concurrent func setBadgeCount(_ newBadgeCount: Int) async throws {
+        if let error = setBadgeCountThrowableError {
+            throw error
+        }
+        setBadgeCountCallsCountLock.withLock { setBadgeCountUnderlyingCallsCount += 1 }
+        setBadgeCountReceivedNewBadgeCount = newBadgeCount
+        setBadgeCountReceivedInvocationsLock.withLock { setBadgeCountUnderlyingReceivedInvocations.append(newBadgeCount) }
+        try await setBadgeCountClosure?(newBadgeCount)
+    }
     //MARK: - setNotificationCategories
 
     private let setNotificationCategoriesCallsCountLock = NSLock()
@@ -17872,40 +19588,354 @@ nonisolated class UserNotificationCenterMock: UserNotificationCenterProtocol, @u
             return notificationSettingsReturnValue
         }
     }
-    //MARK: - setBadgeCount
+}
+nonisolated class UserSessionManagerMock: UserSessionManagerProtocol, @unchecked Sendable {
+    nonisolated(unsafe) var userIDs: [String] = []
+    var sessionsPublisher: CurrentValuePublisher<[UserSessionProtocol], Never> {
+        get { return underlyingSessionsPublisher }
+        set(value) { underlyingSessionsPublisher = value }
+    }
+    nonisolated(unsafe) var underlyingSessionsPublisher: CurrentValuePublisher<[UserSessionProtocol], Never>!
+    nonisolated(unsafe) var activeSession: UserSessionProtocol?
+    var callbacksPublisher: AnyPublisher<UserSessionManagerCallback, Never> {
+        get { return underlyingCallbacksPublisher }
+        set(value) { underlyingCallbacksPublisher = value }
+    }
+    nonisolated(unsafe) var underlyingCallbacksPublisher: AnyPublisher<UserSessionManagerCallback, Never>!
+    var clientSessionDelegate: ClientSessionDelegate {
+        get { return underlyingClientSessionDelegate }
+        set(value) { underlyingClientSessionDelegate = value }
+    }
+    nonisolated(unsafe) var underlyingClientSessionDelegate: ClientSessionDelegate!
+    var isSearchBackfillRunning: Bool {
+        get { return underlyingIsSearchBackfillRunning }
+        set(value) { underlyingIsSearchBackfillRunning = value }
+    }
+    nonisolated(unsafe) var underlyingIsSearchBackfillRunning: Bool!
 
-    nonisolated(unsafe) var setBadgeCountThrowableError: Error?
-    private let setBadgeCountCallsCountLock = NSLock()
-    private nonisolated(unsafe) var setBadgeCountUnderlyingCallsCount = 0
-    var setBadgeCountCallsCount: Int {
-        get { setBadgeCountCallsCountLock.withLock { setBadgeCountUnderlyingCallsCount } }
-        set { setBadgeCountCallsCountLock.withLock { setBadgeCountUnderlyingCallsCount = newValue } }
-    }
-    var setBadgeCountCalled: Bool {
-        return setBadgeCountCallsCount > 0
-    }
-    private let setBadgeCountReceivedCountLock = NSLock()
-    private nonisolated(unsafe) var setBadgeCountUnderlyingReceivedCount: Int?
-    var setBadgeCountReceivedCount: Int? {
-        get { setBadgeCountReceivedCountLock.withLock { setBadgeCountUnderlyingReceivedCount } }
-        set { setBadgeCountReceivedCountLock.withLock { setBadgeCountUnderlyingReceivedCount = newValue } }
-    }
-    private let setBadgeCountReceivedInvocationsLock = NSLock()
-    private nonisolated(unsafe) var setBadgeCountUnderlyingReceivedInvocations: [Int] = []
-    var setBadgeCountReceivedInvocations: [Int] {
-        get { setBadgeCountReceivedInvocationsLock.withLock { setBadgeCountUnderlyingReceivedInvocations } }
-        set { setBadgeCountReceivedInvocationsLock.withLock { setBadgeCountUnderlyingReceivedInvocations = newValue } }
-    }
-    nonisolated(unsafe) var setBadgeCountClosure: ((Int) async throws -> Void)?
+    //MARK: - session
 
-    @concurrent func setBadgeCount(_ count: Int) async throws {
-        if let error = setBadgeCountThrowableError {
-            throw error
+    private let sessionForCallsCountLock = NSLock()
+    private nonisolated(unsafe) var sessionForUnderlyingCallsCount = 0
+    var sessionForCallsCount: Int {
+        get { sessionForCallsCountLock.withLock { sessionForUnderlyingCallsCount } }
+        set { sessionForCallsCountLock.withLock { sessionForUnderlyingCallsCount = newValue } }
+    }
+    var sessionForCalled: Bool {
+        return sessionForCallsCount > 0
+    }
+    private let sessionForReceivedUserIDLock = NSLock()
+    private nonisolated(unsafe) var sessionForUnderlyingReceivedUserID: String?
+    var sessionForReceivedUserID: String? {
+        get { sessionForReceivedUserIDLock.withLock { sessionForUnderlyingReceivedUserID } }
+        set { sessionForReceivedUserIDLock.withLock { sessionForUnderlyingReceivedUserID = newValue } }
+    }
+    private let sessionForReceivedInvocationsLock = NSLock()
+    private nonisolated(unsafe) var sessionForUnderlyingReceivedInvocations: [String] = []
+    var sessionForReceivedInvocations: [String] {
+        get { sessionForReceivedInvocationsLock.withLock { sessionForUnderlyingReceivedInvocations } }
+        set { sessionForReceivedInvocationsLock.withLock { sessionForUnderlyingReceivedInvocations = newValue } }
+    }
+
+    private let sessionForReturnValueLock = NSLock()
+    private nonisolated(unsafe) var sessionForUnderlyingReturnValue: UserSessionProtocol?
+    var sessionForReturnValue: UserSessionProtocol? {
+        get { sessionForReturnValueLock.withLock { sessionForUnderlyingReturnValue } }
+        set { sessionForReturnValueLock.withLock { sessionForUnderlyingReturnValue = newValue } }
+    }
+    nonisolated(unsafe) var sessionForClosure: ((String) -> UserSessionProtocol?)?
+
+    func session(for userID: String) -> UserSessionProtocol? {
+        sessionForCallsCountLock.withLock { sessionForUnderlyingCallsCount += 1 }
+        sessionForReceivedUserID = userID
+        sessionForReceivedInvocationsLock.withLock { sessionForUnderlyingReceivedInvocations.append(userID) }
+        if let sessionForClosure = sessionForClosure {
+            return sessionForClosure(userID)
+        } else {
+            return sessionForReturnValue
         }
-        setBadgeCountCallsCountLock.withLock { setBadgeCountUnderlyingCallsCount += 1 }
-        setBadgeCountReceivedCount = count
-        setBadgeCountReceivedInvocationsLock.withLock { setBadgeCountUnderlyingReceivedInvocations.append(count) }
-        try await setBadgeCountClosure?(count)
+    }
+    //MARK: - restoreSessions
+
+    private let restoreSessionsPrepareDidAddCallsCountLock = NSLock()
+    private nonisolated(unsafe) var restoreSessionsPrepareDidAddUnderlyingCallsCount = 0
+    var restoreSessionsPrepareDidAddCallsCount: Int {
+        get { restoreSessionsPrepareDidAddCallsCountLock.withLock { restoreSessionsPrepareDidAddUnderlyingCallsCount } }
+        set { restoreSessionsPrepareDidAddCallsCountLock.withLock { restoreSessionsPrepareDidAddUnderlyingCallsCount = newValue } }
+    }
+    var restoreSessionsPrepareDidAddCalled: Bool {
+        return restoreSessionsPrepareDidAddCallsCount > 0
+    }
+    nonisolated(unsafe) var restoreSessionsPrepareDidAddClosure: ((@MainActor (UserSessionProtocol) async -> Void, @MainActor (UserSessionProtocol) -> Void) async -> Void)?
+
+    @concurrent func restoreSessions(prepare: @MainActor (UserSessionProtocol) async -> Void, didAdd: @MainActor (UserSessionProtocol) -> Void) async {
+        restoreSessionsPrepareDidAddCallsCountLock.withLock { restoreSessionsPrepareDidAddUnderlyingCallsCount += 1 }
+        await restoreSessionsPrepareDidAddClosure?(prepare, didAdd)
+    }
+    //MARK: - clearCaches
+
+    private let clearCachesUserIDCallsCountLock = NSLock()
+    private nonisolated(unsafe) var clearCachesUserIDUnderlyingCallsCount = 0
+    var clearCachesUserIDCallsCount: Int {
+        get { clearCachesUserIDCallsCountLock.withLock { clearCachesUserIDUnderlyingCallsCount } }
+        set { clearCachesUserIDCallsCountLock.withLock { clearCachesUserIDUnderlyingCallsCount = newValue } }
+    }
+    var clearCachesUserIDCalled: Bool {
+        return clearCachesUserIDCallsCount > 0
+    }
+    private let clearCachesUserIDReceivedUserIDLock = NSLock()
+    private nonisolated(unsafe) var clearCachesUserIDUnderlyingReceivedUserID: String?
+    var clearCachesUserIDReceivedUserID: String? {
+        get { clearCachesUserIDReceivedUserIDLock.withLock { clearCachesUserIDUnderlyingReceivedUserID } }
+        set { clearCachesUserIDReceivedUserIDLock.withLock { clearCachesUserIDUnderlyingReceivedUserID = newValue } }
+    }
+    private let clearCachesUserIDReceivedInvocationsLock = NSLock()
+    private nonisolated(unsafe) var clearCachesUserIDUnderlyingReceivedInvocations: [String] = []
+    var clearCachesUserIDReceivedInvocations: [String] {
+        get { clearCachesUserIDReceivedInvocationsLock.withLock { clearCachesUserIDUnderlyingReceivedInvocations } }
+        set { clearCachesUserIDReceivedInvocationsLock.withLock { clearCachesUserIDUnderlyingReceivedInvocations = newValue } }
+    }
+    nonisolated(unsafe) var clearCachesUserIDClosure: ((String) async -> Void)?
+
+    @concurrent func clearCaches(userID: String) async {
+        clearCachesUserIDCallsCountLock.withLock { clearCachesUserIDUnderlyingCallsCount += 1 }
+        clearCachesUserIDReceivedUserID = userID
+        clearCachesUserIDReceivedInvocationsLock.withLock { clearCachesUserIDUnderlyingReceivedInvocations.append(userID) }
+        await clearCachesUserIDClosure?(userID)
+    }
+    //MARK: - userSession
+
+    private let userSessionForSessionDirectoriesPassphraseCallsCountLock = NSLock()
+    private nonisolated(unsafe) var userSessionForSessionDirectoriesPassphraseUnderlyingCallsCount = 0
+    var userSessionForSessionDirectoriesPassphraseCallsCount: Int {
+        get { userSessionForSessionDirectoriesPassphraseCallsCountLock.withLock { userSessionForSessionDirectoriesPassphraseUnderlyingCallsCount } }
+        set { userSessionForSessionDirectoriesPassphraseCallsCountLock.withLock { userSessionForSessionDirectoriesPassphraseUnderlyingCallsCount = newValue } }
+    }
+    var userSessionForSessionDirectoriesPassphraseCalled: Bool {
+        return userSessionForSessionDirectoriesPassphraseCallsCount > 0
+    }
+    private let userSessionForSessionDirectoriesPassphraseReceivedArgumentsLock = NSLock()
+    private nonisolated(unsafe) var userSessionForSessionDirectoriesPassphraseUnderlyingReceivedArguments: (client: ClientProtocol, sessionDirectories: SessionDirectories, passphrase: Data)?
+    var userSessionForSessionDirectoriesPassphraseReceivedArguments: (client: ClientProtocol, sessionDirectories: SessionDirectories, passphrase: Data)? {
+        get { userSessionForSessionDirectoriesPassphraseReceivedArgumentsLock.withLock { userSessionForSessionDirectoriesPassphraseUnderlyingReceivedArguments } }
+        set { userSessionForSessionDirectoriesPassphraseReceivedArgumentsLock.withLock { userSessionForSessionDirectoriesPassphraseUnderlyingReceivedArguments = newValue } }
+    }
+    private let userSessionForSessionDirectoriesPassphraseReceivedInvocationsLock = NSLock()
+    private nonisolated(unsafe) var userSessionForSessionDirectoriesPassphraseUnderlyingReceivedInvocations: [(client: ClientProtocol, sessionDirectories: SessionDirectories, passphrase: Data)] = []
+    var userSessionForSessionDirectoriesPassphraseReceivedInvocations: [(client: ClientProtocol, sessionDirectories: SessionDirectories, passphrase: Data)] {
+        get { userSessionForSessionDirectoriesPassphraseReceivedInvocationsLock.withLock { userSessionForSessionDirectoriesPassphraseUnderlyingReceivedInvocations } }
+        set { userSessionForSessionDirectoriesPassphraseReceivedInvocationsLock.withLock { userSessionForSessionDirectoriesPassphraseUnderlyingReceivedInvocations = newValue } }
+    }
+
+    private let userSessionForSessionDirectoriesPassphraseReturnValueLock = NSLock()
+    private nonisolated(unsafe) var userSessionForSessionDirectoriesPassphraseUnderlyingReturnValue: Result<UserSessionProtocol, UserSessionStoreError>!
+    var userSessionForSessionDirectoriesPassphraseReturnValue: Result<UserSessionProtocol, UserSessionStoreError>! {
+        get { userSessionForSessionDirectoriesPassphraseReturnValueLock.withLock { userSessionForSessionDirectoriesPassphraseUnderlyingReturnValue } }
+        set { userSessionForSessionDirectoriesPassphraseReturnValueLock.withLock { userSessionForSessionDirectoriesPassphraseUnderlyingReturnValue = newValue } }
+    }
+    nonisolated(unsafe) var userSessionForSessionDirectoriesPassphraseClosure: ((ClientProtocol, SessionDirectories, Data) async -> Result<UserSessionProtocol, UserSessionStoreError>)?
+
+    @concurrent func userSession(for client: ClientProtocol, sessionDirectories: SessionDirectories, passphrase: Data) async -> Result<UserSessionProtocol, UserSessionStoreError> {
+        userSessionForSessionDirectoriesPassphraseCallsCountLock.withLock { userSessionForSessionDirectoriesPassphraseUnderlyingCallsCount += 1 }
+        userSessionForSessionDirectoriesPassphraseReceivedArguments = (client: client, sessionDirectories: sessionDirectories, passphrase: passphrase)
+        userSessionForSessionDirectoriesPassphraseReceivedInvocationsLock.withLock { userSessionForSessionDirectoriesPassphraseUnderlyingReceivedInvocations.append((client: client, sessionDirectories: sessionDirectories, passphrase: passphrase)) }
+        if let userSessionForSessionDirectoriesPassphraseClosure = userSessionForSessionDirectoriesPassphraseClosure {
+            return await userSessionForSessionDirectoriesPassphraseClosure(client, sessionDirectories, passphrase)
+        } else {
+            return userSessionForSessionDirectoriesPassphraseReturnValue
+        }
+    }
+    //MARK: - add
+
+    private let addCallsCountLock = NSLock()
+    private nonisolated(unsafe) var addUnderlyingCallsCount = 0
+    var addCallsCount: Int {
+        get { addCallsCountLock.withLock { addUnderlyingCallsCount } }
+        set { addCallsCountLock.withLock { addUnderlyingCallsCount = newValue } }
+    }
+    var addCalled: Bool {
+        return addCallsCount > 0
+    }
+    private let addReceivedUserSessionLock = NSLock()
+    private nonisolated(unsafe) var addUnderlyingReceivedUserSession: UserSessionProtocol?
+    var addReceivedUserSession: UserSessionProtocol? {
+        get { addReceivedUserSessionLock.withLock { addUnderlyingReceivedUserSession } }
+        set { addReceivedUserSessionLock.withLock { addUnderlyingReceivedUserSession = newValue } }
+    }
+    private let addReceivedInvocationsLock = NSLock()
+    private nonisolated(unsafe) var addUnderlyingReceivedInvocations: [UserSessionProtocol] = []
+    var addReceivedInvocations: [UserSessionProtocol] {
+        get { addReceivedInvocationsLock.withLock { addUnderlyingReceivedInvocations } }
+        set { addReceivedInvocationsLock.withLock { addUnderlyingReceivedInvocations = newValue } }
+    }
+    nonisolated(unsafe) var addClosure: ((UserSessionProtocol) -> Void)?
+
+    func add(_ userSession: UserSessionProtocol) {
+        addCallsCountLock.withLock { addUnderlyingCallsCount += 1 }
+        addReceivedUserSession = userSession
+        addReceivedInvocationsLock.withLock { addUnderlyingReceivedInvocations.append(userSession) }
+        addClosure?(userSession)
+    }
+    //MARK: - remove
+
+    private let removeUserIDCallsCountLock = NSLock()
+    private nonisolated(unsafe) var removeUserIDUnderlyingCallsCount = 0
+    var removeUserIDCallsCount: Int {
+        get { removeUserIDCallsCountLock.withLock { removeUserIDUnderlyingCallsCount } }
+        set { removeUserIDCallsCountLock.withLock { removeUserIDUnderlyingCallsCount = newValue } }
+    }
+    var removeUserIDCalled: Bool {
+        return removeUserIDCallsCount > 0
+    }
+    private let removeUserIDReceivedUserIDLock = NSLock()
+    private nonisolated(unsafe) var removeUserIDUnderlyingReceivedUserID: String?
+    var removeUserIDReceivedUserID: String? {
+        get { removeUserIDReceivedUserIDLock.withLock { removeUserIDUnderlyingReceivedUserID } }
+        set { removeUserIDReceivedUserIDLock.withLock { removeUserIDUnderlyingReceivedUserID = newValue } }
+    }
+    private let removeUserIDReceivedInvocationsLock = NSLock()
+    private nonisolated(unsafe) var removeUserIDUnderlyingReceivedInvocations: [String] = []
+    var removeUserIDReceivedInvocations: [String] {
+        get { removeUserIDReceivedInvocationsLock.withLock { removeUserIDUnderlyingReceivedInvocations } }
+        set { removeUserIDReceivedInvocationsLock.withLock { removeUserIDUnderlyingReceivedInvocations = newValue } }
+    }
+    nonisolated(unsafe) var removeUserIDClosure: ((String) -> Void)?
+
+    func remove(userID: String) {
+        removeUserIDCallsCountLock.withLock { removeUserIDUnderlyingCallsCount += 1 }
+        removeUserIDReceivedUserID = userID
+        removeUserIDReceivedInvocationsLock.withLock { removeUserIDUnderlyingReceivedInvocations.append(userID) }
+        removeUserIDClosure?(userID)
+    }
+    //MARK: - reset
+
+    private let resetCallsCountLock = NSLock()
+    private nonisolated(unsafe) var resetUnderlyingCallsCount = 0
+    var resetCallsCount: Int {
+        get { resetCallsCountLock.withLock { resetUnderlyingCallsCount } }
+        set { resetCallsCountLock.withLock { resetUnderlyingCallsCount = newValue } }
+    }
+    var resetCalled: Bool {
+        return resetCallsCount > 0
+    }
+    nonisolated(unsafe) var resetClosure: (() -> Void)?
+
+    func reset() {
+        resetCallsCountLock.withLock { resetUnderlyingCallsCount += 1 }
+        resetClosure?()
+    }
+    //MARK: - resumeServices
+
+    private let resumeServicesCallsCountLock = NSLock()
+    private nonisolated(unsafe) var resumeServicesUnderlyingCallsCount = 0
+    var resumeServicesCallsCount: Int {
+        get { resumeServicesCallsCountLock.withLock { resumeServicesUnderlyingCallsCount } }
+        set { resumeServicesCallsCountLock.withLock { resumeServicesUnderlyingCallsCount = newValue } }
+    }
+    var resumeServicesCalled: Bool {
+        return resumeServicesCallsCount > 0
+    }
+    nonisolated(unsafe) var resumeServicesClosure: (() async -> Void)?
+
+    @concurrent func resumeServices() async {
+        resumeServicesCallsCountLock.withLock { resumeServicesUnderlyingCallsCount += 1 }
+        await resumeServicesClosure?()
+    }
+    //MARK: - pauseServices
+
+    private let pauseServicesCallsCountLock = NSLock()
+    private nonisolated(unsafe) var pauseServicesUnderlyingCallsCount = 0
+    var pauseServicesCallsCount: Int {
+        get { pauseServicesCallsCountLock.withLock { pauseServicesUnderlyingCallsCount } }
+        set { pauseServicesCallsCountLock.withLock { pauseServicesUnderlyingCallsCount = newValue } }
+    }
+    var pauseServicesCalled: Bool {
+        return pauseServicesCallsCount > 0
+    }
+    nonisolated(unsafe) var pauseServicesClosure: (() async -> Void)?
+
+    @concurrent func pauseServices() async {
+        pauseServicesCallsCountLock.withLock { pauseServicesUnderlyingCallsCount += 1 }
+        await pauseServicesClosure?()
+    }
+    //MARK: - configurePresence
+
+    private let configurePresenceSendImmediatelyCallsCountLock = NSLock()
+    private nonisolated(unsafe) var configurePresenceSendImmediatelyUnderlyingCallsCount = 0
+    var configurePresenceSendImmediatelyCallsCount: Int {
+        get { configurePresenceSendImmediatelyCallsCountLock.withLock { configurePresenceSendImmediatelyUnderlyingCallsCount } }
+        set { configurePresenceSendImmediatelyCallsCountLock.withLock { configurePresenceSendImmediatelyUnderlyingCallsCount = newValue } }
+    }
+    var configurePresenceSendImmediatelyCalled: Bool {
+        return configurePresenceSendImmediatelyCallsCount > 0
+    }
+    private let configurePresenceSendImmediatelyReceivedArgumentsLock = NSLock()
+    private nonisolated(unsafe) var configurePresenceSendImmediatelyUnderlyingReceivedArguments: (presence: ClientProxyPresence, sendImmediately: Bool)?
+    var configurePresenceSendImmediatelyReceivedArguments: (presence: ClientProxyPresence, sendImmediately: Bool)? {
+        get { configurePresenceSendImmediatelyReceivedArgumentsLock.withLock { configurePresenceSendImmediatelyUnderlyingReceivedArguments } }
+        set { configurePresenceSendImmediatelyReceivedArgumentsLock.withLock { configurePresenceSendImmediatelyUnderlyingReceivedArguments = newValue } }
+    }
+    private let configurePresenceSendImmediatelyReceivedInvocationsLock = NSLock()
+    private nonisolated(unsafe) var configurePresenceSendImmediatelyUnderlyingReceivedInvocations: [(presence: ClientProxyPresence, sendImmediately: Bool)] = []
+    var configurePresenceSendImmediatelyReceivedInvocations: [(presence: ClientProxyPresence, sendImmediately: Bool)] {
+        get { configurePresenceSendImmediatelyReceivedInvocationsLock.withLock { configurePresenceSendImmediatelyUnderlyingReceivedInvocations } }
+        set { configurePresenceSendImmediatelyReceivedInvocationsLock.withLock { configurePresenceSendImmediatelyUnderlyingReceivedInvocations = newValue } }
+    }
+    nonisolated(unsafe) var configurePresenceSendImmediatelyClosure: ((ClientProxyPresence, Bool) async -> Void)?
+
+    @concurrent func configurePresence(_ presence: ClientProxyPresence, sendImmediately: Bool) async {
+        configurePresenceSendImmediatelyCallsCountLock.withLock { configurePresenceSendImmediatelyUnderlyingCallsCount += 1 }
+        configurePresenceSendImmediatelyReceivedArguments = (presence: presence, sendImmediately: sendImmediately)
+        configurePresenceSendImmediatelyReceivedInvocationsLock.withLock { configurePresenceSendImmediatelyUnderlyingReceivedInvocations.append((presence: presence, sendImmediately: sendImmediately)) }
+        await configurePresenceSendImmediatelyClosure?(presence, sendImmediately)
+    }
+    //MARK: - startSearchBackfill
+
+    private let startSearchBackfillStrategyCallsCountLock = NSLock()
+    private nonisolated(unsafe) var startSearchBackfillStrategyUnderlyingCallsCount = 0
+    var startSearchBackfillStrategyCallsCount: Int {
+        get { startSearchBackfillStrategyCallsCountLock.withLock { startSearchBackfillStrategyUnderlyingCallsCount } }
+        set { startSearchBackfillStrategyCallsCountLock.withLock { startSearchBackfillStrategyUnderlyingCallsCount = newValue } }
+    }
+    var startSearchBackfillStrategyCalled: Bool {
+        return startSearchBackfillStrategyCallsCount > 0
+    }
+    private let startSearchBackfillStrategyReceivedStrategyLock = NSLock()
+    private nonisolated(unsafe) var startSearchBackfillStrategyUnderlyingReceivedStrategy: SearchBackfillStrategy?
+    var startSearchBackfillStrategyReceivedStrategy: SearchBackfillStrategy? {
+        get { startSearchBackfillStrategyReceivedStrategyLock.withLock { startSearchBackfillStrategyUnderlyingReceivedStrategy } }
+        set { startSearchBackfillStrategyReceivedStrategyLock.withLock { startSearchBackfillStrategyUnderlyingReceivedStrategy = newValue } }
+    }
+    private let startSearchBackfillStrategyReceivedInvocationsLock = NSLock()
+    private nonisolated(unsafe) var startSearchBackfillStrategyUnderlyingReceivedInvocations: [SearchBackfillStrategy] = []
+    var startSearchBackfillStrategyReceivedInvocations: [SearchBackfillStrategy] {
+        get { startSearchBackfillStrategyReceivedInvocationsLock.withLock { startSearchBackfillStrategyUnderlyingReceivedInvocations } }
+        set { startSearchBackfillStrategyReceivedInvocationsLock.withLock { startSearchBackfillStrategyUnderlyingReceivedInvocations = newValue } }
+    }
+    nonisolated(unsafe) var startSearchBackfillStrategyClosure: ((SearchBackfillStrategy) -> Void)?
+
+    func startSearchBackfill(strategy: SearchBackfillStrategy) {
+        startSearchBackfillStrategyCallsCountLock.withLock { startSearchBackfillStrategyUnderlyingCallsCount += 1 }
+        startSearchBackfillStrategyReceivedStrategy = strategy
+        startSearchBackfillStrategyReceivedInvocationsLock.withLock { startSearchBackfillStrategyUnderlyingReceivedInvocations.append(strategy) }
+        startSearchBackfillStrategyClosure?(strategy)
+    }
+    //MARK: - stopSearchBackfill
+
+    private let stopSearchBackfillCallsCountLock = NSLock()
+    private nonisolated(unsafe) var stopSearchBackfillUnderlyingCallsCount = 0
+    var stopSearchBackfillCallsCount: Int {
+        get { stopSearchBackfillCallsCountLock.withLock { stopSearchBackfillUnderlyingCallsCount } }
+        set { stopSearchBackfillCallsCountLock.withLock { stopSearchBackfillUnderlyingCallsCount = newValue } }
+    }
+    var stopSearchBackfillCalled: Bool {
+        return stopSearchBackfillCallsCount > 0
+    }
+    nonisolated(unsafe) var stopSearchBackfillClosure: (() -> Void)?
+
+    func stopSearchBackfill() {
+        stopSearchBackfillCallsCountLock.withLock { stopSearchBackfillUnderlyingCallsCount += 1 }
+        stopSearchBackfillClosure?()
     }
 }
 nonisolated class UserSessionMock: UserSessionProtocol, @unchecked Sendable {
@@ -17914,6 +19944,16 @@ nonisolated class UserSessionMock: UserSessionProtocol, @unchecked Sendable {
         set(value) { underlyingClientProxy = value }
     }
     nonisolated(unsafe) var underlyingClientProxy: ClientProxyProtocol!
+    var userSettings: UserSettings {
+        get { return underlyingUserSettings }
+        set(value) { underlyingUserSettings = value }
+    }
+    nonisolated(unsafe) var underlyingUserSettings: UserSettings!
+    var userHooks: UserHooks {
+        get { return underlyingUserHooks }
+        set(value) { underlyingUserHooks = value }
+    }
+    nonisolated(unsafe) var underlyingUserHooks: UserHooks!
     var mediaProvider: MediaProviderProtocol {
         get { return underlyingMediaProvider }
         set(value) { underlyingMediaProvider = value }
@@ -17924,12 +19964,17 @@ nonisolated class UserSessionMock: UserSessionProtocol, @unchecked Sendable {
         set(value) { underlyingVoiceMessageMediaManager = value }
     }
     nonisolated(unsafe) var underlyingVoiceMessageMediaManager: VoiceMessageMediaManagerProtocol!
-    var liveLocationManager: LiveLocationManagerProtocol {
-        get { return underlyingLiveLocationManager }
-        set(value) { underlyingLiveLocationManager = value }
+    var liveLocationService: LiveLocationServiceProtocol {
+        get { return underlyingLiveLocationService }
+        set(value) { underlyingLiveLocationService = value }
     }
-    nonisolated(unsafe) var underlyingLiveLocationManager: LiveLocationManagerProtocol!
+    nonisolated(unsafe) var underlyingLiveLocationService: LiveLocationServiceProtocol!
     nonisolated(unsafe) var contentScannerService: ContentScannerServiceProtocol?
+    var notificationService: NotificationServiceProtocol {
+        get { return underlyingNotificationService }
+        set(value) { underlyingNotificationService = value }
+    }
+    nonisolated(unsafe) var underlyingNotificationService: NotificationServiceProtocol!
     var sessionSecurityStatePublisher: CurrentValuePublisher<SessionSecurityState, Never> {
         get { return underlyingSessionSecurityStatePublisher }
         set(value) { underlyingSessionSecurityStatePublisher = value }
@@ -17941,7 +19986,9 @@ nonisolated class UserSessionMock: UserSessionProtocol, @unchecked Sendable {
     }
     nonisolated(unsafe) var underlyingCallbacks: PassthroughSubject<UserSessionCallback, Never>!
     nonisolated(unsafe) var agentPlatformService: AgentPlatformServiceProtocol?
-    nonisolated(unsafe) var approvalsStreamService: ApprovalsStreamServiceProtocol?
+    nonisolated(unsafe) var agentsStore: AgentsStore?
+    nonisolated(unsafe) var feedStore: FeedStore?
+    nonisolated(unsafe) var platformSync: PlatformSync?
     nonisolated(unsafe) var presenceObserverService: PresenceObserverServiceProtocol?
 
 }
@@ -17977,30 +20024,44 @@ nonisolated class UserSessionStoreMock: UserSessionStoreProtocol, @unchecked Sen
     }
     //MARK: - restoreUserSession
 
-    private let restoreUserSessionCallsCountLock = NSLock()
-    private nonisolated(unsafe) var restoreUserSessionUnderlyingCallsCount = 0
-    var restoreUserSessionCallsCount: Int {
-        get { restoreUserSessionCallsCountLock.withLock { restoreUserSessionUnderlyingCallsCount } }
-        set { restoreUserSessionCallsCountLock.withLock { restoreUserSessionUnderlyingCallsCount = newValue } }
+    private let restoreUserSessionUserIDCallsCountLock = NSLock()
+    private nonisolated(unsafe) var restoreUserSessionUserIDUnderlyingCallsCount = 0
+    var restoreUserSessionUserIDCallsCount: Int {
+        get { restoreUserSessionUserIDCallsCountLock.withLock { restoreUserSessionUserIDUnderlyingCallsCount } }
+        set { restoreUserSessionUserIDCallsCountLock.withLock { restoreUserSessionUserIDUnderlyingCallsCount = newValue } }
     }
-    var restoreUserSessionCalled: Bool {
-        return restoreUserSessionCallsCount > 0
+    var restoreUserSessionUserIDCalled: Bool {
+        return restoreUserSessionUserIDCallsCount > 0
+    }
+    private let restoreUserSessionUserIDReceivedUserIDLock = NSLock()
+    private nonisolated(unsafe) var restoreUserSessionUserIDUnderlyingReceivedUserID: String?
+    var restoreUserSessionUserIDReceivedUserID: String? {
+        get { restoreUserSessionUserIDReceivedUserIDLock.withLock { restoreUserSessionUserIDUnderlyingReceivedUserID } }
+        set { restoreUserSessionUserIDReceivedUserIDLock.withLock { restoreUserSessionUserIDUnderlyingReceivedUserID = newValue } }
+    }
+    private let restoreUserSessionUserIDReceivedInvocationsLock = NSLock()
+    private nonisolated(unsafe) var restoreUserSessionUserIDUnderlyingReceivedInvocations: [String] = []
+    var restoreUserSessionUserIDReceivedInvocations: [String] {
+        get { restoreUserSessionUserIDReceivedInvocationsLock.withLock { restoreUserSessionUserIDUnderlyingReceivedInvocations } }
+        set { restoreUserSessionUserIDReceivedInvocationsLock.withLock { restoreUserSessionUserIDUnderlyingReceivedInvocations = newValue } }
     }
 
-    private let restoreUserSessionReturnValueLock = NSLock()
-    private nonisolated(unsafe) var restoreUserSessionUnderlyingReturnValue: Result<UserSessionProtocol, UserSessionStoreError>!
-    var restoreUserSessionReturnValue: Result<UserSessionProtocol, UserSessionStoreError>! {
-        get { restoreUserSessionReturnValueLock.withLock { restoreUserSessionUnderlyingReturnValue } }
-        set { restoreUserSessionReturnValueLock.withLock { restoreUserSessionUnderlyingReturnValue = newValue } }
+    private let restoreUserSessionUserIDReturnValueLock = NSLock()
+    private nonisolated(unsafe) var restoreUserSessionUserIDUnderlyingReturnValue: Result<UserSessionProtocol, UserSessionStoreError>!
+    var restoreUserSessionUserIDReturnValue: Result<UserSessionProtocol, UserSessionStoreError>! {
+        get { restoreUserSessionUserIDReturnValueLock.withLock { restoreUserSessionUserIDUnderlyingReturnValue } }
+        set { restoreUserSessionUserIDReturnValueLock.withLock { restoreUserSessionUserIDUnderlyingReturnValue = newValue } }
     }
-    nonisolated(unsafe) var restoreUserSessionClosure: (() async -> Result<UserSessionProtocol, UserSessionStoreError>)?
+    nonisolated(unsafe) var restoreUserSessionUserIDClosure: ((String) async -> Result<UserSessionProtocol, UserSessionStoreError>)?
 
-    @concurrent func restoreUserSession() async -> Result<UserSessionProtocol, UserSessionStoreError> {
-        restoreUserSessionCallsCountLock.withLock { restoreUserSessionUnderlyingCallsCount += 1 }
-        if let restoreUserSessionClosure = restoreUserSessionClosure {
-            return await restoreUserSessionClosure()
+    @concurrent func restoreUserSession(userID: String) async -> Result<UserSessionProtocol, UserSessionStoreError> {
+        restoreUserSessionUserIDCallsCountLock.withLock { restoreUserSessionUserIDUnderlyingCallsCount += 1 }
+        restoreUserSessionUserIDReceivedUserID = userID
+        restoreUserSessionUserIDReceivedInvocationsLock.withLock { restoreUserSessionUserIDUnderlyingReceivedInvocations.append(userID) }
+        if let restoreUserSessionUserIDClosure = restoreUserSessionUserIDClosure {
+            return await restoreUserSessionUserIDClosure(userID)
         } else {
-            return restoreUserSessionReturnValue
+            return restoreUserSessionUserIDReturnValue
         }
     }
     //MARK: - userSession
@@ -18015,14 +20076,14 @@ nonisolated class UserSessionStoreMock: UserSessionStoreProtocol, @unchecked Sen
         return userSessionForSessionDirectoriesPassphraseCallsCount > 0
     }
     private let userSessionForSessionDirectoriesPassphraseReceivedArgumentsLock = NSLock()
-    private nonisolated(unsafe) var userSessionForSessionDirectoriesPassphraseUnderlyingReceivedArguments: (client: ClientProtocol, sessionDirectories: SessionDirectories, passphrase: String)?
-    var userSessionForSessionDirectoriesPassphraseReceivedArguments: (client: ClientProtocol, sessionDirectories: SessionDirectories, passphrase: String)? {
+    private nonisolated(unsafe) var userSessionForSessionDirectoriesPassphraseUnderlyingReceivedArguments: (client: ClientProtocol, sessionDirectories: SessionDirectories, passphrase: Data)?
+    var userSessionForSessionDirectoriesPassphraseReceivedArguments: (client: ClientProtocol, sessionDirectories: SessionDirectories, passphrase: Data)? {
         get { userSessionForSessionDirectoriesPassphraseReceivedArgumentsLock.withLock { userSessionForSessionDirectoriesPassphraseUnderlyingReceivedArguments } }
         set { userSessionForSessionDirectoriesPassphraseReceivedArgumentsLock.withLock { userSessionForSessionDirectoriesPassphraseUnderlyingReceivedArguments = newValue } }
     }
     private let userSessionForSessionDirectoriesPassphraseReceivedInvocationsLock = NSLock()
-    private nonisolated(unsafe) var userSessionForSessionDirectoriesPassphraseUnderlyingReceivedInvocations: [(client: ClientProtocol, sessionDirectories: SessionDirectories, passphrase: String)] = []
-    var userSessionForSessionDirectoriesPassphraseReceivedInvocations: [(client: ClientProtocol, sessionDirectories: SessionDirectories, passphrase: String)] {
+    private nonisolated(unsafe) var userSessionForSessionDirectoriesPassphraseUnderlyingReceivedInvocations: [(client: ClientProtocol, sessionDirectories: SessionDirectories, passphrase: Data)] = []
+    var userSessionForSessionDirectoriesPassphraseReceivedInvocations: [(client: ClientProtocol, sessionDirectories: SessionDirectories, passphrase: Data)] {
         get { userSessionForSessionDirectoriesPassphraseReceivedInvocationsLock.withLock { userSessionForSessionDirectoriesPassphraseUnderlyingReceivedInvocations } }
         set { userSessionForSessionDirectoriesPassphraseReceivedInvocationsLock.withLock { userSessionForSessionDirectoriesPassphraseUnderlyingReceivedInvocations = newValue } }
     }
@@ -18033,9 +20094,9 @@ nonisolated class UserSessionStoreMock: UserSessionStoreProtocol, @unchecked Sen
         get { userSessionForSessionDirectoriesPassphraseReturnValueLock.withLock { userSessionForSessionDirectoriesPassphraseUnderlyingReturnValue } }
         set { userSessionForSessionDirectoriesPassphraseReturnValueLock.withLock { userSessionForSessionDirectoriesPassphraseUnderlyingReturnValue = newValue } }
     }
-    nonisolated(unsafe) var userSessionForSessionDirectoriesPassphraseClosure: ((ClientProtocol, SessionDirectories, String) async -> Result<UserSessionProtocol, UserSessionStoreError>)?
+    nonisolated(unsafe) var userSessionForSessionDirectoriesPassphraseClosure: ((ClientProtocol, SessionDirectories, Data) async -> Result<UserSessionProtocol, UserSessionStoreError>)?
 
-    @concurrent func userSession(for client: ClientProtocol, sessionDirectories: SessionDirectories, passphrase: String) async -> Result<UserSessionProtocol, UserSessionStoreError> {
+    @concurrent func userSession(for client: ClientProtocol, sessionDirectories: SessionDirectories, passphrase: Data) async -> Result<UserSessionProtocol, UserSessionStoreError> {
         userSessionForSessionDirectoriesPassphraseCallsCountLock.withLock { userSessionForSessionDirectoriesPassphraseUnderlyingCallsCount += 1 }
         userSessionForSessionDirectoriesPassphraseReceivedArguments = (client: client, sessionDirectories: sessionDirectories, passphrase: passphrase)
         userSessionForSessionDirectoriesPassphraseReceivedInvocationsLock.withLock { userSessionForSessionDirectoriesPassphraseUnderlyingReceivedInvocations.append((client: client, sessionDirectories: sessionDirectories, passphrase: passphrase)) }

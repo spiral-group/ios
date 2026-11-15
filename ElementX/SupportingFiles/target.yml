@@ -22,6 +22,9 @@ schemes:
         - variable: HTTPS_PROXY
           value: localhost:9090
           isEnabled: false
+        - variable: HTTP_PROXY
+          value: localhost:9090
+          isEnabled: false
         - variable: UI_TESTS_SCREEN
           value: ""
           isEnabled: false
@@ -36,6 +39,26 @@ schemes:
       testPlans:
         - path: ../../UnitTests/SupportingFiles/UnitTests.xctestplan
           defaultPlan: true
+  # AGENT-PLATFORM (Brief 0084): the build for a phone and TestFlight against
+  # staging.spiral.md. Run and Archive both take the Staging configuration.
+  Spiral Staging:
+    analyze:
+      config: Staging
+    archive:
+      config: Staging
+    build:
+      targets:
+        ElementX:
+          - running
+          - profiling
+          - analyzing
+          - archiving
+    profile:
+      config: Staging
+    run:
+      config: Staging
+    test:
+      config: Staging
 
 targets:
   ElementX:
@@ -84,8 +107,7 @@ targets:
         appGroupIdentifier: $(APP_GROUP_IDENTIFIER)
         baseBundleIdentifier: $(BASE_BUNDLE_IDENTIFIER)
         keychainAccessGroupIdentifier: $(KEYCHAIN_ACCESS_GROUP_IDENTIFIER)
-        # AGENT-PLATFORM: classic{App,Keychain}* Info.plist keys removed
-        # to disable Element Classic (im.vector) account import — see app.yml.
+        # AGENT-PLATFORM (Brief 0083 L1b): no classicApp* keys, Element Classic's import is gone.
         productionAppName: $(PRODUCTION_APP_NAME)
         isNightlyBuild: $(IS_NIGHTLY_BUILD)
         ITSAppUsesNonExemptEncryption: false
@@ -98,12 +120,13 @@ targets:
         NSCameraUsageDescription: To make video calls, and to take pictures or videos and send them as a message, $(APP_DISPLAY_NAME) needs access to the camera.
         NSMicrophoneUsageDescription: To make calls, and to record and send messages with audio, $(APP_DISPLAY_NAME) needs to access the microphone.
         NSPhotoLibraryAddUsageDescription: This lets you save images and videos to your photo library.
-        NSLocationWhenInUseUsageDescription: Grant location access so that $(APP_DISPLAY_NAME) can share your location.
-        NSLocationAlwaysAndWhenInUseUsageDescription: To share your live location, $(APP_DISPLAY_NAME) needs location access when the app is in the background.
+        # AGENT-PLATFORM: App Review F1 (decision 252): no location purpose strings.
+        # Spiral ships without location sharing and its binary references no
+        # CoreLocation request API (`SpiralNoLocationManager`, no MapLibre).
         NSFaceIDUsageDescription: Face ID is used to access your app.
-        # AGENT-PLATFORM (Brief 0078): no `location` mode while location sharing
-        # is off (no MapTiler key, no `m.tile_server`) — App Review 2.5.4. Add it
-        # back with the feature; `LiveLocationManager` follows this list.
+        # AGENT-PLATFORM (Brief 0078): no `location` mode — Spiral ships without
+        # location sharing (App Review 2.5.4, F1). Add it back with the feature;
+        # `LiveLocationManager` follows this list.
         # No `processing` either: the one background task is a BGAppRefreshTask
         # (`fetch`), and App Review reads an unused mode as a false declaration.
         UIBackgroundModes: [
@@ -112,7 +135,8 @@ targets:
           voip
         ]
         BGTaskSchedulerPermittedIdentifiers: [
-          $(BASE_BUNDLE_IDENTIFIER).background.refresh
+          $(BASE_BUNDLE_IDENTIFIER).background.refresh,
+          $(BASE_BUNDLE_IDENTIFIER).background.search-backfill
         ]
         UTExportedTypeDeclarations:
         - UTTypeConformsTo: [public.text]
@@ -136,13 +160,14 @@ targets:
         # (components format, /u /c /r /m) ships from
         # deploy/config/brand/.well-known/apple-app-site-association.
         com.apple.developer.associated-domains:
-        - applinks:spiral.md
+        # AGENT-PLATFORM (Brief 0084): spiral.md, or staging.spiral.md in a Staging build.
+        - applinks:$(SPIRAL_ASSOCIATED_DOMAIN)
         # NB: an `applinks:spiral.md?mode=developer` entry existed during
         # Brief 0060 so development-signed builds could bypass Apple's
         # AASA CDN cache. It was stripped for the first TestFlight build
         # (Apple rejects the `?mode=` query in submissions) and must not
         # come back on a release branch — see docs/project/DECISIONS.md.
-        - webcredentials:spiral.md
+        - webcredentials:$(SPIRAL_ASSOCIATED_DOMAIN)
         com.apple.developer.usernotifications.communication: true
         com.apple.security.app-sandbox: true
         com.apple.security.application-groups:
@@ -154,10 +179,12 @@ targets:
     settings:
       base:
         PRODUCT_NAME: $(APP_NAME)
-        # AGENT-PLATFORM: the product renamed to Spiral, but the Swift
-        # MODULE keeps the code-stable name — every test file does
-        # `@testable import ElementX` and Sourcery/SwiftGen emit against it.
-        PRODUCT_MODULE_NAME: ElementX
+        # AGENT-PLATFORM (Brief 0083 L1a, decision 302): the Swift module is
+        # `Spiral`, so upstream's name is not in the binary's type metadata
+        # (App Review 4.3(a)); tests `@testable import Spiral`. Pinned rather
+        # than derived from $(APP_NAME). The target and folders keep
+        # upstream's `ElementX` name to limit upstream merge conflicts.
+        PRODUCT_MODULE_NAME: Spiral
         PRODUCT_BUNDLE_IDENTIFIER: $(BASE_BUNDLE_IDENTIFIER)
         MARKETING_VERSION: $(MARKETING_VERSION)
         CURRENT_PROJECT_VERSION: $(CURRENT_PROJECT_VERSION)
@@ -166,8 +193,8 @@ targets:
         SWIFT_OBJC_BRIDGING_HEADER: ElementX/SupportingFiles/ElementX-Bridging-Header.h
         SWIFT_OBJC_INTERFACE_HEADER_NAME: GeneratedInterface-Swift.h
         PILLS_UT_TYPE_IDENTIFIER: $(BASE_BUNDLE_IDENTIFIER).pills
-        DEVELOPMENT_ASSET_PATHS: DevelopmentAssets/Media
-        SWIFT_VERSION: 6.2
+        DEVELOPMENT_ASSET_PATHS: Components/DevelopmentAssets/Media
+        SWIFT_VERSION: 6
         SWIFT_APPROACHABLE_CONCURRENCY: YES
         SWIFT_DEFAULT_ACTOR_ISOLATION: MainActor
         OTHER_SWIFT_FLAGS:
@@ -250,6 +277,28 @@ targets:
         else
             echo "warning: SwiftFormat not installed, download from https://github.com/nicklockwood/SwiftFormat"
         fi
+    # AGENT-PLATFORM (Brief 0083 L1b, decision 302): Element's strings leave the
+    # shipped bundle without an edit to upstream's Localizable.strings.
+    - name: 🧽 Element strings
+      runOnlyWhenInstalling: false
+      basedOnDependencyAnalysis: false
+      shell: /bin/sh
+      script: |
+        if [ "$CONFIGURATION" = "Release" ] || [ "$CONFIGURATION" = "Staging" ]; then # AGENT-PLATFORM (Brief 0084)
+            python3 "$SRCROOT/Tools/Scripts/strip-element-strings.py" strip "$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH" "$SRCROOT/ElementX/Resources/Localizations"
+        else
+            python3 "$SRCROOT/Tools/Scripts/strip-element-strings.py" check "$SRCROOT/ElementX/Resources/Localizations" --warn
+        fi
+
+    # AGENT-PLATFORM (Brief 0084): the same app record as prod, so a Staging archive must not reach App Review.
+    - name: 🚧 Staging note
+      runOnlyWhenInstalling: false
+      basedOnDependencyAnalysis: false
+      shell: /bin/sh
+      script: |
+        if [ "$CONFIGURATION" = "Staging" ]; then
+            echo "warning: Staging build $MARKETING_VERSION talks to staging.spiral.md: internal TestFlight only, never App Review."
+        fi
 
     dependencies:
     - target: NSE
@@ -282,7 +331,14 @@ targets:
     - package: LoremSwiftum
     - package: LRUCache
     - package: Mantis
-    - package: MapLibre
+    - target: MapLibreInterface
+      embed: true
+    # AGENT-PLATFORM: App Review F1 (decision 252): neither MapLibreShim nor
+    # MapLibre.framework is embedded. MapLibre asks for location access, and
+    # Spiral declares no purpose string; `MapLibreLoader` finds no shim and the
+    # (unreachable) map screens show their loading failure.
+    # AGENT-PLATFORM (Brief 0067): no `ElementCall` package (upstream's own
+    # native calls); calls are Spiral's native MatrixRTC (ADR-0079).
     # AGENT-PLATFORM (Brief 0078): no PostHog and no Sentry — Spiral collects no
     # analytics or crash data, and their manifests would contradict the label.
     - package: SwiftState
@@ -296,17 +352,27 @@ targets:
       product: Flow
     - package: DSWaveformImage
       product: DSWaveformImageViews
+    # AGENT-PLATFORM (Brief 0083 phase 3): Spiral's own tokens (Color.spiral, SpiralRadius),
+    # last so that the generated project's other dependency IDs stay put.
+    - package: SpiralUI
+      product: SpiralTokens
+    # AGENT-PLATFORM (Brief 0083 phase 3): Spiral's shared components, after the tokens for the same reason.
+    - package: SpiralComponents
 
     sources:
     - path: ../Sources
       excludes:
         - Other/Extensions/XCTestCase.swift
         - Other/Extensions/XCUIElement.swift
-    - path: ../../Secrets/Secrets.swift
+    - path: ../../Components/Secrets/Secrets.swift
     - path: ../Resources
     - path: ../SupportingFiles
+      # AGENT-PLATFORM (Brief 0083 L1b, decision 302): the XcodeGen manifest is
+      # not a resource; shipped, it put upstream's target names in the bundle.
+      excludes:
+        - target.yml
     - path: ../../Tools/Scripts/Templates/SimpleScreenExample/ElementX
-    - path: ../../DevelopmentAssets/Media
+    - path: ../../Components/DevelopmentAssets/Media
     
     # This is required for testing purposes... The problem with unit tests is that if you
     # try to `@testable import NSE` you can only get the definition of files, but due to a

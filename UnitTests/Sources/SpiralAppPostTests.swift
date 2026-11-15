@@ -14,9 +14,9 @@
 // fetch plaintext that cannot be decrypted.
 //
 
-@testable import ElementX
 import Foundation
 import MatrixRustSDK
+@testable import Spiral
 import Testing
 
 struct SpiralAppPostTests {
@@ -42,6 +42,7 @@ struct SpiralAppPostTests {
         #expect(SpiralAppPost(Self.content(url: "mxc://spiral.md/abc")).isRuntimeSupported)
         #expect(!SpiralAppPost(Self.content(url: "mxc://spiral.md/abc", runtime: "2")).isRuntimeSupported)
         #expect(SpiralAppPost(Self.content(url: "mxc://spiral.md/abc", runtime: "1.1")).isRuntimeSupported, "the games level")
+        #expect(SpiralAppPost(Self.content(url: "mxc://spiral.md/abc", runtime: "1.2")).isRuntimeSupported, "the motion level")
         #expect(!SpiralAppPost(Self.content(url: "mxc://spiral.md/abc", runtime: "1.9")).isRuntimeSupported, "a level from a later build")
     }
 

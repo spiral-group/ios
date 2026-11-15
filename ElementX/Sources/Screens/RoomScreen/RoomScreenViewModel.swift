@@ -17,12 +17,12 @@ typealias RoomScreenViewModelType = StateStoreViewModel<RoomScreenViewState, Roo
 class RoomScreenViewModel: RoomScreenViewModelType, RoomScreenViewModelProtocol {
     private let clientProxy: ClientProxyProtocol
     private let roomProxy: JoinedRoomProxyProtocol
-    private let appSettings: AppSettings
+    private let userSettings: UserSettings
     // AGENT-PLATFORM (Brief 0072, ADR-0083): the DM recipient's presence while
     // this screen is open; observed on open, released in `stop()`.
     private let presenceObserverService: PresenceObserverServiceProtocol?
-    private var observedDMUserID: String?
-    private var presenceCancellables = Set<AnyCancellable>()
+    private let agentsStore: AgentsStore?
+    private var dmPresenceObservation: PresenceObservation?
     private let analyticsService: AnalyticsServiceProtocol
     private let userIndicatorController: UserIndicatorControllerProtocol
     // AGENT-PLATFORM: optional — nil when no orchestrator is configured
@@ -69,14 +69,13 @@ class RoomScreenViewModel: RoomScreenViewModelType, RoomScreenViewModelProtocol 
          roomProxy: JoinedRoomProxyProtocol,
          initialSelectedPinnedEventID: String?,
          ongoingCallRoomIDPublisher: CurrentValuePublisher<String?, Never>,
-         appSettings: AppSettings,
-         appHooks: AppHooks,
          analyticsService: AnalyticsServiceProtocol,
          userIndicatorController: UserIndicatorControllerProtocol) {
         clientProxy = userSession.clientProxy
         presenceObserverService = userSession.presenceObserverService
+        agentsStore = userSession.agentsStore
         self.roomProxy = roomProxy
-        self.appSettings = appSettings
+        userSettings = userSession.userSettings
         self.analyticsService = analyticsService
         self.userIndicatorController = userIndicatorController
         agentPlatformService = userSession.agentPlatformService
@@ -84,13 +83,14 @@ class RoomScreenViewModel: RoomScreenViewModelType, RoomScreenViewModelProtocol 
         self.initialSelectedPinnedEventID = initialSelectedPinnedEventID
         pinnedEventStringBuilder = .pinnedEventStringBuilder(userID: roomProxy.ownUserID)
         
-        let viewState = RoomScreenViewState(roomTitle: roomProxy.infoPublisher.value.displayName ?? roomProxy.id,
+        let viewState = RoomScreenViewState(roomTitle: roomProxy.infoPublisher.value.displayNameOrID,
                                             roomAvatar: roomProxy.infoPublisher.value.avatar,
+                                            isNativeCallingEnabled: userSettings.app.nativeCallEnabled,
                                             hasOngoingCall: roomProxy.infoPublisher.value.hasRoomCall,
                                             isDM: roomProxy.infoPublisher.value.isDM,
                                             hasSuccessor: roomProxy.infoPublisher.value.successor != nil,
                                             roomHistorySharingState: roomProxy.infoPublisher.value.historySharingState)
-        super.init(initialViewState: appHooks.roomScreenHook.update(viewState),
+        super.init(initialViewState: userSession.userHooks.roomScreenHook.update(viewState),
                    mediaProvider: userSession.mediaProvider)
         
         updateRoomInfo(roomProxy.infoPublisher.value)
@@ -175,7 +175,7 @@ class RoomScreenViewModel: RoomScreenViewModelType, RoomScreenViewModelProtocol 
         let items = SpiralToolsStateReader.flatten(entries: liveEntries).map { flat in
             BannerToolItem(id: flat.id,
                            title: toolTitle(for: flat.tool),
-                           icon: AgentCapability.icon(forToolKind: flat.tool.kind),
+                           icon: ToolDisplayName.icon(forKind: flat.tool.kind),
                            agentMatrixUserID: flat.entry.agentMatrixUserID)
         }
         guard !items.isEmpty else {
@@ -232,8 +232,6 @@ class RoomScreenViewModel: RoomScreenViewModelType, RoomScreenViewModelProtocol 
             guard let successorID = roomProxy.infoPublisher.value.successor?.roomId else { return }
             let serverNames = roomProxy.knownServerNames(maxCount: 50) // Limit to the same number used by ClientProxy.resolveRoomAlias(_:)
             actionsSubject.send(.displayRoom(roomID: successorID, via: Array(serverNames)))
-        case .displayThreadList:
-            actionsSubject.send(.displayThreadList)
         case .tappedStopLiveLocation:
             actionsSubject.send(.stopLiveLocationSharing)
         case .tappedOpenLiveLocation:
@@ -243,13 +241,7 @@ class RoomScreenViewModel: RoomScreenViewModelType, RoomScreenViewModelProtocol 
     
     func stop() {
         // AGENT-PLATFORM (Brief 0072, ADR-0083)
-        if let observedDMUserID {
-            presenceObserverService?.stopObserving(observedDMUserID)
-            self.observedDMUserID = nil
-        }
-        // When navigating away from the room, we need to mark the room as fully read.
-        // This does not affect the read receipts only the notification count.
-        Task { await roomProxy.markAsRead(receiptType: .fullyRead) }
+        dmPresenceObservation = nil
         // Work around QLPreviewController dismissal issues, see the InteractiveQuickLookModifier.
         state.bindings.mediaPreviewViewModel = nil
     }
@@ -274,11 +266,11 @@ class RoomScreenViewModel: RoomScreenViewModelType, RoomScreenViewModelProtocol 
             switch action {
             case .dismiss:
                 state.bindings.mediaPreviewViewModel = nil
-            case .displayMessageForwarding(let forwardingItem):
+            case .displayMessageForwarding(let forwardingPayload):
                 state.bindings.mediaPreviewViewModel = nil
                 // We need a small delay because we need to wait for the media preview to be fully dismissed.
                 DispatchQueue.main.asyncAfter(deadline: .now() + TimelineMediaPreviewViewModel.displayMessageForwardingDelay) {
-                    self.actionsSubject.send(.displayMessageForwarding(forwardingItem))
+                    self.actionsSubject.send(.displayMessageForwarding(forwardingPayload))
                 }
             case .viewInRoomTimeline:
                 fatalError("\(action) should not be visible on a room preview.")
@@ -292,11 +284,7 @@ class RoomScreenViewModel: RoomScreenViewModelType, RoomScreenViewModelProtocol 
     // MARK: - Private
     
     private func setupSubscriptions(ongoingCallRoomIDPublisher: CurrentValuePublisher<String?, Never>) {
-        appSettings.roomThreadListEnabledPublisher
-            .weakAssign(to: \.state.roomThreadListEnabled, on: self)
-            .store(in: &cancellables)
-        
-        appSettings.liveLocationSharingSessionsByRoomIDPublisher
+        userSettings.account.liveLocationSharingSessionsByRoomIDPublisher
             .receive(on: DispatchQueue.main)
             .sink { [weak self] sessionsByRoomID in
                 guard let self else { return }
@@ -390,19 +378,20 @@ class RoomScreenViewModel: RoomScreenViewModelType, RoomScreenViewModelProtocol 
         
         if let member = identityVerificationViolations.values.first {
             state.footerDetails = .verificationViolation(member: member,
-                                                         learnMoreURL: appSettings.identityPinningViolationDetailsURL)
+                                                         learnMoreURL: userSettings.app.identityPinningViolationDetailsURL)
         } else if let member = identityPinningViolations.values.first {
             state.footerDetails = .pinViolation(member: member,
-                                                learnMoreURL: appSettings.identityPinningViolationDetailsURL)
+                                                learnMoreURL: userSettings.app.identityPinningViolationDetailsURL)
         } else {
             state.footerDetails = nil
         }
     }
     
     private func updateVerificationBadge() async {
+        // The DM's person, as presence reads it: an agent added to the DM is a member too.
         guard roomProxy.infoPublisher.value.isDM,
-              let dmRecipient = roomProxy.membersPublisher.value.first(where: { $0.userID != roomProxy.ownUserID }),
-              case let .success(userIdentity) = await clientProxy.userIdentity(for: dmRecipient.userID, fallBackToServer: true) else {
+              let dmUserID = roomProxy.infoPublisher.value.dmUserID,
+              case let .success(userIdentity) = await clientProxy.userIdentity(for: dmUserID, fallBackToServer: true) else {
             state.dmRecipientDetails.verification = .notVerified
             return
         }
@@ -463,30 +452,24 @@ class RoomScreenViewModel: RoomScreenViewModelType, RoomScreenViewModelProtocol 
     
     // AGENT-PLATFORM (Brief 0072, ADR-0083): follow the DM's other person.
     private func observeDMPresence(_ dmUserID: String?) {
-        guard dmUserID != observedDMUserID else { return }
-        if let observedDMUserID {
-            presenceObserverService?.stopObserving(observedDMUserID)
+        guard dmUserID != dmPresenceObservation?.userID else { return }
+        dmPresenceObservation = nil
+        state.dmRecipientDetails.presence = nil
+        dmPresenceObservation = PresenceObservation(userID: dmUserID,
+                                                    ownUserID: roomProxy.ownUserID,
+                                                    service: presenceObserverService,
+                                                    agentsStore: agentsStore) { [weak self] presence in
+            self?.state.dmRecipientDetails.presence = presence
         }
-        observedDMUserID = dmUserID
-        presenceCancellables.removeAll()
-        guard let dmUserID, let presenceObserverService else {
-            state.dmRecipientDetails.presence = nil
-            return
-        }
-        presenceObserverService.observe(dmUserID)
-        presenceObserverService.presencePublisher
-            .map { $0[dmUserID] }
-            .removeDuplicates()
-            .receive(on: DispatchQueue.main)
-            .weakAssign(to: \.state.dmRecipientDetails.presence, on: self)
-            .store(in: &presenceCancellables)
     }
     
     private func updateRoomInfo(_ roomInfo: RoomInfoProxyProtocol) {
-        state.roomTitle = roomInfo.displayName ?? roomProxy.id
+        state.roomTitle = roomInfo.displayNameOrID
         state.roomAvatar = roomInfo.avatar
         state.dmRecipientDetails.statusEmoji = roomInfo.statusEmoji
         observeDMPresence(roomInfo.dmUserID)
+        // AGENT-PLATFORM (Brief 0083, question 392): no count yet is no line, never «0 members».
+        state.memberCount = roomInfo.isDM || roomInfo.joinedMembersCount < 1 ? nil : roomInfo.joinedMembersCount
         state.hasOngoingCall = roomInfo.hasRoomCall
         state.activeRoomCallIntent = roomInfo.activeRoomCallIntent
         state.hasSuccessor = roomInfo.successor != nil
@@ -578,7 +561,7 @@ class RoomScreenViewModel: RoomScreenViewModelType, RoomScreenViewModelProtocol 
             Task {
                 switch await roomProxy.loadOrFetchEventDetails(for: eventID) {
                 case .success(let event):
-                    if appSettings.threadsEnabled,
+                    if userSettings.app.threadsEnabled,
                        let threadRootEventID = event.threadRootEventId() {
                         actionsSubject.send(.focusEvent(eventID: threadRootEventID))
                         actionsSubject.send(.displayThread(threadRootEventID: threadRootEventID, focussedEventID: eventID))
@@ -609,14 +592,11 @@ class RoomScreenViewModel: RoomScreenViewModelType, RoomScreenViewModelProtocol 
 
 extension RoomScreenViewModel {
     static func mock(roomProxyMock: JoinedRoomProxyMock,
-                     clientProxyMock: ClientProxyMock = ClientProxyMock(.init()),
-                     appHooks: AppHooks = AppHooks()) -> RoomScreenViewModel {
-        RoomScreenViewModel(userSession: UserSessionMock(.init(clientProxy: clientProxyMock)),
+                     userSession: UserSessionProtocol = UserSessionMock(.init())) -> RoomScreenViewModel {
+        RoomScreenViewModel(userSession: userSession,
                             roomProxy: roomProxyMock,
                             initialSelectedPinnedEventID: nil,
                             ongoingCallRoomIDPublisher: .init(.init(nil)),
-                            appSettings: .volatile(),
-                            appHooks: appHooks,
                             analyticsService: AnalyticsServiceMock(.init()),
                             userIndicatorController: UserIndicatorControllerMock())
     }

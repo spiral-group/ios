@@ -12,7 +12,7 @@ import Compound
 import SwiftUI
 
 /// The design's letter avatar with the real picture when the profile has
-/// one — sized for the stage (96) and the cards (40).
+/// one — sized for the stage and the cards from Spiral's avatar scale.
 struct NativeCallLetterAvatar: View {
     let userID: String?
     let profile: NativeCallMemberProfile?

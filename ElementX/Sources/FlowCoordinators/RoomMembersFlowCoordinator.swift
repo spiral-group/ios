@@ -13,6 +13,8 @@ enum RoomMembersFlowCoordinatorAction {
     case finished
     case presentCallScreen(roomProxy: JoinedRoomProxyProtocol, isVoiceCall: Bool)
     case presentAIConsentSettings // AGENT-PLATFORM (decision 150)
+    /// The Agents tab, where the person's agent is or will be (question 412).
+    case presentAgentsTab
     case verifyUser(userID: String)
 }
 
@@ -37,6 +39,8 @@ final class RoomMembersFlowCoordinator: FlowCoordinatorProtocol {
         case inviteUsersScreen
         /// A room flow has been started
         case roomFlow(roomID: String, previousState: State)
+        /// AGENT-PLATFORM (Brief 0083, question 359): one of the owner's rows of an agent's page.
+        case agentRowFlow(previousState: State)
     }
     
     enum Event: EventType {
@@ -53,6 +57,10 @@ final class RoomMembersFlowCoordinator: FlowCoordinatorProtocol {
         
         case startRoomFlow(roomID: String, via: [String], eventID: String?)
         case stopRoomFlow
+        
+        /// AGENT-PLATFORM (Brief 0083, question 359)
+        case startAgentRowFlow(row: AgentPageRow, card: AgentSpaceAgentCard)
+        case stopAgentRowFlow
     }
     
     private let entryPoint: RoomMembersFlowCoordinatorEntryPoint
@@ -71,11 +79,15 @@ final class RoomMembersFlowCoordinator: FlowCoordinatorProtocol {
     }
     
     private var childFlowCoordinator: FlowCoordinatorProtocol?
+    /// How an agent's «Open chat» returns to the room the members were opened from. `nil` for a flow with no such room.
+    private let showOriginRoom: ((_ roomID: String) -> Bool)?
     
     init(entryPoint: RoomMembersFlowCoordinatorEntryPoint,
          roomProxy: JoinedRoomProxyProtocol,
          navigationStackCoordinator: NavigationStackCoordinator,
-         flowParameters: CommonFlowParameters) {
+         flowParameters: CommonFlowParameters,
+         showOriginRoom: ((_ roomID: String) -> Bool)? = nil) {
+        self.showOriginRoom = showOriginRoom
         self.entryPoint = entryPoint
         self.roomProxy = roomProxy
         self.flowParameters = flowParameters
@@ -119,7 +131,7 @@ final class RoomMembersFlowCoordinator: FlowCoordinatorProtocol {
             }
         case .roomAlias, .childRoomAlias, .eventOnRoomAlias, .childEventOnRoomAlias:
             break // These are converted to a room ID route one level above.
-        case .accountProvisioningLink, .oAuthCallback, .inviteLink, // AGENT-PLATFORM: .inviteLink (Brief 0073)
+        case .oAuthCallback, .inviteLink, // AGENT-PLATFORM: .inviteLink (Brief 0073), no .accountProvisioningLink (Brief 0083 L1b)
              .roomList, .room, .roomDetails, .event,
              .userProfile, .call, .settings, .chatBackupSettings,
              .share, .transferOwnership, .thread, .search:
@@ -130,6 +142,8 @@ final class RoomMembersFlowCoordinator: FlowCoordinatorProtocol {
             break // AGENT-PLATFORM (decision 150): handled by the settings flow.
         case .catalogTemplate:
             break // AGENT-PLATFORM (decision 111): handled by ChatsTabFlowCoordinator.
+        case .feedPost, .feedNotices:
+            break // AGENT-PLATFORM: feed (Brief 0082): handled by FeedTabFlowCoordinator.
         }
     }
     
@@ -167,6 +181,11 @@ final class RoomMembersFlowCoordinator: FlowCoordinatorProtocol {
             case (_, .startRoomFlow(let roomID, _, _)):
                 return .roomFlow(roomID: roomID, previousState: fromState)
             case (.roomFlow(_, let previousState), .stopRoomFlow):
+                return previousState
+                
+            case (_, .startAgentRowFlow): // AGENT-PLATFORM (Brief 0083, question 359)
+                return .agentRowFlow(previousState: fromState)
+            case (.agentRowFlow(let previousState), .stopAgentRowFlow):
                 return previousState
                 
             default:
@@ -207,6 +226,11 @@ final class RoomMembersFlowCoordinator: FlowCoordinatorProtocol {
             case (.roomFlow, .stopRoomFlow, _):
                 childFlowCoordinator = nil
                 
+            case (_, .startAgentRowFlow(let row, let card), .agentRowFlow): // AGENT-PLATFORM (Brief 0083, question 359)
+                startAgentRowFlow(row: row, card: card, animated: animated)
+            case (.agentRowFlow, .stopAgentRowFlow, _):
+                childFlowCoordinator = nil
+                
             default:
                 fatalError("Unhandled transition")
             }
@@ -238,8 +262,8 @@ final class RoomMembersFlowCoordinator: FlowCoordinatorProtocol {
         let params = RoomMemberDetailsScreenCoordinatorParameters(userID: userID,
                                                                   roomProxy: roomProxy,
                                                                   userSession: flowParameters.userSession,
-                                                                  userIndicatorController: flowParameters.userIndicatorController,
-                                                                  analytics: flowParameters.analytics)
+                                                                  analytics: flowParameters.analytics,
+                                                                  userIndicatorController: flowParameters.userIndicatorController)
         let coordinator = RoomMemberDetailsScreenCoordinator(parameters: params)
         
         coordinator.actions.sink { [weak self] action in
@@ -253,6 +277,8 @@ final class RoomMembersFlowCoordinator: FlowCoordinatorProtocol {
                 actionsSubject.send(.presentCallScreen(roomProxy: roomProxy, isVoiceCall: isVoiceCall))
             case .verifyUser(let userID):
                 actionsSubject.send(.verifyUser(userID: userID))
+            case .openAgentRow(let row, let card): // AGENT-PLATFORM (Brief 0083, question 359)
+                stateMachine.tryEvent(.startAgentRowFlow(row: row, card: card))
             }
         }
         .store(in: &cancellables)
@@ -294,8 +320,8 @@ final class RoomMembersFlowCoordinator: FlowCoordinatorProtocol {
         let parameters = UserProfileScreenCoordinatorParameters(userID: userID,
                                                                 isPresentedModally: false,
                                                                 userSession: flowParameters.userSession,
-                                                                userIndicatorController: flowParameters.userIndicatorController,
-                                                                analytics: flowParameters.analytics)
+                                                                analytics: flowParameters.analytics,
+                                                                userIndicatorController: flowParameters.userIndicatorController)
         let coordinator = UserProfileScreenCoordinator(parameters: parameters)
         coordinator.actionsPublisher.sink { [weak self] action in
             guard let self else { return }
@@ -307,18 +333,56 @@ final class RoomMembersFlowCoordinator: FlowCoordinatorProtocol {
                 actionsSubject.send(.presentCallScreen(roomProxy: roomProxy, isVoiceCall: isVoiceCall))
             case .dismiss:
                 break // Not supported when pushed.
+            case .openAgentRow(let row, let card): // AGENT-PLATFORM (Brief 0083, question 359)
+                stateMachine.tryEvent(.startAgentRowFlow(row: row, card: card))
             }
         }
         .store(in: &cancellables)
         
         // Replace the RoomMemberDetailsScreen without any animation.
         // If this pop and push happens before the previous navigation is completed it might break screen presentation logic
-        DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(500)) {
-            self.navigationStackCoordinator.pop(animated: false)
-            self.navigationStackCoordinator.push(coordinator, animated: false) { [weak self] in
+        DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(500)) { [self] in
+            navigationStackCoordinator.pop(animated: false)
+            navigationStackCoordinator.push(coordinator, animated: false) { [weak self] in
                 self?.stateMachine.tryEvent(.dismissedUserProfile)
             }
         }
+    }
+    
+    // AGENT-PLATFORM (Brief 0083, question 359)
+    private func startAgentRowFlow(row: AgentPageRow, card: AgentSpaceAgentCard, animated: Bool) {
+        guard let coordinator = AgentRowFlowCoordinator(row: row,
+                                                        card: card,
+                                                        navigationStackCoordinator: navigationStackCoordinator,
+                                                        flowParameters: flowParameters,
+                                                        showOriginRoom: showOriginRoom) else {
+            MXLog.warning("RoomMembersFlowCoordinator: no agent platform: cannot open an agent's row")
+            flowParameters.userIndicatorController.submitIndicator(.init(title: L10n.errorUnknown))
+            stateMachine.tryEvent(.stopAgentRowFlow)
+            return
+        }
+        
+        coordinator.actionsPublisher
+            .sink { [weak self] action in
+                guard let self else { return }
+                
+                switch action {
+                case .finished:
+                    stateMachine.tryEvent(.stopAgentRowFlow)
+                case .presentCallScreen(let roomProxy, let isVoiceCall):
+                    actionsSubject.send(.presentCallScreen(roomProxy: roomProxy, isVoiceCall: isVoiceCall))
+                case .presentAIConsentSettings:
+                    actionsSubject.send(.presentAIConsentSettings)
+                case .presentAgentsTab: // AGENT-PLATFORM (question 412)
+                    actionsSubject.send(.presentAgentsTab)
+                case .verifyUser(let userID):
+                    actionsSubject.send(.verifyUser(userID: userID))
+                }
+            }
+            .store(in: &cancellables)
+        
+        childFlowCoordinator = coordinator
+        coordinator.start(animated: animated)
     }
     
     private func startRoomFlow(roomID: String, via: [String], eventID: String?, animated: Bool) {
@@ -335,6 +399,8 @@ final class RoomMembersFlowCoordinator: FlowCoordinatorProtocol {
                     actionsSubject.send(.presentCallScreen(roomProxy: roomProxy, isVoiceCall: isVoiceCall))
                 case .presentAIConsentSettings: // AGENT-PLATFORM (decision 150)
                     actionsSubject.send(.presentAIConsentSettings)
+                case .presentAgentsTab: // AGENT-PLATFORM (question 412)
+                    actionsSubject.send(.presentAgentsTab)
                 case .verifyUser(let userID):
                     actionsSubject.send(.verifyUser(userID: userID))
                 case .continueWithSpaceFlow:

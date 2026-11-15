@@ -6,10 +6,10 @@
 // Please see LICENSE files in the repository root for full details.
 //
 
-@testable import ElementX
 import Foundation
 @testable import MatrixRustSDK
 import MatrixRustSDKMocks
+@testable import Spiral
 import Testing
 
 @MainActor
@@ -51,6 +51,26 @@ final class LoggingTests {
         #expect(try !String(contentsOf: logFile, encoding: .utf8).contains(verboseLog))
     }
     
+    // AGENT-PLATFORM (Brief 0083, question 359)
+    @Test(arguments: [(level: Spiral.LogLevel.info, verbose: false, debug: false),
+                      (level: .debug, verbose: false, debug: true),
+                      (level: .trace, verbose: true, debug: true)])
+    func aMessageIsOnlyBuiltForALevelThatsWritten(level: Spiral.LogLevel, verbose: Bool, debug: Bool) {
+        MXLog.configure(currentTarget: "tests", logLevel: level)
+        defer { MXLog.configure(currentTarget: "tests") }
+        var built = [String]()
+        func message(_ name: String) -> String {
+            built.append(name)
+            return name
+        }
+        
+        MXLog.verbose(message("verbose"))
+        MXLog.debug(message("debug"))
+        
+        #expect(built.contains("verbose") == verbose)
+        #expect(built.contains("debug") == debug)
+    }
+    
     /// This is meant to test the `Target.tests.configure(…)`, but at this stage the test is somewhat pointless
     /// as it is unlikely to have been called before `tearDown` has manually set the file prefix 😕.
     @Test
@@ -73,6 +93,7 @@ final class LoggingTests {
         let roomSummary = RoomSummary(room: RoomSDKMock(),
                                       id: "myroomid",
                                       joinRequestType: nil,
+                                      isJoined: true,
                                       name: roomName,
                                       isDirect: true,
                                       isSpace: false,

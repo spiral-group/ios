@@ -53,11 +53,12 @@ class UserSessionScreenTests: XCTestCase {
         let latestMessage = app.textViews.matching(NSPredicate(format: "value CONTAINS 'sugar honey ice'")).firstMatch
         XCTAssert(latestMessage.waitForExistence(timeout: 5.0))
         
-        // Tapping on the mesage text view or the cell doesn't work.
-        // Use the sender static text instead.
-        let latestEventSender = app.staticTexts["@test.matrix.org"]
-        XCTAssert(latestEventSender.waitForExistence(timeout: 5.0))
-        latestEventSender.press(forDuration: 5.0)
+        // AGENT-PLATFORM (Brief 0083): the sender header is hidden from accessibility, as the sender is read
+        // inside the message's combined label. There's no sender static text to press, so press the message's
+        // own element: the one whose label holds the body.
+        let latestEvent = app.otherElements.matching(NSPredicate(format: "label CONTAINS 'sugar honey ice'")).firstMatch
+        XCTAssert(latestEvent.waitForExistence(timeout: 5.0))
+        latestEvent.press(forDuration: 5.0)
         
         let editButton = app.buttons[A11yIdentifiers.roomScreen.timelineItemActionMenuAction.edit]
         XCTAssert(editButton.waitForExistence(timeout: 5.0))
@@ -86,10 +87,10 @@ class UserSessionScreenTests: XCTestCase {
         XCTAssert(app.buttons[firstRoomName].waitForExistence(timeout: 5.0))
         try await Task.sleep(for: .seconds(1))
         
-        let cell = app.cells.element(boundBy: 1) // Skip the typing indicator cell
+        let cell = app.cells.element(boundBy: 0)
         cell.swipeRight(velocity: .slow) // The iOS 26 simulator doesn't like a fast swipe.
         
-        try await app.assertScreenshot()
+        try await app.assertScreenshot(delay: .seconds(1))
     }
     
     // AGENT-PLATFORM (Brief 0063): `testElementCall` was deleted here. It
@@ -125,10 +126,10 @@ class UserSessionScreenTests: XCTestCase {
         // Open the room members list.
         app.buttons[A11yIdentifiers.roomDetailsScreen.people].tap()
         
-        // Open the first member's details. Loading members for big rooms can take a while.
-        let firstRoomMember = app.scrollViews.buttons.firstMatch
-        XCTAssertTrue(firstRoomMember.waitForExistence(timeout: 1000.0))
-        firstRoomMember.tap(.center)
+        // Open a member's details.
+        let roomMember = app.buttons[A11yIdentifiers.roomMembersListScreen.member("@alice:matrix.org")]
+        XCTAssertTrue(roomMember.waitForExistence(timeout: 10.0))
+        roomMember.tap(.center)
         
         // Open the profile from the bottom sheet
         let viewProfileButton = app.buttons[A11yIdentifiers.manageRoomMemberSheet.viewProfile]
@@ -202,7 +203,7 @@ class UserSessionScreenTests: XCTestCase {
         try await app.assertScreenshot(step: Step.homeScreenWithTabBar)
         
         // app.tabBars doesn't work on iPadOS 18 😐
-        app.buttons["Spaces"].firstMatch.tap(.center)
+        app.buttons[A11yIdentifiers.homeTabs.spaces].firstMatch.tap(.center)
         
         try await app.assertScreenshot(step: Step.spacesScreen)
         
@@ -216,8 +217,9 @@ class UserSessionScreenTests: XCTestCase {
         try await Task.sleep(for: .seconds(1))
         try await app.assertScreenshot(step: Step.subspaceScreen)
         
+        // iOS 27 doesn't expose accessibility identifiers on menu items, so find them by their label.
         app.buttons[A11yIdentifiers.spaceScreen.moreMenu].tap()
-        app.buttons[A11yIdentifiers.spaceScreen.createRoom].tap()
+        app.collectionViews.buttons["Create room"].tap()
         XCTAssertTrue(app.buttons[A11yIdentifiers.createRoomScreen.cancel].waitForExistence(timeout: 5.0))
         try await Task.sleep(for: .seconds(1))
         try await app.assertScreenshot(step: Step.createSpaceRoomScreen)
@@ -226,7 +228,7 @@ class UserSessionScreenTests: XCTestCase {
         XCTAssert(app.staticTexts[joinedSubspaceName].waitForExistence(timeout: 5.0))
         
         app.buttons[A11yIdentifiers.spaceScreen.moreMenu].tap()
-        app.buttons[A11yIdentifiers.spaceScreen.addExistingRooms].tap()
+        app.collectionViews.buttons["Add existing rooms"].tap()
         XCTAssert(app.buttons[A11yIdentifiers.spaceAddRoomsScreen.cancel].waitForExistence(timeout: 5.0))
         try await Task.sleep(for: .seconds(1))
         try await app.assertScreenshot(step: Step.spaceAddRoomsScreen)
@@ -235,7 +237,7 @@ class UserSessionScreenTests: XCTestCase {
         XCTAssert(app.staticTexts[joinedSubspaceName].waitForExistence(timeout: 5.0))
         
         app.buttons[A11yIdentifiers.spaceScreen.moreMenu].tap()
-        app.buttons[A11yIdentifiers.spaceScreen.viewMembers].tap()
+        app.collectionViews.buttons["View members"].tap()
         XCTAssert(app.buttons[A11yIdentifiers.roomMembersListScreen.invite].waitForExistence(timeout: 5.0))
         try await Task.sleep(for: .seconds(1))
         try await app.assertScreenshot(step: Step.spaceMembersListScreen)
@@ -244,7 +246,7 @@ class UserSessionScreenTests: XCTestCase {
         XCTAssert(app.staticTexts[joinedSubspaceName].waitForExistence(timeout: 5.0))
         
         app.buttons[A11yIdentifiers.spaceScreen.moreMenu].tap()
-        app.buttons[A11yIdentifiers.spaceScreen.settings].tap()
+        app.collectionViews.buttons["Settings"].tap()
         XCTAssert(app.buttons[A11yIdentifiers.spaceSettingsScreen.editBaseInfo].waitForExistence(timeout: 5.0))
         try await Task.sleep(for: .seconds(1))
         try await app.assertScreenshot(step: Step.spaceSettingsScreen)
@@ -337,8 +339,8 @@ class UserSessionScreenTests: XCTestCase {
         // Go back to settings
         tapOnBackButton("Settings", app)
         
-        // Close the settings
-        app.buttons[A11yIdentifiers.settingsScreen.done].tap()
+        // Leave the settings
+        app.buttons[A11yIdentifiers.homeTabs.chats].firstMatch.tap(.center)
     }
     
     func testRoomCreation() {

@@ -9,7 +9,7 @@
 import SwiftUI
 
 enum SettingsScreenViewModelAction {
-    case close
+    
     case userDetails
     case userStatusEmojiPicker(EmojiPickerScreenContinuation)
     case invitePeople // AGENT-PLATFORM (Brief 0073).
@@ -34,7 +34,7 @@ enum SettingsScreenViewModelAction {
 struct SettingsScreenViewState: BindableState {
     var deviceID: String?
     var userProfile: UserProfile
-    var showUserStatus = false
+    var showUserStatusInput = false
     var showAccountDeactivation: Bool
     /// AGENT-PLATFORM (Brief 0078): the exports, for a Spiral account.
     var showYourData = false
@@ -49,7 +49,7 @@ struct SettingsScreenViewState: BindableState {
     
     let navigationBarVisibility: Visibility
     
-    var bindings = SettingsScreenViewStateBindings()
+    var bindings: SettingsScreenViewStateBindings
     
     var userStatusRowMode: SettingsScreenUserStatusRow.Mode {
         if bindings.isShowingCustomStatusField {
@@ -63,6 +63,8 @@ struct SettingsScreenViewState: BindableState {
 }
 
 struct SettingsScreenViewStateBindings {
+    private let userSettings: UserSettings
+    
     var isPresentingStatusPicker = false
     var customStatusEmoji: Character = "😄"
     var isShowingCustomStatusField = false {
@@ -74,10 +76,19 @@ struct SettingsScreenViewStateBindings {
     }
     
     var isPresentingAccountDeactivationConfirmation = false
+    
+    var appAppearance: AppAppearance {
+        get { userSettings.app.appAppearance }
+        set { userSettings.app.appAppearance = newValue }
+    }
+    
+    init(userSettings: UserSettings) {
+        self.userSettings = userSettings
+    }
 }
 
 enum SettingsScreenViewAction {
-    case close
+    
     case userDetails
     case userStatus(UserStatusAction)
     case invitePeople // AGENT-PLATFORM (Brief 0073).
@@ -106,7 +117,7 @@ enum SettingsScreenViewAction {
         /// Set the user's status to the provided value.
         case set(UserStatus.Raw)
         /// Clears the user's currently displayed status.
-        case clear(UserStatus.Displayed)
+        case clear
         /// Cancel user status picking/input.
         case cancel
     }

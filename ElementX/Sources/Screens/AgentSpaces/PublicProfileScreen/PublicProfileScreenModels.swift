@@ -61,6 +61,8 @@ struct PublicProfileScreenViewState: BindableState {
     /// flight so the user knows what they're waiting on.
     var targetMXID: String
     var detailState: PublicProfileState = .loading
+    /// The sync's state at the top while the stream is not live (decision 289).
+    var syncStatus: PlatformSyncStatus?
     var bindings: PublicProfileScreenViewStateBindings
 }
 
@@ -75,12 +77,8 @@ enum PublicProfileScreenAlertType: Hashable {
 // MARK: - View → ViewModel actions
 
 enum PublicProfileScreenViewAction {
-    /// SwiftUI `.onAppear`. Triggers the initial GET unless
-    /// the screen already landed on a terminal state (caller
-    /// is just re-viewing).
-    case appeared
-    /// Pull-to-refresh or the inline retry button on `.failed`.
-    case refresh
+    /// The inline retry button on `.failed`.
+    case retry
     /// User tapped the "Contact agent" button on a row.
     case contactAgent(matrixUserID: String)
     /// User tapped Done / Close.

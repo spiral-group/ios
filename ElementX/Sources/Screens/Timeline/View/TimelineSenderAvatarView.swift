@@ -13,18 +13,15 @@ import SwiftUI
 struct TimelineSenderAvatarView: View {
     @Environment(\.timelineContext) private var context
     
-    let timelineItem: EventBasedTimelineItemProtocol
+    let sender: TimelineItemSender
     
     var body: some View {
-        LoadableAvatarImage(url: timelineItem.sender.avatarURL,
-                            name: timelineItem.sender.displayName,
-                            contentID: timelineItem.sender.id,
+        // AGENT-PLATFORM (Brief 0083): beside the bubble, not over it, so it has no ring of the canvas's colour.
+        LoadableAvatarImage(url: sender.avatarURL,
+                            name: sender.displayName,
+                            contentID: sender.id,
                             avatarSize: .user(on: .timeline),
                             mediaProvider: context?.mediaProvider)
-            .overlay {
-                Circle()
-                    .inset(by: -1)
-                    .stroke(.compound.bgCanvasDefault, lineWidth: 2)
-            }
+            .agentBadge(userID: sender.id, avatarURL: sender.avatarURL, avatarSize: Avatars.Size.user(on: .timeline).value) // AGENT-PLATFORM (Brief 0083, decision 357)
     }
 }

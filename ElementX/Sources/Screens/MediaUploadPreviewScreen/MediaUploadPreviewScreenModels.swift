@@ -16,7 +16,6 @@ enum MediaUploadPreviewScreenViewModelAction {
 struct MediaUploadPreviewScreenViewState: BindableState {
     let mediaURLs: [URL]
     let title: String?
-    let shouldShowCaptionWarning: Bool
     var shouldDisableInteraction = false
     
     var mediaEditVersion = 0
@@ -29,7 +28,6 @@ struct MediaUploadPreviewScreenBindings: BindableState {
     var presendCallback: (() -> Void)?
     var selectedRange = NSRange(location: 0, length: 0)
     
-    var isPresentingMediaCaptionWarning = false
     var isPresentingMediaEditor = false
     var alertInfo: AlertInfo<MediaUploadPreviewAlertType>?
 }

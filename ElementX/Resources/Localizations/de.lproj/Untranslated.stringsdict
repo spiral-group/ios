@@ -2,7 +2,7 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<key>screen_agent_detail_rooms_section</key>
+	<key>screen_native_call_assistants_count</key>
 	<dict>
 		<key>COUNT</key>
 		<dict>
@@ -11,58 +11,17 @@
 			<key>NSStringFormatValueTypeKey</key>
 			<string>d</string>
 			<key>one</key>
-			<string>%1$d Chat</string>
+			<string>%1$d Assistent</string>
 			<key>other</key>
-			<string>%1$d Chats</string>
-		</dict>
-		<key>NSStringLocalizedFormatKey</key>
-		<string>Lebt in %#@COUNT@</string>
-	</dict>
-	<key>screen_agent_detail_tool_count</key>
-	<dict>
-		<key>COUNT</key>
-		<dict>
-			<key>NSStringFormatSpecTypeKey</key>
-			<string>NSStringPluralRuleType</string>
-			<key>NSStringFormatValueTypeKey</key>
-			<string>d</string>
-			<key>one</key>
-			<string>%1$d Tool</string>
-			<key>other</key>
-			<string>%1$d Tools</string>
+			<string>%1$d Assistenten</string>
 		</dict>
 		<key>NSStringLocalizedFormatKey</key>
 		<string>%#@COUNT@</string>
 	</dict>
-	<key>screen_agent_space_agent_status</key>
+	<key>screen_native_call_status_agent_count</key>
 	<dict>
 		<key>NSStringLocalizedFormatKey</key>
-		<string>In %#@ROOMS@ · %#@TOOLS@</string>
-		<key>ROOMS</key>
-		<dict>
-			<key>NSStringFormatSpecTypeKey</key>
-			<string>NSStringPluralRuleType</string>
-			<key>NSStringFormatValueTypeKey</key>
-			<string>d</string>
-			<key>one</key>
-			<string>%1$d Chat</string>
-			<key>other</key>
-			<string>%1$d Chats</string>
-		</dict>
-		<key>TOOLS</key>
-		<dict>
-			<key>NSStringFormatSpecTypeKey</key>
-			<string>NSStringPluralRuleType</string>
-			<key>NSStringFormatValueTypeKey</key>
-			<string>d</string>
-			<key>one</key>
-			<string>%2$d Tool aktiv</string>
-			<key>other</key>
-			<string>%2$d Tools aktiv</string>
-		</dict>
-	</dict>
-	<key>screen_agent_spaces_agent_count</key>
-	<dict>
+		<string>%#@COUNT@</string>
 		<key>COUNT</key>
 		<dict>
 			<key>NSStringFormatSpecTypeKey</key>
@@ -74,27 +33,11 @@
 			<key>other</key>
 			<string>%1$d Agenten</string>
 		</dict>
-		<key>NSStringLocalizedFormatKey</key>
-		<string>%#@COUNT@</string>
-	</dict>
-	<key>screen_native_call_status_agent_count</key>
-	<dict>
-		<key>COUNT</key>
-		<dict>
-			<key>NSStringFormatSpecTypeKey</key>
-			<string>NSStringPluralRuleType</string>
-			<key>NSStringFormatValueTypeKey</key>
-			<string>d</string>
-			<key>one</key>
-			<string>%1$d agent</string>
-			<key>other</key>
-			<string>%1$d agents</string>
-		</dict>
-		<key>NSStringLocalizedFormatKey</key>
-		<string>%#@COUNT@</string>
 	</dict>
 	<key>screen_native_call_status_people_count</key>
 	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@COUNT@</string>
 		<key>COUNT</key>
 		<dict>
 			<key>NSStringFormatSpecTypeKey</key>
@@ -102,12 +45,373 @@
 			<key>NSStringFormatValueTypeKey</key>
 			<string>d</string>
 			<key>one</key>
-			<string>%1$d person</string>
+			<string>%1$d Person</string>
 			<key>other</key>
-			<string>%1$d people</string>
+			<string>%1$d Personen</string>
+		</dict>
+	</dict>
+	<key>screen_feed_new_posts</key>
+	<dict>
+		<key>COUNT</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%1$d neuer Beitrag</string>
+			<key>other</key>
+			<string>%1$d neue Beiträge</string>
 		</dict>
 		<key>NSStringLocalizedFormatKey</key>
 		<string>%#@COUNT@</string>
+	</dict>
+	<key>a11y_feed_images</key>
+	<dict>
+		<key>COUNT</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%1$d Bild</string>
+			<key>other</key>
+			<string>%1$d Bilder</string>
+		</dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@COUNT@</string>
+	</dict>
+	<key>screen_feed_composer_characters_left</key>
+	<dict>
+		<key>COUNT</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>Noch %1$d Zeichen</string>
+			<key>other</key>
+			<string>Noch %1$d Zeichen</string>
+		</dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@COUNT@</string>
+	</dict>
+	<key>screen_feed_composer_characters_over</key>
+	<dict>
+		<key>COUNT</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%1$d Zeichen über dem Limit</string>
+			<key>other</key>
+			<string>%1$d Zeichen über dem Limit</string>
+		</dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@COUNT@</string>
+	</dict>
+	<key>screen_feed_composer_error_rate_limited_minutes</key>
+	<dict>
+		<key>COUNT</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>Versuche es in %1$d Minute erneut.</string>
+			<key>other</key>
+			<string>Versuche es in %1$d Minuten erneut.</string>
+		</dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@COUNT@</string>
+	</dict>
+	<key>screen_feed_composer_daily_cap_notice</key>
+	<dict>
+		<key>COUNT</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>Du hast dein Tageslimit von %1$d Beitrag erreicht. Nach Mitternacht UTC kannst du wieder posten.</string>
+			<key>other</key>
+			<string>Du hast dein Tageslimit von %1$d Beiträgen erreicht. Nach Mitternacht UTC kannst du wieder posten.</string>
+		</dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@COUNT@</string>
+	</dict>
+	<key>a11y_feed_likes</key>
+	<dict>
+		<key>COUNT</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%1$d Like</string>
+			<key>other</key>
+			<string>%1$d Likes</string>
+		</dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@COUNT@</string>
+	</dict>
+	<key>a11y_feed_comments</key>
+	<dict>
+		<key>COUNT</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%1$d Kommentar</string>
+			<key>other</key>
+			<string>%1$d Kommentare</string>
+		</dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@COUNT@</string>
+	</dict>
+	<key>a11y_feed_shares</key>
+	<dict>
+		<key>COUNT</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%1$d-mal geteilt</string>
+			<key>other</key>
+			<string>%1$d-mal geteilt</string>
+		</dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@COUNT@</string>
+	</dict>
+	<key>screen_feed_shared_partly</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@SENT@, %#@FAILED@</string>
+		<key>SENT</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>In %1$d Chat geteilt</string>
+			<key>other</key>
+			<string>In %1$d Chats geteilt</string>
+		</dict>
+		<key>FAILED</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%2$d konnte nicht geteilt werden</string>
+			<key>other</key>
+			<string>%2$d konnten nicht geteilt werden</string>
+		</dict>
+	</dict>
+	<key>screen_feed_shared</key>
+	<dict>
+		<key>COUNT</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>In %1$d Chat geteilt</string>
+			<key>other</key>
+			<string>In %1$d Chats geteilt</string>
+		</dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@COUNT@</string>
+	</dict>
+	<key>screen_feed_comment_daily_cap_notice</key>
+	<dict>
+		<key>COUNT</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>Das heutige Limit ist %1$d Kommentar. Nach Mitternacht UTC kannst du wieder kommentieren.</string>
+			<key>other</key>
+			<string>Das heutige Limit ist %1$d Kommentare. Nach Mitternacht UTC kannst du wieder kommentieren.</string>
+		</dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@COUNT@</string>
+	</dict>
+	<key>screen_feed_comment_error_rate_limited_minutes</key>
+	<dict>
+		<key>COUNT</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>Versuche es in %1$d Minute erneut.</string>
+			<key>other</key>
+			<string>Versuche es in %1$d Minuten erneut.</string>
+		</dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@COUNT@</string>
+	</dict>
+	<key>a11y_feed_notices_unread</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@COUNT@</string>
+		<key>COUNT</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%1$d ungelesen</string>
+			<key>other</key>
+			<string>%1$d ungelesen</string>
+		</dict>
+	</dict>
+	<key>screen_feed_report_rate_limited_message_hours</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@COUNT@</string>
+		<key>COUNT</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>Du hast heute 10 Meldungen gesendet. In etwa %1$d Stunde kannst du weitere senden.</string>
+			<key>other</key>
+			<string>Du hast heute 10 Meldungen gesendet. In etwa %1$d Stunden kannst du weitere senden.</string>
+		</dict>
+	</dict>
+	<key>screen_feed_activity_others</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@COUNT@</string>
+		<key>COUNT</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%1$d weiteren Person</string>
+			<key>other</key>
+			<string>%1$d weiteren Personen</string>
+		</dict>
+	</dict>
+	<key>a11y_feed_activity_unread</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@COUNT@</string>
+		<key>COUNT</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>Aktivität, %1$d ungelesen</string>
+			<key>other</key>
+			<string>Aktivität, %1$d ungelesen</string>
+		</dict>
+	</dict>
+	<key>a11y_album_items</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@COUNT@</string>
+		<key>COUNT</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>Album, %1$d Element</string>
+			<key>other</key>
+			<string>Album, %1$d Elemente</string>
+		</dict>
+	</dict>
+	<key>a11y_tab_badge_count</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@COUNT@</string>
+		<key>COUNT</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%1$d wartet</string>
+			<key>other</key>
+			<string>%1$d warten</string>
+		</dict>
+	</dict>
+	<key>screen_agents_chat_count</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@COUNT@</string>
+		<key>COUNT</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%1$d Chat</string>
+			<key>other</key>
+			<string>%1$d Chats</string>
+		</dict>
+	</dict>
+	<key>screen_agents_tool_count</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@COUNT@</string>
+		<key>COUNT</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%1$d Tool</string>
+			<key>other</key>
+			<string>%1$d Tools</string>
+		</dict>
+	</dict>
+	<key>screen_room_timeline_tool_changes</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@COUNT@</string>
+		<key>COUNT</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>Tools %1$d-mal geändert</string>
+			<key>other</key>
+			<string>Tools %1$d-mal geändert</string>
+		</dict>
 	</dict>
 </dict>
 </plist>

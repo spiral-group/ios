@@ -5,8 +5,8 @@
 // AGENT-PLATFORM: Brief 0043 (ADR-0057) — pins the Spiral direct-push
 // payload contract against backend `adapters/spiral_push.rs`.
 
-@testable import ElementX
 import Foundation
+@testable import Spiral
 import Testing
 import UserNotifications
 
@@ -42,6 +42,46 @@ struct SpiralPushContentBuilderTests {
             #expect(content?.userInfo[userInfoKey] as? String == "id-1", "kind \(kind)")
             #expect(content?.body.isEmpty == false, "kind \(kind)")
         }
+    }
+
+    /// Brief 0082 (decision 266): the feed's kinds carry ids only; the text
+    /// is the device's, and every push of one post groups under it.
+    @Test
+    func feedPushesAreWordedOnTheDeviceAndGroupedByPost() throws {
+        let base = UNMutableNotificationContent()
+        let subject = try #require(SpiralPushContentBuilder.extractSubject(from: ["spiral": ["version": 1, "kind": "feed_comment", "id": "c1", "post": "p1"]]))
+        #expect(subject.post == "p1")
+
+        let comment = try #require(SpiralPushContentBuilder.build(kind: subject.kind, subjectID: subject.id, baseContent: base, post: subject.post))
+        #expect(comment.body == UntranslatedL10n.notificationFeedCommentBody)
+        #expect(comment.categoryIdentifier == NotificationConstants.Category.feedPost)
+        #expect(comment.threadIdentifier == "feed:p1")
+        #expect(comment.userInfo[NotificationConstants.UserInfoKey.feedPostIdentifier] as? String == "p1")
+
+        // Lane I5: a like names its post as its id and its day as the group; a reply its post.
+        let likeSubject = try #require(SpiralPushContentBuilder.extractSubject(from: ["spiral": ["version": 1, "kind": "feed_like", "id": "p1", "group": "2026-10-30"]]))
+        #expect(likeSubject.group == "2026-10-30")
+        let like = try #require(SpiralPushContentBuilder.build(kind: likeSubject.kind, subjectID: likeSubject.id, baseContent: base))
+        #expect(like.body == UntranslatedL10n.notificationFeedLikeBody)
+        #expect(like.categoryIdentifier == NotificationConstants.Category.feedPost)
+        #expect(like.threadIdentifier == "feed:p1")
+        #expect(like.userInfo[NotificationConstants.UserInfoKey.feedPostIdentifier] as? String == "p1")
+
+        let reply = try #require(SpiralPushContentBuilder.build(kind: "feed_reply", subjectID: "c2", baseContent: base, post: "p1"))
+        #expect(reply.body == UntranslatedL10n.notificationFeedReplyBody)
+        #expect(reply.threadIdentifier == "feed:p1")
+        #expect(reply.userInfo[NotificationConstants.UserInfoKey.feedPostIdentifier] as? String == "p1")
+
+        // A reply without its post opens nothing and says to update.
+        let lostReply = try #require(SpiralPushContentBuilder.build(kind: "feed_reply", subjectID: "c2", baseContent: base))
+        #expect(lostReply.body == UntranslatedL10n.notificationSpiralNeedsUpdateBody)
+        #expect(lostReply.categoryIdentifier.isEmpty)
+
+        let notice = try #require(SpiralPushContentBuilder.build(kind: "feed_notice", subjectID: "n1", baseContent: base))
+        #expect(notice.body == UntranslatedL10n.notificationFeedNoticeBody)
+        #expect(notice.categoryIdentifier == NotificationConstants.Category.feedNotice)
+        #expect(notice.threadIdentifier == "feed:notices")
+        #expect(notice.userInfo[NotificationConstants.UserInfoKey.feedNoticeIdentifier] as? String == "n1")
     }
 
     /// Decision 96: a kind this build does not know (a newer platform's)

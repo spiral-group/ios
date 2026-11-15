@@ -67,13 +67,15 @@ actor NotificationServiceExtensionActor {
     
     private static let firstNotificationThreshold: TimeInterval = 15 * 60
     
-    private let settings: CommonSettingsProtocol
+    private let appSettings: AppSettings
     private let appHooks: AppHooks
     
     /// This is nonisolated just because the expire function needs to be served ASAP so we should not call it from  a Task, however this is
     /// always written and read in the actor isolated context, and only read nonisolated in `serviceExtensionTimeWillExpire` function
     /// which is an acceptable compromise since it's a failure state, and the race condition will not make it worse and present a partial notification regardless.
     private nonisolated(unsafe) var notificationHandler: NotificationHandler?
+    /// AGENT-PLATFORM: feed (Brief 0082): the Spiral pushes still being named, answered on expiry.
+    private let spiralPushDeliveries = Mutex<[SpiralPushDelivery]>([])
     private let keychainController = KeychainController(service: .sessions,
                                                         accessGroup: InfoPlistReader.main.keychainAccessGroupIdentifier)
     
@@ -86,7 +88,7 @@ actor NotificationServiceExtensionActor {
         guard let userDefaults = TrackedUserDefaults(suiteName: AppSettings.suiteName) else {
             fatalError("Catastrophic error retrieving user defaults for \(AppSettings.suiteName)")
         }
-        settings = AppSettings(store: userDefaults)
+        appSettings = AppSettings(store: userDefaults)
         
         appHooks = AppHooks()
         appHooks.setUp()
@@ -100,16 +102,17 @@ actor NotificationServiceExtensionActor {
         if !BootDetectionManager.isDeviceLockedAfterReboot(containerURL: URL.appGroupContainerDirectory) {
             Self.targetConfiguration.withLock { state in
                 guard state == nil else { return }
-                state = Target.nse.configure(logLevel: settings.logLevel,
-                                             traceLogPacks: settings.traceLogPacks,
+                state = Target.nse.configure(logLevel: appSettings.logLevel,
+                                             traceLogPacks: appSettings.traceLogPacks,
                                              sentryURL: nil,
-                                             rageshakeURL: settings.bugReportRageshakeURL,
+                                             rageshakeURL: appSettings.bugReportRageshakeURL,
                                              appHooks: appHooks)
             }
         }
     }
     
-    func handle(_ request: UNNotificationRequest, withContentHandler contentHandler: @escaping (UNNotificationContent) -> Void) async {
+    func handle(_ request: UNNotificationRequest, withContentHandler contentHandler: @escaping @Sendable (UNNotificationContent) -> Void) async { // AGENT-PLATFORM: feed (Brief 0082)
+        let pushStart = ContinuousClock.now // AGENT-PLATFORM: feed (Brief 0082)
         // If we skipped configuring the target it means we can't write to the app group, so we're unlikely to
         // be able to create a session (and even if we could, we would be missing the lightweightTokioRuntime).
         // Additionally, APNs servers only store the most recent notification when the device is powered off.
@@ -147,8 +150,9 @@ actor NotificationServiceExtensionActor {
             if let content = SpiralPushContentBuilder.build(kind: subject.kind,
                                                             subjectID: subject.id,
                                                             baseContent: request.content,
-                                                            reason: subject.reason) {
-                return contentHandler(content)
+                                                            reason: subject.reason,
+                                                            post: subject.post) { // AGENT-PLATFORM: feed (Brief 0082)
+                return await deliver(content, for: subject, startedAt: pushStart, contentHandler: contentHandler) // AGENT-PLATFORM: feed (Brief 0082)
             }
             // The content could not be copied: show it as it came rather
             // than a broken SDK lookup.
@@ -183,8 +187,7 @@ actor NotificationServiceExtensionActor {
             return contentHandler(request.content)
         }
         
-        let homeserverURL = credentials.restorationToken.session.homeserverUrl
-        await appHooks.remoteSettingsHook.loadCache(forHomeserver: homeserverURL, applyingTo: settings)
+        // AGENT-PLATFORM (Brief 0083 L1b): no remoteSettingsHook cache to load.
         
         guard let mutableContent = request.content.mutableCopy() as? UNMutableNotificationContent else {
             return contentHandler(request.content)
@@ -200,11 +203,10 @@ actor NotificationServiceExtensionActor {
             let userSession = try await NSEUserSession(credentials: credentials,
                                                        roomID: roomID,
                                                        clientSessionDelegate: keychainController,
-                                                       appHooks: appHooks,
-                                                       appSettings: settings)
+                                                       appSettings: appSettings,
+                                                       appHooks: appHooks)
             
             notificationHandler = NotificationHandler(userSession: userSession,
-                                                      settings: settings,
                                                       contentHandler: contentHandler,
                                                       notificationContent: mutableContent,
                                                       tag: tag)
@@ -223,7 +225,43 @@ actor NotificationServiceExtensionActor {
         }
     }
     
+    // AGENT-PLATFORM: feed (Brief 0082): a Spiral push is answered once — with
+    // its words, or with the generic ones when iOS ends the extension first.
+    private func deliver(_ content: UNNotificationContent,
+                         for subject: SpiralPushContentBuilder.Subject,
+                         startedAt pushStart: ContinuousClock.Instant,
+                         contentHandler: @escaping @Sendable (UNNotificationContent) -> Void) async {
+        let delivery = SpiralPushDelivery(generic: content, contentHandler: contentHandler)
+        spiralPushDeliveries.withLock { $0.append(delivery) }
+        await delivery.deliver(feedPushContent(content, for: subject, startedAt: pushStart))
+        spiralPushDeliveries.withLock { $0.removeAll { $0 === delivery } }
+    }
+    
+    // AGENT-PLATFORM: feed (Brief 0082): a like, comment or reply push names
+    // who and what when the activity entry can be read with the one signed-in
+    // session's token, refreshed by the SDK after a `401`; anything else keeps
+    // the generic words the builder wrote. The reads end by the push's deadline;
+    // a refresh that started is awaited to its end (`FeedPushBudget`).
+    private func feedPushContent(_ content: UNNotificationContent,
+                                 for subject: SpiralPushContentBuilder.Subject,
+                                 startedAt pushStart: ContinuousClock.Instant) async -> UNNotificationContent {
+        guard subject.feedPostID != nil else { return content }
+        let sessions = keychainController.restorationTokens()
+        guard sessions.count == 1, let credentials = sessions.first else { return content }
+        let session = credentials.restorationToken.session
+        let refresher = FeedPushTokenRefresher(credentials: credentials,
+                                               clientSessionDelegate: keychainController,
+                                               userSettings: appHooks.userSessionHook.configure(appSettings.userSettings(for: credentials.userID),
+                                                                                                forHomeserver: session.homeserverUrl),
+                                               appHooks: appHooks)
+        let reader = FeedPushActivityReader(baseURL: appSettings.agentPlatformBaseURL(forUserID: credentials.userID),
+                                            accessToken: session.accessToken,
+                                            budget: FeedPushBudget(start: pushStart)) { await refresher.refreshedAccessToken(replacing: $0) }
+        return await FeedPushActivityReader.applying(reader.words(for: subject), to: content)
+    }
+    
     nonisolated func serviceExtensionTimeWillExpire() {
+        spiralPushDeliveries.withLock { $0 }.forEach { $0.expire() } // AGENT-PLATFORM: feed (Brief 0082)
         notificationHandler?.handleTimeExpiration()
     }
     
@@ -249,10 +287,10 @@ actor NotificationServiceExtensionActor {
             return false
         }
         
-        guard let lastKnownBootTime = settings.lastNotificationBootTime else {
+        guard let lastKnownBootTime = appSettings.lastNotificationBootTime else {
             // Assume a missing boot time indicates a fresh installation…
             // So store the current boot time but let the notification through.
-            settings.lastNotificationBootTime = currentBootTime
+            appSettings.lastNotificationBootTime = currentBootTime
             return false
         }
         
@@ -261,7 +299,7 @@ actor NotificationServiceExtensionActor {
         }
         
         // This is the first notification since boot, store the boot time.
-        settings.lastNotificationBootTime = currentBootTime
+        appSettings.lastNotificationBootTime = currentBootTime
         
         // At this point it becomes a trade-off. Once the device has been powered on for a long enough amount
         // of time it is a reasonable assumption that the device has now connected to a network and that any
@@ -286,8 +324,7 @@ actor NotificationServiceExtensionActor {
         
         let content = UNMutableNotificationContent()
         content.body = L10n.notificationReceivedWhileOfflineIos
-        content.badge = originalRequest.content.unreadCount as NSNumber?
-        content.sound = settings.notificationSound
+        content.sound = NotificationTone.default.notificationSound // Use the default sound as missed notifications could be for any account.
         
         let request = UNNotificationRequest(identifier: Self.receivedWhileOfflineNotificationID, content: content, trigger: nil)
         UNUserNotificationCenter.current().add(request)

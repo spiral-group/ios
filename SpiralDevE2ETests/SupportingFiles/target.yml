@@ -41,7 +41,7 @@ targets:
       base:
         PRODUCT_NAME: SpiralDevE2ETests
         PRODUCT_BUNDLE_IDENTIFIER: ${BASE_BUNDLE_IDENTIFIER}.dev-e2e.tests
-        SWIFT_VERSION: 6.2
+        SWIFT_VERSION: 6
         SWIFT_APPROACHABLE_CONCURRENCY: YES
       debug:
       release:
@@ -50,4 +50,6 @@ targets:
     - path: ../Sources
     - path: ../SupportingFiles
     - path: ../../ElementX/Sources/Other/AccessibilityIdentifiers.swift
+    - path: ../../ElementX/Sources/Screens/Feed/Common/FeedAccessibilityIdentifiers.swift
+    - path: ../../ElementX/Sources/Screens/Feed/FeedComposerScreen/FeedComposerAccessibilityIdentifiers.swift
     - path: ../../ElementX/Sources/Other/Extensions/XCUIElement.swift

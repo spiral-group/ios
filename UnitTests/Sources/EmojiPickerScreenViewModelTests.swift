@@ -6,7 +6,7 @@
 // Please see LICENSE files in the repository root for full details.
 //
 
-@testable import ElementX
+@testable import Spiral
 import Testing
 
 @MainActor
@@ -55,7 +55,7 @@ struct EmojiPickerScreenViewModelTests {
         emojiPickerStream = stream
         
         viewModel = EmojiPickerScreenViewModel(selectedEmojis: selectedEmojis,
-                                               emojiProvider: EmojiProvider(appSettings: .volatile()),
+                                               emojiProvider: EmojiProvider(userSettings: .mock()),
                                                continuation: continuation)
     }
 }

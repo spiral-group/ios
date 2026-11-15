@@ -2,35 +2,98 @@
 // Copyright 2026 the Spiral authors. AGPL-3.0-or-later.
 //
 
-@testable import ElementX
+@testable import Spiral
 import Testing
 
 /// Pins for the `spiral.agent.state` document contract (ADR-0071 D8,
-/// doc v4) — the runtime writes it. nil = "no valid agent document" (fall
+/// doc v6 of ADR-0094 A.6) — the runtime writes it. nil = "no valid agent document" (fall
 /// back to tracks); [] = "a real agent document with translation off".
 struct SpiralAgentStateReaderTests {
     private func attributes(_ document: String) -> [String: String] {
         [SpiralAgentStateReader.attributeKey: document]
     }
 
+    /// ADR-0094 A.6: the producing example, read whole.
     @Test
-    func anActiveTranslationFunctionYieldsItsLanguagesDedupedAndSorted() {
+    func aV6TranslationFunctionIsReadWhole() throws {
         let doc = """
-        {"v":4,"agent":true,"lifecycle":"live","functions":[
-            {"kind":"translation","active":true,"target_languages":["uk","de","uk"],"style":"consecutive",
-             "booths":[{"speaker_scope":"anyone","speaker_members":[],"target_languages":["uk"]}]},
+        {"v":6,"agent":true,"lifecycle":"live","leaving_reason":null,"call":"live","mode_epoch":7,"functions":[
+            {"kind":"translation","active":true,"style":"simultaneous","source":"room_tool","for_language":"zh-Hans","pocket":null,
+             "owner":"@bohdan:spiral.md",
+             "lanes":[{"speaker":"@john:spiral.md","input":"voice","language":"zh-Hans"},
+                      {"speaker":"@mira:spiral.md","input":"voice","language":"zh-Hans"}],
+             "stopped":null},
             {"kind":"recording","active":true}
         ]}
         """
-        #expect(SpiralAgentStateReader.translationLanguages(attributes: attributes(doc)) == ["de", "uk"])
+        let claim = try #require(SpiralAgentStateReader.agentClaim(attributes: attributes(doc)))
+
+        #expect(claim.modeEpoch == 7)
+        #expect(claim.leavingReason == nil)
+        #expect(claim.isRecording)
+        #expect(claim.translation == .init(isActive: true,
+                                           style: .simultaneous,
+                                           source: .roomTool,
+                                           forLanguage: "zh-Hans",
+                                           pocket: nil,
+                                           owner: "@bohdan:spiral.md",
+                                           lanes: [.init(speaker: "@john:spiral.md", language: "zh-Hans"),
+                                                   .init(speaker: "@mira:spiral.md", language: "zh-Hans")],
+                                           stoppedReason: nil))
+        // The catalog's exact code, never lowered or cut to its base.
+        #expect(SpiralAgentStateReader.translationLanguages(attributes: attributes(doc)) == ["zh-Hans"])
+    }
+
+    /// D12: a lane with an input this build doesn't know is left out; the others stay.
+    @Test
+    func aLaneWithAnUnknownInputIsLeftOut() {
+        let doc = """
+        {"v":6,"agent":true,"lifecycle":"live","functions":[{"kind":"translation","active":true,"for_language":"uk","owner":"@a:x",
+          "lanes":[{"speaker":"@a:x","input":"device","language":"uk"},{"speaker":"@b:x","input":"voice","language":"uk"},
+                   {"speaker":"@c:x","language":"uk"},{"speaker":7,"input":"voice","language":"uk"}]}]}
+        """
+        #expect(SpiralAgentStateReader.agentClaim(attributes: attributes(doc))?.translation.lanes == [.init(speaker: "@b:x", language: "uk")])
+    }
+
+    /// A.6: standing by is `active: false, lanes: [], stopped: null`; it asks for its language and airs nothing.
+    @Test
+    func aStandbyAsksForItsLanguageAndAirsNothing() throws {
+        let doc = #"{"v":6,"agent":true,"lifecycle":"live","functions":[{"kind":"translation","active":false,"for_language":"uk","lanes":[],"stopped":null}]}"#
+        let translation = try #require(SpiralAgentStateReader.agentClaim(attributes: attributes(doc))?.translation)
+
+        #expect(translation.isStandby)
+        #expect(translation.languages == ["uk"])
+        #expect(translation.producedLanguages.isEmpty)
+    }
+
+    /// D6: every stop reason, and one newer than this build, which reads as `ended` — never "the owner stopped".
+    @Test(arguments: [("owner_stopped", VoiceTranslationStopReason.ownerStopped), ("owner_left", .ownerLeft), ("ai_limit", .aiLimit),
+                      ("translation_paused", .translationPaused), ("call_cap", .callCap), ("ended", .ended), ("moderator_said_so", .ended)])
+    func aStopReasonIsReadAndAnUnknownOneIsEnded(wire: String, reason: VoiceTranslationStopReason) throws {
+        let stopped = #"{"v":6,"agent":true,"lifecycle":"live","functions":[{"kind":"translation","active":false,"for_language":"uk","lanes":[],"stopped":{"reason":"\#(wire)"}}]}"#
+        let translation = try #require(SpiralAgentStateReader.agentClaim(attributes: attributes(stopped))?.translation)
+        #expect(translation.stoppedReason == reason)
+        #expect(translation.languages.isEmpty)
+        #expect(!translation.isStandby)
+
+        let leaving = #"{"v":6,"agent":true,"lifecycle":"leaving","leaving_reason":"\#(wire)","functions":[]}"#
+        #expect(SpiralAgentStateReader.agentClaim(attributes: attributes(leaving))?.leavingReason == reason)
+    }
+
+    @Test
+    func thePocketInterpreterAsksForBothLanguages() {
+        let doc = #"{"v":6,"agent":true,"lifecycle":"live","functions":[{"kind":"translation","active":true,"style":"consecutive","for_language":null,"pocket":["uk","en"],"owner":"@a:x","lanes":[{"speaker":"@a:x","input":"voice","language":"uk"},{"speaker":"@a:x","input":"voice","language":"en"}]}]}"#
+        let translation = SpiralAgentStateReader.agentClaim(attributes: attributes(doc))?.translation
+        #expect(translation?.pocket == ["uk", "en"])
+        #expect(translation?.languages == ["uk", "en"])
+        #expect(translation?.style == .consecutive)
     }
 
     @Test
     func aValidDocumentWithoutActiveTranslationIsOffNotUnknown() {
-        #expect(SpiralAgentStateReader.translationLanguages(attributes: attributes(#"{"v":4,"agent":true,"lifecycle":"live","functions":[]}"#)) == [])
-        #expect(SpiralAgentStateReader.translationLanguages(attributes: attributes(#"{"v":4,"agent":true,"lifecycle":"live","functions":[{"kind":"recording","active":true}]}"#)) == [])
-        // An inactive translation function counts as off too.
-        #expect(SpiralAgentStateReader.translationLanguages(attributes: attributes(#"{"v":4,"agent":true,"lifecycle":"live","functions":[{"kind":"translation","active":false,"target_languages":["uk"]}]}"#)) == [])
+        #expect(SpiralAgentStateReader.translationLanguages(attributes: attributes(#"{"v":6,"agent":true,"lifecycle":"live","functions":[]}"#)) == [])
+        #expect(SpiralAgentStateReader.translationLanguages(attributes: attributes(#"{"v":6,"agent":true,"lifecycle":"live","functions":[{"kind":"recording","active":true}]}"#)) == [])
+        #expect(SpiralAgentStateReader.agentClaim(attributes: attributes(#"{"v":6,"agent":true,"lifecycle":"live","functions":[]}"#))?.translation == SpiralAgentStateReader.TranslationClaim.none)
     }
 
     /// Decision 97: every document carries `lifecycle` (the runtime
@@ -38,7 +101,7 @@ struct SpiralAgentStateReaderTests {
     /// malformed, not live: no document at all.
     @Test
     func aDocumentWithoutLifecycleIsNoDocument() {
-        let doc = #"{"v":4,"agent":true,"functions":[{"kind":"recording","active":true},{"kind":"translation","active":true,"target_languages":["uk"],"booths":[]}]}"#
+        let doc = #"{"v":6,"agent":true,"functions":[{"kind":"recording","active":true},{"kind":"translation","active":true,"for_language":"uk","lanes":[]}]}"#
 
         #expect(SpiralAgentStateReader.agentClaim(attributes: attributes(doc)) == nil)
         #expect(SpiralAgentStateReader.translationLanguages(attributes: attributes(doc)) == nil)
@@ -75,11 +138,22 @@ struct SpiralAgentStateReaderTests {
         #expect(gate("") == nil)
     }
 
+    /// Question 404: an armed recording (`active: false`) still holds the call's one recording; only a recording
+    /// function gone lets it go.
+    @Test
+    func anArmedRecordingHoldsTheCall() throws {
+        let armed = try #require(SpiralAgentStateReader.agentClaim(attributes: attributes(#"{"v":6,"agent":true,"lifecycle":"live","functions":[{"kind":"recording","active":false}]}"#)))
+        #expect(armed.holdsRecording)
+        #expect(!armed.isRecording)
+        #expect(SpiralAgentStateReader.agentClaim(attributes: attributes(#"{"v":6,"agent":true,"lifecycle":"live","functions":[{"kind":"recording","active":true}]}"#))?.holdsRecording == true)
+        #expect(SpiralAgentStateReader.agentClaim(attributes: attributes(#"{"v":6,"agent":true,"lifecycle":"live","functions":[]}"#))?.holdsRecording == false)
+    }
+
     @Test
     func aLiveRecordingClaimIsReadFromAnyAgentDocument() {
         // The active claim, alone or beside translation.
         #expect(SpiralAgentStateReader.isRecordingActive(attributes: attributes(#"{"v":4,"agent":true,"lifecycle":"live","functions":[{"kind":"recording","active":true}]}"#)))
-        let mixed = #"{"v":4,"agent":true,"lifecycle":"live","functions":[{"kind":"translation","active":true,"target_languages":["uk"]},{"kind":"recording","active":true}]}"#
+        let mixed = #"{"v":6,"agent":true,"lifecycle":"live","functions":[{"kind":"translation","active":true,"for_language":"uk","lanes":[]},{"kind":"recording","active":true}]}"#
         #expect(SpiralAgentStateReader.isRecordingActive(attributes: attributes(mixed)))
         // Absent, inactive, or malformed claims read as not recording.
         #expect(!SpiralAgentStateReader.isRecordingActive(attributes: attributes(#"{"v":4,"agent":true,"lifecycle":"live","functions":[]}"#)))
@@ -93,82 +167,13 @@ struct SpiralAgentStateReaderTests {
     @Test
     func malformedFunctionEntriesFailSoftInsideAValidDocument() {
         let doc = """
-        {"v":4,"agent":true,"lifecycle":"live","functions":[
-            {"kind":"translation","active":true,"target_languages":["uk",7,null,"ru"]},
+        {"v":6,"agent":true,"lifecycle":"live","functions":[
+            {"kind":"translation","active":true,"for_language":"uk","lanes":[{"speaker":"@a:x","input":"voice","language":"uk"},7,null]},
             {"active":true},
             "garbage"
         ]}
         """
-        // Garbage entries are skipped per entry (EC parity), non-string
-        // languages are dropped — the valid languages survive.
-        #expect(SpiralAgentStateReader.translationLanguages(attributes: attributes(doc)) == ["ru", "uk"])
-    }
-
-    /// Brief 0066 — coverage arrives RESOLVED: three shapes, phrased
-    /// without knowing the owner. Only `anyone` is open: an open booth ducks
-    /// every remote human's original. A scope this build does not know (the
-    /// raw tool scopes from before 0066 among them, decision 97) or a missing
-    /// one covers nobody, as the engine reads it (it matches nothing), so
-    /// originals stay at full level. `everyone_except` with no members
-    /// excludes nobody: the engine translates everyone.
-    @Test
-    func boothCoverageReadsTheResolvedVocabularyOnly() throws {
-        let doc = """
-        {"v":3,"agent":true,"lifecycle":"live","functions":[
-            {"kind":"translation","active":true,"target_languages":["uk","en"],"style":"simultaneous",
-             "booths":[
-               {"speaker_scope":"anyone","speaker_members":[],"target_languages":["uk"]},
-               {"speaker_scope":"everyone_except","speaker_members":["@emmm:spiral.md"],"target_languages":["en"]},
-               {"speaker_scope":"members","speaker_members":["@bob:spiral.md"],"target_languages":["uk"]},
-               {"speaker_scope":"owner_only","speaker_members":["@emmm:spiral.md"],"target_languages":["en"]},
-               {"speaker_scope":"non_self_non_owner","speaker_members":["@emmm:spiral.md"],"target_languages":["en"]},
-               {"speaker_scope":"specific_senders","speaker_members":["@bob:spiral.md"],"target_languages":["en"]},
-               {"speaker_scope":"non_self_non_owner","speaker_members":[],"target_languages":["en"]},
-               {"speaker_scope":"members","speaker_members":[],"target_languages":["en"]},
-               {"speaker_members":["@bob:spiral.md"],"target_languages":["en"]},
-               {"speaker_scope":"everyone_except","speaker_members":[],"target_languages":["en"]}
-             ]}
-        ]}
-        """
-        let claim = try #require(SpiralAgentStateReader.agentClaim(attributes: attributes(doc)))
-        let coverages = claim.translation.activeBooths.map(\.coverage)
-        #expect(coverages == [.open,
-                              .exceptMembers(["@emmm:spiral.md"]),
-                              .members(["@bob:spiral.md"]),
-                              // Unknown scopes cover nobody, never everyone.
-                              .members([]),
-                              .members([]),
-                              .members([]),
-                              .members([]),
-                              // A phantom-owner booth covers NOBODY, never everyone.
-                              .members([]),
-                              // No scope at all is malformed: nobody.
-                              .members([]),
-                              .open])
-        #expect(claim.translation.style == .simultaneous)
-
-        #expect(SpiralAgentStateReader.BoothCoverage.open.covers("@x:h"))
-        #expect(!SpiralAgentStateReader.BoothCoverage.exceptMembers(["@x:h"]).covers("@x:h"))
-        #expect(SpiralAgentStateReader.BoothCoverage.exceptMembers(["@x:h"]).covers("@y:h"))
-        #expect(SpiralAgentStateReader.BoothCoverage.members(["@x:h"]).covers("@x:h"))
-        #expect(!SpiralAgentStateReader.BoothCoverage.members(["@x:h"]).covers("@y:h"))
-    }
-
-    /// The runtime publishes every translation function with its booths
-    /// (decision 97: it republishes the document in this shape once on
-    /// deploy). A function without them, the shape before 0066, is not read
-    /// as an open booth any more: it covers nobody, so nobody's original is
-    /// ducked for it.
-    @Test
-    func aTranslationWithoutBoothsCoversNobody() {
-        let doc = #"{"v":4,"agent":true,"lifecycle":"live","functions":[{"kind":"translation","active":true,"target_languages":["en-US","de"]}]}"#
-        let claim = SpiralAgentStateReader.agentClaim(attributes: attributes(doc))
-
-        #expect(claim?.translation.activeBooths == [])
-        #expect(claim?.translation.activeLanguages == ["de", "en"])
-        // Nor does an explicit empty list.
-        let empty = #"{"v":4,"agent":true,"lifecycle":"live","functions":[{"kind":"translation","active":true,"target_languages":["en"],"booths":[]}]}"#
-        #expect(SpiralAgentStateReader.agentClaim(attributes: attributes(empty))?.translation.activeBooths == [])
+        #expect(SpiralAgentStateReader.translationLanguages(attributes: attributes(doc)) == ["uk"])
     }
 
     /// v4 (Brief 0080): a `conversation` function says the agent talks;

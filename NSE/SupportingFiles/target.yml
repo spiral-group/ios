@@ -43,6 +43,10 @@ targets:
       - package: LRUCache
       - package: Version
       - package: SwiftSoup
+      # AGENT-PLATFORM (Brief 0083 phase 3): the notification's placeholder avatar draws Spiral's
+      # avatar tokens; last so that the generated project's other dependency IDs stay put.
+      - package: SpiralUI
+        product: SpiralTokens
 
     info:
       path: Info.plist
@@ -77,7 +81,7 @@ targets:
         CURRENT_PROJECT_VERSION: $(CURRENT_PROJECT_VERSION)
         DEVELOPMENT_TEAM: $(DEVELOPMENT_TEAM)
         SWIFT_OBJC_INTERFACE_HEADER_NAME: GeneratedInterface-Swift.h
-        SWIFT_VERSION: 6.2
+        SWIFT_VERSION: 6
         SWIFT_APPROACHABLE_CONCURRENCY: YES
         OTHER_SWIFT_FLAGS:
         - "-DIS_NSE"
@@ -90,11 +94,16 @@ targets:
     sources:
     - path: ../Sources
     - path: ../SupportingFiles
+      # AGENT-PLATFORM (Brief 0083 L1b, decision 302): the XcodeGen manifest is
+      # not a resource; shipped, it put upstream's target names in the bundle.
+      excludes:
+        - target.yml
     - path: ../../ElementX/Sources/AppHooks/AppHooks.swift
     - path: ../../ElementX/Sources/AppHooks/Hooks/TracingHook.swift
-    - path: ../../ElementX/Sources/AppHooks/Hooks/ClientBuilderHook.swift
-    - path: ../../ElementX/Sources/AppHooks/Hooks/RemoteSettingsHook.swift
-    - path: ../../Secrets/Secrets.swift
+    - path: ../../ElementX/Sources/AppHooks/Hooks/ClientFactoryHook.swift
+    # AGENT-PLATFORM (Brief 0083 L1b): no RemoteSettingsHook.swift (Element Pro's check).
+    - path: ../../ElementX/Sources/AppHooks/Hooks/UserSessionHook.swift
+    - path: ../../Components/Secrets/Secrets.swift
     - path: ../../ElementX/Sources/Application/Settings
     - path: ../../ElementX/Sources/Application/TargetConfiguration.swift
     - path: ../../ElementX/Sources/Generated/Strings.swift
@@ -107,7 +116,6 @@ targets:
     - path: ../../ElementX/Sources/Other/ExpiringTaskRunner.swift
     - path: ../../ElementX/Sources/Other/Extensions/AttributedString.swift
     - path: ../../ElementX/Sources/Other/Extensions/Bundle.swift
-    - path: ../../ElementX/Sources/Other/Extensions/ClientBuilder.swift
     - path: ../../ElementX/Sources/Other/Extensions/Date.swift
     - path: ../../ElementX/Sources/Other/Extensions/Dictionary.swift
     - path: ../../ElementX/Sources/Other/Extensions/FileManager.swift
@@ -128,6 +136,10 @@ targets:
     # AGENT-PLATFORM (Brief 0073): `RoomMessageEventStringBuilder` previews a
     # client-rendered notice in the reader's language.
     - path: ../../ElementX/Sources/Services/AgentPlatform/SpiralNotice.swift
+    # AGENT-PLATFORM (question 395): the `ai_category_paused` notice names its category and until when.
+    - path: ../../ElementX/Sources/Services/AgentPlatform/AILimitWording.swift
+    # AGENT-PLATFORM (decision 371): a call's summary is pushed as the message it is.
+    - path: ../../ElementX/Sources/Services/AgentPlatform/SpiralCallSummary.swift
     # AGENT-PLATFORM (Brief 0073): `AppSettings.pendingInvite` is typed
     # with these; the extensions never use them but compile AppSettings.
     - path: ../../ElementX/Sources/Services/AgentPlatform/SpiralInviteLink.swift
@@ -142,6 +154,9 @@ targets:
     # siblings — same shape, different marker key + version
     # gating per family.
     - path: ../../ElementX/Sources/Other/SpiralPushContentBuilder.swift
+    # AGENT-PLATFORM: feed (Brief 0082): the name and text of a like, comment or reply push.
+    - path: ../../ElementX/Sources/Services/AgentPlatform/Feed/FeedPushActivityReader.swift
+    - path: ../../ElementX/Sources/Services/AgentPlatform/Feed/FeedActivityText.swift
     # AGENT-PLATFORM (Brief 0078): an approval push is worded by the
     # escalation tag its payload names (`spiral.reason`).
     - path: ../../ElementX/Sources/Services/AgentPlatform/ApprovalEscalation.swift
@@ -156,6 +171,8 @@ targets:
     - path: ../../ElementX/Sources/Services/AlertTones/NotificationToneManager.swift
     - path: ../../ElementX/Sources/Services/AlertTones/NotificationToneManagerProtocol.swift
     - path: ../../ElementX/Sources/Services/CallKit/CallKitServiceConstants.swift
+    - path: ../../ElementX/Sources/Services/Client/ClientFactory.swift
+    - path: ../../ElementX/Sources/Services/Client/ClientFactoryProtocol.swift
     - path: ../../ElementX/Sources/Services/Keychain/KeychainController.swift
     - path: ../../ElementX/Sources/Services/Keychain/KeychainControllerProtocol.swift
     - path: ../../ElementX/Sources/Services/Media/Provider

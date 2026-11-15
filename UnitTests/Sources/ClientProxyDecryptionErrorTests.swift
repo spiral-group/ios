@@ -7,9 +7,9 @@
 //
 
 import Combine
-@testable import ElementX
 import Foundation
 import MatrixRustSDK
+@testable import Spiral
 import Synchronization
 import Testing
 

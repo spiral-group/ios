@@ -14,73 +14,61 @@ import SwiftUI
 
 typealias OutreachQueueListScreenViewModelType = StateStoreViewModelV2<OutreachQueueListScreenViewState, OutreachQueueListScreenViewAction>
 
-/// Drives `OutreachQueueListScreen`. Fetches the outreach
-/// queue for one agent on `.appeared`; supports a status
-/// filter via toolbar menu picker (`.all` → no `?status=`
-/// query param, otherwise pass the wire tag).
+/// Drives `OutreachQueueListScreen`: one agent's outreach queue, with a
+/// status filter in the toolbar (`nil` → every status).
 ///
-/// ### Filter changes drive a fresh fetch
-///
-/// We could filter the in-memory `[OutreachQueueEntry]` list
-/// client-side, but two reasons we re-fetch from the backend
-/// instead:
-///
-/// * The queue can be long (up to 500 rows). Server-side
-///   filtering is cheaper than streaming everything to the
-///   client.
-/// * Status transitions happen on the backend (outreach
-///   worker flips `queued → pending_approval → sent`); a
-///   filter-change is also a natural "refresh me" trigger.
-///
-/// ### Per-filter race protection
-///
-/// Mirrors `AgentActivityScreenViewModel`'s monotonic
-/// `loadGeneration` counter so a quick filter toggle that
-/// races mid-fetch discards the stale response. The S170
-/// LEARNING entry "list-screens with mutable filters need a
-/// monotonic generation guard" applies here too.
+/// AGENT-PLATFORM: platform sync (decision 289). The rows are the session
+/// store's, one list per filter, read again on `agent.outreach` (the outreach
+/// worker moving `queued → pending_approval → sent`, an add from the add
+/// screen). A filter change shows the other list; the server filters, as the
+/// queue can be long.
 class OutreachQueueListScreenViewModel: OutreachQueueListScreenViewModelType, OutreachQueueListScreenViewModelProtocol {
     private let agentID: String
-    private let agentPlatformService: any AgentPlatformServiceProtocol
-
-    private var loadGeneration: UInt = 0
+    private let store: AgentsStore
 
     private let actionsSubject: PassthroughSubject<OutreachQueueListScreenViewModelAction, Never> = .init()
     var actionsPublisher: AnyPublisher<OutreachQueueListScreenViewModelAction, Never> {
         actionsSubject.eraseToAnyPublisher()
     }
 
+    private var resource: AgentsResource {
+        .outreach(agentID: agentID, status: state.statusFilter)
+    }
+
     init(agentID: String,
-         agentPlatformService: any AgentPlatformServiceProtocol,
-         initialState: OutreachQueueListState = .loading,
+         store: AgentsStore,
          initialFilter: OutreachTargetStatus? = nil) {
         self.agentID = agentID
-        self.agentPlatformService = agentPlatformService
-        let bindings = OutreachQueueListScreenViewStateBindings()
-        var initial = OutreachQueueListScreenViewState(agentID: agentID, bindings: bindings)
-        initial.listState = initialState
+        self.store = store
+        var initial = OutreachQueueListScreenViewState(agentID: agentID, bindings: OutreachQueueListScreenViewStateBindings())
         initial.statusFilter = initialFilter
         super.init(initialViewState: initial)
+
+        render()
+        store.observe { [weak self] in
+            guard let self else { return false }
+            render()
+            return true
+        }
+        store.show(resource, by: self)
+    }
+
+    isolated deinit {
+        store.stopShowing(resource, by: self)
     }
 
     override func process(viewAction: OutreachQueueListScreenViewAction) {
-        MXLog.info("OutreachQueueListScreenViewModel received view action: \(viewAction)")
+        MXLog.info("OutreachQueueListScreenViewModel received view-model action: \(viewAction)")
 
         switch viewAction {
-        case .appeared:
-            // Walk F4: back from Add targets (or anywhere) the
-            // queue may have changed, so it is read again; rows
-            // already shown stay until the answer replaces them.
-            Task { await load(keepingRows: true) }
-        case .refresh:
-            Task { await load() }
+        case .retry:
+            Task { await store.reread(resource) }
         case .selectFilter(let filter):
-            // Filter change always triggers a fresh fetch.
-            // Stale loaded data flickers briefly into skeleton
-            // — acceptable trade-off for "user changed intent,
-            // show them the right rows".
+            guard filter != state.statusFilter else { return }
+            store.stopShowing(resource, by: self)
             state.statusFilter = filter
-            Task { await load() }
+            store.show(resource, by: self)
+            render()
         case .openAddTargets:
             actionsSubject.send(.openAddTargets)
         case .dismiss:
@@ -88,45 +76,20 @@ class OutreachQueueListScreenViewModel: OutreachQueueListScreenViewModelType, Ou
         }
     }
 
-    private func load(keepingRows: Bool = false) async {
-        loadGeneration &+= 1
-        let myGeneration = loadGeneration
-        let isShowingRows = if case .loaded = state.listState { true } else { false }
-        let keepsRows = keepingRows && isShowingRows
-        if !keepsRows {
-            state.listState = .loading
+    private func render() {
+        let listState: OutreachQueueListState = switch store.readState(resource, \.outreach) {
+        case .loading: .loading
+        case .loaded(let entries): .loaded(entries)
+        // 409: not an outreach agent; 404: no such agent. Neither changes with a retry.
+        case .failed(.conflict(let detail)): .unavailable(reason: detail)
+        case .failed(.notFound): .unavailable(reason: "agent not found")
+        case .failed(let error): .failed(reason: error.description)
         }
-
-        let filter = state.statusFilter
-        let result = await agentPlatformService.listOutreachQueue(agentID: agentID,
-                                                                  status: filter,
-                                                                  limit: 100)
-        // Stale-generation guard.
-        guard myGeneration == loadGeneration else { return }
-
-        switch result {
-        case .success(let entries):
-            state.listState = .loaded(entries)
-        case .failure(let error):
-            switch error {
-            case .conflict(let detail):
-                state.listState = .unavailable(reason: detail)
-            case .notFound:
-                state.listState = .unavailable(reason: "agent not found")
-            default:
-                MXLog.error("OutreachQueueListScreenViewModel: load failed: \(error)")
-                // The rows shown are older, not wrong: they stay, the alert says the read failed.
-                if !keepsRows {
-                    state.listState = .failed(reason: error.description)
-                }
-                state.bindings.alertInfo = AlertInfo(id: .fetchFailed,
-                                                     title: L10n.commonError,
-                                                     message: L10n.errorUnknown,
-                                                     primaryButton: .init(title: L10n.actionRetry) { [weak self] in
-                                                         Task { await self?.load() }
-                                                     },
-                                                     secondaryButton: .init(title: L10n.actionCancel, role: .cancel, action: nil))
-            }
+        if state.listState != listState {
+            state.listState = listState
+        }
+        if state.syncStatus != store.syncStatus {
+            state.syncStatus = store.syncStatus
         }
     }
 }

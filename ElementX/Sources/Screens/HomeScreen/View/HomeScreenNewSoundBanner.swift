@@ -19,6 +19,7 @@ struct HomeScreenNewSoundBanner: View {
         }
         .padding(16)
         .background(Color.compound.bgSubtleSecondary)
+        // swiftlint:disable:next spiral_raw_corner_radius - predates the rule; AGENT-PLATFORM (Brief 0083): the folder joined the lint
         .cornerRadius(14)
         .padding(.horizontal, 16)
     }

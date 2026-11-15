@@ -47,7 +47,17 @@ enum NativeCallTone {
 
 @MainActor
 final class NativeCallTonePlayer {
+    /// Off for the unit-test run (`UnitTestsAppCoordinator`): sessions there reach real tones, and a looping
+    /// ringback from the test host plays out of the Mac's speakers. Everything up to `AVAudioPlayer.play()` still runs.
+    static var isOutputEnabled = true
+    
+    /// The tone last asked for and not stopped since, whether or not it is audible.
+    private(set) var tone: NativeCallTone?
     private var player: AVAudioPlayer?
+    
+    var isAudible: Bool {
+        player?.isPlaying ?? false
+    }
     
     func play(_ tone: NativeCallTone) {
         stop()
@@ -58,8 +68,11 @@ final class NativeCallTonePlayer {
             let player = try AVAudioPlayer(data: data)
             player.numberOfLoops = tone.loops ? -1 : 0
             player.volume = 0.4
-            player.play()
+            if Self.isOutputEnabled {
+                player.play()
+            }
             self.player = player
+            self.tone = tone
         } catch {
             MXLog.error("Failed playing a call tone: \(error)")
         }
@@ -68,6 +81,7 @@ final class NativeCallTonePlayer {
     func stop() {
         player?.stop()
         player = nil
+        tone = nil
     }
 }
 

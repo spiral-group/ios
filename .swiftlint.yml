@@ -18,7 +18,7 @@ included:
 excluded:
   - "*/Sources/Generated/*"
   - Tools/Sources # Our command-line tools use a lot of print commands.
-  - Secrets
+  - Components/Secrets
   - compound-ios/Inspector
 
 line_length:
@@ -110,3 +110,84 @@ custom_rules:
     message: "Call surfaces read agent facts through viewState.agents / agent.shown (NativeCallAgentPresentation), never agentCenter/agentClaims/live."
     severity: error
     included: "ElementX/Sources/Screens/NativeCallScreen/(View/.*|NativeCallScreenModels)\\.swift"
+
+  # AGENT-PLATFORM (Brief 0083 L1c): Spiral's own code takes fonts, colours
+  # and corner radii from the design system, so a reworked look stays one
+  # system. Scoped to folders that hold no upstream file, and to the upstream
+  # screens Spiral reworked (Brief 0083 phase 2); upstream's other screens
+  # keep upstream's style. The lines that predate the rules carry
+  # `swiftlint:disable:next <rule> - predates the rule`; there is no baseline.
+  # SpiralLintScopeTests fails when a folder here no longer exists or a rule
+  # is not an error.
+  spiral_raw_font:
+    included: &spiral_code
+      - "/ElementX/Sources/Screens/(AIConsentPromptScreen|AddAgentPickerScreen|AgentPickerScreen|AgentSheetScreen|AgentSpaces|ArmToolScreen|Feed|InteractivePostCatalogScreen|InviteWelcomeScreen|LanguagePickerScreen|ToolMemberPickerScreen)/"
+      - "/ElementX/Sources/Screens/NativeCallScreen/View/"
+      # Brief 0083 slice: the room screen, the reviewer path's assistant DM, and the Spiral files it draws.
+      - "/ElementX/Sources/Screens/RoomScreen/"
+      - "/ElementX/Sources/Screens/Timeline/View/Style/OwnBubbleStyle.swift"
+      - "/ElementX/Sources/Screens/Timeline/View/TimelineItemViews/SpiralNoticeRoomTimelineView.swift"
+      - "/ElementX/Sources/Screens/Settings/(AppearanceAndMediaSettingsScreen|NewPhrase|SecuritySettingsScreen|YourDataScreen)/"
+      # Brief 0083 phase 4, batch P4-C, lane settings: Settings and what it opens, and Spiral's grouped list in Compound.
+      - "/ElementX/Sources/Screens/Settings/(SettingsScreen|AnalyticsSettingsScreen|DeactivateAccountScreen|LegalInformationScreen|MediaUploadQualitySettingsScreen|ModerationAndSafetySettingsScreen|NotificationSettingsEditScreen|NotificationSettingsScreen|UserDetailsEditScreen)/"
+      - "/ElementX/Sources/Screens/(BlockedUsersScreen|SecureBackup/SecureBackupScreen|AppLock/AppLockSetupSettingsScreen)/"
+      - "/compound-ios/Sources/Compound/List/ListRowSpiralStyle.swift"
+      - "/ElementX/Sources/Services/(AgentPlatform|CallKit)/"
+      # Brief 0083 phase 2: upstream screens Spiral reworked, and the slice's shared style.
+      - "/ElementX/Sources/Screens/Authentication/(LoginScreen|StartScreen)/"
+      - "/ElementX/Sources/Screens/HomeScreen/"
+      - "/ElementX/Sources/Screens/Onboarding/IdentityConfirmationScreen/"
+      - "/ElementX/Sources/Other/SwiftUI/Styles/SpiralLinkButtonStyle.swift"
+      # Brief 0083 phase 4, batch P4-A (decision 313): the screens after identity confirmation.
+      - "/ElementX/Sources/Screens/(EncryptionReset|SecureBackup/SecureBackupRecoveryKeyScreen|Onboarding/SessionVerificationScreen)/"
+      # Brief 0083 phase 4, batch P4-B, lane room-menus: what opens from a message.
+      - "/ElementX/Sources/Screens/Timeline/View/(ItemMenu|ReadReceipts)/"
+      - "/ElementX/Sources/Screens/Timeline/View/Supplementary/ReactionsSummaryView.swift"
+      - "/ElementX/Sources/Screens/EmojiPickerScreen/"
+      # Brief 0083 phase 4, batch P4-B: the room's timeline, its bubbles and what hangs under them.
+      - "/ElementX/Sources/Screens/Timeline/View/(Style|Supplementary|Threads)/"
+      - "/ElementX/Sources/Screens/Timeline/View/TimelineSenderAvatarView.swift"
+      - "/ElementX/Sources/Screens/Timeline/View/TimelineItemViews/(ReadMarker|Separator|State)RoomTimelineView.swift"
+      - "/ElementX/Sources/Other/SwiftUI/Views/TimelineScrollButton.swift"
+      # Brief 0083 phase 4, batch P4-E, lane posts-in-chat: an Interactive Post among the room's bubbles.
+      - "/ElementX/Sources/Screens/Timeline/View/TimelineItemViews/(InteractiveDraftRoomTimelineView|InteractiveGeneratingRoomTimelineView|InteractivePostRoomTimelineView|InteractivePostTimelinePreviews|SpiralAppPostFrame).swift"
+      # Brief 0083 phase 4, batch P4-B: the composer's field, shared by the room, threads, captions and comments.
+      - "/ElementX/Sources/Other/SwiftUI/Views/(SpiralComposerField|ComposerDisabledView).swift"
+      # Brief 0083 phase 4, batch P4-E, lane room-profile: the profile page and the screens drawn with it.
+      - "/ElementX/Sources/Screens/(RoomDetailsScreen|RoomMemberDetailsScreen|UserProfileScreen|SpiralProfile)/"
+      # Brief 0083 phase 4, batch P4-D, lane agents: the app's agent row on Spiral's agent card.
+      - "/ElementX/Sources/Other/SwiftUI/Views/AgentRow.swift"
+      # Brief 0083, question 413: Spiral's own media viewer, in place of QuickLook.
+      - "/ElementX/Sources/Screens/FilePreviewScreen/View/MediaViewer\\w*\\.swift"
+      - "/ElementX/Sources/Other/SwiftUI/Views/RoomHeaderView.swift"
+      - "/ElementX/Sources/Other/UserIndicator/CallBarStatusBar.swift"
+      # Brief 0083 phase 3: Spiral's own design-system package, whose sources
+      # also match the top-level `included`. Its generated tokens hold the
+      # literals the rules forbid elsewhere, so each rule leaves them out.
+      - "/SpiralUI/Sources/"
+      # Brief 0083 phase 3: Spiral's shared components, and their previews in the app.
+      - "/SpiralComponents/Sources/"
+      - "/ElementX/Sources/Other/SpiralComponentPreviews/"
+    excluded: &spiral_generated "/SpiralUI/Sources/SpiralTokens/Generated/"
+    # A lookahead finds the quote of `.custom("…")`: a match that took it would
+    # hold a string token, which `excluded_match_kinds` drops.
+    regex: '\b(Font|UIFont)\.(system|custom)\(|(?<![\w.])\.system\((size:|\.|")|(?<![\w.])\.custom\((?=\s*"|[^)\n]*\b(size|fixedSize)\s*:)|\bUIFont\.\w*[sS]ystemFont\(|\bUIFont\(\s*name:'
+    excluded_match_kinds: [comment, comment.mark, comment.url, doccomment, doccomment.field, string]
+    message: "Spiral code takes fonts from Compound (Font.compound.*), not Font.system, Font.custom or UIFont literals."
+    severity: error
+
+  spiral_raw_color:
+    included: *spiral_code
+    excluded: *spiral_generated
+    regex: '\b(UI|NS|CG)?Color\(\s*(\.sRGB\w*\s*,\s*|\.displayP3\s*,\s*)?(red|white|hue|gray|displayP3Red|srgbRed)\s*:|(?<![\w.])\.init\(\s*(red|white|hue|displayP3Red)\s*:|\b(UI|NS)?Color\(\s*(hex|rgb|rgba|argb)\w*\s*:|#colorLiteral\('
+    excluded_match_kinds: [comment, comment.mark, comment.url, doccomment, doccomment.field, string]
+    message: "Spiral code takes colours from tokens (Color.compound.*, Color.spiral.*), not colour literals."
+    severity: error
+
+  spiral_raw_corner_radius:
+    included: *spiral_code
+    excluded: *spiral_generated
+    regex: '\b(cornerRadius|topLeadingRadius|topTrailingRadius|bottomLeadingRadius|bottomTrailingRadius)\s*[:(=]\s*-?\d|\b\w*[cC]ornerRadius\w*\s*(:\s*\w+\s*)?=\s*-?\d|\b(topLeading|topTrailing|bottomLeading|bottomTrailing)\s*:\s*-?\d|\bcornerSize\s*:\s*CGSize\(\s*width:\s*-?\d'
+    excluded_match_kinds: [comment, comment.mark, comment.url, doccomment, doccomment.field, string]
+    message: "Spiral code takes corner radii from SpiralRadius (import SpiralTokens), not numbers; buttons and fields are capsules. A radius off the scale needs `// swiftlint:disable:next spiral_raw_corner_radius` and a reason."
+    severity: error

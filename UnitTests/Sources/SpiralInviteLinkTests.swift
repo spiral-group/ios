@@ -5,8 +5,8 @@
 // grammar mirrors `identity-login/src/services/invites-core.ts`.
 //
 
-@testable import ElementX
 import Foundation
+@testable import Spiral
 import Testing
 
 struct SpiralInviteLinkTests {

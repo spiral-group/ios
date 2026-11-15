@@ -46,11 +46,12 @@ nonisolated struct SpiralActionNotification: Equatable {
         postEventID = relatesTo?["rel_type"] as? String == "m.reference" ? relatesTo?["event_id"] as? String : nil
         let summary = content["summary"] as? [String: Any]
         kind = (summary?["notify_kind"] as? String).flatMap(Kind.init) ?? .turn
+        // Any member's words, so a push carries a line, not a page (L1).
         let line = summary?["line"]
         if let text = line as? String {
-            lines = ["": text]
+            lines = ["": SpiralAppActionLimits.cappedLine(text)]
         } else {
-            lines = line as? [String: String] ?? [:]
+            lines = (line as? [String: String] ?? [:]).mapValues(SpiralAppActionLimits.cappedLine)
         }
     }
 

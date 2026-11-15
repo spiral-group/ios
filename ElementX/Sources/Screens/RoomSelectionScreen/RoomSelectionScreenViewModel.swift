@@ -90,7 +90,7 @@ class RoomSelectionScreenViewModel: RoomSelectionScreenViewModelType, RoomSelect
     private func updateRooms() {
         var rooms = [RoomSelectionRoom]()
         
-        for summary in roomSummaryProvider.roomListPublisher.value where roomFilter(summary) {
+        for summary in roomSummaryProvider.roomListPublisher.value where !summary.isTombstoned && roomFilter(summary) {
             rooms.append(.init(id: summary.id,
                                title: summary.name,
                                description: summary.roomListDescription,

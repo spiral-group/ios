@@ -8,8 +8,8 @@
 
 import AsyncAlgorithms
 import Combine
-@testable import ElementX
 import MatrixRustSDK
+@testable import Spiral
 import SwiftUI
 import Testing
 
@@ -34,6 +34,43 @@ struct RoomDetailsScreenViewModelTests {
                                                userIndicatorController: UserIndicatorControllerMock(),
                                                notificationSettingsProxy: notificationSettingsProxyMock,
                                                attributedStringBuilder: AttributedStringBuilder(mentionBuilder: MentionBuilder()))
+    }
+    
+    // AGENT-PLATFORM (Brief 0083, decision 344): the action row offers Join while a call is on, Call and Video otherwise.
+    @Test(arguments: [(CallIntent?.some(.audio), true), (CallIntent?.some(.video), false), (nil, false)])
+    mutating func anOngoingCallOffersJoin(intent: CallIntent?, isVoiceCall: Bool) async throws {
+        try await setUpCallShortcuts(hasOngoingCall: true, intent: intent)
+        
+        #expect(context.viewState.shortcuts.contains(.joinCall(isVoiceCall: isVoiceCall)))
+        #expect(!context.viewState.shortcuts.contains(.voiceCall))
+        #expect(!context.viewState.shortcuts.contains(.videoCall))
+    }
+    
+    @Test
+    mutating func noCallOffersCallAndVideo() async throws {
+        try await setUpCallShortcuts(hasOngoingCall: false)
+        
+        #expect(context.viewState.shortcuts.contains(.voiceCall))
+        #expect(context.viewState.shortcuts.contains(.videoCall))
+        #expect(context.viewState.shortcuts.compactMap(\.joinCallIsVoice).isEmpty)
+    }
+    
+    /// The view disables this Join: the call is still shown.
+    @Test
+    mutating func anOngoingCallStaysShownWithoutThePowerToJoin() async throws {
+        try await setUpCallShortcuts(hasOngoingCall: true, canJoinCall: false)
+        
+        #expect(context.viewState.shortcuts.compactMap(\.joinCallIsVoice) == [false])
+        #expect(!context.viewState.canJoinCall)
+    }
+    
+    @Test
+    mutating func noCallOffersNothingWithoutThePowerToJoin() async throws {
+        try await setUpCallShortcuts(hasOngoingCall: false, canJoinCall: false)
+        
+        #expect(!context.viewState.shortcuts.contains(.voiceCall))
+        #expect(!context.viewState.shortcuts.contains(.videoCall))
+        #expect(context.viewState.shortcuts.compactMap(\.joinCallIsVoice).isEmpty)
     }
     
     @Test
@@ -393,13 +430,13 @@ struct RoomDetailsScreenViewModelTests {
         #expect(context.viewState.dmRecipientInfo?.member == RoomMemberDetails(withProxy: recipient))
         
         #expect(!context.viewState.isProcessingIgnoreRequest)
-        let deferredProcessing = deferFulfillment(viewModel.context.observe(\.viewState.isProcessingIgnoreRequest),
-                                                  transitionValues: [true, false])
+        let deferredAlert = deferFulfillment(context.observe(\.alertInfo)) { $0 != nil }
         
         context.send(viewAction: .unignoreConfirmed)
         
-        try await deferredProcessing.fulfill()
+        try await deferredAlert.fulfill()
         
+        #expect(!context.viewState.isProcessingIgnoreRequest)
         #expect(context.viewState.dmRecipientInfo?.member.isIgnored == true)
         #expect(context.alertInfo != nil)
     }
@@ -906,5 +943,32 @@ struct RoomDetailsScreenViewModelTests {
             state.details.historySharingState == .shared
         }
         try await deferredShared.fulfill()
+    }
+    
+    // MARK: - Private
+    
+    /// AGENT-PLATFORM (Brief 0083): the mock's `hasOngoingCall` defaults to `true`, so every test here says which.
+    private mutating func setUpCallShortcuts(hasOngoingCall: Bool, intent: CallIntent? = nil, canJoinCall: Bool = true) async throws {
+        let configuration = JoinedRoomProxyMockConfiguration(name: "Calls",
+                                                             hasOngoingCall: hasOngoingCall,
+                                                             powerLevelsConfiguration: .init(canUserJoinCall: canJoinCall))
+        let roomInfo = RoomInfoProxyMock(configuration)
+        roomInfo.activeRoomCallIntent = intent
+        let infoSubject = CurrentValueSubject<RoomInfoProxyProtocol, Never>(roomInfo)
+        roomProxyMock = JoinedRoomProxyMock(configuration)
+        roomProxyMock.infoPublisher = infoSubject.asCurrentValuePublisher()
+        
+        viewModel = RoomDetailsScreenViewModel(roomProxy: roomProxyMock,
+                                               userSession: UserSessionMock(.init()),
+                                               analyticsService: AnalyticsServiceMock(.init()),
+                                               userIndicatorController: UserIndicatorControllerMock(),
+                                               notificationSettingsProxy: notificationSettingsProxyMock,
+                                               attributedStringBuilder: AttributedStringBuilder(mentionBuilder: MentionBuilder()))
+        
+        let deferred = deferFulfillment(context.observe(\.viewState)) { state in
+            state.details.name == "Calls" && state.hasOngoingCall == hasOngoingCall &&
+                state.activeRoomCallIntent == intent && state.canJoinCall == canJoinCall
+        }
+        try await deferred.fulfill()
     }
 }

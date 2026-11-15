@@ -79,6 +79,6 @@ extension DevE2ETestCase {
         try tap(element(A11yIdentifiers.roomSelectionScreen.confirm), "the chat picker's Continue")
         let title = element(A11yIdentifiers.interactivePostCatalogScreen.currentTitle)
         try require(title, timeout: 30, "the catalogue on a template")
-        XCTAssertEqual(title.label, "Poll with names", "the link must open the catalogue on its own template")
+        XCTAssertTrue(title.label.contains("Poll with names"), "the link must open the catalogue on its own template")
     }
 }

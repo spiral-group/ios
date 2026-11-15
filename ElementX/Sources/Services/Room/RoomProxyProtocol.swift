@@ -200,6 +200,9 @@ protocol JoinedRoomProxyProtocol: RoomProxyProtocol {
     // MARK: - Moderation
     
     func kickUser(_ userID: String, reason: String?) async -> Result<Void, RoomProxyError>
+    /// AGENT-PLATFORM (bug S2): `userID`'s room membership as the local store has it now, the member list fetched
+    /// first if it never was; nil when it could not be read or the room has no member event for them.
+    func membership(of userID: String) async -> MembershipState?
     func banUser(_ userID: String, reason: String?) async -> Result<Void, RoomProxyError>
     func unbanUser(_ userID: String) async -> Result<Void, RoomProxyError>
     
@@ -254,11 +257,25 @@ extension JoinedRoomProxyProtocol {
         return membersPublisher.value
     }
     
+    /// AGENT-PLATFORM (bug S2): removes `userID` from the room. One already out of it, by an earlier removal or
+    /// someone else's, counts as removed: the server refuses to kick a user who is not in the room.
+    func removeFromRoom(_ userID: String) async -> Result<Void, RoomProxyError> {
+        let result = await kickUser(userID, reason: nil)
+        guard case .failure = result, let membership = await membership(of: userID) else { return result }
+        switch membership {
+        case .join, .invite, .knock:
+            return result
+        default:
+            MXLog.info("\(userID) is already out of \(id); the removal stands")
+            return .success(())
+        }
+    }
+    
     /// This is a horrible workaround for not having any server names available when using tombstone links with v12 room IDs.
     func knownServerNames(maxCount: Int) -> any Sequence<String> {
         membersPublisher.value
             .prefix(1000) // No need to go crazy here…
-            .compactMap { $0.userID.split(separator: ":").last.map(String.init) }
+            .compactMap { try? serverNameFromUserId(userId: $0.userID) }
             .uniqued()
             .prefix(maxCount)
     }

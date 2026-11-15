@@ -7,6 +7,7 @@
 //
 
 import Compound
+import MatrixRustSDKMocks
 import SwiftUI
 
 struct QRCodeLoginScreen: View {
@@ -214,26 +215,19 @@ struct QRCodeLoginScreen: View {
     
     @ViewBuilder
     private var displayQRContent: some View {
-        if case let .displayQR(qrState) = context.viewState.state {
+        if case let .displayQR(image) = context.viewState.state {
             FullscreenDialog(topPadding: 24, horizontalPadding: 24) {
                 VStack(spacing: 32) {
                     TitleAndIcon(title: L10n.screenLinkNewDeviceMobileTitle(InfoPlistReader.main.productionAppName),
                                  icon: \.takePhotoSolid,
                                  iconStyle: .default)
                     
-                    switch qrState {
-                    case .active(let image):
-                        Image(uiImage: image)
-                            .interpolation(.none) // to stop it getting blurred
-                            .resizable()
-                            .scaledToFit()
-                            .frame(width: 200, height: 200)
-                            .accessibilityLabel(L10n.a11yQrCode)
-                    case .expired:
-                        ProgressView()
-                            .controlSize(.large)
-                            .frame(width: 200, height: 200)
-                    }
+                    Image(uiImage: image)
+                        .interpolation(.none) // to stop it getting blurred
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 200, height: 200)
+                        .accessibilityLabel(L10n.a11yQrCode)
                     
                     SFNumberedListView(items: context.viewState.instructions.linkMobileItems)
                 }
@@ -330,8 +324,6 @@ private struct QRScannerViewOverlay: View {
 
 // MARK: - Previews
 
-import MatrixRustSDKMocks
-
 struct QRCodeLoginScreen_Previews: PreviewProvider, TestablePreview {
     // Instructions
     static let loginInstructionsStateViewModel = QRCodeLoginScreenViewModel.mock(state: .loginInstructions)
@@ -351,8 +343,7 @@ struct QRCodeLoginScreen_Previews: PreviewProvider, TestablePreview {
     static let deviceNotSignedInStateViewModel = QRCodeLoginScreenViewModel.mock(state: .scan(.scanFailed(.deviceNotSignedIn)))
     
     /// Showing
-    static let showingStateViewModel = QRCodeLoginScreenViewModel.mock(state: .displayQR(.active(LinkNewDeviceServiceMock.mockQRCodeImage)))
-    static let showingExpiredStateViewModel = QRCodeLoginScreenViewModel.mock(state: .displayQR(.expired))
+    static let showingStateViewModel = QRCodeLoginScreenViewModel.mock(state: .displayQR(LinkNewDeviceServiceMock.mockQRCodeImage))
     
     // Displaying codes
     static let deviceCodeStateViewModel = QRCodeLoginScreenViewModel.mock(state: .displayCode(.deviceCode("12")))
@@ -384,8 +375,6 @@ struct QRCodeLoginScreen_Previews: PreviewProvider, TestablePreview {
         
         ElementNavigationStack { QRCodeLoginScreen(context: showingStateViewModel.context) }
             .previewDisplayName("Showing")
-        ElementNavigationStack { QRCodeLoginScreen(context: showingExpiredStateViewModel.context) }
-            .previewDisplayName("Showing expired")
         
         ElementNavigationStack { QRCodeLoginScreen(context: deviceCodeStateViewModel.context) }
             .previewDisplayName("Device code")

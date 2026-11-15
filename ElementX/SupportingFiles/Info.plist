@@ -5,6 +5,7 @@
 	<key>BGTaskSchedulerPermittedIdentifiers</key>
 	<array>
 		<string>$(BASE_BUNDLE_IDENTIFIER).background.refresh</string>
+		<string>$(BASE_BUNDLE_IDENTIFIER).background.search-backfill</string>
 	</array>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
@@ -59,10 +60,6 @@
 	<string>To make video calls, and to take pictures or videos and send them as a message, $(APP_DISPLAY_NAME) needs access to the camera.</string>
 	<key>NSFaceIDUsageDescription</key>
 	<string>Face ID is used to access your app.</string>
-	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-	<string>To share your live location, $(APP_DISPLAY_NAME) needs location access when the app is in the background.</string>
-	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>Grant location access so that $(APP_DISPLAY_NAME) can share your location.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>To make calls, and to record and send messages with audio, $(APP_DISPLAY_NAME) needs to access the microphone.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>

@@ -10,6 +10,7 @@ import Compound
 import SwiftUI
 
 struct VoiceMessageButton: View {
+    @Environment(\.ownBubbleInk) private var ownBubbleInk // AGENT-PLATFORM (Brief 0083)
     @ScaledMetric private var buttonSize: CGFloat
     
     enum State {
@@ -29,6 +30,11 @@ struct VoiceMessageButton: View {
     let iconSize: CompoundIcon.Size
     let iconColor: Color
     
+    private static let minimumTapTarget: CGFloat = 44 // AGENT-PLATFORM (S7)
+    
+    /// AGENT-PLATFORM: draws the pressed state, so the previews can show it.
+    fileprivate var isPressedInPreview = false
+    
     init(state: State, size: Size, action: @escaping () -> Void) {
         switch size {
         case .small:
@@ -36,7 +42,10 @@ struct VoiceMessageButton: View {
             iconSize = .small
             iconColor = .compound.iconPrimary
         case .medium:
-            _buttonSize = .init(wrappedValue: 36)
+            // AGENT-PLATFORM (S7): 32, not 36. In a voice message's bubble the 36 pt disc set the bubble's height and
+            // left it 8 pt above and below, under a 16 pt corner, so it read as not fitting (operator, 2026-11-12). At 32
+            // the speed and time column sets the height: 9 pt above and below at the default size, 11 at xxxLarge.
+            _buttonSize = .init(wrappedValue: 32)
             iconSize = .medium
             iconColor = .compound.iconSecondary
         }
@@ -52,9 +61,11 @@ struct VoiceMessageButton: View {
                 .overlay {
                     Circle().stroke(.compound.borderInteractiveSecondary)
                 }
+                // AGENT-PLATFORM (S7): the disc is smaller than a finger, so the target reaches 44 pt around it.
+                .contentShape(.interaction, Circle().inset(by: -max(0, (Self.minimumTapTarget - buttonSize) / 2)))
         }
         .animation(nil, value: state)
-        .buttonStyle(VoiceMessageButtonStyle(color: iconColor))
+        .buttonStyle(VoiceMessageButtonStyle(color: ownBubbleInk?.onStrongFill ?? iconColor, fill: ownBubbleInk?.strongFill ?? .compound.bgCanvasDefault, isPressedInPreview: isPressedInPreview)) // AGENT-PLATFORM
         .disabled(state == .loading)
         .accessibilityLabel(accessibilityLabel)
     }
@@ -87,12 +98,25 @@ private struct VoiceMessageButtonStyle: ButtonStyle {
     @Environment(\.isEnabled) var isEnabled: Bool
     
     let color: Color
+    let fill: Color // AGENT-PLATFORM (Brief 0083)
+    let isPressedInPreview: Bool // AGENT-PLATFORM
     
     func makeBody(configuration: Configuration) -> some View {
+        let isPressed = configuration.isPressed || isPressedInPreview // AGENT-PLATFORM
         configuration.label
-            .foregroundColor(isEnabled ? color.opacity(configuration.isPressed ? 0.6 : 1) : .compound.iconDisabled)
-            .background(Circle()
-                .foregroundColor(configuration.isPressed ? .compound.bgSubtlePrimary : .compound.bgCanvasDefault))
+            // AGENT-PLATFORM: Spiral's iconDisabled is #E5E5EA in light mode, almost white on the white disc.
+            .foregroundColor(isEnabled ? color.opacity(isPressed ? 0.6 : 1) : .compound.textDisabled)
+            // AGENT-PLATFORM: Spiral's bgSubtlePrimary is the disc's own white in light mode, so the
+            // press darkens the disc instead (bgActionSecondaryPressed is a translucent gray).
+            .background {
+                Circle()
+                    .fill(fill)
+                    .overlay {
+                        if isPressed {
+                            Circle().fill(Color.compound.bgActionSecondaryPressed)
+                        }
+                    }
+            }
     }
 }
 
@@ -120,8 +144,28 @@ struct VoiceMessageButton_Previews: PreviewProvider, TestablePreview {
                 VoiceMessageButton(state: .playing, size: .small) { }
                 VoiceMessageButton(state: .playing, size: .medium) { }
             }
+            // AGENT-PLATFORM: pressed, and disabled.
+            HStack(spacing: 8) {
+                VoiceMessageButton(state: .paused, size: .small) { }
+                    .pressedInPreview()
+                VoiceMessageButton(state: .paused, size: .medium) { }
+                    .pressedInPreview()
+            }
+            HStack(spacing: 8) {
+                VoiceMessageButton(state: .paused, size: .small) { }
+                VoiceMessageButton(state: .paused, size: .medium) { }
+            }
+            .disabled(true)
         }
         .padding()
         .background(.compound.bgSubtleSecondary)
+    }
+}
+
+private extension VoiceMessageButton {
+    func pressedInPreview() -> Self { // AGENT-PLATFORM
+        var button = self
+        button.isPressedInPreview = true
+        return button
     }
 }

@@ -36,26 +36,41 @@ struct NativeCallAgentPresentation: Equatable {
     /// roster (walk F6): the removal is under way, so the agent is not
     /// offered again yet. Shown as "Removing…" rather than as nothing.
     let removing: [Control]
-    /// The block's / capsule's agent: the airing one, else the first.
+    /// The pill's agent (question 383): one's own first, else the first in the roster. It stays put while several
+    /// take turns; whoever speaks shows by their Halo, not by the pill swapping who it names.
     let activeAgent: Agent?
     /// Header REC / bar REC — the CALL fact: any agent shown as recording.
     let isCallRecording: Bool
     /// The bar's wave input: any agent audibly producing sound.
     let isAnyAgentSpeaking: Bool
-    /// Roster "Covered in X": speaker MXID → the language a Live agent
-    /// translates them into, from its document.
-    let coveredSpeakers: [String: String]
     /// Everything REST-only the sheet needs that is not per-agent.
     let panel: Panel
+    /// The owner's own assistant stopped mid-call on the AI limit (D7, D10): the call screen's line, the owner's only.
+    var limitStop: NativeAgentCenterLimitStop?
+    /// Brief 0085: the call's translation beyond the agents' documents (the translation port), and the documents the
+    /// lanes are read from (ADR-0094 A.6) — passed through, so the view state reads them here.
+    var translationFacts = NativeCallTranslationFacts()
+    var documents: [String: SpiralAgentStateReader.AgentClaim] = [:]
 
-    /// Agents the user controls, for the sheet's expanded cards.
+    /// The user's own agents in the call. "Mine" comes from the person's own agents list, so a late or failed
+    /// session read never draws one's own assistant as someone else's (audit F7).
     var ownAgents: [Agent] {
-        agents.filter { $0.control?.canControl == true }
+        agents.filter(\.isOwn)
     }
 
     /// Every other agent in the call, for the sheet's read-only rows.
     var foreignAgents: [Agent] {
-        agents.filter { $0.control?.canControl != true }
+        agents.filter { !$0.isOwn }
+    }
+
+    /// D3, as the critique reads it: some agent translates a person in the call other than `ownUserID` — a lane
+    /// the local user would actually hear. The speaker never hears their own lane (ADR-0073).
+    func translatesSomeone(otherThan ownUserID: String?, among people: [String]) -> Bool {
+        agents.contains { agent in
+            agent.shown.isTranslating && people.contains { person in
+                person != ownUserID && agent.live.lanes.contains { $0.speaker == person }
+            }
+        }
     }
 
     /// The control register for a session the editor edits — present or
@@ -77,30 +92,34 @@ struct NativeCallAgentPresentation: Equatable {
         let live: Live
         let control: Control?
         let shown: Shown
-        /// `1 of 2 agents` — nil for a single agent.
-        let ordinal: Ordinal?
-
-        struct Ordinal: Equatable {
-            let index: Int
-            let count: Int
-        }
+        /// One of the user's own agents: from their own agents list, or a session they control (audit F7).
+        var isOwn = false
     }
 
     // MARK: Source (a) — roster + document. Never reads REST.
 
     struct Live: Equatable {
         let isSpeaking: Bool
-        /// The languages the document says it translates into (configured;
-        /// `isPaused` says whether the engine currently produces them).
-        /// Empty = translation off.
+        /// The languages its translation intent asks for while it is on — producing or standing by (ADR-0094 A.6).
+        /// Empty = translation off or stopped.
         let languages: [String]
-        let booths: [SpiralAgentStateReader.Booth]
+        /// What it airs: voice lanes only.
+        let lanes: [VoiceTranslationLane]
+        /// On, holding no lane: it translates if the producer of a lane stops.
+        let isStandby: Bool
+        /// Why its translation stopped while it stays; nil while it produces, stands by or is off.
+        let stoppedReason: VoiceTranslationStopReason?
+        /// The assistant's owner, as the document names them.
+        let owner: String?
+        /// The owner's personal Tool turned it on («включён по инструменту чата»).
+        let isFromTool: Bool
         /// `consecutive` (Interpreter) | `simultaneous` (Live) — nil when
         /// the document claims no translation.
         let style: SpiralAgentStateReader.TranslationStyle?
         /// Brief 0066 — does this agent translate MY voice, and what does
         /// that mean for my ears? Phrased for the foreign row.
         let coversMe: CoversMe?
+        /// Stopped by a limit (the AI limit or a cap).
         let isPaused: Bool
         let isRecording: Bool
         let isSummaryArmed: Bool
@@ -148,10 +167,6 @@ struct NativeCallAgentPresentation: Equatable {
         /// Brief 0080 — whether the switch is offered, and its CAS token.
         /// Whether the agent talks is `shown`, never this.
         let conversation: NativeAgentCenterConversation
-        let isDisplaced: Bool
-        let isSavedAsRoomDefault: Bool
-        /// Whether the editor may offer keeping the translation as the room's rule.
-        let canSaveAsRoomDefault: Bool
 
         /// A delivery the owner must act on — the ONE control fact allowed
         /// into the event ladder, because delivery has no document form.
@@ -174,6 +189,8 @@ struct NativeCallAgentPresentation: Equatable {
         let isSummaryArmed: Bool
         let isConversationActive: Bool
         let isPaused: Bool
+        /// Document-only, like the style: on, holding no lane.
+        let isStandby: Bool
         /// The wave and the accent line: speaking ∧ a SHOWN function that
         /// airs (translation not paused, else the conversation) — the same
         /// register as the toggles, so a Disable tap cannot leave the head
@@ -205,6 +222,24 @@ struct NativeCallAgentPresentation: Equatable {
         /// a control fact: what the backend will refuse to attach twice.
         let candidates: [NativeAgentCenterCandidate]
         let catalog: [VoiceControlsCatalogLanguage]
+        var lastErrorScope: NativeAgentCenterErrorScope = .global
+        var joinChecks: [String: VoiceJoinCheckReason] = [:]
+        var joinFailures: [String: NativeAgentCenterJoinFailure] = [:]
+        var joinStartedAt: [String: Date] = [:]
+        var canRemoveOthersFromChat = false
+        /// Every own agent's MXID, for the add row's "already in this call" and the private call.
+        var ownAgentMxids: Set<String> = []
+        /// The account has an agent platform: the dock offers the sheet before the platform answers (remark 4 of 401).
+        var isConfigured = false
+        /// Own agent ids whose add the backend accepted.
+        var acceptedAttaches: Set<String> = []
+        var joinChecksAsked: Set<String> = []
+        var isCheckingJoins = false
+
+        /// The join check for this agent is out and was never answered: whether it can come is not known yet.
+        func isJoinCheckPending(_ candidate: NativeAgentCenterCandidate) -> Bool {
+            isCheckingJoins && !joinChecksAsked.contains(candidate.id) && joinFailures[candidate.id] == nil && !candidate.isPaused
+        }
     }
 
     // MARK: - Inputs
@@ -213,7 +248,6 @@ struct NativeCallAgentPresentation: Equatable {
     struct LiveInputs: Equatable {
         var participants: [NativeCallParticipant] = []
         var claims = NativeCallAgentClaims()
-        var coveredSpeakers: [String: String] = [:]
         var isCallConnected = true
         /// Agents whose translation faltered for a speaker on the air
         /// (session lane memory): only THEIR block reads "Original voices".
@@ -232,7 +266,7 @@ struct NativeCallAgentPresentation: Equatable {
         let sessionsByMxid = Dictionary(rest.sessions.map { ($0.agentMxid, $0) }) { first, _ in first }
         let rosterMxids = Set(rosterAgents.map(\.userID))
 
-        let agents: [Agent] = rosterAgents.enumerated().map { index, participant in
+        let agents: [Agent] = rosterAgents.map { participant in
             let liveFacts = liveFacts(participant, claims: live.claims, ownUserID: live.ownUserID)
             let control = sessionsByMxid[participant.userID].map { controlFacts($0, rest: rest) }
             let shown = shownFacts(live: liveFacts,
@@ -246,7 +280,7 @@ struct NativeCallAgentPresentation: Equatable {
                          live: liveFacts,
                          control: control,
                          shown: shown,
-                         ordinal: rosterAgents.count > 1 ? .init(index: index + 1, count: rosterAgents.count) : nil)
+                         isOwn: rest.ownAgentMxids.contains(participant.userID) || control?.canControl == true)
         }
 
         // REST sessions with no roster presence: joining (attach lag) or
@@ -255,9 +289,7 @@ struct NativeCallAgentPresentation: Equatable {
         let joining = absent.filter { !$0.isEnding }.map { controlFacts($0, rest: rest) }
         let removing = absent.filter(\.isEnding).map { controlFacts($0, rest: rest) }
 
-        // The airing one, by the same fact the wave uses — not by the
-        // event, where a delivery failure outranks airing.
-        let active = agents.first { $0.shown.isAiring } ?? agents.first
+        let active = agents.first(where: \.isOwn) ?? agents.first
 
         return NativeCallAgentPresentation(agents: agents,
                                            joining: joining,
@@ -265,12 +297,33 @@ struct NativeCallAgentPresentation: Equatable {
                                            activeAgent: active,
                                            isCallRecording: agents.contains { $0.shown.isRecording },
                                            isAnyAgentSpeaking: agents.contains { $0.live.isSpeaking },
-                                           coveredSpeakers: live.coveredSpeakers,
                                            panel: Panel(isAvailable: rest.isAvailable,
                                                         isLoading: rest.isLoading,
                                                         lastError: rest.lastError,
                                                         candidates: rest.candidates.filter { !rest.attachedAgentMxids.contains($0.mxid) },
-                                                        catalog: rest.availableLanguages))
+                                                        catalog: rest.availableLanguages,
+                                                        lastErrorScope: rest.lastErrorScope,
+                                                        joinChecks: rest.joinChecks,
+                                                        joinFailures: rest.joinFailures,
+                                                        joinStartedAt: rest.joinStartedAt,
+                                                        canRemoveOthersFromChat: rest.canRemoveOthersFromChat,
+                                                        ownAgentMxids: rest.ownAgentMxids,
+                                                        isConfigured: rest.isConfigured,
+                                                        acceptedAttaches: rest.acceptedAttaches,
+                                                        joinChecksAsked: rest.joinChecksAsked,
+                                                        isCheckingJoins: rest.isCheckingJoins),
+                                           limitStop: rest.limitStop ?? translationPause(rest),
+                                           translationFacts: rest.translationFacts,
+                                           documents: live.claims.documents)
+    }
+
+    /// The owner's own session goes on with its translation paused by the cap (question 395): the same line.
+    private static func translationPause(_ rest: NativeAgentCenterSnapshot) -> NativeAgentCenterLimitStop? {
+        guard let pause = rest.sessions.first(where: { $0.canControl && $0.translation.pause != nil })?.translation.pause else { return nil }
+        if case .until(let date) = pause {
+            return .categoryPaused(.callTranslation, until: date)
+        }
+        return .categoryPaused(.callTranslation, until: nil)
     }
 
     /// Enforced by signature: `Live` is built from a participant and the
@@ -278,14 +331,19 @@ struct NativeCallAgentPresentation: Equatable {
     private static func liveFacts(_ participant: NativeCallParticipant,
                                   claims: NativeCallAgentClaims,
                                   ownUserID: String?) -> Live {
+        let translation = claims.documents[participant.userID]?.translation ?? .none
         let document = claims.documents[participant.userID]
-        let booths = document?.translation.activeBooths ?? []
+        let lanes = translation.isActive ? translation.lanes : []
         return Live(isSpeaking: claims.speaking.contains(participant.userID),
-                    languages: document?.translation.configuredLanguages ?? [],
-                    booths: booths,
-                    style: document?.translation.style,
-                    coversMe: coversMe(booths: booths, style: document?.translation.style, ownUserID: ownUserID),
-                    isPaused: document?.translation.isPaused ?? false,
+                    languages: translation.languages,
+                    lanes: lanes,
+                    isStandby: translation.isStandby,
+                    stoppedReason: translation.stoppedReason,
+                    owner: translation.owner,
+                    isFromTool: translation.source == .roomTool,
+                    style: translation.style,
+                    coversMe: coversMe(lanes: lanes, style: translation.style, ownUserID: ownUserID),
+                    isPaused: translation.isStoppedByLimit,
                     isRecording: document?.isRecording ?? false,
                     isSummaryArmed: document?.isSummaryArmed ?? false,
                     isConversationActive: document?.isConversationActive ?? false,
@@ -293,13 +351,12 @@ struct NativeCallAgentPresentation: Equatable {
                     isWaitingForPeople: document?.callGate == .waiting)
     }
 
-    /// The languages of every booth that covers me, by style. Nil when no
-    /// booth does (or the local user is unknown).
-    private static func coversMe(booths: [SpiralAgentStateReader.Booth],
+    /// The languages of every lane of my voice, by style. Nil when none is (or the local user is unknown).
+    private static func coversMe(lanes: [VoiceTranslationLane],
                                  style: SpiralAgentStateReader.TranslationStyle?,
                                  ownUserID: String?) -> CoversMe? {
         guard let ownUserID else { return nil }
-        let languages = Array(Set(booths.filter { $0.coverage.covers(ownUserID) }.flatMap(\.targetLanguages))).sorted()
+        let languages = Array(Set(lanes.filter { $0.speaker == ownUserID }.map(\.language))).sorted()
         guard !languages.isEmpty else { return nil }
         return style == .consecutive ? .interpreter(languages: languages) : .live(languages: languages)
     }
@@ -314,10 +371,7 @@ struct NativeCallAgentPresentation: Equatable {
                 recording: session.recording,
                 summary: session.summary,
                 translation: session.translation,
-                conversation: session.conversation,
-                isDisplaced: rest.displacedSessionIDs.contains(session.sessionID),
-                isSavedAsRoomDefault: rest.savedAsRoomDefaultSessionIDs.contains(session.sessionID),
-                canSaveAsRoomDefault: session.canSaveAsRoomDefault)
+                conversation: session.conversation)
     }
 
     /// The verdict. Starts from `live`; each fact is overridden only by a
@@ -366,12 +420,15 @@ struct NativeCallAgentPresentation: Equatable {
             .present
         }
 
+        // A standby is on and holds no lane: it translates nothing yet, so no surface says it does (D10).
+        let isStandby = live.isStandby && languages == live.languages
+        let producing = isStandby ? [] : languages
         let airing = Self.airing(isSpeaking: live.isSpeaking,
-                                 languages: languages,
+                                 languages: producing,
                                  isPaused: live.isPaused,
                                  isConversationActive: isConversationActive)
         let event = event(presence: presence,
-                          languages: languages,
+                          languages: producing,
                           airing: airing,
                           isPaused: live.isPaused,
                           isRecording: isRecording,
@@ -389,6 +446,7 @@ struct NativeCallAgentPresentation: Equatable {
                      isSummaryArmed: isSummaryArmed,
                      isConversationActive: isConversationActive,
                      isPaused: live.isPaused,
+                     isStandby: isStandby,
                      isAiring: airing != nil,
                      bridged: bridged)
     }

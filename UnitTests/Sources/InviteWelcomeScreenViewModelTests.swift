@@ -6,7 +6,7 @@
 // Please see LICENSE files in the repository root for full details.
 //
 
-@testable import ElementX
+@testable import Spiral
 import Testing
 
 // AGENT-PLATFORM (Brief 0073): the screen after an invited registration.

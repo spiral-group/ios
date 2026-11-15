@@ -3,7 +3,7 @@
 //
 
 import AVFoundation
-@testable import ElementX
+@testable import Spiral
 import Testing
 
 // AGENT-PLATFORM (Brief 0063, native call UI Phase 5 / G8): the audio
@@ -199,5 +199,252 @@ struct NativeCallAudioOwnershipTests {
         let callAbandoned = ownership.release(activationWindow)
         #expect(callAbandoned == .teardown)
         #expect(!ownership.isHeld, "automatic configuration goes back to the SDK")
+    }
+}
+
+/// Question 407: each call's own speaker. A held call keeps its route; the call that resumes gets its own back, never
+/// what the last call left; a default (not the person's pick) gives way to a car or headphones.
+@MainActor
+struct NativeCallSpeakerRegisterTests {
+    @Test
+    func aResumedCallGetsItsOwnRouteNotTheLastCallsOne() {
+        var ownership = NativeCallAudioOwnership()
+        var speakers = NativeCallSpeakerRegister()
+        let person = ownership.claim()
+        let assistant = ownership.claim()
+
+        speakers.start(person, onSpeaker: false)
+        speakers.start(assistant, onSpeaker: true)
+        speakers.release(assistant)
+        speakers.resume(person)
+        #expect(!speakers.isSpeakerEnabled, "a person's call doesn't come back on the loudspeaker")
+
+        let second = ownership.claim()
+        speakers.start(assistant, onSpeaker: true)
+        speakers.start(second, onSpeaker: false)
+        speakers.release(second)
+        speakers.resume(assistant)
+        #expect(speakers.isSpeakerEnabled, "the assistant's call comes back on the loudspeaker")
+    }
+
+    /// A call starting before CallKit's hold reaches the other one can't touch the other one's route.
+    @Test
+    func aCallStartingCantChangeTheRouteOfTheOneItReplaces() {
+        var ownership = NativeCallAudioOwnership()
+        var speakers = NativeCallSpeakerRegister()
+        let first = ownership.claim()
+        let second = ownership.claim()
+
+        speakers.start(first, onSpeaker: true)
+        speakers.choose(false)
+        speakers.start(second, onSpeaker: true)
+        speakers.choose(true)
+
+        #expect(speakers.state(for: first) == .init(isEnabled: false, isDefaulted: false))
+        #expect(speakers.state(for: second) == .init(isEnabled: true, isDefaulted: false))
+    }
+
+    /// A default speaker held, a car connected meanwhile: the resume gives it way, and the hold's restore doesn't
+    /// take it back — the person's own pick stays.
+    @Test
+    func aDefaultSpeakerRestoredAfterAHoldGivesWayToACar() {
+        var ownership = NativeCallAudioOwnership()
+        var speakers = NativeCallSpeakerRegister()
+        let assistant = ownership.claim()
+        let other = ownership.claim()
+        speakers.start(assistant, onSpeaker: true)
+        let saved = speakers.state(for: assistant)
+        speakers.start(other, onSpeaker: false)
+        speakers.release(other)
+
+        speakers.resume(assistant)
+        let didGiveWay = speakers.settle(hasExternalRoute: true)
+        let didRestore = speakers.restore(saved, for: assistant)
+
+        #expect(didGiveWay)
+        #expect(!didRestore)
+        #expect(!speakers.isSpeakerEnabled)
+
+        speakers.choose(true)
+        let picked = speakers.state(for: assistant)
+        let didPickGiveWay = speakers.settle(hasExternalRoute: true)
+        let didRestorePick = speakers.restore(picked, for: assistant)
+        #expect(!didPickGiveWay)
+        #expect(!didRestorePick)
+        #expect(speakers.isSpeakerEnabled, "the person's own speaker stays")
+    }
+
+    /// A camera turned back on after a hold sets the speaker as a default; the call's own route wins over it.
+    @Test
+    func theCallsOwnRouteWinsOverACameraDefaultAfterAHold() {
+        var ownership = NativeCallAudioOwnership()
+        var speakers = NativeCallSpeakerRegister()
+        let call = ownership.claim()
+        speakers.start(call, onSpeaker: false)
+        let saved = speakers.state(for: call)
+
+        speakers.applyVideoDefault()
+        let didRestore = speakers.restore(saved, for: call)
+
+        #expect(didRestore)
+        #expect(!speakers.isSpeakerEnabled)
+    }
+
+    /// AirPods arriving take the call off the speaker; a lost device leaves it where the system put it.
+    @Test
+    func theSpeakerFollowsADeviceTheSystemRoutedTo() {
+        let speaker = NativeCallAudioPort(type: .builtInSpeaker, name: "Speaker", uid: "Speaker")
+        let receiver = NativeCallAudioPort(type: .builtInReceiver, name: "Receiver", uid: "Receiver")
+        let airPods = NativeCallAudioPort(type: .bluetoothHFP, name: "AirPods", uid: "airpods")
+        func change(_ reason: AVAudioSession.RouteChangeReason, _ outputs: [NativeCallAudioPort]) -> NativeCallSpeakerPolicy.DeviceChange? {
+            NativeCallSpeakerPolicy.routeAfterDeviceChange(reason: reason, activeOutputs: outputs, returnsToSpeaker: false)
+        }
+        #expect(change(.newDeviceAvailable, [airPods]) == .follows(speaker: false))
+        #expect(change(.oldDeviceUnavailable, [receiver]) == .follows(speaker: false))
+        #expect(change(.oldDeviceUnavailable, [speaker]) == .follows(speaker: true))
+        #expect(change(.override, [receiver]) == nil)
+        #expect(change(.categoryChange, [receiver]) == nil)
+
+        var ownership = NativeCallAudioOwnership()
+        var speakers = NativeCallSpeakerRegister()
+        speakers.start(ownership.claim(), onSpeaker: true)
+        let didFollow = speakers.follow(.follows(speaker: false))
+        let didFollowAgain = speakers.follow(.follows(speaker: false))
+
+        #expect(didFollow)
+        #expect(!didFollowAgain)
+        #expect(!speakers.isSpeakerEnabled)
+    }
+
+    // MARK: Headphones removed (operator, 2026-11-12)
+
+    private static let receiver = NativeCallAudioPort(type: .builtInReceiver, name: "Receiver", uid: "Receiver")
+    private static let speakerPort = NativeCallAudioPort(type: .builtInSpeaker, name: "Speaker", uid: "Speaker")
+    private static let airPods = NativeCallAudioPort(type: .bluetoothHFP, name: "AirPods", uid: "airpods")
+
+    /// AirPods connected, then removed, with the system on the earpiece (`.voiceChat`'s choice) — or on the speaker
+    /// in `.videoChat`, or on another device still connected.
+    private func connectAndRemoveAirPods(_ speakers: inout NativeCallSpeakerRegister,
+                                         isVideo: Bool = false,
+                                         systemOutput: NativeCallAudioPort? = nil) -> NativeCallSpeakerPolicy.DeviceChange? {
+        let arrived = NativeCallSpeakerPolicy.routeAfterDeviceChange(reason: .newDeviceAvailable,
+                                                                     activeOutputs: [Self.airPods],
+                                                                     returnsToSpeaker: speakers.returnsToSpeaker(isVideo: isVideo))
+        if let arrived {
+            _ = speakers.follow(arrived)
+        }
+        #expect(!speakers.isSpeakerEnabled, "AirPods take the sound")
+        let removed = NativeCallSpeakerPolicy.routeAfterDeviceChange(reason: .oldDeviceUnavailable,
+                                                                     activeOutputs: [systemOutput ?? Self.receiver],
+                                                                     returnsToSpeaker: speakers.returnsToSpeaker(isVideo: isVideo))
+        if let removed {
+            _ = speakers.follow(removed)
+        }
+        return removed
+    }
+
+    @Test(arguments: [true, false])
+    func aCallWithOnesOwnAssistantGoesBackToTheSpeakerWhenTheAirPodsGo(startedOnSpeaker: Bool) {
+        var ownership = NativeCallAudioOwnership()
+        var speakers = NativeCallSpeakerRegister()
+        // Started on the speaker, or with the AirPods already in.
+        speakers.start(ownership.claim(), onSpeaker: startedOnSpeaker, isAssistantCall: true)
+
+        let removed = connectAndRemoveAirPods(&speakers)
+
+        #expect(removed == .returnsToSpeaker)
+        #expect(speakers.isSpeakerEnabled)
+        #expect(speakers.state(for: speakers.current) == .init(isEnabled: true, isDefaulted: true),
+                "a default: a car or headphones at the next activation still take it")
+    }
+
+    /// A direct or a group audio call: not a call with one's own assistant.
+    @Test
+    func aCallWithPeopleStaysOnTheEarpieceWhenTheAirPodsGo() {
+        var ownership = NativeCallAudioOwnership()
+        var speakers = NativeCallSpeakerRegister()
+        speakers.start(ownership.claim(), onSpeaker: false, isAssistantCall: false)
+
+        let removed = connectAndRemoveAirPods(&speakers)
+
+        #expect(removed == .follows(speaker: false))
+        #expect(!speakers.isSpeakerEnabled)
+    }
+
+    /// The person took the call to the earpiece: it stays there, even after they picked the AirPods in between.
+    @Test(arguments: [true, false])
+    func thePersonsEarpieceStaysWhenTheAirPodsGo(pickedAirPods: Bool) {
+        var ownership = NativeCallAudioOwnership()
+        var speakers = NativeCallSpeakerRegister()
+        speakers.start(ownership.claim(), onSpeaker: true, isAssistantCall: true)
+        speakers.choose(false)
+        if pickedAirPods {
+            speakers.chooseExternal()
+        }
+
+        let removed = connectAndRemoveAirPods(&speakers)
+
+        #expect(removed == .follows(speaker: false))
+        #expect(!speakers.isSpeakerEnabled)
+    }
+
+    /// The pocket interpreter moves the call off the earpiece; from then on the same rule brings it back after AirPods.
+    /// A pick of the AirPods alone isn't an earpiece pick.
+    @Test
+    func theInterpretersSpeakerComesBackAfterTheAirPods() {
+        var ownership = NativeCallAudioOwnership()
+        var speakers = NativeCallSpeakerRegister()
+        speakers.start(ownership.claim(), onSpeaker: true, isAssistantCall: true)
+        speakers.choose(false) // the person's earpiece
+        speakers.choose(true) // the interpreter's start
+        speakers.chooseExternal() // then the AirPods, picked
+
+        let removed = connectAndRemoveAirPods(&speakers)
+
+        #expect(removed == .returnsToSpeaker)
+        #expect(speakers.isSpeakerEnabled)
+    }
+
+    /// Video keeps today's behaviour: it follows the system's output either way.
+    @Test(arguments: [true, false])
+    func aVideoCallKeepsFollowingTheSystem(systemOnSpeaker: Bool) {
+        var ownership = NativeCallAudioOwnership()
+        var speakers = NativeCallSpeakerRegister()
+        speakers.start(ownership.claim(), onSpeaker: true, isAssistantCall: true)
+
+        let removed = connectAndRemoveAirPods(&speakers, isVideo: true, systemOutput: systemOnSpeaker ? Self.speakerPort : Self.receiver)
+
+        #expect(removed == .follows(speaker: systemOnSpeaker))
+        #expect(speakers.isSpeakerEnabled == systemOnSpeaker)
+    }
+
+    /// Another device the system moved the call to (a car, a wired headset) keeps the sound: nothing overrides it.
+    @Test(arguments: [AVAudioSession.Port.carAudio, .headphones, .bluetoothHFP])
+    func anotherExternalOutputKeepsTheSoundWhenTheAirPodsGo(other: AVAudioSession.Port) {
+        var ownership = NativeCallAudioOwnership()
+        var speakers = NativeCallSpeakerRegister()
+        speakers.start(ownership.claim(), onSpeaker: true, isAssistantCall: true)
+
+        let removed = connectAndRemoveAirPods(&speakers, systemOutput: .init(type: other, name: "Other", uid: "other"))
+
+        #expect(removed == .follows(speaker: false))
+        #expect(!speakers.isSpeakerEnabled)
+    }
+
+    /// Each call keeps its own: the assistant call's rule doesn't reach the person's call that resumes after it, and a
+    /// released call takes its earpiece pick with it.
+    @Test
+    func theRuleBelongsToTheCallInUse() {
+        var ownership = NativeCallAudioOwnership()
+        var speakers = NativeCallSpeakerRegister()
+        let assistant = ownership.claim()
+        let person = ownership.claim()
+        speakers.start(person, onSpeaker: false)
+        speakers.start(assistant, onSpeaker: true, isAssistantCall: true)
+        #expect(speakers.returnsToSpeaker(isVideo: false))
+
+        speakers.release(assistant)
+        speakers.resume(person)
+        #expect(!speakers.returnsToSpeaker(isVideo: false))
     }
 }

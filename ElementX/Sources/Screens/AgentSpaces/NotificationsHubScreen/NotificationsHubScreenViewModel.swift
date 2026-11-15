@@ -16,62 +16,66 @@ typealias NotificationsHubScreenViewModelType = StateStoreViewModelV2<Notificati
 
 /// Drives `NotificationsHubScreen` (Brief 0041 D3, ADR-0054).
 ///
-/// Two data planes:
+/// AGENT-PLATFORM: platform sync (decision 289). Everything comes from the
+/// session's `AgentsStore`:
 ///
-/// 1. **Needs action** — mirrored live from the UserSession-scoped
-///    `ApprovalsStreamServiceProtocol` via `withObservationTracking`
-///    (same Combine-free bridge the retired ApprovalsInbox used).
-///    The service reseeds itself on every SSE frame, so decided
-///    items drop off this section without any pull.
-/// 2. **Activity** — cursor-paginated pages of
-///    `GET /api/v1/me/notifications` owned by this ViewModel
-///    (the AgentActivityScreen pagination canon: LoadMoreState
-///    sentinel + `loadGeneration` stale-fetch guard).
+/// 1. **Needs action** and the visitors' entries — `.needsAction`, the same
+///    read the tab badge holds, read again on `approval.changed`,
+///    `verification.changed` and `notification.*`; the activity's answer
+///    carries it too. A failed read with nothing shown is a retry row.
+/// 2. **Activity** — `.hubActivity`, read again on `agent.activity` with as
+///    many rows as it holds; the bottom sentinel appends the next page.
+/// 3. **Agent names** — the spaces' cards, shared with the tab root.
 ///
-/// On `.appeared` the ViewModel also PUTs the last-seen marker via
-/// `markSeen()` — opening the hub IS the "I saw these" gesture
-/// (decision 8, Instagram-style).
+/// The hub appearing PUTs the last-seen marker — opening the hub IS the "I
+/// saw these" gesture (decision 8, Instagram-style).
 class NotificationsHubScreenViewModel: NotificationsHubScreenViewModelType, NotificationsHubScreenViewModelProtocol {
-    private let approvalsStreamService: any ApprovalsStreamServiceProtocol
+    private let store: AgentsStore
     private let agentPlatformService: any AgentPlatformServiceProtocol
     private let clientProxy: any ClientProxyProtocol
     private let userIndicatorController: any UserIndicatorControllerProtocol
     /// Display names of the people pending cards are about, as their profiles come in.
     private var counterpartNames: [String: String] = [:]
     private var counterpartLookups: Set<String> = []
-    /// The owner's agents by id, so each row names its agent (step B.9) and
-    /// a visitor's entry can open its assistant's settings.
-    private var agentCards: [String: AgentSpaceAgentCard] = [:]
-    private var agentNames: [String: String] {
-        agentCards.mapValues(\.displayName)
-    }
-    /// The visitors' entries as the server last sent them; the rows are these, named.
-    private var visitorEntries: [VisitorMessage] = []
-    private var isLoadingAgentNames = false
+    /// Visitors' entries dismissed here: gone at once, back when the server refuses.
+    private var dismissedVisitorMessageIDs: Set<String> = []
+    /// The next activity page on its way, or the last that could not be read.
+    private var loadMore: LoadMoreState?
 
     static let defaultPageSize = 25
-
-    /// Monotonic counter guarding in-flight activity fetches
-    /// against retry races (see AgentActivityScreenViewModel).
-    private var loadGeneration: UInt64 = 0
 
     private let actionsSubject: PassthroughSubject<NotificationsHubScreenViewModelAction, Never> = .init()
     var actionsPublisher: AnyPublisher<NotificationsHubScreenViewModelAction, Never> {
         actionsSubject.eraseToAnyPublisher()
     }
 
-    init(approvalsStreamService: any ApprovalsStreamServiceProtocol,
+    private let resources: [AgentsResource] = [.needsAction, .hubActivity, .spaces]
+
+    init(store: AgentsStore,
          agentPlatformService: any AgentPlatformServiceProtocol,
          clientProxy: any ClientProxyProtocol,
          userIndicatorController: any UserIndicatorControllerProtocol) {
-        self.approvalsStreamService = approvalsStreamService
+        self.store = store
         self.agentPlatformService = agentPlatformService
         self.clientProxy = clientProxy
         self.userIndicatorController = userIndicatorController
-        super.init(initialViewState: NotificationsHubScreenViewState(bindings: NotificationsHubScreenViewStateBindings()))
+        super.init(initialViewState: NotificationsHubScreenViewState())
 
-        refreshFromService()
-        rearmObservation()
+        render()
+        store.observe { [weak self] in
+            guard let self else { return false }
+            render()
+            return true
+        }
+        for resource in resources {
+            store.show(resource, by: self)
+        }
+    }
+
+    isolated deinit {
+        for resource in resources {
+            store.stopShowing(resource, by: self)
+        }
     }
 
     // MARK: - Public
@@ -81,26 +85,16 @@ class NotificationsHubScreenViewModel: NotificationsHubScreenViewModelType, Noti
 
         switch viewAction {
         case .appeared:
-            if agentCards.isEmpty {
-                Task { await loadAgentNames() }
-            }
-            approvalsStreamService.connect()
-            Task { await approvalsStreamService.reseed() }
-            // Opening the hub is the "seen" gesture — clear the
-            // unseen badge (optimistic local zero + monotonic PUT).
-            Task { await approvalsStreamService.markSeen() }
-            if case .loaded(let items, _) = state.activityState, !items.isEmpty {
-                return
-            }
-            Task { await loadFirstPage() }
+            // Opening the hub is the "seen" gesture.
+            Task { await store.markNotificationsSeen() }
         case .retry:
-            Task { await approvalsStreamService.reseed() }
-            Task { await loadFirstPage() }
+            Task { await store.reread(.needsAction) }
+            Task { await store.reread(.hubActivity) }
         case .loadMore:
-            guard case .loaded(let items, let loadMore) = state.activityState else { return }
-            switch loadMore {
-            case .idle(let cursor), .failed(let cursor):
-                Task { await loadNextPage(currentItems: items, cursor: cursor) }
+            guard case .loaded(_, let sentinel) = state.activityState else { return }
+            switch sentinel {
+            case .idle, .failed:
+                Task { await loadNextPage() }
             case .loading, .exhausted:
                 return
             }
@@ -113,7 +107,7 @@ class NotificationsHubScreenViewModel: NotificationsHubScreenViewModelType, Noti
                 actionsSubject.send(.selectVerification(id: item.subjectID))
             }
         case .selectVisitorMessage(let id):
-            guard let entry = visitorEntries.first(where: { $0.id == id }) else { return }
+            guard let entry = store.visitorMessages?.first(where: { $0.id == id }) else { return }
             Task { await open(entry) }
         case .dismissVisitorMessage(let id):
             Task { await dismissVisitorMessage(id: id) }
@@ -128,10 +122,10 @@ class NotificationsHubScreenViewModel: NotificationsHubScreenViewModelType, Noti
             actionsSubject.send(.openRoom(roomID: entry.roomID))
             return
         }
-        if agentCards[entry.agentID] == nil {
-            await loadAgentNames()
+        if store.card(agentID: entry.agentID) == nil {
+            await store.reread(.spaces)
         }
-        guard let agent = agentCards[entry.agentID] else {
+        guard let agent = store.card(agentID: entry.agentID) else {
             MXLog.error("No agent \(entry.agentID) among the owner's spaces for a visitor's entry")
             userIndicatorController.submitIndicator(UserIndicator(type: .toast, title: L10n.errorUnknown, icon: \.error))
             return
@@ -142,25 +136,36 @@ class NotificationsHubScreenViewModel: NotificationsHubScreenViewModelType, Noti
     /// Gone from the list at once; back where it was when the server refuses.
     /// One already gone there (dismissed elsewhere, past its 30 days) stays gone.
     private func dismissVisitorMessage(id: String) async {
-        guard let index = visitorEntries.firstIndex(where: { $0.id == id }) else { return }
-        let entry = visitorEntries.remove(at: index)
-        refreshVisitorMessages()
+        guard dismissedVisitorMessageIDs.insert(id).inserted else { return }
+        render()
 
         switch await agentPlatformService.dismissVisitorMessage(id: id) {
         case .success, .failure(.notFound):
             MXLog.info("Dismissed a visitor's entry")
         case .failure(let error):
             MXLog.error("Failed to dismiss a visitor's entry: \(error)")
-            visitorEntries.insert(entry, at: min(index, visitorEntries.count))
-            refreshVisitorMessages()
+            dismissedVisitorMessageIDs.remove(id)
+            render()
             userIndicatorController.submitIndicator(UserIndicator(type: .toast,
                                                                   title: UntranslatedL10n.screenNotificationsHubVisitorDismissFailed,
                                                                   icon: \.error))
         }
     }
 
-    private func refreshVisitorMessages() {
-        state.visitorMessages = visitorEntries.map { entry in
+    // MARK: - Rendering
+
+    private func render() {
+        let agentNames = store.spaces?.cards.mapValues(\.displayName) ?? [:]
+        let needsAction = store.needsAction ?? []
+        let visitorEntries = (store.visitorMessages ?? []).filter { !dismissedVisitorMessageIDs.contains($0.id) }
+
+        let needsActionItems = needsAction.map {
+            Self.mapNeedsActionItem($0, clientProxy: clientProxy, counterpartNames: counterpartNames, agentNames: agentNames)
+        }
+        if state.needsAction != needsActionItems {
+            state.needsAction = needsActionItems
+        }
+        let visitorItems = visitorEntries.map { entry in
             VisitorMessageListItem(id: entry.id,
                                    kind: entry.kind,
                                    visitorName: counterpartNames[entry.visitorMXID] ?? entry.visitorMXID,
@@ -170,40 +175,38 @@ class NotificationsHubScreenViewModel: NotificationsHubScreenViewModelType, Noti
                                    createdAt: entry.createdAt,
                                    agentName: agentNames[entry.agentID])
         }
-    }
-
-    // MARK: - Needs-action mirror
-
-    private func rearmObservation() {
-        let service = approvalsStreamService
-        withObservationTracking {
-            _ = service.needsAction
-            _ = service.connectionState
-        } onChange: { [weak self] in
-            Task { @MainActor [weak self] in
-                guard let self else { return }
-                refreshFromService()
-                rearmObservation()
-            }
+        if state.visitorMessages != visitorItems {
+            state.visitorMessages = visitorItems
         }
-    }
-
-    private func refreshFromService() {
-        state.needsAction = approvalsStreamService.needsAction.map {
-            Self.mapNeedsActionItem($0, clientProxy: clientProxy, counterpartNames: counterpartNames, agentNames: agentNames)
+        if state.isNeedsActionRead != (store.needsAction != nil) {
+            state.isNeedsActionRead = store.needsAction != nil
         }
-        lookUpCounterparts()
-
-        switch approvalsStreamService.connectionState {
-        case .connected, .disconnected:
-            state.connectionIndicator = .hidden
-        case .connecting:
-            state.connectionIndicator = .connecting
-        case .reconnecting(let attempt):
-            state.connectionIndicator = .reconnecting(attempt: attempt)
-        case .failed(let reason):
-            state.connectionIndicator = .failed(reason: reason)
+        // Nothing read of what waits and the read failed: a retry, never «nothing waits».
+        let isNeedsActionFailed = if case .failed = store.readState(.needsAction, \.needsAction) { true } else { false }
+        if state.isNeedsActionFailed != isNeedsActionFailed {
+            state.isNeedsActionFailed = isNeedsActionFailed
         }
+        if state.areAgentNamesRead != (store.spaces != nil) {
+            state.areAgentNamesRead = store.spaces != nil
+        }
+
+        let activityState: NotificationsActivityState = switch store.readState(.hubActivity, \.hubActivity) {
+        case .loading: .loading
+        case .failed: .failed
+        case .loaded(let page):
+            .loaded(page.items.map { entry in
+                var item = AgentActivityScreenViewModel.mapItem(entry, clientProxy: clientProxy)
+                item.agentName = item.agentID.flatMap { agentNames[$0] }
+                return item
+            }, loadMore: loadMore ?? Self.makeLoadMoreState(from: page.nextCursor))
+        }
+        if state.activityState != activityState {
+            state.activityState = activityState
+        }
+        if state.syncStatus != store.syncStatus {
+            state.syncStatus = store.syncStatus
+        }
+        lookUpCounterparts(needsAction: needsAction, visitorEntries: visitorEntries)
     }
 
     /// A card says whom it is about, so two pending cards for two visitors
@@ -233,8 +236,8 @@ class NotificationsHubScreenViewModel: NotificationsHubScreenViewModelType, Noti
         }
     }
 
-    private func lookUpCounterparts() {
-        let wanted = approvalsStreamService.needsAction.compactMap { item -> String? in
+    private func lookUpCounterparts(needsAction: [NeedsActionItem], visitorEntries: [VisitorMessage]) {
+        let wanted = needsAction.compactMap { item -> String? in
             if case .approval(let approval) = item { approval.counterpartMXID } else { nil }
         } + visitorEntries.map(\.visitorMXID)
         for userID in Set(wanted) where counterpartNames[userID] == nil && !counterpartLookups.contains(userID) {
@@ -246,40 +249,8 @@ class NotificationsHubScreenViewModel: NotificationsHubScreenViewModelType, Noti
                     return
                 }
                 counterpartNames[userID] = name
-                refreshFromService()
-                refreshVisitorMessages()
+                render()
             }
-        }
-    }
-
-    /// The names come from the owner's spaces. A failed read only leaves
-    /// rows without a name; the next appearance reads again.
-    private func loadAgentNames() async {
-        guard !isLoadingAgentNames else { return }
-        isLoadingAgentNames = true
-        defer { isLoadingAgentNames = false }
-        
-        guard case .success(let directory) = await agentPlatformService.listMyAgentSpaces() else { return }
-        var cards: [String: AgentSpaceAgentCard] = [:]
-        for space in directory.spaces {
-            guard case .success(let detail) = await agentPlatformService.fetchAgentSpace(orgID: space.orgID) else { continue }
-            for agent in detail.agents {
-                cards[agent.agentID] = agent
-            }
-        }
-        agentCards = cards
-        refreshFromService()
-        refreshVisitorMessages()
-        if case .loaded(let items, let loadMore) = state.activityState {
-            state.activityState = .loaded(named(items), loadMore: loadMore)
-        }
-    }
-    
-    private func named(_ items: [AgentActivityListItem]) -> [AgentActivityListItem] {
-        items.map { item in
-            var item = item
-            item.agentName = item.agentID.flatMap { agentNames[$0] }
-            return item
         }
     }
 
@@ -303,62 +274,19 @@ class NotificationsHubScreenViewModel: NotificationsHubScreenViewModelType, Noti
 
     // MARK: - Activity pagination
 
-    private func loadFirstPage() async {
-        loadGeneration += 1
-        let generation = loadGeneration
-        state.activityState = .loading
-
-        let result = await agentPlatformService.fetchNotifications(activityCursor: nil,
-                                                                   limit: Self.defaultPageSize)
-
-        guard generation == loadGeneration else {
-            MXLog.info("NotificationsHubScreenViewModel: dropping stale first-page response")
-            return
+    private func loadNextPage() async {
+        guard case .loaded(_, let sentinel) = state.activityState else { return }
+        loadMore = .loading
+        render()
+        let isRead = await store.loadMore(.hubActivity)
+        if isRead {
+            loadMore = nil
+        } else if case .idle(let cursor) = sentinel {
+            loadMore = .failed(cursor: cursor)
+        } else {
+            loadMore = sentinel
         }
-
-        switch result {
-        case .success(let snapshot):
-            visitorEntries = snapshot.visitorMessages
-            refreshVisitorMessages()
-            lookUpCounterparts()
-            let mapped = named(snapshot.activity.map { AgentActivityScreenViewModel.mapItem($0, clientProxy: clientProxy) })
-            state.activityState = .loaded(mapped, loadMore: Self.makeLoadMoreState(from: snapshot.nextActivityCursor))
-            MXLog.info("Loaded \(mapped.count) hub activity entries; next_cursor=\(snapshot.nextActivityCursor != nil ? "present" : "exhausted")")
-        case .failure(let error):
-            MXLog.error("Failed to load notifications hub: \(error)")
-            state.activityState = .failed
-            state.bindings.alertInfo = AlertInfo(id: .loadFailed,
-                                                 title: L10n.commonError,
-                                                 message: L10n.errorUnknown,
-                                                 primaryButton: .init(title: L10n.actionRetry) { [weak self] in
-                                                     Task { await self?.loadFirstPage() }
-                                                 },
-                                                 secondaryButton: .init(title: L10n.actionCancel, role: .cancel, action: nil))
-        }
-    }
-
-    private func loadNextPage(currentItems: [AgentActivityListItem], cursor: String) async {
-        state.activityState = .loaded(currentItems, loadMore: .loading)
-        let generation = loadGeneration
-
-        let result = await agentPlatformService.fetchNotifications(activityCursor: cursor,
-                                                                   limit: Self.defaultPageSize)
-
-        guard generation == loadGeneration else {
-            MXLog.info("NotificationsHubScreenViewModel: dropping stale next-page response")
-            return
-        }
-
-        switch result {
-        case .success(let snapshot):
-            let mapped = named(snapshot.activity.map { AgentActivityScreenViewModel.mapItem($0, clientProxy: clientProxy) })
-            let combined = currentItems + mapped
-            state.activityState = .loaded(combined, loadMore: Self.makeLoadMoreState(from: snapshot.nextActivityCursor))
-            MXLog.info("Appended \(mapped.count) hub activity entries; total=\(combined.count)")
-        case .failure(let error):
-            MXLog.error("Failed to load hub activity continuation page: \(error)")
-            state.activityState = .loaded(currentItems, loadMore: .failed(cursor: cursor))
-        }
+        render()
     }
 
     private static func makeLoadMoreState(from nextCursor: String?) -> LoadMoreState {

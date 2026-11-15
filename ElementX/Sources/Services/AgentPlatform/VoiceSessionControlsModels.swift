@@ -1,13 +1,9 @@
 //
 // Copyright 2026 the Spiral authors. AGPL-3.0-or-later.
 //
-// AGENT-PLATFORM (Brief 0054): app-level models for in-call agent
-// session controls (`/api/v1/voice-sessions/{id}/controls*`).
-//
-// The JSON keys deliberately mirror the Element Call widget's
-// `SpiralBridgeApi` contract (element-call `src/spiral/bridge.ts`) —
-// the CallScreen bridge encodes these types verbatim and hands the
-// string to the webview, so the two sides share one wire vocabulary.
+// AGENT-PLATFORM (Brief 0054, Brief 0085): app-level models for in-call agent
+// session controls (`/api/v1/voice-sessions/{id}/controls*`), as backend
+// ADR-0094 Appendix A shapes them for call translation.
 //
 
 import Foundation
@@ -41,54 +37,90 @@ nonisolated struct VoiceSessionControlContext: Codable, Equatable {
     }
 }
 
-/// One translation booth: WHO is translated → into WHICH languages
-/// (Brief 0062 / backend ADR-0075 `BoothView`; the widget's
-/// `SpiralBooth`). The read AND write shape — the panel edits exactly
-/// what the engine runs.
-nonisolated struct VoiceTranslationBooth: Codable, Equatable {
-    /// `anyone` | `non_self_non_owner` | `owner_only` |
-    /// `specific_senders` | `everyone_except`.
-    let speakerScope: String
-    /// Concrete MXIDs for the member scopes; empty otherwise.
-    let speakerMembers: [String]
-    let targetLanguages: [String]
+/// A lane's source (ADR-0094 D12): the speaker's microphone in this release. A later one adds the owner's device audio.
+nonisolated enum VoiceTranslationInput: String, Equatable {
+    case voice
+}
 
-    enum CodingKeys: String, CodingKey {
-        case speakerScope = "speaker_scope"
-        case speakerMembers = "speaker_members"
-        case targetLanguages = "target_languages"
+/// One lane (ADR-0094 D2): `speaker`'s `input` in `language`, at most one producer each. `language` is a catalog code
+/// in its exact form (`zh-Hans`, `pt-BR`).
+nonisolated struct VoiceTranslationLane: Hashable {
+    let speaker: String
+    let input: VoiceTranslationInput
+    let language: String
+
+    init(speaker: String, input: VoiceTranslationInput = .voice, language: String) {
+        self.speaker = speaker
+        self.input = input
+        self.language = language
+    }
+
+    /// Nil for an input this build doesn't know: the lane is left out (forward tolerance, decision 96).
+    init?(speaker: String, input: String, language: String) {
+        guard let input = VoiceTranslationInput(rawValue: input) else { return nil }
+        self.init(speaker: speaker, input: input, language: language)
     }
 }
 
-/// Effective per-control resolution (`SpiralEffectiveTranslation`).
-///
-/// Brief 0062 — the FULL booth list, never a flattened projection.
-/// The old flat shape (`audience` + a languages union) dropped
-/// `specific_senders` members and could not represent two booths, so
-/// a multi-booth session silently read back as single-booth.
-nonisolated struct VoiceControlsEffective: Codable, Equatable {
+/// Why a session's translation stopped (ADR-0094 D6), as the document's `stopped.reason` / `leaving_reason` and the
+/// owner's `stopped_reason` say it.
+nonisolated enum VoiceTranslationStopReason: Equatable {
+    case ownerStopped
+    /// The owner had no live membership in the call for a minute.
+    case ownerLeft
+    case aiLimit
+    /// The Call translation category cap paused it.
+    case translationPaused
+    /// The per-call cap ran out: final for the call.
+    case callCap
+    /// Anything else, a reason newer than this build included: unknown, never "the owner stopped".
+    case ended
+
+    init(wire: String) {
+        switch wire {
+        case "owner_stopped": self = .ownerStopped
+        case "owner_left": self = .ownerLeft
+        case "ai_limit": self = .aiLimit
+        case "translation_paused": self = .translationPaused
+        case "call_cap": self = .callCap
+        default: self = .ended
+        }
+    }
+}
+
+/// What the session's translation is for the owner (ADR-0094 A.3): the intent, the lanes it holds, and whether it
+/// stands by, stopped, or waits for the runtime.
+nonisolated struct VoiceControlsEffective: Equatable {
     /// `override` | `room_tool` | `off`.
     let source: String
-    /// `simultaneous` | `consecutive`; nil when off.
+    /// `simultaneous` | `consecutive`, derived by the server; nil when off or stopped.
     let style: String?
-    /// The booths the engine actually runs; empty when off.
-    let booths: [VoiceTranslationBooth]
+    var forLanguage: String?
+    /// The pocket interpreter's two languages.
+    var pocket: [String]?
+    var lanes: [VoiceTranslationLane] = []
+    /// An enabled intent that holds no lane: it takes one over when its producer stops.
+    var isStandby = false
+    var stoppedReason: VoiceTranslationStopReason?
+    /// The runtime hasn't acknowledged the newest mode: the lanes are starting.
+    var isSyncing = false
+    /// Call translation is paused by its cap (question 395) while the assistant stays for its other jobs.
+    var pause: AgentUsage.Pause?
 
-    enum CodingKeys: String, CodingKey {
-        case source, style, booths
+    /// The intent is on: producing, standing by or syncing, not stopped.
+    var isEnabled: Bool {
+        stoppedReason == nil && (forLanguage != nil || pocket != nil)
     }
+
+    static let off = VoiceControlsEffective(source: "off", style: nil)
 }
 
-/// The translation override row (`SpiralTranslationOverride`).
-nonisolated struct VoiceControlsOverride: Codable, Equatable {
+/// The translation override row.
+nonisolated struct VoiceControlsOverride: Equatable {
     /// `inherit` | `enabled` | `disabled`.
     let state: String
     /// CAS token for the next write.
     let revision: Int32
-
-    enum CodingKeys: String, CodingKey {
-        case state, revision
-    }
 }
 
 /// One call artifact's live state + the CAS token for a disable
@@ -148,72 +180,43 @@ nonisolated struct VoiceConversationState: Codable, Equatable {
     }
 }
 
-/// Controls snapshot for one session (`SpiralControlsState`).
-nonisolated struct VoiceControlsState: Codable, Equatable {
+/// Controls snapshot for one session.
+nonisolated struct VoiceControlsState: Equatable {
     let sessionID: String
     let effective: VoiceControlsEffective
     let override: VoiceControlsOverride?
     /// Brief 0055 — live recording/summary flags with disable tokens.
     let artifacts: VoiceControlsArtifacts
     let conversation: VoiceConversationState
-    /// Whether this call's translation can become the room's standing rule.
-    /// The server decides it with the room classification the promotion
-    /// uses (false in 1:1 rooms, ADR-0088); the client never guesses it.
-    let canSaveAsRoomDefault: Bool
-
-    enum CodingKeys: String, CodingKey {
-        case sessionID = "session_id"
-        case effective, override, artifacts, conversation
-        case canSaveAsRoomDefault = "can_save_as_room_default"
-    }
 }
 
-/// A selectable translation language (`SpiralCatalogLanguage`).
+/// One language of the voice-translation catalog (ADR-0094 A.8). `code` is the exact form every other part of the
+/// contract uses; `label` is the server's English name, the fallback when the locale can't name the code.
 nonisolated struct VoiceControlsCatalogLanguage: Codable, Equatable {
     let code: String
     let label: String
+}
 
-    enum CodingKeys: String, CodingKey {
-        case code, label
+/// The translation intent the owner writes (ADR-0094 A.2, D3): exactly one form. The server picks the speakers; the
+/// client never sends a speaker list.
+nonisolated enum VoiceTranslationParams: Equatable {
+    /// "Produce for my language", in a call between people: every speaker whose language isn't `language`.
+    case forLanguage(String)
+    /// The pocket interpreter in the owner's own chat: the owner's voice into both languages, consecutive.
+    case pocket(String, String)
+
+    /// The languages it asks for.
+    var languages: [String] {
+        switch self {
+        case .forLanguage(let language): [language]
+        case .pocket(let first, let second): [first, second]
+        }
     }
 }
 
-/// Catalog slice the widget renders (`SpiralCatalog`).
-nonisolated struct VoiceControlsCatalog: Codable, Equatable {
-    let voiceTranslationLanguages: [VoiceControlsCatalogLanguage]
-
-    enum CodingKeys: String, CodingKey {
-        case voiceTranslationLanguages = "voice_translation_languages"
-    }
-}
-
-/// Translation parameters the owner applies
-/// (`SpiralTranslationParams`). Brief 0062: a booth LIST — "translate
-/// everyone into X" is the one-booth `anyone` case, not a separate
-/// shape.
-nonisolated struct VoiceTranslationParams: Codable, Equatable {
-    let booths: [VoiceTranslationBooth]
-    /// `simultaneous` | `consecutive`.
-    let style: String
-
-    enum CodingKeys: String, CodingKey {
-        case booths, style
-    }
-}
-
-/// THE default translation style, shared by every path that starts a
-/// translation without an explicit choice (Brief 0066 / ADR-0075 D6
-/// amended): Live (`simultaneous`) — what the platform defaults to on
-/// every layer (ADR-0044 LT9) and what "live translation" means to the
-/// user. Interpreter is the deliberate advanced-tier choice.
-nonisolated enum NativeCallTranslationStyleDefault {
-    static let wire = "simultaneous"
-}
-
-/// Errors the widget's bridge understands (`SpiralBridgeError`
-/// codes). Everything else is folded into `unavailable`.
+/// Why a session-control write or read failed. Everything without its own case is folded into `unavailable`.
 nonisolated enum VoiceControlsError: Error, CustomStringConvertible {
-    /// 409 — stale CAS revision; the widget reloads and retries.
+    /// 409 — stale CAS revision; reload and retry.
     case conflict
     /// 410 — the session already ended.
     case gone
@@ -231,12 +234,20 @@ nonisolated enum VoiceControlsError: Error, CustomStringConvertible {
     /// where. The RFC 7807 `type` URI is the backend's stable name for the
     /// case; the prose is free to change.
     case inviteRequired(String)
-    /// Keeping the translation as the room's rule was refused the way an arm
-    /// is (ADR-0088): no room under the cap, a duplicate, or a 1:1 call.
-    case toolRefused(RoomToolRefusal)
     /// 409 `/errors/agent-paused` on attach: the owner paused the agent
     /// (decision 194); it joins no call until resumed.
     case agentPaused
+    /// 422 `/errors/translation-paused` on turning translation on (ADR-0094 A.2): the category is paused, the AI
+    /// limit is reached, or the per-call cap ended it. Nothing changed.
+    case translationPaused(VoiceTranslationRefusal)
+    /// 422 `/errors/translation-intent-unavailable`: this form isn't allowed in this kind of room.
+    case intentUnavailable(roomKind: String)
+    /// 409 `/errors/recording-covered` on starting a recording (question 404): someone else's assistant already records
+    /// this call, and there is one recording per call.
+    case recordingCovered(VoiceRecordingCover)
+    /// 503 `/errors/service-unavailable` on an enabling write: the call's participants couldn't be read; nothing was
+    /// written. Retried once after `retryAfter`.
+    case serviceUnavailable(retryAfter: Duration)
     /// 401 — the token may have rotated; `controlsCall` retries once on it.
     case unauthorized
     /// Anything else: auth, transport, 5xx, decode.
@@ -245,21 +256,13 @@ nonisolated enum VoiceControlsError: Error, CustomStringConvertible {
     /// The `type` URI the backend stamps on the invite-only refusal.
     static let inviteRequiredTypeURI = "/errors/agent-invite-required"
 
-    /// The `type` URI the backend stamps on a booth conflict (audit A8-4).
-    ///
-    /// Two different 409s used to share `/errors/conflict`, and they carry
-    /// OPPOSITE instructions: a CAS revision conflict means "reload and try
-    /// again", a booth conflict means "another agent already covers this
-    /// speaker, change the configuration". They were told apart by
-    /// searching the human `detail` for a marker substring, so a copy edit
-    /// on the backend would have silently demoted the second into the first
-    /// — and the panel would have gone on reloading against something no
-    /// reload can fix.
-    static let boothConflictTypeURI = "/errors/booth-conflict"
-
     /// The `type` URI of the attach 409 that names the session already
     /// running in the room (`existing_session_id`).
     static let voiceSessionActiveTypeURI = "/errors/voice-session-active"
+
+    static let translationPausedTypeURI = "/errors/translation-paused"
+    static let intentUnavailableTypeURI = "/errors/translation-intent-unavailable"
+    static let recordingCoveredTypeURI = "/errors/recording-covered"
 
     var description: String {
         switch self {
@@ -267,18 +270,122 @@ nonisolated enum VoiceControlsError: Error, CustomStringConvertible {
         case .gone: "gone — session ended"
         case .rejected(let detail): "rejected: \(detail)"
         case .inviteRequired(let detail): "invite required: \(detail)"
-        case .toolRefused(let refusal): "room tool refused: \(refusal)"
         case .agentPaused: "agent paused — it joins no call"
+        case .translationPaused(let refusal): "translation paused: \(refusal.reason)"
+        case .intentUnavailable(let roomKind): "translation intent unavailable in a \(roomKind) room"
+        case .recordingCovered: "recording covered by another assistant"
+        case .serviceUnavailable(let retryAfter): "service unavailable, retry after \(retryAfter)"
         case .unauthorized: "unauthorized — token may have rotated"
         case .unavailable(let detail): "unavailable: \(detail)"
         }
     }
 }
 
+/// `409 /errors/recording-covered` (question 404): the assistant that records the call (`recording_agent`) and its owner
+/// (`recording_owner`); the backend may name neither.
+nonisolated struct VoiceRecordingCover: Equatable {
+    let agentMxid: String?
+    let ownerMxid: String?
+}
+
+/// `422 /errors/translation-paused` (ADR-0094 A.2): why translation can't start, and until when.
+nonisolated struct VoiceTranslationRefusal: Equatable {
+    enum Reason: Equatable {
+        case translationPaused
+        case aiLimit
+        /// The per-call cap: final for this call, no date.
+        case callCap
+
+        /// A reason newer than this build reads as the category's pause: still a pause, never a crash.
+        init(wire: String?) {
+            switch wire {
+            case "ai_limit": self = .aiLimit
+            case "call_cap": self = .callCap
+            default: self = .translationPaused
+            }
+        }
+    }
+
+    let reason: Reason
+    /// Nil for `call_cap`, and while a $0 cap holds.
+    let pauseUntil: Date?
+}
+
+/// `GET /agents/{id}/voice-sessions/join-check` — whether the owner's agent can join a call here, and the one reason
+/// the owner can act on when not (question 387, B4). Names no one.
+nonisolated enum VoiceJoinCheckReason: Equatable {
+    case ok
+    case paused
+    case aiConsentOwner
+    case askToJoin
+    case aiConsentRoom
+    case budgetReached
+    /// Its Calls are paused by their cap (question 395). The check names no date; the agent's usage does.
+    case categoryPaused(AgentUsage.Pause?)
+    /// A code newer than this build (decision 96): it can't join, and the app may need an update.
+    case unknown(String)
+
+    init(wire: String) {
+        switch wire {
+        case "ok": self = .ok
+        case "paused": self = .paused
+        case "ai_consent_owner": self = .aiConsentOwner
+        case "ask_to_join": self = .askToJoin
+        case "ai_consent_room": self = .aiConsentRoom
+        case "budget_reached": self = .budgetReached
+        case "category_paused": self = .categoryPaused(nil)
+        default: self = .unknown(wire)
+        }
+    }
+}
+
+/// Why a voice session ended, from `GET /voice-sessions/{id}` (question 387, B1). The owner reads it after an attach
+/// that never reached the call.
+nonisolated enum VoiceSessionEndReason: Equatable {
+    case callEnded
+    case manual
+    /// Someone without AI consent joined or spoke.
+    case optOut
+    case aiConsentOwner
+    case aiConsentRoom
+    case budgetReached
+    /// One category's cap is reached (question 395): the calls cap ends the assistant's part of the call, the call
+    /// translation cap its translation.
+    case categoryPaused(AgentUsage.Category)
+    /// The consent gate's own step failed, the runtime crashed or timed out, or any other failure.
+    case failed
+    /// A reason newer than this build: shown as a plain failure (decision 96).
+    case unknown(String)
+
+    /// `category` comes with `category_paused`; a newer or missing one reads as other.
+    init(wire: String, category: String? = nil) {
+        switch wire {
+        case "call_ended": self = .callEnded
+        case "manual": self = .manual
+        case "opt_out": self = .optOut
+        case "ai_consent_owner": self = .aiConsentOwner
+        case "ai_consent_room": self = .aiConsentRoom
+        case "budget_reached": self = .budgetReached
+        case "category_paused": self = .categoryPaused(.init(serverValue: category ?? ""))
+        case "notice_failed", "error", "crash", "timeout": self = .failed
+        default: self = .unknown(wire)
+        }
+    }
+}
+
+/// One voice session's lifecycle as the owner reads it after an attach.
+nonisolated enum VoiceSessionProgress: Equatable {
+    /// Accepted, not yet in the call (`pending_consent`, `pending_join`, `starting`).
+    case joining
+    case active
+    case ending
+    case ended(VoiceSessionEndReason)
+}
+
 // MARK: - Brief 0055: the in-call agent center
 
-/// Attach-time function configuration (`SpiralAttachParams`).
-nonisolated struct VoiceAttachParams: Codable, Equatable {
+/// Attach-time function configuration.
+nonisolated struct VoiceAttachParams: Equatable {
     /// nil = no translation for this call.
     let translation: VoiceTranslationParams?
     let recording: Bool
@@ -287,8 +394,4 @@ nonisolated struct VoiceAttachParams: Codable, Equatable {
     /// call's own rule (`inherit`), so the owner's own chat with the
     /// assistant still talks. Never together with `translation`.
     let conversation: Bool
-
-    enum CodingKeys: String, CodingKey {
-        case translation, recording, summary, conversation
-    }
 }

@@ -66,29 +66,11 @@ struct AssistantMemoryEraser {
     let userIndicatorController: UserIndicatorControllerProtocol
 
     /// Whether a profile offers the erase: anyone's but the person's own and
-    /// their own agents'. An agent's profile waits until the person's agents
-    /// are known (`nil`: not loaded, or failed) rather than guess.
-    static func offersErase(onProfileOf userID: String, ownAgentMXIDs: Set<String>?) -> Bool {
+    /// their own agents'. An agent's profile waits until whose it is is known
+    /// rather than guess.
+    static func offersErase(onProfileOf userID: String, ownership: AgentOwnership) -> Bool {
         guard SpiralAppPostSession.isAgent(userID) else { return true }
-        guard let ownAgentMXIDs else { return false }
-        return !ownAgentMXIDs.contains(userID)
-    }
-
-    /// Every agent the person owns — their personal assistant and their
-    /// companies' agents — from the Agent-Spaces directory and each space's
-    /// agents. `nil` if any of it fails to load.
-    func ownAgentMXIDs() async -> Set<String>? {
-        guard case .success(let directory) = await agentPlatformService.listMyAgentSpaces() else {
-            return nil
-        }
-        var mxids = Set<String>()
-        for space in directory.spaces {
-            guard case .success(let detail) = await agentPlatformService.fetchAgentSpace(orgID: space.orgID) else {
-                return nil
-            }
-            mxids.formUnion(detail.agents.map(\.matrixUserID))
-        }
-        return mxids
+        return ownership == .someoneElses
     }
 
     /// The destructive confirmation, which says exactly what goes.

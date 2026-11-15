@@ -74,6 +74,12 @@ final class SpiralAppActionFeed {
         }
     }
 
+    /// Whether actions really are arriving as they happen. A failed subscribe
+    /// still `isSubscribed`, and leaves a post with only what it reads.
+    var isLive: Bool {
+        subscription != nil
+    }
+
     /// How many posts are being listened to. For tests.
     var listenedPostCount: Int {
         listeners.count

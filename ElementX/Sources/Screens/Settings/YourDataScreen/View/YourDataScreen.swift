@@ -10,6 +10,7 @@
 //
 
 import Compound
+import SpiralComponents
 import SwiftUI
 
 struct YourDataScreen: View {
@@ -21,7 +22,7 @@ struct YourDataScreen: View {
             callsSection
             memorySection
         }
-        .compoundList()
+        .spiralGroupedList() // AGENT-PLATFORM (Brief 0083): Spiral's grouped list, was `compoundList()`.
         .navigationTitle(UntranslatedL10n.screenYourDataTitle)
         .navigationBarTitleDisplayMode(.inline)
         .sheet(item: $context.exportFile) { file in
@@ -57,12 +58,20 @@ struct YourDataScreen: View {
         Section {
             switch context.viewState.calls {
             case .loading:
-                ListRow(label: .plain(title: L10n.commonLoading),
-                        details: .isWaiting(true),
-                        kind: .label)
+                // Brief 0083, question 359: a call's own row, with stand-in text; nothing says how many there are.
+                ForEach(0..<3, id: \.self) { _ in
+                    ListRow(kind: .custom {
+                        SpiralPreloader(label: L10n.commonLoading) {
+                            ListRowLabel.default(title: UntranslatedL10n.screenYourDataCallUnknownRoom,
+                                                 description: UntranslatedL10n.screenYourDataCallUnknownRoom,
+                                                 icon: \.voiceCall)
+                        }
+                    })
+                }
             case .failure:
                 ListRow(label: .plain(title: UntranslatedL10n.screenYourDataCallsLoadFailed), kind: .label)
-                ListRow(label: .default(title: L10n.actionRetry, icon: \.restart),
+                // Brief 0083, lane settings: Retry and Load more are actions in the accent colour, as iOS draws them.
+                ListRow(label: .action(title: L10n.actionRetry, icon: \.restart, role: .accent),
                         kind: .button {
                             context.send(viewAction: .retryCalls)
                         })
@@ -83,7 +92,7 @@ struct YourDataScreen: View {
                 }
 
                 if nextCursor != nil {
-                    ListRow(label: .default(title: L10n.actionLoadMore, icon: \.arrowDown),
+                    ListRow(label: .action(title: L10n.actionLoadMore, icon: \.arrowDown, role: .accent),
                             details: .isWaiting(context.viewState.isLoadingMoreCalls),
                             kind: .button {
                                 context.send(viewAction: .loadMoreCalls)
@@ -140,10 +149,12 @@ private struct PersonalDataShareSheet: View {
 
 // MARK: - Previews
 
-struct YourDataScreen_Previews: PreviewProvider, TestablePreview {
+// AGENT-PLATFORM (Brief 0083, lane settings): gated.
+struct YourDataScreen_Previews: PreviewProvider, TestablePreview, SpiralGatedPreview {
     static let callsViewModel = makeViewModel(.success(.init(sessions: sessions, nextCursor: "more")))
     static let noCallsViewModel = makeViewModel(.success(.init(sessions: [], nextCursor: nil)))
     static let failureViewModel = makeViewModel(.failure(.serverError(status: 500)))
+    static let loadingViewModel = makeViewModel(nil)
 
     static var previews: some View {
         ElementNavigationStack {
@@ -163,6 +174,12 @@ struct YourDataScreen_Previews: PreviewProvider, TestablePreview {
         }
         .previewDisplayName("Calls failed")
         .snapshotPreferences(expect: failureViewModel.context.observe(\.viewState.calls).map { $0 != .loading })
+
+        ElementNavigationStack {
+            YourDataScreen(context: loadingViewModel.context)
+        }
+        .environment(\.spiralPreloaderDelay, .zero)
+        .previewDisplayName("Calls loading")
     }
 
     /// 2026-10-09 10:00 UTC.
@@ -177,9 +194,17 @@ struct YourDataScreen_Previews: PreviewProvider, TestablePreview {
               createdAt: start.addingTimeInterval(-86400), startedAt: start.addingTimeInterval(-86396), endedAt: start.addingTimeInterval(-86351))
     ]
 
-    static func makeViewModel(_ calls: Result<VoiceSessionsPage, AgentPlatformError>) -> YourDataScreenViewModel {
+    /// `nil` calls are a read that never answers.
+    static func makeViewModel(_ calls: Result<VoiceSessionsPage, AgentPlatformError>?) -> YourDataScreenViewModel {
         let service = AgentPlatformServiceMock()
-        service.listVoiceSessionsCursorReturnValue = calls
+        if let calls {
+            service.listVoiceSessionsCursorReturnValue = calls
+        } else {
+            service.listVoiceSessionsCursorClosure = { _ in
+                try? await Task.sleep(for: .seconds(3600))
+                return .failure(.serverError(status: 500))
+            }
+        }
 
         let clientProxy = ClientProxyMock(.init())
         clientProxy.roomSummaryForIdentifierClosure = { roomID in

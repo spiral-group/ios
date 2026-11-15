@@ -23,37 +23,51 @@ nonisolated struct SessionDirectories: Hashable, Codable {
     // MARK: Data Management
     
     /// Removes the directories from disk if they have been created.
-    func delete() {
+    ///
+    /// AGENT-PLATFORM: both removals are attempted whatever the first does, so a data directory that won't
+    /// delete doesn't orphan the caches. The first error is thrown.
+    func delete() throws {
+        var firstError: Error?
+        
         do {
             if FileManager.default.directoryExists(at: dataDirectory) {
                 try FileManager.default.removeItem(at: dataDirectory)
             }
         } catch {
-            MXLog.failure("Failed deleting the session data: \(error)")
+            MXLog.error("Failed deleting the session data: \(error)")
+            firstError = error
         }
+        
         do {
             if FileManager.default.directoryExists(at: cacheDirectory) {
                 try FileManager.default.removeItem(at: cacheDirectory)
             }
         } catch {
-            MXLog.failure("Failed deleting the session caches: \(error)")
+            MXLog.error("Failed deleting the session caches: \(error)")
+            firstError = firstError ?? error
+        }
+        
+        if let firstError {
+            throw firstError
         }
     }
     
     /// Deletes the Rust state store and event cache data, leaving the crypto store and both
     /// session directories in place along with any other data that may have been written in them.
-    func deleteTransientUserData() {
+    func deleteTransientUserData() throws {
         do {
             let prefix = "matrix-sdk-state"
             try deleteFiles(at: dataDirectory, with: prefix)
         } catch {
             MXLog.failure("Failed clearing state store: \(error)")
+            throw error
         }
         do {
             let prefix = "matrix-sdk-event-cache"
             try deleteFiles(at: cacheDirectory, with: prefix)
         } catch {
             MXLog.failure("Failed clearing event cache store: \(error)")
+            throw error
         }
     }
     

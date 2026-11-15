@@ -93,17 +93,19 @@ struct AppLockScreen: View {
         HStack(spacing: 24) {
             // The size of each dot within the PIN input field.
             let pinDotSize: CGFloat = 14
+            // AGENT-PLATFORM: Spiral's bgSubtlePrimary is the white card surface, so an empty dot
+            // drawn with it vanished on the canvas; bgSubtleSecondary is Spiral's fill on the canvas.
             Circle()
-                .fill(context.viewState.numberOfDigitsEntered > 0 ? .compound.iconPrimary : .compound.bgSubtlePrimary)
+                .fill(context.viewState.numberOfDigitsEntered > 0 ? .compound.iconPrimary : .compound.bgSubtleSecondary)
                 .scaledFrame(size: pinDotSize)
             Circle()
-                .fill(context.viewState.numberOfDigitsEntered > 1 ? .compound.iconPrimary : .compound.bgSubtlePrimary)
+                .fill(context.viewState.numberOfDigitsEntered > 1 ? .compound.iconPrimary : .compound.bgSubtleSecondary)
                 .scaledFrame(size: pinDotSize)
             Circle()
-                .fill(context.viewState.numberOfDigitsEntered > 2 ? .compound.iconPrimary : .compound.bgSubtlePrimary)
+                .fill(context.viewState.numberOfDigitsEntered > 2 ? .compound.iconPrimary : .compound.bgSubtleSecondary)
                 .scaledFrame(size: pinDotSize)
             Circle()
-                .fill(context.viewState.numberOfDigitsEntered > 3 ? .compound.iconPrimary : .compound.bgSubtlePrimary)
+                .fill(context.viewState.numberOfDigitsEntered > 3 ? .compound.iconPrimary : .compound.bgSubtleSecondary)
                 .scaledFrame(size: pinDotSize)
         }
     }

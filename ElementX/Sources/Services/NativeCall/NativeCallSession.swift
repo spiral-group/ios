@@ -146,7 +146,7 @@ nonisolated struct NativeCallListeningState: Equatable {
     var producedLanguages: [String] = []
     /// The RESOLVED channel (choice × whether anything is produced) — what
     /// the ears actually get. The header renders it, not the raw choice.
-    var channel: NativeCallListeningChannel = .everything
+    var channel: NativeCallListeningChannel = .original
     /// Speakers this device hears in translation — covered by a live
     /// Live-style agent's document (Brief 0066 rev. 2) — with the language.
     /// Their raw microphones are quiet on this device for as long as they
@@ -160,6 +160,11 @@ nonisolated struct NativeCallListeningState: Equatable {
     /// The agents (by MXID) whose lane that is — their block, and only
     /// theirs, says the translation faltered.
     var falteredAgents: Set<String> = []
+    /// Covered speakers none of whose lanes aired here after 4 s of their
+    /// speech (`NativeCallUnairedCoverage`): heard in full, "not
+    /// translated" rather than faltered — nothing on screen says it.
+    /// Always ⊆ translated.
+    var unairedSpeakers: Set<String> = []
 }
 
 /// A participant as rendered by the call UI.
@@ -228,6 +233,19 @@ final class NativeCallSession: NSObject {
     /// for others (operator question 94).
     private let isAnswer: Bool
     private let configuration: NativeCallConfiguration
+    /// "My language" for this device's membership (ADR-0094 A.1): sent with the join, republished when it changes.
+    private var language: String?
+    /// The language the published membership actually carries: what was sent with the join, then the last republish
+    /// that landed. Nil before the join and after the leave.
+    private var publishedLanguage: String?
+    /// The membership is published: a language change republishes it rather than waiting for the join.
+    private var isMembershipPublished = false
+    /// A republish is on the wire: a change made meanwhile goes when it returns.
+    private var isRepublishingLanguage = false
+    /// A failed republish is sent again after this, doubling up to `languageRetryLimit` times while in the call.
+    private let languageRetryDelay: Duration
+    private var languageRetryAttempt = 0
+    @CancellableTask private var languageRetryTask: Task<Void, Never>?
     /// ALL inputs the derived state depends on — mutated ONLY through
     /// `updateInputs`, which re-derives everything on every change.
     private var inputs = NativeCallDerivationInputs()
@@ -315,6 +333,8 @@ final class NativeCallSession: NSObject {
     @CancellableTask private var unansweredRingTask: Task<Void, Never>?
     // periphery:ignore - auto cancels when reassigned
     @CancellableTask private var reconnectTimeoutTask: Task<Void, Never>?
+    /// The next look for a speaker crossing the never-aired release (`NativeCallUnairedCoverage`).
+    @CancellableTask private var unairedReleaseTask: Task<Void, Never>?
     /// The subscription worker. Deliberately NOT `@CancellableTask`: that
     /// wrapper cancels on assignment, and the worker clears its own handle
     /// when it converges — it would cancel itself mid-walk.
@@ -416,7 +436,7 @@ final class NativeCallSession: NSObject {
             guard let hasActiveVideo, hasActiveVideo != oldValue else { return }
             delegate?.nativeCallSession(self,
                                         didChangeActiveVideo: hasActiveVideo,
-                                        isSpeakerEnabled: NativeCallAudio.isSpeakerEnabled)
+                                        isSpeakerEnabled: NativeCallAudio.isSpeakerEnabled(for: audioOwner))
         }
     }
 
@@ -442,6 +462,18 @@ final class NativeCallSession: NSObject {
     /// derivation applies it to media subscriptions immediately.
     func setListeningChoice(_ choice: NativeCallListeningChoice) {
         updateInputs { $0.listeningChoice = choice }
+    }
+
+    /// Who a group's stage shows (question 383): their camera is asked for at the top layer, the strip's at the
+    /// lowest.
+    ///
+    /// Only the video layers follow: the plan is re-derived and applied, but the roster isn't re-published, so the
+    /// screen that staged someone never gets a participants callback in the middle of its own update.
+    func setStagedUser(_ userID: String?) {
+        if case .ended = state { return }
+        guard inputs.stagedUserID != userID else { return }
+        inputs.stagedUserID = userID
+        applySubscriptionPlanIfChanged(NativeCallStateDerivation.derive(inputs).subscriptionPlan)
     }
 
     /// Live member-hints update: an agent attached mid-call re-badges as
@@ -476,6 +508,9 @@ final class NativeCallSession: NSObject {
         // needs yesterday: it is folded into the inputs here, from the same
         // snapshot the derivation reads, so it is never one write behind.
         pending.lanesSeenLive = NativeCallStateDerivation.lanesSeenLive(previous: inputs.lanesSeenLive, inputs: pending)
+        pending.unairedCoverage = NativeCallStateDerivation.unairedCoverage(previous: inputs.unairedCoverage, inputs: pending, now: Date())
+        scheduleUnairedRelease(pending.unairedCoverage)
+        pending.departedIdentities = NativeCallStateDerivation.departedIdentities(previous: inputs, inputs: pending)
         guard pending != inputs else { return }
         // Rooms of any size are native (ADR-0079 D3); crossing the ring
         // limit mid-call changes nothing, but the grid past it is only
@@ -499,12 +534,25 @@ final class NativeCallSession: NSObject {
         applyVideoState(derived)
     }
 
+    /// A covered speaker still talking crosses the release threshold with no input write of its own: look again then.
+    private func scheduleUnairedRelease(_ coverage: [NativeCallCoverageKey: NativeCallUnairedCoverage]) {
+        guard let release = coverage.values.compactMap(\.releaseDate).min() else {
+            unairedReleaseTask = nil
+            return
+        }
+        unairedReleaseTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(max(0, release.timeIntervalSinceNow) + 0.05))
+            guard !Task.isCancelled else { return }
+            self?.updateInputs { _ in }
+        }
+    }
+
     private func applyVideoState(_ derived: NativeCallDerivedState) {
         // A call parked behind another (Brief 0068 Slice 2) keeps deriving
         // on its transport events; it must not flip the process-wide audio
         // mode under the active call. The resume re-applies ours.
         guard isInitialMediaReady, !inputs.holdSilencesMedia else { return }
-        NativeCallAudio.setVideoEnabled(derived.hasActiveVideo)
+        NativeCallAudio.setVideoEnabled(derived.hasActiveVideo, owner: audioOwner)
         hasActiveVideo = derived.hasActiveVideo
     }
 
@@ -628,7 +676,8 @@ final class NativeCallSession: NSObject {
             while let self, !Task.isCancelled,
                   let next = desiredSubscriptionPlan, next != appliedSubscriptionPlan {
                 logSubscriptionPlan(next)
-                let applied = await transport.setSubscriptions(authorizedIdentities: next.authorizedIdentities) { track in
+                let applied = await transport.setSubscriptions(authorizedIdentities: next.authorizedIdentities,
+                                                               stagedVideoIdentities: next.stagedVideoIdentities) { track in
                     next.isTrackExcluded(identity: track.identity,
                                          name: track.name,
                                          kind: track.kind,
@@ -718,7 +767,8 @@ final class NativeCallSession: NSObject {
          mediaPublishTimeout: Duration = .seconds(10),
          leaveTimeout: Duration = .seconds(4),
          transportDisconnectTimeout: Duration = .seconds(2),
-         peerWaitDuration: Duration = .seconds(10)) {
+         peerWaitDuration: Duration = .seconds(10),
+         languageRetryDelay: Duration = .seconds(2)) {
         self.rtcSession = rtcSession
         self.isRoomEncrypted = isRoomEncrypted
         self.notifyRoom = notifyRoom
@@ -737,6 +787,7 @@ final class NativeCallSession: NSObject {
         self.leaveTimeout = leaveTimeout
         self.transportDisconnectTimeout = transportDisconnectTimeout
         self.peerWaitDuration = peerWaitDuration
+        self.languageRetryDelay = languageRetryDelay
 
         super.init()
 
@@ -776,11 +827,10 @@ final class NativeCallSession: NSObject {
         if case .ended = state { return }
         guard !isStopping else { return }
 
-        // Declared before the session is prepared: CallKit activates the
-        // category configured at fulfil time, so the video mode and the
-        // speaker default have to be in place first.
-        NativeCallAudio.setVideoEnabled(configuration.media == .video)
-        audioOwner = NativeCallAudio.prepareForCallKit()
+        // CallKit activates the category configured at fulfil time, so the video
+        // mode and the speaker default go in with the claim. AGENT-PLATFORM (407):
+        // one's own assistant starts on the speaker too.
+        audioOwner = NativeCallAudio.prepareForCallKit(media: configuration.media, scope: configuration.scope)
 
         guard await joinsWithinTimeout() else {
             await failStart(.couldNotJoin)
@@ -790,6 +840,8 @@ final class NativeCallSession: NSObject {
             await abortAbandonedStart()
             return
         }
+        // A language changed while the join was out isn't on the membership yet (ADR-0094 A.1).
+        Task { await republishLanguageIfNeeded() }
 
         if notifyRoom {
             let notificationEventID = await ringNotificationIDWithinTimeout()
@@ -987,7 +1039,9 @@ final class NativeCallSession: NSObject {
 
     /// Whether every call membership in the room's state is this device's
     /// own, or there is none. A read that fails or wedges says no, and the
-    /// flow's join stands.
+    /// flow's join stands — including the SDK's refusal while a call
+    /// member's room membership can't be told yet (bug S2): an unknown
+    /// member may be the one already in the call, so nothing rings.
     private func isOnlyThisDeviceInTheRoomCall() async -> Bool {
         let memberships = try? await bounded(by: joinTimeout) { @MainActor [weak self] () -> [MatrixRTCParticipant]? in
             guard let self, case let .success(memberships) = await rtcSession.memberships() else { return nil }
@@ -995,51 +1049,6 @@ final class NativeCallSession: NSObject {
         }
         guard let memberships else { return false }
         return memberships.allSatisfy { $0.identity == rtcSession.ownIdentity }
-    }
-
-    /// Join the MatrixRTC session, giving up if the SDK wedges. Only the
-    /// timeout throws — a join that merely fails reports itself.
-    private func joinsWithinTimeout() async -> Bool {
-        do {
-            return try await bounded(by: joinTimeout) { @MainActor [weak self] () -> Bool in
-                guard let self else { return false }
-                guard case .success = await rtcSession.join(encryptMedia: isRoomEncrypted,
-                                                            notification: notifyRoom ? configuration.freshCallNotification : nil,
-                                                            media: configuration.media) else { return false }
-                return true
-            }
-        } catch {
-            MXLog.error("The MatrixRTC join did not finish within \(joinTimeout); failing the call instead of waiting")
-            return false
-        }
-    }
-
-    /// The `m.rtc.notification` the join sent, on the join's own bound: it
-    /// reports what that step did, and a wedge here strands the start exactly
-    /// as the join itself would. Losing it only costs the decline listener.
-    private func ringNotificationIDWithinTimeout() async -> String? {
-        do {
-            return try await bounded(by: joinTimeout) { @MainActor [weak self] () -> String? in
-                guard let self else { return nil }
-                return await rtcSession.rtcNotificationEventID()
-            }
-        } catch {
-            MXLog.error("The ring notification identifier did not arrive within \(joinTimeout); declines will not be observed")
-            return nil
-        }
-    }
-
-    /// Fetch the SFU credentials, giving up if the authorization service wedges.
-    private func transportCredentialsWithinTimeout() async -> MatrixRTCTransportCredentials? {
-        do {
-            return try await bounded(by: credentialsTimeout) { @MainActor [weak self] () -> MatrixRTCTransportCredentials? in
-                guard let self, case let .success(credentials) = await rtcSession.transportCredentials() else { return nil }
-                return credentials
-            }
-        } catch {
-            MXLog.error("The call server did not authorize this session within \(credentialsTimeout)")
-            return nil
-        }
     }
 
     /// Bounds one external START step.
@@ -1135,6 +1144,10 @@ final class NativeCallSession: NSObject {
 
     /// Leave the MatrixRTC session, giving up if it wedges.
     private func leaveWithinTimeout() async {
+        isMembershipPublished = false
+        publishedLanguage = nil
+        languageRetryTask = nil
+        languageRetryAttempt = 0
         // Audit wave 8 — a leave that FAILS lands here too. This used to go
         // through `completes`, which reports false only on a TIMEOUT, so a
         // fast failure read as success and the warning below could not fire
@@ -1381,10 +1394,6 @@ final class NativeCallSession: NSObject {
         }
     }
 
-    func setSpeakerEnabled(_ enabled: Bool) {
-        NativeCallAudio.setSpeakerEnabled(enabled)
-    }
-
     // MARK: - Private
 
     /// CallKit owns the audio session, but it does not always hand it over.
@@ -1499,6 +1508,10 @@ final class NativeCallSession: NSObject {
                 switch update {
                 case .participantsChanged(let participants):
                     updateInputs { $0.memberships = participants }
+                    // A republish that failed goes again with the next change of the memberships.
+                    if isMembershipPublished, language != publishedLanguage {
+                        Task { await self.republishLanguageIfNeeded() }
+                    }
                 case .ownEncryptionKeyChanged(let key):
                     // Key first, index second: senders must never tag a frame
                     // with a slot the key is not in yet.
@@ -1704,9 +1717,9 @@ final class NativeCallSession: NSObject {
             state = resumed
             // The other call may have left the process-wide audio in ITS
             // mode (a video call held behind an audio one resumed in
-            // `.voiceChat` on the earpiece); put ours back.
-            NativeCallAudio.setVideoEnabled(hasActiveVideo ?? (configuration.media == .video))
-            NativeCallAudio.resumeEngineIfSessionActive()
+            // `.voiceChat` on the earpiece); put ours back, and our own
+            // speaker with it (AGENT-PLATFORM (407)).
+            NativeCallAudio.resume(owner: audioOwner, isVideoEnabled: hasActiveVideo ?? (configuration.media == .video))
             updateInputs { $0.holdSilencesMedia = false }
             tellPeersAboutHold(false)
             refreshTransportInputs()
@@ -1730,7 +1743,8 @@ final class NativeCallSession: NSObject {
     private struct MediaIntent {
         let microphone: Bool
         let camera: Bool
-        let speaker: Bool
+        /// This call's own route, a default kept as a default (AGENT-PLATFORM (407)).
+        let speaker: NativeCallSpeakerRegister.State
     }
 
     /// Serialises the hold/resume transport work so a resume landing while
@@ -1758,7 +1772,7 @@ final class NativeCallSession: NSObject {
                 if mediaBeforeHold == nil {
                     mediaBeforeHold = MediaIntent(microphone: transport.isMicrophoneEnabled,
                                                   camera: transport.isCameraEnabled,
-                                                  speaker: NativeCallAudio.isSpeakerEnabled)
+                                                  speaker: NativeCallAudio.speakerState(for: audioOwner))
                 }
                 if transport.isMicrophoneEnabled {
                     try? await bounded(by: mediaPublishTimeout) { @MainActor [weak self] in
@@ -1788,10 +1802,11 @@ final class NativeCallSession: NSObject {
                         try await self?.transport.setCamera(enabled: true)
                     }
                 }
-                // After the camera: re-enabling it (and the resume's video
-                // mode re-apply) selects the speaker; the user's route wins.
-                if let speaker = intent?.speaker, speaker != NativeCallAudio.isSpeakerEnabled {
-                    NativeCallAudio.setSpeakerEnabled(speaker)
+                // After the camera: re-enabling it selects the speaker as a
+                // default; the route this call had wins over it. A default
+                // that gave way to a car at the resume stays given way.
+                if let speaker = intent?.speaker {
+                    NativeCallAudio.restoreSpeaker(speaker, owner: audioOwner)
                 }
                 try? await bounded(by: mediaPublishTimeout) { @MainActor [weak self] in
                     await self?.transport.announceHold(false)
@@ -1862,5 +1877,113 @@ final class NativeCallSession: NSObject {
                 }
             }
             .store(in: &cancellables)
+    }
+}
+
+// MARK: - My language on the membership (Brief 0085, ADR-0094 A.1)
+
+extension NativeCallSession {
+    /// Every participant's published language by MXID (ADR-0094 A.1), read from the memberships the session already has.
+    var membershipLanguages: [String: String] {
+        Dictionary(inputs.memberships.compactMap { membership in membership.language.map { (membership.userID, $0) } }) { first, _ in first }
+    }
+
+    /// "My language" changed (ADR-0094 A.1, row 9): kept for the join, or republished with the membership once joined.
+    /// A language the membership already carries sends nothing. False when the republish failed; it is retried.
+    @discardableResult
+    func setLanguage(_ language: String) async -> Bool {
+        self.language = language
+        return await republishLanguageIfNeeded()
+    }
+
+    /// Sends the wanted language while the membership carries another, one republish at a time: a change made while
+    /// one is out goes when it returns. A failure is retried with a short backoff while in the call, and on the next
+    /// change of the memberships.
+    @discardableResult
+    private func republishLanguageIfNeeded() async -> Bool {
+        guard isMembershipPublished, !isRepublishingLanguage else { return true }
+        isRepublishingLanguage = true
+        defer { isRepublishingLanguage = false }
+        while isMembershipPublished, let language, language != publishedLanguage {
+            guard case .success = await rtcSession.updateLanguage(language) else {
+                MXLog.warning("The membership's language wasn't republished; retrying")
+                scheduleLanguageRetry()
+                return false
+            }
+            if isMembershipPublished {
+                publishedLanguage = language
+            }
+            languageRetryAttempt = 0
+        }
+        return true
+    }
+
+    private static let languageRetryLimit = 5
+
+    private func scheduleLanguageRetry() {
+        guard languageRetryAttempt < Self.languageRetryLimit else {
+            MXLog.error("The membership's language still isn't republished; waiting for the next memberships change")
+            return
+        }
+        let delay = languageRetryDelay * (1 << languageRetryAttempt)
+        languageRetryAttempt += 1
+        languageRetryTask = Task { [weak self] in
+            try? await Task.sleep(for: delay)
+            guard !Task.isCancelled else { return }
+            await self?.republishLanguageIfNeeded()
+        }
+    }
+}
+
+// MARK: - The bounded steps of the start
+
+extension NativeCallSession {
+    /// Join the MatrixRTC session, giving up if the SDK wedges. Only the
+    /// timeout throws — a join that merely fails reports itself.
+    private func joinsWithinTimeout() async -> Bool {
+        do {
+            return try await bounded(by: joinTimeout) { @MainActor [weak self] () -> Bool in
+                guard let self else { return false }
+                let sentLanguage = language
+                guard case .success = await rtcSession.join(encryptMedia: isRoomEncrypted,
+                                                            notification: notifyRoom ? configuration.freshCallNotification : nil,
+                                                            media: configuration.media,
+                                                            language: sentLanguage) else { return false }
+                isMembershipPublished = true
+                publishedLanguage = sentLanguage
+                return true
+            }
+        } catch {
+            MXLog.error("The MatrixRTC join did not finish within \(joinTimeout); failing the call instead of waiting")
+            return false
+        }
+    }
+
+    /// The `m.rtc.notification` the join sent, on the join's own bound: it
+    /// reports what that step did, and a wedge here strands the start exactly
+    /// as the join itself would. Losing it only costs the decline listener.
+    private func ringNotificationIDWithinTimeout() async -> String? {
+        do {
+            return try await bounded(by: joinTimeout) { @MainActor [weak self] () -> String? in
+                guard let self else { return nil }
+                return await rtcSession.rtcNotificationEventID()
+            }
+        } catch {
+            MXLog.error("The ring notification identifier did not arrive within \(joinTimeout); declines will not be observed")
+            return nil
+        }
+    }
+
+    /// Fetch the SFU credentials, giving up if the authorization service wedges.
+    private func transportCredentialsWithinTimeout() async -> MatrixRTCTransportCredentials? {
+        do {
+            return try await bounded(by: credentialsTimeout) { @MainActor [weak self] () -> MatrixRTCTransportCredentials? in
+                guard let self, case let .success(credentials) = await rtcSession.transportCredentials() else { return nil }
+                return credentials
+            }
+        } catch {
+            MXLog.error("The call server did not authorize this session within \(credentialsTimeout)")
+            return nil
+        }
     }
 }

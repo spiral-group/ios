@@ -47,7 +47,7 @@ targets:
       base:
         PRODUCT_NAME: UITests
         PRODUCT_BUNDLE_IDENTIFIER: ${BASE_BUNDLE_IDENTIFIER}.ui.tests
-        SWIFT_VERSION: 6.2
+        SWIFT_VERSION: 6
         SWIFT_APPROACHABLE_CONCURRENCY: YES
       configs:
       # This is required to remove the $(inherited) flags
@@ -63,6 +63,8 @@ targets:
         - "**/__Snapshots__/**"
     - path: ../SupportingFiles
     - path: ../../ElementX/Sources/Other/AccessibilityIdentifiers.swift
+    # AGENT-PLATFORM: feed (Brief 0082): FeedPostCardTests finds the card by its identifiers.
+    - path: ../../ElementX/Sources/Screens/Feed/Common/FeedAccessibilityIdentifiers.swift
     - path: ../../ElementX/Sources/Other/Extensions/Bundle.swift
     - path: ../../ElementX/Sources/Other/Extensions/XCUIElement.swift
     - path: ../../ElementX/Sources/UITests/UITestsScreenIdentifier.swift
@@ -70,4 +72,4 @@ targets:
     # AGENT-PLATFORM (Brief 0067): the UI tests that drive analytics and map
     # surfaces have to know those surfaces are compiled out when the secret
     # is nil — the same gate `SpiralSecretsTraits` puts on the unit tests.
-    - path: ../../Secrets/Secrets.swift
+    - path: ../../Components/Secrets/Secrets.swift

@@ -15,17 +15,22 @@ import SwiftUI
 typealias AddAgentPickerScreenViewModelType = StateStoreViewModelV2<AddAgentPickerScreenViewState, AddAgentPickerScreenViewAction>
 
 /// Drives `AddAgentPickerScreen`. Lists the agents of every space the
-/// caller may act for — their Personal space and each company they own
-/// (`GET /me/agent-spaces`, then `GET /agent-spaces/:id`) — one section per
-/// space, and crosses them with the room's agents (`GET /rooms/:id/tools`):
-/// those already in the room are non-addable (badge). Tapping an addable
-/// agent invites it via `roomProxy.invite`; the backend auto-accepts the
-/// invite of an agent the inviter acts for (ADR-0017 — invite, never a
+/// caller may act for — their Personal space and each company they own —
+/// one section per space, from the session's store, so a person who has
+/// opened anything sees the list at once. Crosses them with the room's
+/// agents: those already in the room are non-addable (badge). Tapping an
+/// addable agent invites it via `roomProxy.invite`; the backend auto-accepts
+/// the invite of an agent the inviter acts for (ADR-0017 — invite, never a
 /// client force-join), so it joins almost immediately.
 class AddAgentPickerScreenViewModel: AddAgentPickerScreenViewModelType, AddAgentPickerScreenViewModelProtocol {
     private let roomID: String
     private let roomProxy: JoinedRoomProxyProtocol
-    private let agentPlatformService: any RoomToolsServiceProtocol
+    private let store: AgentsStore
+    private var hasReadMembers = false
+
+    private var roomTools: AgentsResource {
+        .roomTools(roomID: roomID)
+    }
 
     private let actionsSubject: PassthroughSubject<AddAgentPickerScreenViewModelAction, Never> = .init()
     var actionsPublisher: AnyPublisher<AddAgentPickerScreenViewModelAction, Never> {
@@ -34,11 +39,32 @@ class AddAgentPickerScreenViewModel: AddAgentPickerScreenViewModelType, AddAgent
 
     init(roomID: String,
          roomProxy: JoinedRoomProxyProtocol,
-         agentPlatformService: any RoomToolsServiceProtocol) {
+         store: AgentsStore) {
         self.roomID = roomID
         self.roomProxy = roomProxy
-        self.agentPlatformService = agentPlatformService
+        self.store = store
         super.init(initialViewState: AddAgentPickerScreenViewState())
+
+        render()
+        store.observe { [weak self] in
+            guard let self else { return false }
+            render()
+            return true
+        }
+        store.show(.spaces, by: self)
+        store.show(roomTools, by: self)
+        // Others' agents never come on this owner's stream: what is shown is read again as the picker opens.
+        store.refresh(roomTools)
+        roomProxy.membersPublisher
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in self?.render() }
+            .store(in: &cancellables)
+        Task { await readMembers() }
+    }
+
+    isolated deinit {
+        store.stopShowing(.spaces, by: self)
+        store.stopShowing(roomTools, by: self)
     }
 
     // MARK: - Public
@@ -47,11 +73,8 @@ class AddAgentPickerScreenViewModel: AddAgentPickerScreenViewModelType, AddAgent
         MXLog.info("AddAgentPickerScreenViewModel received view action: \(viewAction)")
 
         switch viewAction {
-        case .appeared:
-            if case .loaded = state.listState { return }
-            Task { await loadAgents() }
         case .retry:
-            Task { await loadAgents() }
+            retry()
         case .invite(let id):
             Task { await invite(agentID: id) }
         case .done:
@@ -61,56 +84,61 @@ class AddAgentPickerScreenViewModel: AddAgentPickerScreenViewModelType, AddAgent
 
     // MARK: - Private
 
-    private func loadAgents() async {
-        state.listState = .loading
-
-        // Sequential: Swift 6.2 strict checking forbids `async let` child
-        // tasks capturing the non-Sendable service existential, and a person
-        // has a handful of spaces at most.
-        guard let spaces = await loadSpaces() else {
-            state.listState = .failed
-            return
-        }
-
-        // In-room MXIDs — a failed room fetch degrades to "none in room"
-        // (the invite is idempotent, so worst case is a redundant invite).
-        let inRoomMXIDs: Set<String>
-        if case .success(let room) = await agentPlatformService.fetchRoomTools(roomID: roomID) {
-            inRoomMXIDs = Set(room.agents.map(\.matrixUserID))
-        } else {
-            inRoomMXIDs = []
-        }
-
-        let sections = spaces.compactMap { space -> AddAgentSection? in
-            let agents = space.agents
-                .filter { $0.lifecycleState != "archived" }
-                .map { Self.item(for: $0, isInRoom: inRoomMXIDs.contains($0.matrixUserID)) }
-            guard !agents.isEmpty else { return nil }
-            return AddAgentSection(id: space.orgID,
-                                   title: space.displayName,
-                                   agents: agents)
-        }
-        state.listState = .loaded(sections: sections)
-        MXLog.info("AddAgentPicker: \(sections.map(\.agents.count).reduce(0, +)) agent(s) in \(sections.count) space(s), \(inRoomMXIDs.count) already in room")
+    private func readMembers() async {
+        await roomProxy.updateMembers()
+        hasReadMembers = true
+        render()
     }
 
-    /// Every space with agents, in the directory's order (Personal first).
-    /// `nil` when any read fails: a space that couldn't be read is not a
-    /// space without agents.
-    private func loadSpaces() async -> [AgentSpaceDetail]? {
-        guard case .success(let directory) = await agentPlatformService.listMyAgentSpaces() else {
-            MXLog.error("AddAgentPicker: failed to list my agent spaces")
-            return nil
+    private func retry() {
+        Task { await store.reread(.spaces) }
+        Task { await store.reread(roomTools) }
+        Task { await readMembers() }
+    }
+
+    private func render() {
+        let listState = listState()
+        if state.listState != listState {
+            state.listState = listState
         }
-        var spaces: [AgentSpaceDetail] = []
-        for space in directory.spaces where space.agentCount > 0 {
-            guard case .success(let detail) = await agentPlatformService.fetchAgentSpace(orgID: space.orgID) else {
-                MXLog.error("AddAgentPicker: failed to read space \(space.orgID)")
-                return nil
-            }
-            spaces.append(detail)
+        let isRoomRead = if case .loading = store.readState(roomTools, \.roomTools) { false } else { hasReadMembers }
+        if state.isRoomRead != isRoomRead {
+            state.isRoomRead = isRoomRead
         }
-        return spaces
+    }
+
+    private func listState() -> AddAgentPickerListState {
+        switch store.readState(.spaces, \.spaces) {
+        case .loading:
+            return .loading
+        case .failed:
+            return .failed
+        case .loaded(let spaces):
+            // A space that couldn't be read is not a space without agents.
+            let listed = spaces.directory.spaces.filter { $0.agentCount > 0 }
+            let details = listed.compactMap { spaces.details[$0.orgID] }
+            guard details.count == listed.count, let inRoomMXIDs = inRoomMXIDs() else { return .failed }
+            return .loaded(sections: details.compactMap { space in
+                let agents = space.agents
+                    .filter { $0.lifecycleState != "archived" }
+                    .map { Self.item(for: $0, isInRoom: inRoomMXIDs.contains($0.matrixUserID)) }
+                return agents.isEmpty ? nil : AddAgentSection(id: space.orgID, title: space.displayName, agents: agents)
+            })
+        }
+    }
+
+    /// Who is in the chat: the room's own members, joined or invited, and the agents the server lists, which
+    /// are joined ones only. A failed server read leaves the room's list; `nil` when there is no list at all.
+    private func inRoomMXIDs() -> Set<String>? {
+        let members = Set(roomProxy.membersPublisher.value.filter { $0.membership == .join || $0.membership == .invite }.map(\.userID))
+        switch store.readState(roomTools, \.roomTools) {
+        case .loaded(let room):
+            return members.union(room.agents.map(\.matrixUserID))
+        case .failed:
+            return members.isEmpty && hasReadMembers ? nil : members
+        case .loading:
+            return members
+        }
     }
 
     private static func item(for card: AgentSpaceAgentCard, isInRoom: Bool) -> AddAgentItem {
@@ -126,7 +154,8 @@ class AddAgentPickerScreenViewModel: AddAgentPickerScreenViewModelType, AddAgent
     }
 
     private func invite(agentID: String) async {
-        guard let agent = state.agents.first(where: { $0.id == agentID }), !agent.isInRoom else { return }
+        // What may already be in the chat is not offered: an invite waits for this opening's read of the room.
+        guard state.isRoomRead, let agent = state.agents.first(where: { $0.id == agentID }), !agent.isInRoom else { return }
         state.invitingAgentID = agentID
         defer { state.invitingAgentID = nil }
 

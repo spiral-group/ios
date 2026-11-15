@@ -89,7 +89,8 @@ nonisolated struct SpiralAppManifest: Equatable {
     let appID: String
     /// Runtime major version the artifact was written against.
     let runtime: String
-    /// The module to load. `app.jsx` in v1, named so the format outlives it.
+    /// The module to load: `app.jsx`, source the frame compiles, or `app.js`,
+    /// compiled before it was packed (a catalogue template, question 374).
     let entry: String
     /// `w:h`. The row is sized from this before a byte of the app loads.
     let aspect: String
@@ -129,6 +130,12 @@ nonisolated struct SpiralAppManifest: Equatable {
         } else {
             origin = nil
         }
+    }
+
+    /// Whether the module is compiled already, so the frame need not load
+    /// the compiler. Not trust: the frame checks its imports all the same.
+    var isCompiled: Bool {
+        entry == "app.js"
     }
 
     /// `aspect` as a width/height ratio, or `nil` when it says nothing usable.

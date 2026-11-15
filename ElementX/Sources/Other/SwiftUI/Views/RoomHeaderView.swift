@@ -11,6 +11,8 @@ import Compound
 import SwiftUI
 
 struct RoomHeaderView: View {
+    @Environment(\.isChatBackgroundDrawn) private var isChatBackgroundDrawn // AGENT-PLATFORM (Brief 0083, question 359)
+    
     struct DMRecipientDetails {
         var statusEmoji: Character?
         var verification: UserIdentityVerificationState?
@@ -19,18 +21,59 @@ struct RoomHeaderView: View {
         var presence: UserPresence?
     }
     
+    // AGENT-PLATFORM (Brief 0083, question 359): who's typing, which takes the status line's place.
+    struct Typing: Equatable {
+        var members: [String] = []
+        var isDM = false
+        
+        /// What the status line says, nil when nobody is typing.
+        var text: String? {
+            line.map { $0.names + $0.ending }
+        }
+        
+        /// The names truncate and the ending doesn't, so a long name still reads as someone typing.
+        fileprivate var line: (names: String, ending: String)? {
+            switch members.count {
+            case 0:
+                nil
+            case 1 where isDM:
+                ("", UntranslatedL10n.screenRoomTypingDmIos)
+            case 1:
+                (members[0], L10n.screenRoomTypingNotificationSingularIos)
+            case 2:
+                (L10n.screenRoomTypingTwoMembers(members[0], members[1]), L10n.screenRoomTypingNotificationPluralIos)
+            default:
+                (L10n.tr("Localizable", "screen_room_typing_many_members_first_component_ios", members[0], members[1])
+                    + L10n.commonManyMembers(members.count - 2),
+                    L10n.screenRoomTypingNotificationPluralIos)
+            }
+        }
+        
+        /// The narrowest the header may be, at rest too, so that a short room name leaves the line room and the capsule
+        /// doesn't change width when somebody starts typing.
+        fileprivate var narrowestLine: String {
+            Self(members: ["Alexander"], isDM: isDM).text ?? ""
+        }
+    }
+    
     let roomName: String
     var roomSubtitle: String?
     let roomAvatar: RoomAvatar
     var dmRecipientDetails = DMRecipientDetails()
     var roomHistorySharingState: RoomHistorySharingState?
+    var typing: Typing? // AGENT-PLATFORM (Brief 0083, question 359): nil where a screen shows no typing.
+    // AGENT-PLATFORM (Brief 0083, decision 344): the room screen's header, a capsule with the avatar inside. It's centred
+    // on iOS 26+, between the back and call buttons. The screens not yet reworked keep the leading header.
+    var isCapsule = false
     
     let mediaProvider: MediaProviderProtocol?
     
     let action: () -> Void
     
     var body: some View {
-        if #available(iOS 26.0, *) {
+        if isCapsule {
+            capsule // AGENT-PLATFORM (Brief 0083, decision 344)
+        } else if #available(iOS 26.0, *) {
             // On iOS 26+ we use the toolbarRole(.editor) to leading align.
             content
                 // Not using a Button here so that we get our custom padding around the avatar. This also
@@ -50,6 +93,22 @@ struct RoomHeaderView: View {
         }
     }
     
+    // AGENT-PLATFORM (Brief 0083, decision 344): on iOS 26+ a glass capsule; before iOS 26 the standard bar's title.
+    @ViewBuilder
+    private var capsule: some View {
+        if #available(iOS 26.0, *) {
+            content
+                .padding(.vertical, 6)
+                .padding(.leading, 6)
+                .padding(.trailing, 16)
+                .glassEffect(.regular.interactive())
+                .roomHeaderAction(action)
+        } else {
+            content
+                .roomHeaderAction(action)
+        }
+    }
+    
     private var content: some View {
         HStack(spacing: 8) {
             avatarImage
@@ -57,17 +116,67 @@ struct RoomHeaderView: View {
             
             VStack(alignment: .leading, spacing: 0) {
                 roomDetails
-                
-                if let roomSubtitle {
-                    subtitleText(roomSubtitle)
-                } else if let presence = dmRecipientDetails.presence {
-                    // AGENT-PLATFORM (Brief 0072, ADR-0083): «online» / «last
-                    // seen 5 minutes ago» — the minutes move without a new answer.
-                    SwiftUI.TimelineView(.everyMinute) { context in
-                        if let status = presence.statusText(now: context.date) {
-                            subtitleText(status)
-                        }
-                    }
+                statusLine // AGENT-PLATFORM (Brief 0083)
+                widthFloor
+            }
+            // AGENT-PLATFORM (Brief 0083, question 359): an overlay, so what's typed gets the header's width and adds none.
+            .overlay(alignment: .bottomLeading) { typingLine }
+            .animation(.elementDefault.disabledDuringTests(), value: typingText)
+        }
+    }
+    
+    private var typingText: String? {
+        typing?.text
+    }
+    
+    /// The subtitle keeps its place under the typing line, and a header with no subtitle makes one.
+    private var statusLine: some View {
+        ZStack(alignment: .leading) {
+            if typingText != nil {
+                subtitleText(" ")
+                    .hidden()
+            }
+            
+            subtitle
+                .opacity(typingText == nil ? 1 : 0)
+                .accessibilityHidden(typingText != nil)
+        }
+    }
+    
+    @ViewBuilder
+    private var widthFloor: some View {
+        if let typing {
+            subtitleText(typing.narrowestLine)
+                .hidden()
+                .frame(height: 0)
+        }
+    }
+    
+    @ViewBuilder
+    private var typingLine: some View {
+        if let line = typing?.line {
+            HStack(spacing: 0) {
+                if !line.names.isEmpty {
+                    subtitleText(line.names)
+                }
+                subtitleText(line.ending)
+                    .fixedSize()
+            }
+            .accessibilityElement(children: .combine)
+            .transition(.opacity)
+        }
+    }
+    
+    @ViewBuilder
+    private var subtitle: some View {
+        if let roomSubtitle {
+            subtitleText(roomSubtitle)
+        } else if let presence = dmRecipientDetails.presence {
+            // AGENT-PLATFORM (Brief 0072, ADR-0083): «online» / «last
+            // seen 5 minutes ago» — the minutes move without a new answer.
+            SwiftUI.TimelineView(.everyMinute) { context in
+                if let status = presence.statusText(now: context.date) {
+                    subtitleText(status)
                 }
             }
         }
@@ -78,9 +187,12 @@ struct RoomHeaderView: View {
             HStack(spacing: 8) {
                 Text(roomName)
                     .lineLimit(1)
-                    .font(.compound.bodyMDSemibold)
+                    .font(.compound.bodyMDSemibold) // AGENT-PLATFORM (Brief 0083)
                     .foregroundStyle(.compound.textPrimary)
                     .accessibilityIdentifier(A11yIdentifiers.roomScreen.name)
+                    // AGENT-PLATFORM (Brief 0083, decision 357; question 389): an agent, in words, badge or Peek.
+                    .accessibilityValue(roomAvatar.heroUserID.map(SpiralAppPostSession.isAgent) ?? false
+                        ? UntranslatedL10n.screenNativeCallAgentCenterForeignDetailTitle : "")
                 
                 if let statusEmoji = dmRecipientDetails.statusEmoji {
                     Text(String(statusEmoji))
@@ -104,8 +216,12 @@ struct RoomHeaderView: View {
                         avatarSize: .room(on: .timeline),
                         mediaProvider: mediaProvider)
             // AGENT-PLATFORM (Brief 0072, ADR-0083)
-            .presenceBadge(isOnline: dmRecipientDetails.presence?.isOnline ?? false,
-                           avatarSize: Avatars.Size.room(on: .timeline).value)
+            // AGENT-PLATFORM (Brief 0083, decision 344): no dot in the capsule, where the status says it in words.
+            // AGENT-PLATFORM (Brief 0083, decision 357): an agent's badge stays there.
+            .avatarBadges(userID: roomAvatar.heroUserID,
+                          avatarURL: roomAvatar.url,
+                          isOnline: !isCapsule && dmRecipientDetails.presence?.isOnline ?? false,
+                          avatarSize: Avatars.Size.room(on: .timeline).value)
             .accessibilityIdentifier(A11yIdentifiers.roomScreen.avatar)
     }
     
@@ -113,13 +229,18 @@ struct RoomHeaderView: View {
         Text(text)
             .lineLimit(1)
             .font(.compound.bodyXS)
-            .foregroundStyle(.compound.textSecondary)
+            .foregroundStyle(subtitleColor)
+    }
+    
+    // AGENT-PLATFORM (Brief 0083, question 359): the glass takes the blue of the picture, where grey reads 2.6:1 in dark.
+    private var subtitleColor: Color {
+        Compound.supportsGlass && isChatBackgroundDrawn ? .compound.textPrimary : .compound.textSecondary
     }
     
     private var historySharingIcon: KeyPath<CompoundIcons, Image>? {
         switch roomHistorySharingState {
         case .none, .hidden: nil
-        case .shared: \.history
+        case .shared: isCapsule ? nil : \.history // AGENT-PLATFORM (Brief 0083, decision 344): Security says it
         case .worldReadable: \.userProfileSolid
         }
     }
@@ -146,7 +267,7 @@ private extension View {
 
 // MARK: - Previews
 
-struct RoomHeaderView_Previews: PreviewProvider, TestablePreview {
+struct RoomHeaderView_Previews: PreviewProvider, TestablePreview, SpiralGatedPreview { // AGENT-PLATFORM (Brief 0083): Spiral's gates
     static var previews: some View {
         VStack(alignment: .leading, spacing: 32) {
             VStack(alignment: .leading, spacing: 16) {
@@ -210,16 +331,71 @@ struct RoomHeaderView_Previews: PreviewProvider, TestablePreview {
         }
         .previewLayout(.sizeThatFits)
         .previewDisplayName("Presence")
+        
+        // AGENT-PLATFORM (Brief 0083, decision 344): the room screen's capsule.
+        VStack(spacing: 16) {
+            makeHeader(avatarURL: .mockMXCAvatar, historySharingState: .shared, isCapsule: true)
+            makeHeader(avatarURL: .mockMXCAvatar, historySharingState: .worldReadable, isCapsule: true)
+            makeHeader(avatarURL: .mockMXCUserAvatar,
+                       verificationState: .verified,
+                       presence: .init(userID: "@u:x", state: .online, lastActiveAgo: 2, currentlyActive: true, receivedAt: .now),
+                       isCapsule: true)
+        }
+        .padding()
+        .previewLayout(.sizeThatFits)
+        .previewDisplayName("Capsule")
+        
+        // AGENT-PLATFORM (Brief 0083, question 357): an agent has no «last seen»: paused for its owner, otherwise nothing.
+        VStack(spacing: 16) {
+            makeHeader(avatarURL: .mockMXCUserAvatar,
+                       presence: .init(userID: "@assistant-u:x", state: .offline, lastActiveAgo: 780, currentlyActive: false,
+                                       receivedAt: .now, isAgentPaused: true),
+                       isCapsule: true)
+            makeHeader(avatarURL: .mockMXCUserAvatar,
+                       presence: .init(userID: "@assistant-u:x", state: .offline, lastActiveAgo: 780, currentlyActive: false, receivedAt: .now),
+                       isCapsule: true)
+        }
+        .padding()
+        .previewLayout(.sizeThatFits)
+        .previewDisplayName("Agent")
+        
+        // AGENT-PLATFORM (Brief 0083, question 359): in place of the status, or of a thread's room name, at the same width.
+        VStack(spacing: 16) {
+            makeHeader(avatarURL: .mockMXCUserAvatar,
+                       verificationState: .verified,
+                       presence: .init(userID: "@u:x", state: .online, lastActiveAgo: 2, currentlyActive: true, receivedAt: .now),
+                       typing: .init(members: ["Some User Name"], isDM: true),
+                       isCapsule: true)
+            makeHeader(avatarURL: .mockMXCUserAvatar,
+                       verificationState: .verified,
+                       presence: .init(userID: "@assistant-u:x", state: .offline, lastActiveAgo: 780, currentlyActive: false, receivedAt: .now),
+                       typing: .init(members: ["Some User Name"], isDM: true),
+                       isCapsule: true)
+            makeHeader(avatarURL: .mockMXCAvatar, typing: .init(members: []), isCapsule: true)
+            makeHeader(avatarURL: .mockMXCAvatar, typing: .init(members: ["Alice"]), isCapsule: true)
+            makeHeader(avatarURL: .mockMXCAvatar, roomName: "Lunch", typing: .init(members: []), isCapsule: true)
+            makeHeader(avatarURL: .mockMXCAvatar, roomName: "Lunch", typing: .init(members: ["Alice"]), isCapsule: true)
+            makeHeader(avatarURL: .mockMXCAvatar, typing: .init(members: ["Alice", "Bob"]), isCapsule: true)
+            makeHeader(avatarURL: .mockMXCAvatar, typing: .init(members: ["Alice", "Bob", "Charlie", "Dan"]), isCapsule: true)
+            makeHeader(avatarURL: .mockMXCAvatar, typing: .init(members: ["Alice with her very long display name"]), isCapsule: true)
+            makeHeader(avatarURL: .mockMXCAvatar, roomSubtitle: "Some Room", typing: .init(members: ["Alice"]))
+        }
+        .padding()
+        .previewLayout(.sizeThatFits)
+        .previewDisplayName("Typing")
     }
     
     @ViewBuilder
     static func makeHeader(avatarURL: URL?,
+                           roomName: String? = nil,
                            roomSubtitle: String? = nil,
                            userStatus: UserStatus? = nil,
                            verificationState: UserIdentityVerificationState? = nil,
                            historySharingState: RoomHistorySharingState? = nil,
-                           presence: UserPresence? = nil) -> some View {
-        let roomName = verificationState == nil ? "Some Room Name" : "Some User Name"
+                           presence: UserPresence? = nil,
+                           typing: RoomHeaderView.Typing? = nil,
+                           isCapsule: Bool = false) -> some View {
+        let roomName = roomName ?? (verificationState == nil ? "Some Room Name" : "Some User Name")
         RoomHeaderView(roomName: roomName,
                        roomSubtitle: roomSubtitle,
                        roomAvatar: .room(id: "1",
@@ -229,7 +405,8 @@ struct RoomHeaderView_Previews: PreviewProvider, TestablePreview {
                                                  verification: verificationState,
                                                  presence: presence),
                        roomHistorySharingState: historySharingState,
-                       
+                       typing: typing,
+                       isCapsule: isCapsule,
                        mediaProvider: MediaProviderMock(.init())) { }
     }
 }

@@ -16,7 +16,8 @@ import XCTest
 
 @MainActor
 class SpiralMemberProfileAlertTests: XCTestCase {
-    func testAProfileOpenedFromTheMemberSheetCanStillShowAnAlert() {
+    func testAProfileOpenedFromTheMemberSheetCanStillShowAnAlert() throws {
+        try skipOnIPad()
         let app = Application.launch(.userSessionScreen)
 
         app.buttons[A11yIdentifiers.homeScreen.roomName("Foundation 🔭🪐🌌")].tap()
@@ -53,7 +54,8 @@ class SpiralMemberProfileAlertTests: XCTestCase {
         XCTAssertTrue(blockAlert.buttons.matching(NSPredicate(format: "label IN %@", ["Block", "Unblock"])).firstMatch.exists)
     }
     
-    func testTheEraseRowAsksFirstOnAProfileOpenedFromTheMemberSheet() {
+    func testTheEraseRowAsksFirstOnAProfileOpenedFromTheMemberSheet() throws {
+        try skipOnIPad()
         let app = Application.launch(.roomMembersFlowWithAssistant)
         
         let alice = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "Alice")).firstMatch
@@ -72,5 +74,11 @@ class SpiralMemberProfileAlertTests: XCTestCase {
         XCTAssertTrue(confirmation.waitForExistence(timeout: 5.0),
                       "tapping the erase row did not ask before erasing")
         XCTAssertTrue(confirmation.buttons["Erase"].exists)
+    }
+    
+    /// The race these walk is the iPhone's bottom sheet: iPad shows the member's actions without the sheet's
+    /// view-profile button (Brief 0083 final verification, § 2).
+    private func skipOnIPad() throws {
+        try XCTSkipIf(UIDevice.current.userInterfaceIdiom == .pad, "Walks the iPhone's member sheet")
     }
 }

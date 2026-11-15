@@ -8,10 +8,13 @@
 
 import Combine
 import Compound
+import SpiralComponents // AGENT-PLATFORM (Brief 0083)
 import SwiftUI
 
 struct HomeScreen: View {
     @ObservedObject var context: HomeScreenViewModel.Context
+    // AGENT-PLATFORM (Brief 0083, question 343): the search field and its results live here, not on a tab.
+    var searchContext: SearchScreenViewModelType.Context?
     
     @State private var scrollViewAdapter = ScrollViewAdapter()
     
@@ -21,30 +24,45 @@ struct HomeScreen: View {
     }
     
     var body: some View {
-        HomeScreenContent(context: context, scrollViewAdapter: scrollViewAdapter)
+        content
             .alert(item: $context.alertInfo)
             .alert(item: $context.leaveRoomAlertItem,
                    actions: leaveRoomAlertActions,
                    message: leaveRoomAlertMessage)
             .navigationTitle(title)
+            // AGENT-PLATFORM (Brief 0083, question 343): a small centred title; this replaces 310's large one.
+            .toolbarTitleDisplayMode(.inline)
             .toolbar { toolbar }
+            // AGENT-PLATFORM (Brief 0083, question 343): no `.editor` role: it puts the title beside the leading button.
             .background(Color.compound.bgCanvasDefault.ignoresSafeArea())
             .track(screen: .Home)
-            // AGENT-PLATFORM: navigation-bar bloom restored (ADR-0005 revision). The
-            // colour now comes from the synced alpha-blue subtle gradient — the
-            // `gradient.subtle.*` stops resolve to `color.alpha.orange.*`, which the
-            // fork's token generator builds from the brand blue (#2E6BE6), so this is
-            // a blue glow, not the retired gold.
-            .toolbarBloom(hasSearchBar: true)
+            // AGENT-PLATFORM (Brief 0083, decision 308): no bloom behind the bar on the reviewer's path.
             // AGENT-PLATFORM (Brief 0078): upstream's `.sentryTrace` went with Sentry.
             .sheet(item: $context.spaceFiltersViewModel) { vm in
                 ChatsSpaceFiltersScreen(context: vm.context)
                     .navigationTransition(.zoom(sourceID: NavigationTransitionSourceID.spaceFilters,
                                                 in: navigationTransitionNamespace))
             }
+            .sheet(isPresented: $context.isPresentingMultiAccountAnnouncement) {
+                MultiAccountAnnouncementView(context: context)
+                    .onAppear { context.send(viewAction: .multiAccountAnnouncementAppeared) }
+            }
+            .onAppear { context.send(viewAction: .screenAppeared) }
     }
     
     // MARK: - Private
+    
+    // AGENT-PLATFORM (Brief 0083, question 343)
+    @ViewBuilder
+    private var content: some View {
+        if let searchContext {
+            SearchScreen(context: searchContext) {
+                HomeScreenContent(context: context, scrollViewAdapter: scrollViewAdapter)
+            }
+        } else {
+            HomeScreenContent(context: context, scrollViewAdapter: scrollViewAdapter)
+        }
+    }
     
     private var title: String {
         if let selectedSpace = context.viewState.selectedSpaceFilter {
@@ -56,18 +74,17 @@ struct HomeScreen: View {
     
     @ToolbarContentBuilder
     private var toolbar: some ToolbarContent {
-        ToolbarItem(placement: .navigationBarLeading) {
-            settingsButton
-                .buttonStyle(.borderless)
+        // AGENT-PLATFORM (Brief 0083, question 343): the filter menu leads, to balance Start chat around the centred
+        // title, while the list shows rooms.
+        if context.viewState.shouldShowFilters {
+            ToolbarItem(placement: .topBarLeading) {
+                RoomListFiltersMenuButton(state: $context.filtersState)
+            }
         }
         
+        // AGENT-PLATFORM (Brief 0083, decision 308): iOS 18 keeps the plain bar button, not Compound's super style.
         ToolbarItem(placement: .primaryAction) {
-            if #available(iOS 26, *) {
-                newRoomButton
-            } else {
-                newRoomButton
-                    .buttonStyle(.compound(.super, size: .toolbarIcon))
-            }
+            newRoomButton
         }
         
         if context.viewState.shouldShowSpaceFilters {
@@ -83,17 +100,6 @@ struct HomeScreen: View {
                                          in: navigationTransitionNamespace)
             }
         }
-    }
-    
-    private var settingsButton: some View {
-        Button {
-            context.send(viewAction: .showSettings)
-        } label: {
-            AvatarSettingsButtonLabel(userProfile: context.viewState.userProfile,
-                                      mediaProvider: context.mediaProvider)
-        }
-        .accessibilityLabel(L10n.commonSettings)
-        .accessibilityIdentifier(A11yIdentifiers.homeScreen.userAvatar)
     }
     
     @ViewBuilder
@@ -172,18 +178,25 @@ struct HomeScreen: View {
 
 // MARK: - Previews
 
-struct HomeScreen_Previews: PreviewProvider, TestablePreview {
+struct HomeScreen_Previews: PreviewProvider, TestablePreview, SpiralGatedPreview { // AGENT-PLATFORM (Brief 0083)
     static let loadingViewModel = viewModel(.skeletons)
     static let emptyViewModel = viewModel(.empty)
     static let loadedViewModel = viewModel(.rooms)
-    
+    // AGENT-PLATFORM (Brief 0083): Chats with a filter on. The mock keeps the direct chats for People.
+    static let filteredViewModel = {
+        let model = viewModel(.rooms)
+        model.context.filtersState.activateFilter(.people)
+        return model
+    }()
+
     static var previews: some View {
         ElementNavigationStack {
             HomeScreen(context: loadingViewModel.context)
         }
-        .snapshotPreferences(expect: loadedViewModel.context.$viewState.map { state in
+        .snapshotPreferences(expect: loadingViewModel.context.$viewState.map { state in
             state.roomListMode == .skeletons
         })
+        .environment(\.spiralPreloaderDelay, .zero) // AGENT-PLATFORM (Brief 0083): shows what a slow load shows.
         .previewDisplayName("Loading")
         
         ElementNavigationStack {
@@ -201,13 +214,22 @@ struct HomeScreen_Previews: PreviewProvider, TestablePreview {
             state.roomListMode == .rooms
         })
         .previewDisplayName("Loaded")
+
+        // AGENT-PLATFORM (Brief 0083): the filters' active state.
+        ElementNavigationStack {
+            HomeScreen(context: filteredViewModel.context)
+        }
+        .snapshotPreferences(expect: filteredViewModel.context.$viewState.map { state in
+            state.roomListMode == .rooms && !state.rooms.isEmpty && state.rooms.allSatisfy(\.isDirect)
+        })
+        .previewDisplayName("Filtered")
     }
     
     static func viewModel(_ mode: HomeScreenRoomListMode) -> HomeScreenViewModel {
         let userID = "@alice:example.com"
         
         let roomSummaryProviderState: RoomSummaryProviderMockConfigurationState = switch mode {
-        case .skeletons:
+        case .awaitingCachedRooms, .skeletons:
             .loading
         case .empty:
             .loaded([])
@@ -221,10 +243,10 @@ struct HomeScreen_Previews: PreviewProvider, TestablePreview {
         let userSession = UserSessionMock(.init(clientProxy: clientProxy))
         
         return HomeScreenViewModel(userSession: userSession,
+                                   availableSessionsPublisher: .init([.init(userSession: userSession)]),
                                    selectedRoomPublisher: CurrentValueSubject<String?, Never>(nil).asCurrentValuePublisher(),
-                                   appSettings: .volatile(),
                                    analyticsService: AnalyticsServiceMock(.init()),
-                                   notificationManager: NotificationManagerMock(),
+                                   bugReportService: BugReportServiceMock(.init()),
                                    userIndicatorController: UserIndicatorControllerMock())
     }
 }

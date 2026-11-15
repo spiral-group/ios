@@ -7,6 +7,7 @@
 import AnalyticsEvents
 import AVFoundation
 import CallKit
+{# AGENT-PLATFORM (Brief 0067): no ElementCall import — upstream's call package is not linked. #}
 import Foundation
 import LocalAuthentication
 import Photos

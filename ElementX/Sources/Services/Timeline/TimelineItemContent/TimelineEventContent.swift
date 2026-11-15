@@ -8,7 +8,7 @@
 
 import Foundation
 
-nonisolated enum TimelineEventContent: Hashable {
+nonisolated enum TimelineEventContent: Hashable, CustomStringConvertible {
     case message(EventBasedMessageTimelineItemContentType)
     case poll(question: String)
     case liveLocation
@@ -21,4 +21,19 @@ nonisolated enum TimelineEventContent: Hashable {
     /// case for the same reason, and so does a shared location: what a message
     /// IS matters most exactly where you cannot see it.
     case interactivePost(title: String)
+    
+    var description: String {
+        switch self {
+        case .message(let eventBasedMessageTimelineItemContentType):
+            eventBasedMessageTimelineItemContentType.description
+        case .poll:
+            "poll"
+        case .liveLocation:
+            "liveLocation"
+        case .redacted:
+            "redacted"
+        case .interactivePost:
+            "interactivePost"
+        }
+    }
 }

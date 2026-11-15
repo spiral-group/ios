@@ -31,7 +31,7 @@ enum AgentActivityListState: Equatable {
     /// possible affordances.
     case loaded([AgentActivityListItem], loadMore: LoadMoreState)
     /// First-page fetch failed before any items arrived. Inline
-    /// retry CTA + alert via `bindings.alertInfo`.
+    /// retry CTA.
     case failed
 }
 
@@ -184,6 +184,8 @@ nonisolated enum AgentActivityLabels {
         case "sender_is_owner": UntranslatedL10n.screenAgentActivityReasonSenderIsOwner
         case "no_contact_relationship": UntranslatedL10n.screenAgentActivityReasonNoContactRelationship
         case "outside_conversation": UntranslatedL10n.screenAgentActivityReasonOutsideConversation
+        // The model asked for something its run did not offer (security pass 2): refused by the gate.
+        case "not_offered": UntranslatedL10n.screenAgentActivityReasonNotOffered
         case "blocked_visitor": UntranslatedL10n.screenAgentActivityReasonBlockedVisitor
         case "strategy_no_op": UntranslatedL10n.screenAgentActivityReasonStrategyNoOp
         case "group_room_not_woken": UntranslatedL10n.screenAgentActivityReasonGroupRoomNotWoken
@@ -218,7 +220,8 @@ struct AgentActivityScreenViewState: BindableState {
     /// Changing the value triggers a full re-fetch from the
     /// first page.
     var filter: ActionOutcomeFilter = .all
-    var bindings: AgentActivityScreenViewStateBindings
+    /// The sync's state at the top while the stream is not live (decision 289).
+    var syncStatus: PlatformSyncStatus?
 
     /// Convenience: the accumulated items if any have arrived,
     /// empty list otherwise. Keeps the View `body` from needing
@@ -272,24 +275,10 @@ struct AgentActivityScreenViewState: BindableState {
     }
 }
 
-struct AgentActivityScreenViewStateBindings {
-    var alertInfo: AlertInfo<AgentActivityScreenAlertType>?
-}
-
-enum AgentActivityScreenAlertType: Hashable {
-    case loadFailed
-}
-
 // MARK: - View → ViewModel actions
 
 enum AgentActivityScreenViewAction {
-    /// SwiftUI `.onAppear`. First-page fetch on initial appear;
-    /// no-op if a page already arrived (the user just scrolled
-    /// back).
-    case appeared
-    /// Pull-to-refresh or retry button on the first-page error
-    /// state. Always re-fetches from the first page, clearing
-    /// any accumulated items.
+    /// The retry button on the first-page error state.
     case retry
     /// Sentinel row appeared on screen (user scrolled to bottom)
     /// — fetch the next page using the current cursor.

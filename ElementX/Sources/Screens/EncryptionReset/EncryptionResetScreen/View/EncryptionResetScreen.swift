@@ -7,16 +7,18 @@
 //
 
 import Compound
+import SpiralComponents // AGENT-PLATFORM (Brief 0083)
 import SwiftUI
 
 struct EncryptionResetScreen: View {
     @Bindable var context: EncryptionResetScreenViewModel.Context
     
     var body: some View {
-        FullscreenDialog {
+        // AGENT-PLATFORM (Brief 0083, decision 313): the identity path's margins, for the content and the button alike.
+        FullscreenDialog(horizontalPadding: CompoundDesignTokens.space6X, bottomHorizontalPadding: CompoundDesignTokens.space6X) {
             mainContent
         } bottomContent: {
-            Button(L10n.screenEncryptionResetActionContinueReset, role: .destructive) {
+            Button(UntranslatedL10n.screenEncryptionResetActionContinueResetSpiral, role: .destructive) { // AGENT-PLATFORM (Brief 0083, decision 314)
                 context.send(viewAction: .reset)
             }
             .buttonStyle(.compound(.primary))
@@ -30,51 +32,35 @@ struct EncryptionResetScreen: View {
         .alert(item: $context.alertInfo)
     }
     
+    // AGENT-PLATFORM (Brief 0083, decisions 313, 314 and 323): the identity path's leading header, then what stays
+    // and what goes as the rows of one card, the losses in red, then the "only if" warning as a semibold line.
     /// The main content of the screen that is shown inside the scroll view.
     private var mainContent: some View {
-        VStack(spacing: 24) {
-            header
-            checkmarkList
-            footer
-        }
-    }
-    
-    private var header: some View {
-        VStack(spacing: 8) {
-            BigIcon(icon: \.errorSolid, style: .alertSolid)
-                .padding(.bottom, 8)
+        VStack(alignment: .leading, spacing: CompoundDesignTokens.space8X) {
+            SpiralDialogHeader(icon: \.errorSolid, tone: .critical, title: UntranslatedL10n.screenEncryptionResetTitleSpiral)
             
-            Text(L10n.screenEncryptionResetTitle)
-                .font(.compound.headingMDBold)
-                .multilineTextAlignment(.center)
+            VStack(alignment: .leading, spacing: CompoundDesignTokens.space4X) {
+                SpiralCard {
+                    consequence(UntranslatedL10n.screenEncryptionResetBullet1Spiral, isKept: true, showsSeparator: true)
+                    consequence(UntranslatedL10n.screenEncryptionResetBullet2Spiral, isKept: false, showsSeparator: true)
+                    consequence(UntranslatedL10n.screenEncryptionResetBullet3Spiral, isKept: false, showsSeparator: false)
+                }
+                
+                Text(UntranslatedL10n.screenEncryptionResetFooterSpiral)
+                    .font(.compound.bodyMDSemibold)
+                    .foregroundColor(.compound.textPrimary)
+                    .padding(.horizontal, CompoundDesignTokens.space4X)
+            }
+        }
+    }
+    
+    private func consequence(_ title: String, isKept: Bool, showsSeparator: Bool) -> some View {
+        SpiralCardRow(icon: isKept ? \.check : \.info,
+                      iconColor: isKept ? .compound.iconSuccessPrimary : .compound.iconCriticalPrimary,
+                      showsSeparator: showsSeparator) {
+            Text(title)
+                .font(.compound.bodyLG)
                 .foregroundColor(.compound.textPrimary)
-        }
-    }
-    
-    private var footer: some View {
-        Text(L10n.screenEncryptionResetFooter)
-            .font(.compound.bodyMDSemibold)
-            .multilineTextAlignment(.center)
-            .foregroundColor(.compound.textPrimary)
-    }
-    
-    /// The list of re-assurances about analytics.
-    private var checkmarkList: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            checkMarkItem(title: L10n.screenEncryptionResetBullet1, position: .top, positive: true)
-            checkMarkItem(title: L10n.screenEncryptionResetBullet2, position: .middle, positive: false)
-            checkMarkItem(title: L10n.screenEncryptionResetBullet3, position: .bottom, positive: false)
-        }
-        .fixedSize(horizontal: false, vertical: true)
-        .frame(maxWidth: .infinity)
-        .environment(\.backgroundStyle, AnyShapeStyle(.compound.bgSubtleSecondary))
-    }
-    
-    private func checkMarkItem(title: String, position: ListPosition, positive: Bool) -> some View {
-        VisualListItem(title: title, position: position) {
-            CompoundIcon(positive ? \.check : \.info)
-                .foregroundColor(positive ? .compound.iconAccentPrimary : .compound.iconSecondary)
-                .alignmentGuide(.top) { _ in 2 }
         }
     }
     
@@ -90,7 +76,7 @@ struct EncryptionResetScreen: View {
 
 // MARK: - Previews
 
-struct EncryptionResetScreen_Previews: PreviewProvider, TestablePreview {
+struct EncryptionResetScreen_Previews: PreviewProvider, TestablePreview, SpiralGatedPreview { // AGENT-PLATFORM (Brief 0083)
     static let viewModel = EncryptionResetScreenViewModel(clientProxy: ClientProxyMock(.init()),
                                                           userIndicatorController: UserIndicatorControllerMock())
     static var previews: some View {

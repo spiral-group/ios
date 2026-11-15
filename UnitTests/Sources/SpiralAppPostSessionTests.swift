@@ -17,9 +17,11 @@
 
 import Combine
 import Compound
-@testable import ElementX
 import Foundation
+import MatrixRustSDKMocks
+@testable import Spiral
 import SwiftUI
+import Synchronization
 import Testing
 
 @MainActor
@@ -206,6 +208,41 @@ struct SpiralAppPostSessionTests {
         let summary = written?["summary"] as? [String: Any]
         #expect(summary?["line"] as? String == "1 tap")
         #expect(summary?["notify"] as? String == "badge")
+    }
+
+    /// Every reader cuts a line past 200 code points; the app cuts its own
+    /// before it leaves, with an ellipsis, so what it wrote is what is shown.
+    @Test
+    func aLongSummaryLineIsCutBeforeItIsSent() async {
+        let room = Self.room()
+        let session = await Self.session(room)
+        let long = String(repeating: "ї", count: 300)
+
+        _ = await session.apply(.increment(path: ["n"], by: 1), summary: ["line": long])
+        _ = await session.apply(.increment(path: ["n"], by: 1), summary: ["line": ["uk": long, "en": "ok"]])
+
+        let written = Self.written(room).map { $0["summary"] as? [String: Any] }
+        let plain = written[0]?["line"] as? String
+        let byLanguage = written[1]?["line"] as? [String: String]
+        #expect(plain?.unicodeScalars.count == SpiralAppActionLimits.maxSummaryLineScalars)
+        #expect(plain?.hasSuffix("…") == true)
+        #expect(byLanguage?["uk"]?.unicodeScalars.count == SpiralAppActionLimits.maxSummaryLineScalars)
+        #expect(byLanguage?["en"] == "ok")
+    }
+
+    /// M4: an action past the bound every reader holds it to is not sent.
+    @Test
+    func anActionPastTheContentBoundIsRefusedRatherThanWritten() async {
+        let room = Self.room()
+        let session = await Self.session(room)
+
+        let result = await session.apply(.increment(path: ["n"], by: 1),
+                                         summary: ["padding": String(repeating: "x", count: SpiralAppActionLimits.maxContentBytes)])
+
+        if case .failure(.actionTooLarge) = result { } else {
+            Issue.record("an action past the content bound was written")
+        }
+        #expect(room.sendSpiralRawEventTypeContentCalled == false)
     }
 
     @Test
@@ -399,7 +436,7 @@ struct SpiralAppPostSessionTests {
         let room = Self.room()
         let session = await Self.session(room)
         let me = room.ownUserID
-        let bob = "@bob:spiral.md"
+        let bob = RoomMemberProxyMock.mockBob.userID
 
         _ = await session.apply(.increment(path: ["n"], by: 1), summary: ["line": "e2–e4", "notify_users": [bob, bob, me, "@assistant-me:spiral.md"]])
         _ = await session.apply(.increment(path: ["n"], by: 1), summary: ["line": "quiet"])
@@ -412,13 +449,27 @@ struct SpiralAppPostSessionTests {
         #expect(actions[1]["m.mentions"] == nil)
     }
 
+    /// F5: a ping names only people joined to the room — not someone who
+    /// left, was only invited, or was never here.
+    @Test
+    func aPingNamesOnlyPeopleInTheRoom() async {
+        let room = Self.room()
+        let session = await Self.session(room)
+        let bob = RoomMemberProxyMock.mockBob.userID
+
+        _ = await session.apply(.increment(path: ["n"], by: 1),
+                                summary: ["notify_users": ["@stranger:elsewhere.test", RoomMemberProxyMock.mockInvited.userID, bob]])
+
+        #expect((Self.written(room)[0]["m.mentions"] as? [String: Any])?["user_ids"] as? [String] == [bob])
+    }
+
     /// Pinged and not answered: not pinged again — however many actions name
     /// them, and however fast. It was once a minute per person per session,
     /// and in a quick game of chess that swallowed three replies in five
     /// (§ 5.74). Our own action still on its way counts as a ping already.
     @Test
     func someonePingedIsNotPingedAgainUntilTheyAct() async {
-        let bob = "@bob:spiral.md"
+        let bob = RoomMemberProxyMock.mockBob.userID
         let me = JoinedRoomProxyMock(.init()).ownUserID
 
         // We pinged Bob, and he has not touched the post since.
@@ -438,7 +489,54 @@ struct SpiralAppPostSessionTests {
         #expect(written[1]["m.mentions"] == nil, "our first ping is still on its way")
     }
 
+    // MARK: - Not flooding the room (H2)
+
+    @Test
+    func aFloodOfWritesIsRefusedPastTheBucketAndResumesAtItsRate() async {
+        final class Clock { var now: TimeInterval = 0 }
+        let clock = Clock()
+        let room = Self.room()
+        let session = SpiralAppPostSession(postEventID: Self.postEventID,
+                                           roomProxy: room,
+                                           feed: SpiralAppActionFeed(roomProxy: room),
+                                           writes: SpiralAppTokenBucket(capacity: 10, refillInterval: 0.3)) { clock.now }
+        await session.start()
+
+        for _ in 0..<10 {
+            guard case .success = await session.apply(.increment(path: ["n"], by: 1)) else {
+                Issue.record("a burst inside the bucket was refused")
+                return
+            }
+        }
+        if case .failure(.rateLimited) = await session.apply(.increment(path: ["n"], by: 1)) { } else {
+            Issue.record("the eleventh write at once went out")
+        }
+        #expect(Self.written(room).count == 10)
+
+        clock.now += 0.3
+        if case .failure = await session.apply(.increment(path: ["n"], by: 1)) {
+            Issue.record("the bucket did not refill")
+        }
+        #expect(Self.written(room).compactMap { $0["seq"] as? Int } == Array(1...11), "a refused write must not use up a seq")
+    }
+
     // MARK: - Refusing to brick the post
+
+    /// H1: the next `seq` never goes past the bound every reader holds an
+    /// action to, and is never computed as `Int.max + 1`.
+    @Test
+    func aPostAtTheLastSeqRefusesTheNextWriteInsteadOfOverflowing() async {
+        let room = Self.room(relations: [Self.rawAction("$last", ts: UInt64(SpiralAppActionLimits.maxSeq), sender: "@a:spiral.md")])
+        let session = await Self.session(room)
+        #expect(session.snapshot.seq == SpiralAppActionLimits.maxSeq)
+
+        let result = await session.apply(.increment(path: ["n"], by: 1))
+
+        if case .failure(.sequenceExhausted) = result { } else {
+            Issue.record("wrote past the last seq a reader accepts")
+        }
+        #expect(room.sendSpiralRawEventTypeContentCalled == false)
+    }
 
     @Test
     func aStatePastTheBudgetIsRefusedRatherThanWritten() async {
@@ -557,10 +655,107 @@ struct SpiralAppPostSessionTests {
         #expect((time["now"] as? UInt64 ?? 0) <= before + 5000)
     }
 
+    // MARK: - An app mounts alongside the read
+
+    /// The SDK takes the first answer for a state the host vouched for, so
+    /// the empty fold of a read still running would draw an untouched post.
+    @Test
+    func anAppsFirstReadWaitsForTheVerdictRatherThanAnsweringEmpty() async throws {
+        let room = Self.room()
+        let isReleased = Mutex(false)
+        room.loadSpiralAppRelationsForClosure = { _ in
+            while !isReleased.withLock({ $0 }) {
+                try? await Task.sleep(for: .milliseconds(5))
+            }
+            return .success([Self.action(seq: 4)])
+        }
+        let session = SpiralAppPostSession(postEventID: Self.postEventID, roomProxy: room, feed: SpiralAppActionFeed(roomProxy: room))
+        let starting = Task { await session.start() }
+
+        let reply = Task { await session.answer(method: SpiralAppCapability.stateSharedRead.rawValue, args: Data(), activation: SpiralAppActivation()) }
+        try await Task.sleep(for: .milliseconds(100))
+        #expect(session.snapshot.readiness == .loading)
+
+        isReleased.withLock { $0 = true }
+        let answer = await reply.value
+        await starting.value
+
+        #expect(answer.contains(#""seq":4"#), "the app was answered before the read: \(answer)")
+    }
+
+    /// Not `{}`: that is a post nobody touched, and this one may be full.
+    @Test
+    func aReadThatFailedIsRefusedToTheAppRatherThanAnsweredEmpty() async {
+        let room = Self.room()
+        room.loadSpiralAppRelationsForReturnValue = .failure(.sdkError(SpiralTestError.noSubscription))
+        let session = await Self.session(room)
+
+        let answer = await session.answer(method: SpiralAppCapability.stateSharedRead.rawValue, args: Data(), activation: SpiralAppActivation())
+
+        #expect(answer.contains("unavailable"), "a failed read reached the app as a state: \(answer)")
+    }
+
+    /// A kept session is what makes a remount cheap, and the subscription is
+    /// what lets it trust what it has.
+    @Test
+    func aKeptSessionReadsAgainOnlyWhenItHasReasonTo() async {
+        let room = Self.room(relations: [Self.action(seq: 1)])
+        room.subscribeToSpiralEventsTypesListenerReturnValue = .success(TaskHandleSDKMock())
+        var clock: TimeInterval = 100
+        let session = SpiralAppPostSession(postEventID: Self.postEventID,
+                                           roomProxy: room,
+                                           feed: SpiralAppActionFeed(roomProxy: room),
+                                           now: { clock })
+        await session.start()
+        #expect(room.loadSpiralAppRelationsForCallsCount == 1)
+
+        session.readIfStale()
+        try? await Task.sleep(for: .milliseconds(50))
+        #expect(room.loadSpiralAppRelationsForCallsCount == 1, "a fresh session read everything again")
+
+        clock += 61
+        session.readIfStale()
+        try? await Task.sleep(for: .milliseconds(50))
+        #expect(room.loadSpiralAppRelationsForCallsCount == 2, "the authority was never asked again")
+    }
+
+    /// With no subscription nothing has been delivered since the last read.
+    @Test
+    func aSessionThatCannotHearActionsAlwaysReadsAgain() async {
+        let room = Self.room(relations: [Self.action(seq: 1)])
+        let session = await Self.session(room)
+
+        session.readIfStale()
+        try? await Task.sleep(for: .milliseconds(50))
+
+        #expect(room.loadSpiralAppRelationsForCallsCount == 2)
+    }
+
+    /// Heard while asleep, unfolded: a write must still number past it.
+    @Test
+    func aWriteFromASleepingSessionNumbersPastWhatItHeard() async {
+        let room = Self.room(relations: [Self.action(seq: 1)])
+        let session = await Self.session(room)
+        session.sleep()
+        await session.ingestForTesting([Self.action(seq: 2)])
+
+        _ = await session.apply(.increment(path: ["count"], by: 1))
+
+        #expect(Self.written(room).last?["seq"] as? Int == 3, "the write reused a number the room already has")
+    }
+
+    private static func action(seq: Int) -> String {
+        """
+        {"type":"com.spiral.app.action","event_id":"$action\(seq)","sender":"@a:spiral.md","origin_server_ts":\(seq),
+         "content":{"m.relates_to":{"rel_type":"m.reference","event_id":"\(postEventID)"},
+                    "op":{"set":{"path":"n","value":\(seq)}},"seq":\(seq)}}
+        """
+    }
+
     // MARK: - Refusing to build on a hole
 
     @Test
-    func nothingIsWrittenWhileTheStateIsStillLoading() async {
+    func nothingIsWrittenOnAStateThatCouldNotBeRead() async {
         // Publishing a full-state snapshot computed from an incomplete read
         // would make every other client adopt the hole.
         let room = JoinedRoomProxyMock(.init())
@@ -571,7 +766,7 @@ struct SpiralAppPostSessionTests {
         let session = await Self.session(room)
         let result = await session.apply(.increment(path: ["count"], by: 1))
 
-        #expect(session.snapshot.readiness == .loading)
+        #expect(session.snapshot.readiness == .failed)
         if case .failure(.stateNotReady) = result { } else {
             Issue.record("a write was allowed from a state the reader could not vouch for")
         }

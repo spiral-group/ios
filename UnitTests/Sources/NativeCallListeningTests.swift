@@ -9,18 +9,19 @@
 // every language, every listener, the speaker's own clip included
 // (ADR-0044 LT11, ADR-0075 D8).
 
-@testable import ElementX
 import Foundation
+@testable import Spiral
 import Testing
 
 struct NativeCallListeningTests {
-    // MARK: - Produced languages
-
+    /// ADR-0094 D12: `ltd:` is reserved for a later release. Read as a raw microphone it would always play; it never
+    /// does, in any channel.
     @Test
-    func producedLanguagesAreTheSortedUnionOfTranslationTracks() {
-        let names = ["microphone", "lt:uk:@a:h", "lt:en:@a:h", "lt:en:@b:h", "screen", "lt:"]
-        #expect(NativeCallListening.producedLanguages(trackNames: names) == ["en", "uk"])
-        #expect(NativeCallListening.producedLanguages(trackNames: ["microphone"]).isEmpty)
+    func aReservedDeviceTrackIsNeverSubscribed() {
+        for channel in [NativeCallListeningChannel.original, .translation(language: "uk")] {
+            #expect(NativeCallListening.isTrackExcluded(trackName: "ltd:uk:@bob:h", channel: channel, ownUserID: "@me:h"))
+        }
+        #expect(NativeCallListening.isTranslationTrack(trackName: "ltd:uk:@bob:h"))
     }
 
     @Test
@@ -33,35 +34,38 @@ struct NativeCallListeningTests {
         #expect(NativeCallListening.translationLanguage(trackName: "lt::@a:h") == nil)
     }
 
-    // MARK: - Channel resolution: one switch
+    // MARK: - Channel resolution: a language, or the original (Brief 0085)
 
     @Test
-    func withoutTranslationTheChannelIsEverythingWhateverTheSwitchSays() {
-        // Nothing produced, nothing to refuse — never a silence the user
-        // did not ask for.
-        #expect(NativeCallListening.channel(choice: .translation, producedLanguages: []) == .everything)
-        #expect(NativeCallListening.channel(choice: .original, producedLanguages: []) == .everything)
+    func aLanguageNobodyProducesIsHeardAsTheOriginal() {
+        #expect(NativeCallListening.channel(choice: .language("uk"), producedLanguages: []) == .original)
+        #expect(NativeCallListening.channel(choice: .language("uk"), producedLanguages: ["en"]) == .original)
+        #expect(NativeCallListening.channel(choice: .original, producedLanguages: ["en", "uk"]) == .original)
     }
 
     @Test
-    func theSwitchResolvesToEverythingOrOriginal() {
-        #expect(NativeCallListening.channel(choice: .translation, producedLanguages: ["en", "uk"]) == .everything)
-        #expect(NativeCallListening.channel(choice: .original, producedLanguages: ["en", "uk"]) == .original)
+    func aProducedLanguageIsHeard() {
+        #expect(NativeCallListening.channel(choice: .language("uk"), producedLanguages: ["en", "uk"]) == .translation(language: "uk"))
+    }
+
+    /// Model point 1: each listener hears their own language; another language's lane is someone else's choice.
+    @Test
+    func onlyTheChosenLanguagesLanesAreHeard() {
+        #expect(!NativeCallListening.isTrackExcluded(trackName: "lt:uk:@bob:h", channel: .translation(language: "uk"), ownUserID: "@me:h"))
+        #expect(NativeCallListening.isTrackExcluded(trackName: "lt:en:@bob:h", channel: .translation(language: "uk"), ownUserID: "@me:h"))
     }
 
     // MARK: - Consecutive is communal (ADR-0075 D8)
 
-    /// The iOS port used to enforce a per-language pick on consecutive by
-    /// unsubscribing every OTHER language's shared track — a call configured
-    /// ru+en played one of them. There is no such pick any more: every
-    /// consecutive track is heard, in turn, by everyone.
+    /// Consecutive survives as the pocket interpreter in the private call (Brief 0085): every shared track is heard,
+    /// in turn, whatever the listener picked — the original included.
     @Test
     func everyConsecutiveLanguageIsHeard() {
         for name in ["lt:uk", "lt:en", "lt:ru"] {
-            #expect(!NativeCallListening.isTrackExcluded(trackName: name,
-                                                         channel: .everything,
-                                                         ownUserID: "@me:h"),
-                    "\(name) must be audible")
+            for channel in [NativeCallListeningChannel.original, .translation(language: "de")] {
+                #expect(!NativeCallListening.isTrackExcluded(trackName: name, channel: channel, ownUserID: "@me:h"),
+                        "\(name) must be audible")
+            }
         }
     }
 
@@ -73,7 +77,7 @@ struct NativeCallListeningTests {
         // The shared track names no speaker, so the self-exclusion suffix
         // rule cannot and must not fire on it.
         #expect(!NativeCallListening.isTrackExcluded(trackName: "lt:ru",
-                                                     channel: .everything,
+                                                     channel: .translation(language: "en"),
                                                      ownUserID: "@me:h"))
     }
 
@@ -82,7 +86,7 @@ struct NativeCallListeningTests {
     @Test
     func aConsecutiveSpeakerIsNeverDucked() {
         #expect(!NativeCallListening.isTrackExcluded(trackName: "microphone",
-                                                     channel: .everything,
+                                                     channel: .translation(language: "en"),
                                                      ownUserID: "@me:h"))
     }
 
@@ -90,7 +94,7 @@ struct NativeCallListeningTests {
 
     @Test
     func aSpeakerNeverHearsTheirOwnSimultaneousLaneInAnyChannel() {
-        for channel in [NativeCallListeningChannel.everything, .original] {
+        for channel in [NativeCallListeningChannel.translation(language: "en"), .original] {
             #expect(NativeCallListening.isTrackExcluded(trackName: "lt:en:@me:h",
                                                         channel: channel,
                                                         ownUserID: "@me:h"))
@@ -103,7 +107,7 @@ struct NativeCallListeningTests {
     /// `NativeCallOriginalDuckingTests`).
     @Test
     func aRawMicStaysSubscribedWhateverItsLaneDoes() {
-        #expect(!NativeCallListening.isTrackExcluded(trackName: "microphone", channel: .everything, ownUserID: "@me:h"))
+        #expect(!NativeCallListening.isTrackExcluded(trackName: "microphone", channel: .translation(language: "en"), ownUserID: "@me:h"))
         #expect(!NativeCallListening.isTrackExcluded(trackName: "microphone", channel: .original, ownUserID: "@me:h"))
     }
 
@@ -114,36 +118,43 @@ struct NativeCallListeningTests {
         #expect(NativeCallListening.originalGain == 0.15)
     }
 
-    /// Who a document covers → who is heard in translation, by the rule
-    /// the derivation applies (pinned in full in
-    /// `NativeCallStateDerivationTests`): Live style, live lifecycle,
-    /// active booths; Interpreter covers nobody; the smallest tag wins.
+    /// Whose lanes a document airs → who is heard in translation, by the rule the derivation applies (pinned in full
+    /// in `NativeCallStateDerivationTests`): Live style, live lifecycle, active lanes into the listener's language, in
+    /// its exact code; the pocket interpreter and a standby cover nobody.
     @Test
-    func translatedSpeakersFollowLiveBoothsOnly() {
-        let live = SpiralAgentStateReader.AgentClaim.make(languages: ["uk"], style: .simultaneous,
-                                                          booths: [.init(coverage: .members(["@bob:h"]), targetLanguages: ["uk"])])
-        let interpreter = SpiralAgentStateReader.AgentClaim.make(languages: ["en"], style: .consecutive)
-        let leaving = SpiralAgentStateReader.AgentClaim.make(languages: ["de"], style: .simultaneous, lifecycle: .leaving)
-        let unstyled = SpiralAgentStateReader.AgentClaim.make(languages: ["fr", "en"])
+    func translatedSpeakersFollowLiveLanesOnly() {
+        let live = SpiralAgentStateReader.AgentClaim.make(languages: ["pt-BR"], style: .simultaneous, speakers: ["@bob:h"])
+        let interpreter = SpiralAgentStateReader.AgentClaim.make(languages: ["en", "uk"], style: .consecutive, speakers: ["@bob:h"])
+        let leaving = SpiralAgentStateReader.AgentClaim.make(languages: ["de"], style: .simultaneous, speakers: ["@bob:h"], lifecycle: .leaving)
+        let standby = SpiralAgentStateReader.AgentClaim.make(translation: .init(isActive: false, style: .simultaneous, source: .roomTool, forLanguage: "fr",
+                                                                                 pocket: nil, owner: nil, lanes: [], stoppedReason: nil))
 
-        #expect(NativeCallListening.translatedSpeakers(speakers: ["@bob:h", "@carol:h"], claims: [live]) == ["@bob:h": "uk"])
-        #expect(NativeCallListening.translatedSpeakers(speakers: ["@bob:h"], claims: [interpreter, leaving]).isEmpty)
-        #expect(NativeCallListening.translatedSpeakers(speakers: ["@bob:h"], claims: [live, unstyled]) == ["@bob:h": "en"],
-                "no style reads as Live (the wire default) and the smallest tag wins")
+        #expect(NativeCallListening.translatedSpeakers(speakers: ["@bob:h", "@carol:h"], claims: [live], language: "pt-BR") == ["@bob:h": "pt-BR"])
+        #expect(NativeCallListening.translatedSpeakers(speakers: ["@bob:h"], claims: [live], language: "pt-PT").isEmpty, "exact codes, not the base")
+        #expect(NativeCallListening.translatedSpeakers(speakers: ["@bob:h"], claims: [interpreter, leaving], language: "en").isEmpty)
+        #expect(NativeCallListening.translatedSpeakers(speakers: ["@bob:h"], claims: [standby], language: "fr").isEmpty)
+    }
+
+    /// Track names carry the catalog's exact code (A.6): `lt:zh-Hans:…` is `zh-Hans`, never `zh`.
+    @Test
+    func aTrackNameKeepsTheExactCode() {
+        #expect(NativeCallListening.translationLanguage(trackName: "lt:zh-Hans:@bob:h") == "zh-Hans")
+        #expect(NativeCallListening.translationLanguage(trackName: "lt:pt-BR") == "pt-BR")
+        #expect(NativeCallListening.translationSpeaker(trackName: "lt:zh-Hans:@bob:h") == "@bob:h")
     }
 
     @Test
     func anotherSpeakersLaneIsHeard() {
         #expect(!NativeCallListening.isTrackExcluded(trackName: "lt:en:@bob:h",
-                                                     channel: .everything,
+                                                     channel: .translation(language: "en"),
                                                      ownUserID: "@me:h"))
     }
 
     // MARK: - Original voices only
 
     @Test
-    func originalUnsubscribesEveryTranslationAndRestoresEveryRawVoice() {
-        for name in ["lt:en", "lt:uk", "lt:en:@bob:h"] {
+    func originalUnsubscribesEveryLiveLaneAndRestoresEveryRawVoice() {
+        for name in ["lt:en:@bob:h", "lt:uk:@carol:h"] {
             #expect(NativeCallListening.isTrackExcluded(trackName: name,
                                                         channel: .original,
                                                         ownUserID: "@me:h"))

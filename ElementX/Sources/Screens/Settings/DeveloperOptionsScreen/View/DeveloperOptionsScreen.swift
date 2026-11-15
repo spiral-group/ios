@@ -15,25 +15,13 @@ struct DeveloperOptionsScreen: View {
     @Bindable var context: DeveloperOptionsScreenViewModel.Context
     
     @State private var showConfetti = false
-    
-    #if DEBUG
-    // AGENT-PLATFORM (Brief 0066): only the Interactive Post slice harness
-    // uses this, and only to reach a real room.
-    private let clientProxy: ClientProxyProtocol?
-    #endif
+    @State private var isCallMotionLabPresented = false // AGENT-PLATFORM (Brief 0083, question 383)
     
     // AGENT-PLATFORM (Brief 0067): no Element Call URL override — the widget
     // is gone (ADR-0079).
-    #if DEBUG
-    init(context: DeveloperOptionsScreenViewModel.Context, clientProxy: ClientProxyProtocol? = nil) {
-        self.context = context
-        self.clientProxy = clientProxy
-    }
-    #else
     init(context: DeveloperOptionsScreenViewModel.Context) {
         self.context = context
     }
-    #endif
     
     var body: some View {
         Form {
@@ -67,23 +55,23 @@ struct DeveloperOptionsScreen: View {
                     Text("Moves search to a separate tab")
                 }
                 
-                Toggle(isOn: $context.userStatusEnabled) {
-                    Text("User status")
+                // AGENT-PLATFORM (decision 301)
+                Toggle(isOn: $context.spacesEnabled) {
+                    Text("Spaces")
+                    Text("Adds the Spaces tab and the space filter. Restart the app to apply.")
                 }
                 
-                context.viewState.appHooks
-                    .developerOptionsScreenHook
-                    .generalSectionRows(isSignedIn: context.viewState.isSignedIn)
+                context.viewState.screenHook.generalSectionRows()
+            }
+            
+            Section("Accounts") {
+                Toggle(isOn: $context.multiAccountEnabled) {
+                    Text("Multi-account")
+                    Text("Switching it on shows the announcement again.")
+                }
             }
             
             Section("Room List") {
-                Picker("Room list activity visibility", selection: $context.roomListActivityVisibility) {
-                    ForEach(RoomListActivityVisibility.allCases, id: \.self) { visibility in
-                        Text(visibility.rawValue.capitalized)
-                            .tag(visibility)
-                    }
-                }
-                
                 Toggle(isOn: $context.fuzzyRoomListSearchEnabled) {
                     Text("Fuzzy searching")
                 }
@@ -92,17 +80,12 @@ struct DeveloperOptionsScreen: View {
                     Text("Low priority filter")
                 }
                 
-                Toggle(isOn: $context.automaticBackPaginationEnabled) {
-                    Text("Automatic back pagination")
-                    Text("Requires app reboot")
+                Toggle(isOn: $context.mentionsFilterEnabled) {
+                    Text("Mentions filter")
                 }
             }
             
             Section("Room") {
-                Toggle(isOn: $context.roomThreadListEnabled) {
-                    Text("Room thread list")
-                }
-                
                 // AGENT-PLATFORM (decision 188): moved here from Advanced settings, as upstream dropped it from the UI.
                 Toggle(isOn: $context.viewSourceEnabled) {
                     Text(L10n.actionViewSource)
@@ -116,19 +99,9 @@ struct DeveloperOptionsScreen: View {
                         .foregroundStyle(.compound.textCriticalPrimary)
                 }
                 
-                Toggle(isOn: $context.galleryEnabled) {
-                    Text("Gallery messages")
-                    Text("Allows sending multiple media in a single message. Received galleries always render regardless of this setting.")
-                }
-                
                 Toggle(isOn: $context.jumpToReadMarkerEnabled) {
                     Text("Jump to unread")
-                    Text("Adds a button to jump to the read marker, plus a presence dot on the scroll-to-bottom button when new messages arrive while scrolled away.")
-                }
-                
-                Toggle(isOn: $context.knockingEnabled) {
-                    Text("Knocking")
-                    Text("Ask to join rooms")
+                    Text("Adds a button to jump to the read marker, plus Mark as read on a long press of the scroll-to-bottom button.")
                 }
             }
             
@@ -187,23 +160,20 @@ struct DeveloperOptionsScreen: View {
                 """)
             }
             
-            // AGENT-PLATFORM (Brief 0066, ADR-0007): entry point for the
-            // Interactive Post runtime spike. DEBUG only — the harness mounts
-            // a deliberately hostile artifact, so no release build carries it.
+            // AGENT-PLATFORM (Brief 0066 step 6.11): the Interactive Post layout
+            // lab. Compiled into Debug builds only (App Review F3, decision 252).
+            // AGENT-PLATFORM (Brief 0083, question 383): the call-motion lab, in Staging and Debug builds.
+            #if DEBUG || SPIRAL_STAGING
+            Section("Spiral calls") {
+                Button("Call motion lab") { isCallMotionLabPresented = true }
+            }
+            .fullScreenCover(isPresented: $isCallMotionLabPresented) {
+                CallMotionLabScreen { isCallMotionLabPresented = false }
+            }
+            #endif
+
             #if DEBUG
             Section("Spiral Apps") {
-                NavigationLink {
-                    SpiralAppSpikeScreen()
-                } label: {
-                    Text("Runtime spike")
-                }
-                
-                NavigationLink {
-                    SpiralAppSliceScreen(clientProxy: clientProxy)
-                } label: {
-                    Text("Shared state slice")
-                }
-
                 NavigationLink {
                     SpiralAppLayoutLabScreen()
                 } label: {
@@ -222,7 +192,7 @@ struct DeveloperOptionsScreen: View {
                 }
             }
             
-            if context.viewState.shouldShowClearCache {
+            if context.viewState.isSignedIn {
                 Section {
                     Button(role: .destructive) {
                         context.send(viewAction: .clearCache)
@@ -306,7 +276,7 @@ private extension Set<TraceLogPack> {
 
 struct DeveloperOptionsScreen_Previews: PreviewProvider {
     static let viewModel = DeveloperOptionsScreenViewModel(developerOptions: AppSettings.volatile(),
-                                                           appHooks: AppHooks(),
+                                                           screenHook: DefaultDeveloperOptionsScreenHook(),
                                                            clientProxy: ClientProxyMock(.init()))
     
     static var previews: some View {

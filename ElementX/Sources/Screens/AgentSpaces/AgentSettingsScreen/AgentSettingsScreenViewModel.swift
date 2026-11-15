@@ -15,6 +15,10 @@ protocol AgentSettingsScreenViewModelProtocol {
 class AgentSettingsScreenViewModel: AgentSettingsScreenViewModelType, AgentSettingsScreenViewModelProtocol {
     private let agentPlatformService: AgentPlatformServiceProtocol
     private let userIndicatorController: UserIndicatorControllerProtocol
+    // AGENT-PLATFORM (Brief 0083, question 359): the values were on the agent's screen already, so the form opens filled.
+    private let store: AgentsStore
+    /// The last read the store answered. A write's answer is newer, so only a later read is adopted.
+    private var storeReadModel: AgentReadModel?
 
     private let actionsSubject: PassthroughSubject<AgentSettingsScreenViewModelAction, Never> = .init()
     var actionsPublisher: AnyPublisher<AgentSettingsScreenViewModelAction, Never> {
@@ -24,13 +28,43 @@ class AgentSettingsScreenViewModel: AgentSettingsScreenViewModelType, AgentSetti
     init(agent: AgentSpaceAgentCard,
          section: AgentSettingsSection,
          agentPlatformService: AgentPlatformServiceProtocol,
+         store: AgentsStore,
          userIndicatorController: UserIndicatorControllerProtocol) {
         self.agentPlatformService = agentPlatformService
+        self.store = store
         self.userIndicatorController = userIndicatorController
 
         super.init(initialViewState: AgentSettingsScreenViewState(card: agent, section: section))
 
-        Task { await load() }
+        // Before the first render, which then shows a read on its way rather than the last opening's failure.
+        for resource in shownResources {
+            store.show(resource, by: self)
+        }
+        store.refresh(agentResource)
+        render()
+        store.observe { [weak self] in
+            guard let self else { return false }
+            render()
+            return true
+        }
+    }
+
+    isolated deinit {
+        for resource in shownResources {
+            store.stopShowing(resource, by: self)
+        }
+    }
+
+    private var agentResource: AgentsResource {
+        .agent(agentID: state.card.agentID)
+    }
+
+    private var limitsResource: AgentsResource {
+        .editSchema(agentID: state.card.agentID)
+    }
+
+    private var shownResources: [AgentsResource] {
+        state.needsPersonaBounds ? [agentResource, limitsResource] : [agentResource]
     }
 
     override func process(viewAction: AgentSettingsScreenViewAction) {
@@ -55,6 +89,7 @@ class AgentSettingsScreenViewModel: AgentSettingsScreenViewModelType, AgentSetti
             state.bindings.voiceLanguage = language
             Task { await apply(AgentEditPatch(voiceLanguage: language)) }
         case .selectTone(let choice):
+            guard state.isTextEditable else { return }
             if let value = choice.value {
                 // A preset is a choice: it applies at once, with only the tone.
                 state.bindings.isCustomTone = false
@@ -69,34 +104,61 @@ class AgentSettingsScreenViewModel: AgentSettingsScreenViewModelType, AgentSetti
         case .cancel:
             cancel()
         case .retry:
-            state.loadState = .loading
-            Task { await load() }
+            retry()
         }
     }
 
     // MARK: - Private
 
-    private func load() async {
-        let readModelResult = await agentPlatformService.fetchAgentReadModel(agentID: state.card.agentID)
-        guard case .success(let readModel) = readModelResult else {
-            MXLog.error("Failed to read agent \(state.card.agentID) for its settings")
-            state.loadState = .failure
-            return
+    private func retry() {
+        if state.loadState.isAgentUnavailable {
+            store.refresh(agentResource)
         }
+        if state.loadState.hasFailedLimits {
+            store.refresh(limitsResource)
+        }
+        render()
+    }
 
-        // The assistant's text needs its limits; without them a field can't be checked.
-        var personaBounds: AgentEditSchema.PersonaBounds?
-        if state.card.isPersonalAssistant, state.section != .calls {
-            guard case .success(let schema) = await agentPlatformService.fetchAgentEditSchema(agentID: state.card.agentID) else {
-                MXLog.error("Failed to read the edit schema of agent \(state.card.agentID)")
-                state.loadState = .failure
-                return
+    private func render() {
+        renderAgent()
+        if state.needsPersonaBounds {
+            renderLimits()
+        }
+    }
+
+    /// Seeds once; every later read goes through `adopt`, which never overwrites an edit.
+    private func renderAgent() {
+        switch store.readState(agentResource, \.agent) {
+        case .loading:
+            state.loadState.isAgentUnavailable = false
+        case .failed:
+            state.loadState.isAgentUnavailable = state.readModel == nil
+        case .loaded(let detail):
+            state.loadState.isAgentUnavailable = false
+            guard detail.readModel != storeReadModel else { return }
+            storeReadModel = detail.readModel
+            // Its answer, or the read after a failure, is newer than this.
+            guard !state.isWriting else { return }
+            if state.readModel == nil {
+                seedText(from: detail.readModel)
+                state.loadState.readModel = detail.readModel
+            } else {
+                adopt(detail.readModel)
             }
-            personaBounds = schema.persona
         }
+    }
 
-        seedText(from: readModel)
-        state.loadState = .loaded(readModel, personaBounds)
+    private func renderLimits() {
+        switch store.readState(limitsResource, \.editSchema) {
+        case .loading:
+            state.loadState.hasFailedLimits = false
+        case .failed:
+            state.loadState.hasFailedLimits = true
+        case .loaded(let schema):
+            state.loadState.personaBounds = schema.persona
+            state.loadState.hasFailedLimits = schema.persona == nil
+        }
     }
 
     private func seedText(from readModel: AgentReadModel) {
@@ -124,7 +186,7 @@ class AgentSettingsScreenViewModel: AgentSettingsScreenViewModelType, AgentSetti
     /// edited follows the server; an edited one keeps the edit, so the next
     /// Save sends only what still differs.
     private func adopt(_ readModel: AgentReadModel) {
-        guard case .loaded(let old, let bounds) = state.loadState else { return }
+        guard let old = state.readModel else { return }
         if let oldPersona = old.persona, let persona = readModel.persona {
             for field in AgentEditPersonaField.allCases
                 where state.bindings[persona: field].trimmedForPersona == field.value(in: oldPersona).trimmedForPersona {
@@ -135,7 +197,7 @@ class AgentSettingsScreenViewModel: AgentSettingsScreenViewModelType, AgentSetti
             state.bindings.roleBrief = readModel.roleBrief ?? ""
         }
         seedChoices(from: readModel)
-        state.loadState = .loaded(readModel, bounds)
+        state.loadState.readModel = readModel
     }
 
     /// A choice: written at once. A failure says so quietly and the choice
@@ -147,6 +209,9 @@ class AgentSettingsScreenViewModel: AgentSettingsScreenViewModelType, AgentSetti
         switch await agentPlatformService.editAgent(agentID: state.card.agentID, patch: patch) {
         case .success(let readModel):
             adopt(readModel)
+            // S5: every screen holding the agent shows the answer at once.
+            storeReadModel = readModel
+            store.agentEdited(readModel)
             actionsSubject.send(.changed)
         case .failure(let error):
             MXLog.error("Failed to apply an agent setting: \(error)")
@@ -174,6 +239,9 @@ class AgentSettingsScreenViewModel: AgentSettingsScreenViewModelType, AgentSetti
         switch await agentPlatformService.editAgent(agentID: state.card.agentID, patch: patch) {
         case .success(let readModel):
             adopt(readModel)
+            // S5: every screen holding the agent shows the answer at once.
+            storeReadModel = readModel
+            store.agentEdited(readModel)
             actionsSubject.send(.changed)
             userIndicatorController.submitIndicator(UserIndicator(type: .toast,
                                                                   title: UntranslatedL10n.screenAgentSettingsSaved,
@@ -189,7 +257,8 @@ class AgentSettingsScreenViewModel: AgentSettingsScreenViewModelType, AgentSetti
     /// After a failure: the server's state again. The choices follow it; an
     /// unsaved text edit stays (or, for a failed tone preset, steps back).
     private func reread(revertingTone: Bool) async {
-        guard case .success(let readModel) = await agentPlatformService.fetchAgentReadModel(agentID: state.card.agentID) else { return }
+        await store.reread(agentResource)
+        guard store.failures[agentResource] == nil, let readModel = store.value(agentResource)?.agent?.readModel else { return }
         if revertingTone, let persona = readModel.persona {
             showTone(persona.tone)
         }

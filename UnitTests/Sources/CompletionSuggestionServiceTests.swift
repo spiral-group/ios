@@ -6,12 +6,13 @@
 // Please see LICENSE files in the repository root for full details.
 //
 
-import Combine
-@testable import ElementX
+@testable import Spiral
 import Testing
 
 @MainActor
 struct CompletionSuggestionServiceTests {
+    // MARK: User Suggestions
+    
     @Test
     func userSuggestions() async throws {
         let alice: RoomMemberProxyMock = .mockAlice
@@ -179,6 +180,40 @@ struct CompletionSuggestionServiceTests {
     }
     
     @Test
+    func userSuggestionRefreshesMembers() async throws {
+        let members: [RoomMemberProxyMock] = [.mockAlice, .mockBob, .mockMe]
+        let roomProxyMock = JoinedRoomProxyMock(.init(id: "roomID", name: "test", members: members))
+        let roomSummaryProvider = RoomSummaryProviderMock(.init(state: .loaded(.mockRooms)))
+        
+        let (refreshesStream, refreshesContinuation) = AsyncStream<Void>.makeStream()
+        roomProxyMock.updateMembersClosure = { refreshesContinuation.yield() }
+        
+        let service = CompletionSuggestionService(roomProxy: roomProxyMock,
+                                                  roomListPublisher: roomSummaryProvider.roomListPublisher.eraseToAnyPublisher())
+        #expect(!roomProxyMock.updateMembersCalled)
+        
+        // Beginning a mention refreshes the members once…
+        var deferred = deferFulfillment(refreshesStream) { _ in true }
+        service.setSuggestionTrigger(.init(type: .user, text: "", range: .init()))
+        try await deferred.fulfill()
+        #expect(roomProxyMock.updateMembersCallsCount == 1)
+        
+        // …but typing further within the same mention doesn't refresh again.
+        service.setSuggestionTrigger(.init(type: .user, text: "a", range: .init()))
+        service.setSuggestionTrigger(.init(type: .user, text: "al", range: .init()))
+        #expect(roomProxyMock.updateMembersCallsCount == 1)
+        
+        // Clearing and starting a new mention refreshes a second time.
+        deferred = deferFulfillment(refreshesStream) { _ in true }
+        service.setSuggestionTrigger(nil)
+        service.setSuggestionTrigger(.init(type: .user, text: "", range: .init()))
+        try await deferred.fulfill()
+        #expect(roomProxyMock.updateMembersCallsCount == 2)
+    }
+    
+    // MARK: Room Suggestions
+    
+    @Test
     func roomSuggestions() async throws {
         let alice: RoomMemberProxyMock = .mockAlice
         // We keep the users in the tests since they should not appear in the suggestions when using the room trigger
@@ -207,9 +242,9 @@ struct CompletionSuggestionServiceTests {
                             .init(suggestionType: .room(.init(id: "6",
                                                               canonicalAlias: "#prelude-foundation:matrix.org",
                                                               name: "Prelude to Foundation",
-                                                              avatar: .room(id: "6",
-                                                                            name: "Prelude to Foundation",
-                                                                            avatarURL: nil))),
+                                                              avatar: .direct(id: "6",
+                                                                              name: "Prelude to Foundation",
+                                                                              avatarURL: nil))),
                                   range: .init(),
                                   rawSuggestionText: "")]
         }
@@ -229,9 +264,9 @@ struct CompletionSuggestionServiceTests {
                             .init(suggestionType: .room(.init(id: "6",
                                                               canonicalAlias: "#prelude-foundation:matrix.org",
                                                               name: "Prelude to Foundation",
-                                                              avatar: .room(id: "6",
-                                                                            name: "Prelude to Foundation",
-                                                                            avatarURL: nil))),
+                                                              avatar: .direct(id: "6",
+                                                                              name: "Prelude to Foundation",
+                                                                              avatarURL: nil))),
                                   range: .init(location: 0, length: 1),
                                   rawSuggestionText: "")]
         }
@@ -242,9 +277,9 @@ struct CompletionSuggestionServiceTests {
             suggestions == [.init(suggestionType: .room(.init(id: "6",
                                                               canonicalAlias: "#prelude-foundation:matrix.org",
                                                               name: "Prelude to Foundation",
-                                                              avatar: .room(id: "6",
-                                                                            name: "Prelude to Foundation",
-                                                                            avatarURL: nil))),
+                                                              avatar: .direct(id: "6",
+                                                                              name: "Prelude to Foundation",
+                                                                              avatarURL: nil))),
                                   range: .init(),
                                   rawSuggestionText: "prelude")]
         }
@@ -266,9 +301,9 @@ struct CompletionSuggestionServiceTests {
             suggestions == [.init(suggestionType: .room(.init(id: "6",
                                                               canonicalAlias: "#prelude-foundation:matrix.org",
                                                               name: "Prelude to Foundation",
-                                                              avatar: .room(id: "6",
-                                                                            name: "Prelude to Foundation",
-                                                                            avatarURL: nil))),
+                                                              avatar: .direct(id: "6",
+                                                                              name: "Prelude to Foundation",
+                                                                              avatarURL: nil))),
                                   range: .init(location: 0, length: 3),
                                   rawSuggestionText: "pr")]
         }
@@ -279,9 +314,9 @@ struct CompletionSuggestionServiceTests {
             suggestions == [.init(suggestionType: .room(.init(id: "6",
                                                               canonicalAlias: "#prelude-foundation:matrix.org",
                                                               name: "Prelude to Foundation",
-                                                              avatar: .room(id: "6",
-                                                                            name: "Prelude to Foundation",
-                                                                            avatarURL: nil))),
+                                                              avatar: .direct(id: "6",
+                                                                              name: "Prelude to Foundation",
+                                                                              avatarURL: nil))),
                                   range: .init(location: 5, length: 3),
                                   rawSuggestionText: "pr")]
         }
@@ -292,9 +327,9 @@ struct CompletionSuggestionServiceTests {
             suggestions == [.init(suggestionType: .room(.init(id: "6",
                                                               canonicalAlias: "#prelude-foundation:matrix.org",
                                                               name: "Prelude to Foundation",
-                                                              avatar: .room(id: "6",
-                                                                            name: "Prelude to Foundation",
-                                                                            avatarURL: nil))),
+                                                              avatar: .direct(id: "6",
+                                                                              name: "Prelude to Foundation",
+                                                                              avatarURL: nil))),
                                   range: .init(location: 5, length: 3),
                                   rawSuggestionText: "pr")]
         }
@@ -316,9 +351,9 @@ struct CompletionSuggestionServiceTests {
             suggestions == [.init(suggestionType: .room(.init(id: "6",
                                                               canonicalAlias: "#prelude-foundation:matrix.org",
                                                               name: "Prelude to Foundation",
-                                                              avatar: .room(id: "6",
-                                                                            name: "Prelude to Foundation",
-                                                                            avatarURL: nil))),
+                                                              avatar: .direct(id: "6",
+                                                                              name: "Prelude to Foundation",
+                                                                              avatarURL: nil))),
                                   range: .init(location: 0, length: 3),
                                   rawSuggestionText: "pr")]
         }
@@ -337,9 +372,9 @@ struct CompletionSuggestionServiceTests {
                             .init(suggestionType: .room(.init(id: "6",
                                                               canonicalAlias: "#prelude-foundation:matrix.org",
                                                               name: "Prelude to Foundation",
-                                                              avatar: .room(id: "6",
-                                                                            name: "Prelude to Foundation",
-                                                                            avatarURL: nil))),
+                                                              avatar: .direct(id: "6",
+                                                                              name: "Prelude to Foundation",
+                                                                              avatarURL: nil))),
                                   range: .init(location: 9, length: 3),
                                   rawSuggestionText: "fo")]
         }
@@ -352,6 +387,8 @@ struct CompletionSuggestionServiceTests {
         service.processTextMessage("#pr test #fo", selectedRange: .init(location: 4, length: 1))
         try await deffered.fulfill()
     }
+    
+    // MARK: Common
     
     @Test
     func suggestionsWithMultipleDifferentTriggers() async throws {
@@ -367,9 +404,9 @@ struct CompletionSuggestionServiceTests {
             suggestions == [.init(suggestionType: .room(.init(id: "6",
                                                               canonicalAlias: "#prelude-foundation:matrix.org",
                                                               name: "Prelude to Foundation",
-                                                              avatar: .room(id: "6",
-                                                                            name: "Prelude to Foundation",
-                                                                            avatarURL: nil))),
+                                                              avatar: .direct(id: "6",
+                                                                              name: "Prelude to Foundation",
+                                                                              avatarURL: nil))),
                                   range: .init(location: 0, length: 3),
                                   rawSuggestionText: "pr")]
         }
@@ -403,9 +440,9 @@ struct CompletionSuggestionServiceTests {
             suggestions == [.init(suggestionType: .room(.init(id: "6",
                                                               canonicalAlias: "#prelude-foundation:matrix.org",
                                                               name: "Prelude to Foundation",
-                                                              avatar: .room(id: "6",
-                                                                            name: "Prelude to Foundation",
-                                                                            avatarURL: nil))),
+                                                              avatar: .direct(id: "6",
+                                                                              name: "Prelude to Foundation",
+                                                                              avatarURL: nil))),
                                   range: .init(),
                                   rawSuggestionText: "#prelude-")]
         }

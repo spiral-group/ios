@@ -120,6 +120,8 @@ class ApprovalDetailScreenViewModel: ApprovalDetailScreenViewModelType, Approval
     }
 
     private func submitDecision(_ decision: ApprovalDecision) async {
+        // AGENT-PLATFORM (Brief 0083, question 359): a decision is made on a card that was read, never on its placeholder.
+        guard case .loaded = state.loadState else { return }
         state.decideState = .submitting(decision)
         // Reset edit-mode if we're approving an edit; the
         // editor sheet collapses while the spinner spins.

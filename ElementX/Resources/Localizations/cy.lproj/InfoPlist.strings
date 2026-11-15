@@ -1,6 +1,4 @@
 "NSCameraUsageDescription" = "Er mwyn gwneud galwadau fideo, a thynnu lluniau neu fideos a'u hanfon fel neges, mae Spiral angen mynediad i'r camera.";
 "NSFaceIDUsageDescription" = "Mae Face ID yn cael ei ddefnyddio i gael mynediad i'ch ap.";
-"NSLocationAlwaysAndWhenInUseUsageDescription" = "To share your location live in chats, location access is needed when the app is in the background.";
-"NSLocationWhenInUseUsageDescription" = "Caniatewch fynediad lleoliad fel y gall Spiral rannu eich lleoliad.";
 "NSMicrophoneUsageDescription" = "Er mwyn gwneud galwadau, a recordio ac anfon negeseuon gyda sain, mae angen i Spiral gael mynediad i'r meicroffon.";
 "NSPhotoLibraryUsageDescription" = "Mae hyn yn caniatáu ichi gadw delweddau a fideos i'ch llyfrgell ffotograffau.";

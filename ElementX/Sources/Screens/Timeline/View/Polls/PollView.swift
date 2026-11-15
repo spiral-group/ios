@@ -39,6 +39,8 @@ enum PollViewState {
 }
 
 struct PollView: View {
+    @Environment(\.ownBubbleInk) private var ownBubbleInk // AGENT-PLATFORM (Brief 0083)
+    
     private let feedbackGenerator = UIImpactFeedbackGenerator(style: .heavy)
     
     let poll: Poll
@@ -88,6 +90,7 @@ struct PollView: View {
                 .multilineTextAlignment(.leading)
                 .font(.compound.bodyLGSemibold)
         }
+        .foregroundStyle(ownBubbleInk?.text ?? Color.primary) // AGENT-PLATFORM (Brief 0083)
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(.isHeader)
     }
@@ -141,7 +144,7 @@ struct PollView: View {
             Text(summaryText)
                 .font(.compound.bodySM)
                 .scaledPadding(.leading, showVotes ? 0 : 32)
-                .foregroundColor(.compound.textSecondary)
+                .foregroundColor(ownBubbleInk?.secondaryText ?? .compound.textSecondary)
                 .frame(maxWidth: .infinity, alignment: showVotes ? .trailing : .leading)
         }
     }
@@ -155,13 +158,13 @@ struct PollView: View {
                 Text(state.isEditable ? L10n.actionEditPoll : L10n.actionEndPoll)
                     .lineLimit(2, reservesSpace: false)
                     .font(.compound.bodyLGSemibold)
-                    .foregroundColor(.compound.textOnSolidPrimary)
+                    .foregroundColor(ownBubbleInk?.onStrongFill ?? .compound.textOnSolidPrimary)
                     .padding(.horizontal, 24)
                     .padding(.vertical, 10)
                     .frame(maxWidth: .infinity)
                     .background {
                         Capsule()
-                            .foregroundColor(.compound.bgActionPrimaryRest)
+                            .foregroundColor(ownBubbleInk?.strongFill ?? .compound.bgActionPrimaryRest)
                     }
             }
             .padding(.top, 8)
@@ -178,9 +181,9 @@ struct PollView: View {
     
     private func progressBarColor(for option: Poll.Option) -> Color {
         if poll.hasEnded {
-            return option.isWinning ? .compound.textActionAccent : .compound.textDisabled
+            return option.isWinning ? ownBubbleInk?.pollBar ?? .compound.textActionAccent : ownBubbleInk?.pollLostBar ?? .compound.textDisabled
         } else {
-            return .compound.textPrimary
+            return ownBubbleInk?.pollBar ?? .compound.textPrimary
         }
     }
     

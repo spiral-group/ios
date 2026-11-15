@@ -12,10 +12,14 @@ import SwiftUI
 typealias MessageForwardingScreenViewModelType = StateStoreViewModel<MessageForwardingScreenViewState, MessageForwardingScreenViewAction>
 
 class MessageForwardingScreenViewModel: MessageForwardingScreenViewModelType, MessageForwardingScreenViewModelProtocol {
-    private let forwardingItem: MessageForwardingItem
+    private static let maxSuggestedRoomCount = 5
+    
+    private let forwardingPayload: any MessageForwardingSource // AGENT-PLATFORM: feed (Brief 0082)
     private let clientProxy: ClientProxyProtocol
     private let roomSummaryProvider: RoomSummaryProviderProtocol
     private let userIndicatorController: UserIndicatorControllerProtocol
+    // AGENT-PLATFORM: feed (Brief 0082): the sheet went away mid-send; a source that stops there sends to no further room.
+    private var isStopped = false
     
     private var actionsSubject: PassthroughSubject<MessageForwardingScreenViewModelAction, Never> = .init()
     
@@ -23,16 +27,17 @@ class MessageForwardingScreenViewModel: MessageForwardingScreenViewModelType, Me
         actionsSubject.eraseToAnyPublisher()
     }
     
-    init(forwardingItem: MessageForwardingItem,
+    init(forwardingPayload: any MessageForwardingSource, // AGENT-PLATFORM: feed (Brief 0082)
          userSession: UserSessionProtocol,
          roomSummaryProvider: RoomSummaryProviderProtocol,
          userIndicatorController: UserIndicatorControllerProtocol) {
-        self.forwardingItem = forwardingItem
+        self.forwardingPayload = forwardingPayload
         clientProxy = userSession.clientProxy
         self.roomSummaryProvider = roomSummaryProvider
         self.userIndicatorController = userIndicatorController
         
-        super.init(initialViewState: MessageForwardingScreenViewState(), mediaProvider: userSession.mediaProvider)
+        super.init(initialViewState: MessageForwardingScreenViewState(title: forwardingPayload.title), // AGENT-PLATFORM: feed (Brief 0082)
+                   mediaProvider: userSession.mediaProvider)
         
         roomSummaryProvider.roomListPublisher
             .receive(on: DispatchQueue.main)
@@ -54,13 +59,19 @@ class MessageForwardingScreenViewModel: MessageForwardingScreenViewModelType, Me
             .store(in: &cancellables)
         
         updateRooms()
+        
+        Task { await loadSuggestedRooms() }
     }
     
     override func process(viewAction: MessageForwardingScreenViewAction) {
         switch viewAction {
         case .cancel:
+            guard !state.isForwarding else { return } // AGENT-PLATFORM: feed (Brief 0082)
             actionsSubject.send(.dismiss)
         case .send:
+            // AGENT-PLATFORM: feed (Brief 0082): a second tap must not send everything again.
+            guard !state.isForwarding else { return }
+            state.isForwarding = true
             Task { await forward() }
         case .selectRoom(let roomID):
             if state.selectedRoomIDs.contains(roomID) == false, state.selectedRoomIDs.count < state.maxRoomSelectionCount {
@@ -76,6 +87,7 @@ class MessageForwardingScreenViewModel: MessageForwardingScreenViewModelType, Me
     }
     
     func stop() {
+        isStopped = true // AGENT-PLATFORM: feed (Brief 0082)
         // This is a shared provider so we should reset the filtering when we are done with the view
         roomSummaryProvider.setFilter(.all(filters: []))
     }
@@ -83,20 +95,20 @@ class MessageForwardingScreenViewModel: MessageForwardingScreenViewModelType, Me
     // MARK: - Private
     
     private func updateRooms() {
-        var rooms = [MessageForwardingRoom]()
+        state.rooms = roomSummaryProvider.roomListPublisher.value
+            .filter { !forwardingPayload.excludes($0) && !$0.isTombstoned } // AGENT-PLATFORM: feed (Brief 0082)
+            .map(MessageForwardingRoom.init(summary:))
+    }
+    
+    /// Built from the room summaries: building room proxies is slow and would shift the list down when the section appears.
+    private func loadSuggestedRooms() async {
+        guard case let .success(roomIDs) = await clientProxy.recentlyVisitedRoomIDs() else { return }
         
-        for summary in roomSummaryProvider.roomListPublisher.value {
-            if summary.id == forwardingItem.roomID {
-                continue
-            }
-            
-            rooms.append(.init(id: summary.id,
-                               title: summary.name,
-                               description: summary.roomListDescription,
-                               avatar: summary.avatar))
-        }
-        
-        state.rooms = rooms
+        state.suggestedRooms = roomIDs
+            .compactMap(clientProxy.roomSummaryForIdentifier)
+            .filter { !forwardingPayload.excludes($0) && $0.isJoined && !$0.isSpace && !$0.isTombstoned } // AGENT-PLATFORM: feed (Brief 0082)
+            .prefix(Self.maxSuggestedRoomCount)
+            .map(MessageForwardingRoom.init(summary:))
     }
     
     /// The actual range values don't matter as long as they contain the lower
@@ -123,21 +135,60 @@ class MessageForwardingScreenViewModel: MessageForwardingScreenViewModelType, Me
         }
         
         var succeededRoomIdentifiers = [String]()
+        var hasFailures = false
+        // AGENT-PLATFORM: feed (Brief 0082): the rooms nothing reached, and what the source said about them.
+        var failedRoomIdentifiers = [String]()
+        var failureMessage: String?
+        defer { state.isForwarding = false }
         
         for roomID in state.selectedRoomIDs {
+            // AGENT-PLATFORM: feed (Brief 0082): dismissed mid-send, a feed share counts only the rooms already sent.
+            guard !(isStopped && forwardingPayload.stopsWhenDismissed) else { break }
+            
             guard case let .joined(targetRoomProxy) = await clientProxy.roomForIdentifier(roomID) else {
                 MXLog.error("Failed retrieving room to forward to with id: \(roomID)")
-                userIndicatorController.submitIndicator(UserIndicator(title: L10n.errorUnknown))
+                hasFailures = true
+                failedRoomIdentifiers.append(roomID) // AGENT-PLATFORM: feed (Brief 0082)
                 continue
             }
             
-            if case .failure(let error) = await targetRoomProxy.timeline.sendMessageEventContent(forwardingItem.content) {
-                MXLog.error("Failed forwarding message with error: \(error)")
-                userIndicatorController.submitIndicator(UserIndicator(title: L10n.errorUnknown))
+            // AGENT-PLATFORM: feed (Brief 0082): a feed post's content is built per room.
+            let built = await forwardingPayload.contents(for: roomID)
+            guard case .success(let contents) = built else {
+                if case .failure(let error) = built {
+                    failureMessage = error.message
+                }
+                hasFailures = true
+                failedRoomIdentifiers.append(roomID)
+                continue
+            }
+            
+            // The contents are already in timeline order and the send queue preserves it.
+            var sentCount = 0 // AGENT-PLATFORM: feed (Brief 0082)
+            for content in contents {
+                if case .failure(let error) = await targetRoomProxy.timeline.sendMessageEventContent(content) {
+                    MXLog.error("Failed forwarding message with error: \(error)")
+                    hasFailures = true
+                } else {
+                    sentCount += 1
+                }
+            }
+            
+            // AGENT-PLATFORM: feed (Brief 0082): a room nothing reached is not one sent to.
+            guard sentCount > 0 else {
+                failedRoomIdentifiers.append(roomID)
                 continue
             }
             
             succeededRoomIdentifiers.append(roomID)
+        }
+        
+        forwardingPayload.didFinish(sentRoomIDs: succeededRoomIdentifiers, failedRoomIDs: failedRoomIdentifiers) // AGENT-PLATFORM: feed (Brief 0082)
+        
+        if hasFailures {
+            userIndicatorController.submitIndicator(UserIndicator(title: failureMessage ?? L10n.errorUnknown)) // AGENT-PLATFORM: feed (Brief 0082)
+        } else if let sentMessage = forwardingPayload.sentMessage(roomCount: succeededRoomIdentifiers.count) { // AGENT-PLATFORM: feed (Brief 0082)
+            userIndicatorController.submitIndicator(UserIndicator(title: sentMessage))
         }
         
         if !succeededRoomIdentifiers.isEmpty {

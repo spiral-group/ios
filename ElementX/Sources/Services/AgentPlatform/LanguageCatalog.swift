@@ -53,6 +53,24 @@ nonisolated extension TranslationLanguageDisplayName {
     }
 }
 
+nonisolated extension TranslationLanguageDisplayName {
+    /// Whether a language answers a search — the one rule every language list uses (question 403, L10): by the name
+    /// its row shows, by its own name for itself ("Deutsch", «Українська»), or by the start of its catalog code ("de",
+    /// "pt-br"). Case and diacritics don't count: «нім» finds «Німецька», "francais" finds "Français". An empty query
+    /// matches everything.
+    static func matches(_ query: String, code: String, shownName: String) -> Bool {
+        let query = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !query.isEmpty else { return true }
+        let options: String.CompareOptions = [.caseInsensitive, .diacriticInsensitive, .widthInsensitive]
+        let identifier = code.replacingOccurrences(of: "_", with: "-")
+        let nativeName = Locale(identifier: identifier).localizedString(forIdentifier: identifier)
+        for name in [shownName, nativeName].compactMap(\.self) where name.range(of: query, options: options) != nil {
+            return true
+        }
+        return identifier.range(of: query.replacingOccurrences(of: "_", with: "-"), options: options.union(.anchored)) != nil
+    }
+}
+
 /// One pickable backend language. `code` is the value sent on the wire;
 /// `displayName` is computed for the current app locale.
 nonisolated struct AgentLanguage: Identifiable, Hashable {

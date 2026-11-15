@@ -8,10 +8,12 @@
 
 import CallKit
 import Combine
-@testable import ElementX
 import Foundation
 import MatrixRustSDKMocks
 import PushKit
+@testable import Spiral
+import SwiftUI
+import Synchronization
 import Testing
 
 @MainActor
@@ -23,9 +25,15 @@ struct UserSessionFlowCoordinatorTests {
     private let userSession: UserSessionMock
     private let callKitService: CallKitServiceMock
     private let stateMachineFactory = PublishedStateMachineFactory()
+    private let mainWindow = SizeClassWindow()
     
     private let networkReachabilitySubject: CurrentValueSubject<NetworkMonitorReachability, Never> = .init(.reachable)
     private let homeserverReachabilitySubject: CurrentValueSubject<HomeserverReachability, Never> = .init(.reachable)
+    /// Settings is the last tab, and a tab's root.
+    private var settingsStack: NavigationStackCoordinator? {
+        tabCoordinator?.tabCoordinators.last as? NavigationStackCoordinator
+    }
+    
     private var tabCoordinator: NavigationTabCoordinator<UserSessionFlowCoordinator.HomeTab>? {
         rootCoordinator?.rootCoordinator as? NavigationTabCoordinator
     }
@@ -65,22 +73,20 @@ struct UserSessionFlowCoordinatorTests {
         networkMonitor.reachabilityPublisher = networkReachabilitySubject.asCurrentValuePublisher()
         let appMediator = AppMediatorMock(.init())
         appMediator.networkMonitor = networkMonitor
+        (appMediator.windowManager as? WindowManagerMock)?.mainWindow = mainWindow
         
-        let appSettings = AppSettings.volatile()
-        configureSettings(appSettings)
+        configureSettings(userSession.userSettings.app)
         
         let flowParameters = CommonFlowParameters(userSession: userSession,
+                                                  availableSessionsPublisher: .init([.init(userSession: userSession)]),
                                                   bugReportService: BugReportServiceMock(.init()),
                                                   callKitService: callKitService,
                                                   timelineControllerFactory: TimelineControllerFactoryMock(.init()),
-                                                  emojiProvider: EmojiProvider(appSettings: appSettings),
+                                                  emojiProvider: EmojiProvider(userSettings: userSession.userSettings),
                                                   linkMetadataProvider: LinkMetadataProvider(),
                                                   appMediator: appMediator,
-                                                  appSettings: appSettings,
-                                                  appHooks: AppHooks(),
                                                   analytics: AnalyticsServiceMock(.init()),
                                                   userIndicatorController: userIndicatorController,
-                                                  notificationManager: NotificationManagerMock(),
                                                   stateMachineFactory: stateMachineFactory)
         
         userSessionFlowCoordinator = UserSessionFlowCoordinator(isNewLogin: false,
@@ -101,18 +107,20 @@ struct UserSessionFlowCoordinatorTests {
     
     @Test
     mutating func settingsPresentation() async throws {
-        try await process(route: .settings, expectedUserSessionState: .settingsScreen)
-        #expect((tabCoordinator?.sheetCoordinator as? NavigationStackCoordinator)?.rootCoordinator is SettingsScreenCoordinator)
+        try await process(route: .settings)
+        #expect(tabCoordinator?.selectedTab == .settings)
+        #expect(settingsStack?.rootCoordinator is SettingsScreenCoordinator)
     }
     
     // AGENT-PLATFORM (decisions 150, 187): «Open Settings» lands on Privacy,
     // whose first row is the AI consent toggle.
     @Test
     mutating func aiConsentRouteOpensPrivacy() async throws {
-        try await process(route: .aiConsentSettings, expectedUserSessionState: .settingsScreen)
-        let stack = try #require(tabCoordinator?.sheetCoordinator as? NavigationStackCoordinator)
+        try await process(route: .aiConsentSettings)
+        #expect(tabCoordinator?.selectedTab == .settings)
+        let stack = try #require(settingsStack)
         #expect(stack.rootCoordinator is SettingsScreenCoordinator)
-        #expect(stack.stackCoordinators.last is AdvancedSettingsScreenCoordinator)
+        #expect(stack.stackCoordinators.last is ModerationAndSafetySettingsScreenCoordinator)
     }
     
     // AGENT-PLATFORM (decision 187): «Sign out», not upstream's «Remove this device».
@@ -148,15 +156,15 @@ struct UserSessionFlowCoordinatorTests {
     }
     
     @Test
-    mutating func roomPresentationClearsSettings() async throws {
-        try await process(route: .settings, expectedUserSessionState: .settingsScreen)
-        #expect((tabCoordinator?.sheetCoordinator as? NavigationStackCoordinator)?.rootCoordinator is SettingsScreenCoordinator)
+    mutating func roomPresentationLeavesTheSettingsTab() async throws {
+        try await process(route: .settings)
+        #expect(tabCoordinator?.selectedTab == .settings)
+        #expect(settingsStack?.rootCoordinator is SettingsScreenCoordinator)
         #expect(detailCoordinator == nil)
         
         try await process(route: .room(roomID: "1", via: []),
-                          expectedUserSessionState: .tabBar,
                           expectedChatsState: .roomList(detailState: .room(roomID: "1")))
-        #expect(tabCoordinator?.sheetCoordinator == nil)
+        #expect(tabCoordinator?.selectedTab == .chats)
         #expect(detailNavigationStack?.rootCoordinator is RoomScreenCoordinator)
         #expect(detailCoordinator != nil)
     }
@@ -179,13 +187,13 @@ struct UserSessionFlowCoordinatorTests {
     
     @Test
     mutating func shareMediaRouteWithoutRoom() async throws {
-        try await process(route: .settings, expectedUserSessionState: .settingsScreen)
-        #expect((tabCoordinator?.sheetCoordinator as? NavigationStackCoordinator)?.rootCoordinator is SettingsScreenCoordinator)
+        try await process(route: .settings)
+        #expect(tabCoordinator?.selectedTab == .settings)
+        #expect(settingsStack?.rootCoordinator is SettingsScreenCoordinator)
         #expect(chatsSplitCoordinator?.sheetCoordinator == nil)
         
         let sharePayload: ShareExtensionPayload = .mediaFiles(roomID: nil, mediaFiles: [.init(url: .picturesDirectory, suggestedName: nil)])
         try await process(route: .share(sharePayload),
-                          expectedUserSessionState: .tabBar,
                           expectedChatsState: .shareExtensionRoomList(sharePayload: sharePayload))
         #expect(tabCoordinator?.sheetCoordinator == nil)
         #expect((chatsSplitCoordinator?.sheetCoordinator as? NavigationStackCoordinator)?.rootCoordinator is RoomSelectionScreenCoordinator)
@@ -213,13 +221,13 @@ struct UserSessionFlowCoordinatorTests {
     
     @Test
     mutating func shareTextRouteWithoutRoom() async throws {
-        try await process(route: .settings, expectedUserSessionState: .settingsScreen)
-        #expect((tabCoordinator?.sheetCoordinator as? NavigationStackCoordinator)?.rootCoordinator is SettingsScreenCoordinator)
+        try await process(route: .settings)
+        #expect(tabCoordinator?.selectedTab == .settings)
+        #expect(settingsStack?.rootCoordinator is SettingsScreenCoordinator)
         #expect(chatsSplitCoordinator?.sheetCoordinator == nil)
         
         let sharePayload: ShareExtensionPayload = .text(roomID: nil, text: "Important Text")
         try await process(route: .share(sharePayload),
-                          expectedUserSessionState: .tabBar,
                           expectedChatsState: .shareExtensionRoomList(sharePayload: sharePayload))
         #expect(tabCoordinator?.sheetCoordinator == nil)
         #expect((chatsSplitCoordinator?.sheetCoordinator as? NavigationStackCoordinator)?.rootCoordinator is RoomSelectionScreenCoordinator)
@@ -241,6 +249,70 @@ struct UserSessionFlowCoordinatorTests {
         #expect(chatsSplitCoordinator?.sheetCoordinator == nil, "The media upload sheet shouldn't be shown when sharing text.")
     }
     
+    // MARK: Search (AGENT-PLATFORM, Brief 0083)
+    
+    @Test
+    func openingASearchResultClosesSearch() async throws {
+        let search = try #require(userSessionFlowCoordinator.searchScreenCoordinator)
+        search.presentSearch()
+        search.context.searchQuery = "Room"
+        
+        let deferred = deferFulfillment(stateMachineFactory.chatsTabFlowStatePublisher) { $0 == .roomList(detailState: .room(roomID: "1")) }
+        search.context.send(viewAction: .selectRoom(roomID: "1"))
+        try await deferred.fulfill()
+        
+        #expect(!search.context.isSearchPresented)
+        #expect(search.context.searchQuery.isEmpty)
+    }
+    
+    @Test
+    func openingAMessageResultClosesSearch() async throws {
+        let search = try #require(userSessionFlowCoordinator.searchScreenCoordinator)
+        search.presentSearch()
+        
+        let deferred = deferFulfillment(stateMachineFactory.chatsTabFlowStatePublisher) { $0 == .roomList(detailState: .room(roomID: "1")) }
+        search.context.send(viewAction: .selectMessage(roomID: "1", eventID: "$event"))
+        try await deferred.fulfill()
+        
+        #expect(!search.context.isSearchPresented)
+    }
+    
+    @Test
+    func askingForAHiddenSearchKeepsTheFieldsFocus() throws {
+        let search = try #require(userSessionFlowCoordinator.searchScreenCoordinator)
+        search.presentSearch()
+        search.context.isFieldReturning = true
+        
+        search.presentSearch()
+        
+        #expect(!search.context.isFieldReturning)
+    }
+    
+    @Test
+    mutating func searchInCompactWidthClearsTheRoomCoveringChats() async throws {
+        mainWindow.horizontalSizeClass = .compact
+        let search = try #require(userSessionFlowCoordinator.searchScreenCoordinator)
+        try await process(route: .room(roomID: "1", via: []), expectedChatsState: .roomList(detailState: .room(roomID: "1")))
+        
+        try await process(route: .search, expectedChatsState: .roomList(detailState: nil))
+        
+        try await waitFor { detailCoordinator == nil }
+        #expect(tabCoordinator?.selectedTab == .chats)
+        #expect(search.context.isSearchPresented)
+    }
+    
+    @Test
+    mutating func searchInRegularWidthKeepsTheRoomBesideChats() async throws {
+        mainWindow.horizontalSizeClass = .regular
+        let search = try #require(userSessionFlowCoordinator.searchScreenCoordinator)
+        try await process(route: .room(roomID: "1", via: []), expectedChatsState: .roomList(detailState: .room(roomID: "1")))
+        
+        try await process(route: .search)
+        
+        #expect(detailCoordinator != nil)
+        #expect(search.context.isSearchPresented)
+    }
+    
     // MARK: Indicators
     
     /// AGENT-PLATFORM (ADR-0087): the route an approval push resolves to —
@@ -248,27 +320,60 @@ struct UserSessionFlowCoordinatorTests {
     /// above the notifications hub.
     @Test
     func approvalRouteOpensTheApprovalCardOnTheAgentsTab() throws {
-        let streamService = ApprovalsStreamServiceMock()
-        streamService.needsAction = []
-        streamService.underlyingPendingCount = 0
-        streamService.underlyingUnseenCount = 0
-        streamService.underlyingConnectionState = .connected
-        userSession.approvalsStreamService = streamService
-        userSession.agentPlatformService = AgentPlatformServiceMock()
+        let platform = AgentPlatformServiceMock()
+        platform.feed = FeedServiceMock.empty() // AGENT-PLATFORM: feed (Brief 0082)
+        platform.sync = PlatformSyncServiceMock.unavailable() // AGENT-PLATFORM: platform sync (decision 289)
+        platform.fetchNotificationsActivityCursorLimitReturnValue = .success(.init(needsAction: [], activity: [], nextActivityCursor: nil,
+                                                                                   lastSeenAt: nil, unseenCount: 0))
+        platform.listMyAgentSpacesReturnValue = .success(.init(spaces: [], provisioningStatus: .ready))
+        userSession.agentPlatformService = platform
+        userSession.agentsStore = AgentsStore(service: platform)
         
         userSessionFlowCoordinator.handleAppRoute(.approvalDetail(approvalID: "approval-1"), animated: false)
         
         let tabCoordinator = try #require(tabCoordinator)
         #expect(tabCoordinator.selectedTab == .agents)
-        let agentsSplitCoordinator = try #require(tabCoordinator.tabCoordinators[2] as? NavigationSplitCoordinator)
+        let agentsIndex = try #require(tabCoordinator.tabTags.firstIndex(of: .agents)) // AGENT-PLATFORM: the Spaces tab is optional (decision 301)
+        let agentsSplitCoordinator = try #require(tabCoordinator.tabCoordinators[agentsIndex] as? NavigationSplitCoordinator)
         let agentsStack = try #require(agentsSplitCoordinator.sidebarCoordinator as? NavigationStackCoordinator)
         #expect(agentsStack.stackCoordinators.last is ApprovalDetailScreenCoordinator)
         #expect(agentsStack.stackCoordinators.dropLast().last is NotificationsHubScreenCoordinator)
     }
     
-    /// AGENT-PLATFORM (decision 154): a sign-out or an account deletion
-    /// stops the platform's stream for good; it reconnected with the ended
-    /// session's token.
+    // MARK: Spaces (AGENT-PLATFORM, decision 301)
+    
+    @Test
+    func theTabsLeaveOutSpacesWhenSpacesAreHidden() throws {
+        let tabCoordinator = try #require(tabCoordinator)
+        #expect(tabCoordinator.tabTags == [.chats, .feed, .agents, .settings])
+    }
+    
+    @Test
+    mutating func theTabsIncludeSpacesWhenSpacesAreEnabled() throws {
+        startCoordinator(callKitService: callKitService) { $0.spacesEnabled = true }
+        
+        let tabCoordinator = try #require(tabCoordinator)
+        #expect(tabCoordinator.tabTags == [.chats, .feed, .spaces, .agents, .settings])
+    }
+    
+    /// A space link, a notification or an accepted space invite: the space opens in Chats.
+    @Test
+    mutating func aSpaceRouteOpensTheSpaceInChatsWhenSpacesAreHidden() async throws {
+        let space = try #require([SpaceServiceRoom].mockJoinedSpaces.first)
+        clientProxy.spaceService = SpaceServiceProxyMock(.populated)
+        clientProxy.roomForIdentifierClosure = { roomID in
+            .joined(JoinedRoomProxyMock(.init(id: roomID, name: space.name, isSpace: true)))
+        }
+        let tabCoordinator = try #require(tabCoordinator)
+        tabCoordinator.selectedTab = .agents
+        
+        try await process(route: .room(roomID: space.id, via: []), expectedChatsState: .roomList(detailState: .space))
+        
+        #expect(tabCoordinator.selectedTab == .chats)
+        #expect(!tabCoordinator.tabTags.contains(.spaces))
+        try await waitFor { detailNavigationStack?.rootCoordinator is SpaceScreenCoordinator }
+    }
+    
     // MARK: Invite welcome (AGENT-PLATFORM, Brief 0073)
     
     /// A session whose only onboarding step is the AI consent prompt, whose
@@ -279,9 +384,15 @@ struct UserSessionFlowCoordinatorTests {
             await gate.wait()
             return .success(AIConsent(isGranted: !needsDecision, currentVersion: "1", decidedVersion: nil))
         }
+        platform.feed = FeedServiceMock.empty() // AGENT-PLATFORM: feed (Brief 0082)
+        platform.sync = PlatformSyncServiceMock.unavailable() // AGENT-PLATFORM: platform sync (decision 289)
+        platform.fetchNotificationsActivityCursorLimitReturnValue = .success(.init(needsAction: [], activity: [], nextActivityCursor: nil,
+                                                                                   lastSeenAt: nil, unseenCount: 0))
+        platform.listMyAgentSpacesReturnValue = .success(.init(spaces: [], provisioningStatus: .ready))
         userSession.agentPlatformService = platform
+        userSession.agentsStore = AgentsStore(service: platform) // AGENT-PLATFORM (Brief 0083, question 359): the consent's read goes through it.
+        userSession.userSettings.account.hasRunIdentityConfirmationOnboarding = true
         startCoordinator(callKitService: callKitService) { settings in
-            settings.hasRunIdentityConfirmationOnboarding = true
             settings.hasRunNotificationPermissionsOnboarding = true
         }
     }
@@ -327,7 +438,13 @@ struct UserSessionFlowCoordinatorTests {
             await gate.wait()
             return .success(AIConsent(isGranted: true, currentVersion: "1", decidedVersion: "1"))
         }
+        platform.feed = FeedServiceMock.empty() // AGENT-PLATFORM: feed (Brief 0082)
+        platform.sync = PlatformSyncServiceMock.unavailable() // AGENT-PLATFORM: platform sync (decision 289)
+        platform.fetchNotificationsActivityCursorLimitReturnValue = .success(.init(needsAction: [], activity: [], nextActivityCursor: nil,
+                                                                                   lastSeenAt: nil, unseenCount: 0))
+        platform.listMyAgentSpacesReturnValue = .success(.init(spaces: [], provisioningStatus: .ready))
         userSession.agentPlatformService = platform
+        userSession.agentsStore = AgentsStore(service: platform) // AGENT-PLATFORM (Brief 0083, question 359): the consent's read goes through it.
         startCoordinator(callKitService: callKitService) { settings in
             settings.hasRunNotificationPermissionsOnboarding = true
         }
@@ -441,14 +558,74 @@ struct UserSessionFlowCoordinatorTests {
         }
     }
     
+    /// AGENT-PLATFORM: platform sync (decision 289, review I7 L1): the
+    /// session's one stream is the session's, not the Feed tab's: the session
+    /// flow opens it for every tab, and its stop (sign-out) ends it for good.
     @Test
-    func stoppingTheSessionStopsThePlatformStream() {
-        let streamService = ApprovalsStreamServiceMock()
-        userSession.approvalsStreamService = streamService
-        
+    mutating func theSessionOpensItsSyncStreamAndSignOutEndsIt() async throws {
+        let platform = AgentPlatformServiceMock()
+        platform.feed = FeedServiceMock.empty()
+        platform.fetchAIConsentReturnValue = .success(AIConsent(isGranted: true, currentVersion: "1", decidedVersion: "1"))
+        platform.fetchNotificationsActivityCursorLimitReturnValue = .success(.init(needsAction: [], activity: [], nextActivityCursor: nil,
+                                                                                   lastSeenAt: nil, unseenCount: 0))
+        platform.listMyAgentSpacesReturnValue = .success(.init(spaces: [], provisioningStatus: .ready))
+        let sync = PlatformSyncServiceMock()
+        let ended = Ended()
+        sync.openSinceClosure = { _ in
+            .success(PlatformSyncEventStream { continuation in
+                continuation.yield(.ready(position: "p0", fresh: false))
+                continuation.onTermination = { _ in ended.flag.withLock { $0 = true } }
+            })
+        }
+        platform.sync = sync
+        let agentsStore = AgentsStore(service: platform)
+        let feedStore = FeedStore(feedService: platform.feed, currentUserID: "hi@bob")
+        userSession.agentPlatformService = platform
+        userSession.agentsStore = agentsStore
+        userSession.feedStore = feedStore
+        userSession.platformSync = PlatformSync(service: sync, feedStore: feedStore, agentsStore: agentsStore, isApplicationInBackground: { false })
+        startCoordinator(callKitService: callKitService)
+
+        for _ in 0..<300 where agentsStore.connectionState != .live {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        #expect(agentsStore.connectionState == .live)
+        #expect(feedStore.connectionState == .live)
+
         userSessionFlowCoordinator.stop()
+        for _ in 0..<300 where !ended.flag.withLock({ $0 }) {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        #expect(ended.flag.withLock { $0 })
+        try await Task.sleep(for: .milliseconds(50))
+        #expect(sync.openSinceCallsCount == 1)
+        #expect(agentsStore.connectionState == .idle)
+    }
+
+    private final class Ended: Sendable {
+        let flag = Mutex(false)
+    }
+
+    /// AGENT-PLATFORM: platform sync (decision 289): the Agents tab badge is
+    /// what waits for the owner, held by the session from its start, so it
+    /// follows the stream's `approval.changed` while the person is anywhere.
+    @Test
+    mutating func theSessionHoldsWhatWaitsForTheAgentsBadge() async {
+        let platform = AgentPlatformServiceMock()
+        platform.feed = FeedServiceMock.empty()
+        platform.sync = PlatformSyncServiceMock.unavailable()
+        platform.fetchNotificationsActivityCursorLimitReturnValue = .success(.init(needsAction: [], activity: [], nextActivityCursor: nil,
+                                                                                   lastSeenAt: nil, unseenCount: 0))
+        platform.listMyAgentSpacesReturnValue = .success(.init(spaces: [], provisioningStatus: .ready))
+        platform.fetchAIConsentReturnValue = .success(AIConsent(isGranted: true, currentVersion: "1", decidedVersion: "1"))
+        let store = AgentsStore(service: platform)
+        userSession.agentPlatformService = platform
+        userSession.agentsStore = store
+        startCoordinator(callKitService: callKitService)
         
-        #expect(streamService.stopCallsCount == 1)
+        #expect(store.isShown(.needsAction))
+        await store.settle()
+        #expect(store.needsAction?.isEmpty == true)
     }
     
     @Test
@@ -572,7 +749,7 @@ struct UserSessionFlowCoordinatorTests {
         try await Task.sleep(for: .milliseconds(200))
         
         #expect(tabCoordinator?.overlayCoordinator == nil, "a call the caller ended during the lookup must not get a screen")
-        #expect(!rtcSession.joinEncryptMediaNotificationMediaCalled, "nobody is called back")
+        #expect(!rtcSession.joinEncryptMediaNotificationMediaLanguageCalled, "nobody is called back")
     }
     
     /// Answering must never turn into calling: an in-app answer whose room
@@ -586,10 +763,10 @@ struct UserSessionFlowCoordinatorTests {
         clientProxy.roomForIdentifierClosure = { _ in .joined(room) }
         
         ring.screen.send(.accept)
-        try await waitFor { rtcSession.joinEncryptMediaNotificationMediaCalled }
+        try await waitFor { rtcSession.joinEncryptMediaNotificationMediaLanguageCalled }
         
         #expect(tabCoordinator?.overlayCoordinator is NativeCallScreenCoordinator, "a live ring is answered")
-        #expect(rtcSession.joinEncryptMediaNotificationMediaReceivedArguments?.notification == nil, "an answer sends no ring")
+        #expect(rtcSession.joinEncryptMediaNotificationMediaLanguageReceivedArguments?.notification == nil, "an answer sends no ring")
     }
     
     /// The caller hung up and redialled during the in-app answer's lookup,
@@ -645,7 +822,7 @@ struct UserSessionFlowCoordinatorTests {
         room.subscribeToCallDeclineEventsRtcNotificationEventIDListenerReturnValue = .success(TaskHandleSDKMock())
         let rtcSession = try #require(try room.matrixRTCSessionReturnValue.get() as? MatrixRTCSessionMock)
         let join = LookupGate()
-        rtcSession.joinEncryptMediaNotificationMediaClosure = { _, _, _ in
+        rtcSession.joinEncryptMediaNotificationMediaLanguageClosure = { _, _, _, _ in
             await join.wait()
             return .success(())
         }
@@ -708,7 +885,7 @@ struct UserSessionFlowCoordinatorTests {
         let room = Self.callableRoom(id: "1")
         let rtcSession = try #require(try room.matrixRTCSessionReturnValue.get() as? MatrixRTCSessionMock)
         let join = LookupGate()
-        rtcSession.joinEncryptMediaNotificationMediaClosure = { _, _, _ in
+        rtcSession.joinEncryptMediaNotificationMediaLanguageClosure = { _, _, _, _ in
             await join.wait()
             return .success(())
         }
@@ -716,7 +893,7 @@ struct UserSessionFlowCoordinatorTests {
         userSessionFlowCoordinator.handleAppRoute(.call(roomID: "1", isVoiceCall: true), animated: true)
         try await waitFor { tabCoordinator?.overlayCoordinator is NativeCallScreenCoordinator }
         let connecting = try #require(tabCoordinator?.overlayCoordinator as? NativeCallScreenCoordinator)
-        try await waitFor { rtcSession.joinEncryptMediaNotificationMediaCalled }
+        try await waitFor { rtcSession.joinEncryptMediaNotificationMediaLanguageCalled }
         // Behind its bar, so the re-tap's return to it shows.
         tabCoordinator?.setOverlayPresentationMode(.minimized)
 
@@ -724,7 +901,7 @@ struct UserSessionFlowCoordinatorTests {
         try await waitFor { tabCoordinator?.overlayPresentationMode == .fullScreen }
 
         #expect(tabCoordinator?.overlayCoordinator === connecting)
-        #expect(rtcSession.joinEncryptMediaNotificationMediaCallsCount == 1, "no second join")
+        #expect(rtcSession.joinEncryptMediaNotificationMediaLanguageCallsCount == 1, "no second join")
         join.open()
     }
 
@@ -982,7 +1159,7 @@ struct UserSessionFlowCoordinatorTests {
     /// The room's next call session joins only once `gate` opens: its screen stays connecting.
     private static func holdJoin(of room: JoinedRoomProxyMock, on gate: LookupGate) throws {
         let rtcSession = try #require(try room.matrixRTCSessionReturnValue.get() as? MatrixRTCSessionMock)
-        rtcSession.joinEncryptMediaNotificationMediaClosure = { _, _, _ in
+        rtcSession.joinEncryptMediaNotificationMediaLanguageClosure = { _, _, _, _ in
             await gate.wait()
             return .success(())
         }
@@ -990,7 +1167,7 @@ struct UserSessionFlowCoordinatorTests {
 
     /// A real `CallKitService` behind a fresh coordinator, ringing in the app
     /// because CallKit refused the ring.
-    private mutating func ringInApp(roomShowsTheCall: Bool) async throws -> InAppRing {
+    private mutating func ringInApp(roomShowsTheCall: Bool, withSheetsOpen: Bool = false) async throws -> InAppRing {
         let roomID = "!room:example.com"
         let callProvider = CXProviderMock(.init())
         callProvider.reportNewIncomingCallWithUpdateCompletionClosure = { _, _, completion in
@@ -1007,6 +1184,9 @@ struct UserSessionFlowCoordinatorTests {
         service.setClientProxy(clientProxy)
         
         startCoordinator(callKitService: service)
+        if withSheetsOpen {
+            try openSheetsAboveTheTabs()
+        }
         
         let push = PKPushPayloadMock().updatingExpiration(Date(), lifetime: 30)
         push.dict[CallKitNotificationKey.roomID.rawValue] = roomID
@@ -1026,7 +1206,7 @@ struct UserSessionFlowCoordinatorTests {
         let rtcSession = MatrixRTCSessionMock()
         rtcSession.underlyingOwnIdentity = "@alice:matrix.org:DEVICE"
         rtcSession.underlyingUpdates = Empty().eraseToAnyPublisher()
-        rtcSession.joinEncryptMediaNotificationMediaReturnValue = .success(())
+        rtcSession.joinEncryptMediaNotificationMediaLanguageReturnValue = .success(())
         rtcSession.setMediaReturnValue = .success(())
         rtcSession.rtcNotificationEventIDReturnValue = "$ring:matrix.org"
         rtcSession.transportCredentialsReturnValue = .failure(.roomInvalid)
@@ -1065,10 +1245,6 @@ struct UserSessionFlowCoordinatorTests {
         // The state machines' states change before the coordinators have updated their stacks,
         // so also wait for the navigation side effects implied by the expected states.
         switch expectedUserSessionState {
-        case .settingsScreen:
-            let tabCoordinator = try #require(tabCoordinator)
-            let deferredSheet = deferFulfillment(tabCoordinator.observe(\.sheetCoordinatorID)) { $0 != nil }
-            try await deferredSheet.fulfill()
         case .tabBar:
             let tabCoordinator = try #require(tabCoordinator)
             let deferredSheet = deferFulfillment(tabCoordinator.observe(\.sheetCoordinatorID)) { $0 == nil }
@@ -1105,7 +1281,7 @@ struct UserSessionFlowCoordinatorTests {
     private var retractReachabilityIndicatorCallsCount: Int {
         userIndicatorController
             .retractIndicatorWithIdReceivedInvocations
-            .filter { $0 == "io.element.elementx.reachability.notification" }
+            .filter { $0 == "com.spiral.reachability.notification" } // AGENT-PLATFORM (Brief 0083 L1b)
             .count
     }
 }
@@ -1196,3 +1372,209 @@ private final class LookupGate: @unchecked Sendable {
         waiting.forEach { $0.resume() }
     }
 }
+
+/// A window whose size class a test sets: a bare window has none.
+private final class SizeClassWindow: UIWindow {
+    var horizontalSizeClass = UIUserInterfaceSizeClass.compact
+    
+    override var traitCollection: UITraitCollection {
+        UITraitCollection(horizontalSizeClass: horizontalSizeClass)
+    }
+}
+
+// MARK: - The call screen on top (1.0.2)
+
+// An extension, so the suite's body stays within SwiftLint's length; the tests run in the same suite.
+extension UserSessionFlowCoordinatorTests {
+    /// AGENT-PLATFORM (1.0.2, DEBT "a call under the sheet"): the call screen is the tab view's overlay, which every
+    /// sheet and cover sits above: answered with Settings open, the call ran with its controls hidden. The sheets
+    /// close, and the viewers over the app are told to.
+    @Test
+    func aCallClosesTheSheetsAboveItsScreen() async throws {
+        callKitService.ongoingCallRoomIDPublisher = CurrentValueSubject<String?, Never>("1").asCurrentValuePublisher()
+        clientProxy.roomForIdentifierClosure = { roomID in .joined(Self.callableRoom(id: roomID)) }
+        try openSheetsAboveTheTabs()
+        let viewersTold = Mutex(0)
+        let observer = NotificationCenter.default.addObserver(forName: .callScreenWillCoverTheApp, object: nil, queue: nil) { _ in
+            viewersTold.withLock { $0 += 1 }
+        }
+        defer { NotificationCenter.default.removeObserver(observer) }
+        
+        userSessionFlowCoordinator.handleAppRoute(.call(roomID: "1", isVoiceCall: true), animated: true)
+        try await waitFor { tabCoordinator?.overlayCoordinator is NativeCallScreenCoordinator }
+        
+        try expectNoSheetAboveTheTabs()
+        #expect(viewersTold.withLock { $0 } == 1, "the media and post viewers are told to close")
+    }
+    
+    /// The in-app ring is a cover of the tab view, which can't present while a sheet is up there or in a tab.
+    @Test
+    mutating func theInAppRingClosesTheSheetsSoItCanShow() async throws {
+        let ring = try await ringInApp(roomShowsTheCall: true, withSheetsOpen: true)
+        
+        #expect(tabCoordinator?.fullScreenCoverCoordinator === ring.screen)
+        try expectNoSheetAboveTheTabs()
+    }
+    
+    /// The ring is above an ongoing call on purpose (G15): a call screen coming up under it leaves it there.
+    @Test
+    mutating func aCallScreenComingUpLeavesTheInAppRingAboveIt() async throws {
+        let ring = try await ringInApp(roomShowsTheCall: true)
+        clientProxy.roomForIdentifierClosure = { roomID in .joined(Self.callableRoom(id: roomID)) }
+        
+        userSessionFlowCoordinator.handleAppRoute(.call(roomID: "!other:example.com", isVoiceCall: true), animated: true)
+        _ = try await waitForCallScreen(roomID: "!other:example.com")
+        
+        #expect(tabCoordinator?.fullScreenCoverCoordinator === ring.screen, "the ring stays up")
+    }
+    
+    /// Fable review of 93d0663ef: closing onboarding's cover left its flow mid-step, so identity confirmation, AI
+    /// consent and the invite welcome were skipped for the run. Onboarding stays; the call waits under it.
+    @Test
+    mutating func aCallLeavesOnboardingAboveItsScreen() async throws {
+        startUnverified(gate: LookupGate())
+        let onboarding = try #require(onboardingStack)
+        #expect(tabCoordinator?.fullScreenCoverCoordinator === onboarding, "precondition: onboarding is up")
+        
+        try await routeACall()
+        
+        #expect(tabCoordinator?.fullScreenCoverCoordinator === onboarding)
+    }
+    
+    /// The welcome is consumed as it shows: closing its cover lost it for good.
+    @Test
+    mutating func aCallLeavesTheInviteWelcomeAboveItsScreen() async throws {
+        let gate = LookupGate()
+        startWithAIConsentRead(needsDecision: false, gate: gate)
+        userSessionFlowCoordinator.presentInviteWelcome(inviterUserID: "@inviter:spiral.md")
+        gate.open()
+        try await waitForCover { $0 is InviteWelcomeScreenCoordinator }
+        
+        try await routeACall()
+        
+        #expect(tabCoordinator?.fullScreenCoverCoordinator is InviteWelcomeScreenCoordinator)
+    }
+    
+    /// Fable review of 93d0663ef: the directory's cover had no dismissal callback, so a call closing it left the
+    /// Chats state on the directory and no chat opened until a relaunch.
+    @Test
+    func aCallClosesTheRoomDirectoryAndTheChatsStateFollows() async throws {
+        let flow = try #require(userSessionFlowCoordinator)
+        let chatsState = try #require(Mirror(reflecting: flow).descendant("chatsTabFlowCoordinator", "stateMachine") as? ChatsTabFlowCoordinatorStateMachine)
+        clientProxy.roomDirectorySearchProxyReturnValue = RoomDirectorySearchProxyMock(.init(results: []))
+        chatsState.processEvent(.showRoomDirectorySearchScreen)
+        try await waitFor { chatsSplitCoordinator?.fullScreenCoverCoordinator is RoomDirectorySearchScreenCoordinator }
+        
+        try await routeACall()
+        
+        #expect(chatsSplitCoordinator?.fullScreenCoverCoordinator == nil)
+        guard case .roomList = chatsState.state else {
+            Issue.record("the Chats state stayed on \(chatsState.state)")
+            return
+        }
+    }
+    
+    /// Fable review of 93d0663ef: a recovery key to note down, a PIN being set, a device-owner check holding a
+    /// continuation. Their person can't swipe them away; a call doesn't either. The post catalogue refuses the swipe
+    /// too, but only against a gesture clash (review of ee42fd8a4): a call closes it, so a ring can present.
+    @Test
+    func aCallLeavesTheSheetsTheirPersonCantSwipeAway() async throws {
+        let keyStack = NavigationStackCoordinator()
+        keyStack.setRootCoordinator(BlankFormCoordinator())
+        keyStack.push(SwipeRefusingScreen())
+        let catalogue = NavigationStackCoordinator()
+        catalogue.isInteractiveDismissDisabled = true
+        try #require(chatsSplitCoordinator).setSheetCoordinator(keyStack)
+        try #require(settingsStack).setSheetCoordinator(catalogue)
+        try #require(tabCoordinator).setSheetCoordinator(BlankFormCoordinator())
+        
+        try await routeACall()
+        
+        #expect(chatsSplitCoordinator?.sheetCoordinator === keyStack)
+        #expect(settingsStack?.sheetCoordinator == nil, "the post catalogue refuses the swipe for a gesture clash, not to keep anything")
+        #expect(tabCoordinator?.sheetCoordinator == nil, "a sheet that lets go still closes")
+    }
+    
+    /// A route back to a call living behind its bar returns to its full screen, which a sheet would cover.
+    @Test
+    func aCallRouteBackToItsBarClosesTheSheets() async throws {
+        let (screen, join) = try await aMinimizedCallUnderSheets()
+        
+        userSessionFlowCoordinator.handleAppRoute(.call(roomID: screen.callRoomID, isVoiceCall: true), animated: true)
+        try await waitFor { tabCoordinator?.overlayPresentationMode == .fullScreen }
+        
+        #expect(tabCoordinator?.overlayCoordinator === screen)
+        try expectNoSheetAboveTheTabs()
+        join.open()
+    }
+    
+    /// The call bar's tap (and the PiP window's restore button) brings the full screen back over any sheet.
+    @Test
+    func expandingTheCallBarClosesTheSheets() async throws {
+        let (screen, join) = try await aMinimizedCallUnderSheets()
+        let viewModel = try #require(Mirror(reflecting: screen).descendant("viewModel") as? NativeCallScreenViewModelProtocol)
+        
+        viewModel.context.send(viewAction: .expand)
+        try await waitFor { tabCoordinator?.overlayPresentationMode == .fullScreen }
+        
+        try expectNoSheetAboveTheTabs()
+        join.open()
+    }
+    
+    /// A parked call's screen coming back (the newer accept never started) closes the sheets opened meanwhile.
+    @Test
+    mutating func theParkedScreenComingBackClosesTheSheets() async throws {
+        let parked = try await aCallParkedForAnInAppAccept()
+        let lookup = LookupGate()
+        try await acceptASecondInAppRing(over: parked, lookup: lookup)
+        try await waitFor { tabCoordinator?.overlayCoordinator !== parked.b1Screen }
+        try openSheetsAboveTheTabs()
+        
+        parked.b2Info.send(RoomInfoProxyMock(.init(id: parked.roomB2.id, hasOngoingCall: false)))
+        try await waitFor { !parked.service.isAcceptedRingLive(forRoomID: parked.roomB2.id) }
+        lookup.open()
+        try await waitFor { tabCoordinator?.overlayCoordinator === parked.aScreen }
+        
+        #expect(tabCoordinator?.overlayCoordinator === parked.aScreen)
+        try expectNoSheetAboveTheTabs()
+        parked.openJoins()
+    }
+    
+    /// A call answered from CallKit (still held), routed to its screen.
+    private func routeACall() async throws {
+        userSession.agentPlatformService = nil // The call screens run without the platform, as the other call tests do.
+        callKitService.ongoingCallRoomIDPublisher = CurrentValueSubject<String?, Never>("1").asCurrentValuePublisher()
+        clientProxy.roomForIdentifierClosure = { roomID in .joined(Self.callableRoom(id: roomID)) }
+        userSessionFlowCoordinator.handleAppRoute(.call(roomID: "1", isVoiceCall: true), animated: true)
+        try await waitFor { tabCoordinator?.overlayCoordinator is NativeCallScreenCoordinator }
+    }
+    
+    /// A call behind its bar, connecting until `join` opens, with sheets opened over the tabs since.
+    private func aMinimizedCallUnderSheets() async throws -> (screen: NativeCallScreenCoordinator, join: LookupGate) {
+        let room = Self.callableRoom(id: "1")
+        let join = LookupGate()
+        try Self.holdJoin(of: room, on: join)
+        clientProxy.roomForIdentifierClosure = { _ in .joined(room) }
+        userSessionFlowCoordinator.handleAppRoute(.call(roomID: "1", isVoiceCall: true), animated: true)
+        let screen = try await waitForCallScreen(roomID: "1")
+        tabCoordinator?.setOverlayPresentationMode(.minimized)
+        try openSheetsAboveTheTabs()
+        return (screen, join)
+    }
+    
+    /// A sheet over the tab view, and one in the Chats split and in the Settings stack.
+    private func openSheetsAboveTheTabs() throws {
+        try #require(tabCoordinator).setSheetCoordinator(BlankFormCoordinator())
+        try #require(chatsSplitCoordinator).setSheetCoordinator(BlankFormCoordinator())
+        try #require(settingsStack).setSheetCoordinator(BlankFormCoordinator())
+    }
+    
+    private func expectNoSheetAboveTheTabs() throws {
+        #expect(tabCoordinator?.sheetCoordinator == nil, "the tab view's sheet")
+        #expect(chatsSplitCoordinator?.sheetCoordinator == nil, "the Chats split's sheet")
+        #expect(settingsStack?.sheetCoordinator == nil, "the Settings stack's sheet")
+    }
+}
+
+/// A screen its person can't swipe away, like the recovery key's.
+private final class SwipeRefusingScreen: HoldsItsModalAboveACall { }

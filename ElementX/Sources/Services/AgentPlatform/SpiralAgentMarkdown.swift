@@ -9,16 +9,36 @@
 //
 
 import Foundation
+import LRUCache
+import Synchronization
 
 nonisolated enum SpiralAgentMarkdown {
+    /// AGENT-PLATFORM (Brief 0083, question 359): every build of the timeline asks again for each agent row's body.
+    private static let cache = Mutex(LRUCache<String, Rendered>(countLimit: 200))
+    
+    /// A body's result, which can be that it has no Markdown in it.
+    private struct Rendered {
+        let html: String?
+    }
+    
+    static func purge() {
+        cache.withLock { $0.removeAll() }
+    }
+    
     /// The body as HTML, or nil when it has no Markdown in it (it then stays plain text).
     ///
     /// Links are left as text: a link's words never hide where it goes, and the
     /// timeline still makes a bare URL tappable.
     static func html(fromBody body: String) -> String? {
+        if let rendered = cache.withLock({ $0.value(forKey: body) }) {
+            return rendered.html
+        }
+        
         var renderer = Renderer()
         renderer.render(body)
-        return renderer.didFormat ? renderer.html : nil
+        let html = renderer.didFormat ? renderer.html : nil
+        cache.withLock { $0.setValue(Rendered(html: html), forKey: body) }
+        return html
     }
 
     private enum Block: Equatable {

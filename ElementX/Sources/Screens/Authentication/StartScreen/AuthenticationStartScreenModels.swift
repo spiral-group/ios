@@ -24,12 +24,11 @@ struct AuthenticationStartScreenViewState: BindableState {
     /// The presentation anchor used for OAuth authentication.
     var window: UIWindow?
     
-    let serverName: String?
+    let serverNameOrBaseURL: String?
     let showCreateAccountButton: Bool
     let showQRCodeLoginButton: Bool
     
-    enum ClassicAppMode { case welcomeBack(ClassicAppAccount), otherOptions(ClassicAppAccount) }
-    var classicAppMode: ClassicAppMode?
+    // AGENT-PLATFORM (Brief 0083 L1b): no classicAppMode, Element Classic's import is gone.
     
     let hideBrandChrome: Bool
     
@@ -46,7 +45,7 @@ struct AuthenticationStartScreenViewState: BindableState {
     var bindings = AuthenticationStartScreenViewStateBindings()
     
     var loginButtonTitle: String {
-        if serverName != nil {
+        if serverNameOrBaseURL != nil {
             // AGENT-PLATFORM (ADR-0005 auth v2): a public single-server
             // messenger never surfaces the homeserver domain — plain
             // "Sign in" instead of upstream's "Sign in to <server>".
@@ -61,7 +60,7 @@ struct AuthenticationStartScreenViewState: BindableState {
 
 struct AuthenticationStartScreenViewStateBindings {
     var alertInfo: AlertInfo<AuthenticationStartScreenAlertType>?
-    var showClassicAppBackupInstructions = false
+    // AGENT-PLATFORM (Brief 0083 L1b): no showClassicAppBackupInstructions.
     // AGENT-PLATFORM (Brief 0073): «Have an invitation?», shown when
     // Create account is tapped without one.
     var showInvitePasteSheet = false
@@ -82,10 +81,7 @@ enum AuthenticationStartScreenViewAction {
     case login
     case register
     
-    case continueWithClassic(ClassicAppAccount)
-    case otherOptions(ClassicAppAccount)
-    case closeOtherOptions(ClassicAppAccount)
-    case openClassicApp
+    // AGENT-PLATFORM (Brief 0083 L1b): no Element Classic actions.
     
     // AGENT-PLATFORM (Brief 0073 / ADR-0008): the invitation screen behind
     // Create account — check the pasted one, or go on without it.

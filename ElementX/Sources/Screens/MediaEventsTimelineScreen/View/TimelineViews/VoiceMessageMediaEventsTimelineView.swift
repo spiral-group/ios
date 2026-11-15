@@ -22,8 +22,8 @@ struct VoiceMessageMediaEventsTimelineView: View {
                                         playerState: playerState)
             .accessibilityLabel(L10n.commonVoiceMessage)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .bubbleBackground(isOutgoing: timelineItem.isOutgoing,
-                              color: contentScanningFailure == nil ? .compound.bgSubtleSecondary : .compound.bgCriticalSubtle,
+            // AGENT-PLATFORM (Brief 0083): a bubble's corners no longer depend on its side.
+            .bubbleBackground(color: contentScanningFailure == nil ? .compound.bgSubtleSecondary : .compound.bgCriticalSubtle,
                               borderColor: contentScanningFailure == nil ? nil : .compound.borderCriticalSubtle)
             .onPreferenceChange(ContentScanningFailurePreferenceKey.self) { contentScanningFailure = $0 }
     }

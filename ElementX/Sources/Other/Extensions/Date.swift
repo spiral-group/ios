@@ -7,6 +7,7 @@
 //
 
 import Foundation
+import Synchronization
 
 extension Date {
     // AGENT-PLATFORM: `now` is injectable so DateTests do not depend on the time they run at.
@@ -84,7 +85,7 @@ extension Date {
     
     /// The date formatted as just the time, for use in timeline items specifically.
     nonisolated func formattedTime() -> String {
-        formatted(date: .omitted, time: .shortened)
+        TimelineTimes.time(of: self) // AGENT-PLATFORM (Brief 0083, question 359)
     }
     
     /// A fixed date used for mocks, previews etc.
@@ -110,5 +111,42 @@ private extension Calendar {
     nonisolated func isDate(_ date: Date, inDayBefore now: Date) -> Bool {
         guard let dayBefore = self.date(byAdding: .day, value: -1, to: now) else { return false }
         return isDate(date, inSameDayAs: dayBefore)
+    }
+}
+
+/// AGENT-PLATFORM (Brief 0083, question 359): the times a timeline shows, by the minute, as every new row asks for one.
+nonisolated enum TimelineTimes {
+    private static let limit = 2000
+    private static let times = Mutex<[Int: String]>([:])
+    
+    private static let isObservingChanges = {
+        for name in [NSLocale.currentLocaleDidChangeNotification, .NSSystemTimeZoneDidChange] {
+            _ = NotificationCenter.default.addObserver(forName: name, object: nil, queue: nil) { _ in
+                times.withLock { $0.removeAll() }
+            }
+        }
+        return true
+    }()
+    
+    static func purge() {
+        times.withLock { $0.removeAll() }
+    }
+    
+    static func time(of date: Date) -> String {
+        _ = isObservingChanges
+        
+        let minute = Int((date.timeIntervalSinceReferenceDate / 60).rounded(.down))
+        if let time = times.withLock({ $0[minute] }) {
+            return time
+        }
+        
+        let time = date.formatted(date: .omitted, time: .shortened)
+        times.withLock { times in
+            if times.count >= limit {
+                times.removeAll()
+            }
+            times[minute] = time
+        }
+        return time
     }
 }

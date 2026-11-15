@@ -13,8 +13,7 @@ protocol AgentDetailScreenViewModelProtocol {
     var actionsPublisher: AnyPublisher<AgentDetailScreenViewModelAction, Never> { get }
     var context: AgentDetailScreenViewModelType.Context { get }
     
-    /// Re-fetch the read-model + rooms (screen re-entry or after a
-    /// mutation deeper in the flow).
+    /// Read the agent now, after the person's own change deeper in the flow.
     func reload() async
     /// Bring the agent into the chat picked for «В чат».
     func addToChat(roomID: String) async

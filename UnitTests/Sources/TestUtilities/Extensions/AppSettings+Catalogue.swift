@@ -5,8 +5,8 @@
 // so a flow that reads it never reaches spiral.md from a test.
 //
 
-@testable import ElementX
 import Foundation
+@testable import Spiral
 
 extension AppSettings {
     /// `interactiveCatalogURL` is read once, at init, from the debug

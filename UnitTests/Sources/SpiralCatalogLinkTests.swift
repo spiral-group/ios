@@ -6,8 +6,8 @@
 // the AASA.
 //
 
-@testable import ElementX
 import Foundation
+@testable import Spiral
 import Testing
 
 struct SpiralCatalogLinkTests {

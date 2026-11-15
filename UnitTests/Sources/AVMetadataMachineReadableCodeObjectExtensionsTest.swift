@@ -7,7 +7,7 @@
 //
 
 import AVKit
-@testable import ElementX
+@testable import Spiral
 import Testing
 
 struct AVMetadataMachineReadableCodeObjectExtensionsTest {

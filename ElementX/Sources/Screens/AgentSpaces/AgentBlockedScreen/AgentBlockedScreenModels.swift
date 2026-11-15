@@ -14,6 +14,8 @@ struct AgentBlockedScreenViewState: BindableState {
     var listState: AgentBlockedListState = .loading
     /// The person whose unblock is on its way (row spinner).
     var unblockingMXID: String?
+    /// The sync's state at the top while the stream is not live (decision 289).
+    var syncStatus: PlatformSyncStatus?
     var bindings = AgentBlockedScreenViewStateBindings()
 
     var blocks: [AgentBlockedContact] {

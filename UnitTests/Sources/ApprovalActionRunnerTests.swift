@@ -5,8 +5,8 @@
 // answer of the decide route — the retry queue and the local notification.
 //
 
-@testable import ElementX
 import Foundation
+@testable import Spiral
 import Testing
 import UserNotifications
 

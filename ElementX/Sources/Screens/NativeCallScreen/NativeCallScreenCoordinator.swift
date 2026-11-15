@@ -18,6 +18,8 @@ struct NativeCallScreenCoordinatorParameters {
     /// Absent when the platform is not configured; the Agent Center then
     /// reports itself unavailable instead of offering actions that must fail.
     let agentPlatformService: AgentPlatformServiceProtocol?
+    /// The session's Agents tab, which an edit made from the call shows at once (S5).
+    let agentsStore: AgentsStore?
     let isRoomEncrypted: Bool
     let notifyRoom: Bool
     /// Answering a ring rather than joining a running call.
@@ -38,6 +40,8 @@ enum NativeCallScreenCoordinatorAction {
     case minimize
     /// G9 — the bar was tapped; the screen returns.
     case expand
+    /// The assistant's "…" menu asked for its profile: the call goes to its bar and the profile opens (question 401).
+    case showProfile(userID: String)
     /// The system PiP window took over; the overlay should minimize.
     /// There is deliberately no "stopped" counterpart — the window
     /// closing must not resurrect the screen; only an explicit restore
@@ -98,22 +102,6 @@ final class NativeCallScreenCoordinator: CoordinatorProtocol, SelfMinimizingOver
         switch parameters.roomProxy.matrixRTCSession() {
         case .success(let rtcSession):
             let roomProxy = parameters.roomProxy
-            let agentCenter = NativeAgentCenterController(agentPlatformService: parameters.agentPlatformService,
-                                                          roomID: roomProxy.id,
-                                                          roomMemberMxids: {
-                                                              let members = await roomProxy.members() ?? roomProxy.membersPublisher.value
-                                                              return Set(members
-                                                                  .filter { $0.membership == .join || $0.membership == .invite }
-                                                                  .map(\.userID))
-                                                          },
-                                                          inviteAgent: { mxid in
-                                                              if case .failure(let error) = await roomProxy.invite(userID: mxid) {
-                                                                  MXLog.warning("Agent center: agent invite failed: \(error)")
-                                                                  return false
-                                                              }
-                                                              return true
-                                                          })
-
             // Every external source of truth feeds the session as a
             // PUBLISHER; the session's derivation reacts to any change.
             // The live translation truth needs no publisher here: it rides
@@ -130,6 +118,42 @@ final class NativeCallScreenCoordinator: CoordinatorProtocol, SelfMinimizingOver
                                                 .map(\.serviceMembers)
                                                 .removeDuplicates()
                                                 .eraseToAnyPublisher())
+
+            let agentCenter = NativeAgentCenterController(agentPlatformService: parameters.agentPlatformService,
+                                                          roomID: roomProxy.id,
+                                                          roomMemberMxids: {
+                                                              let members = await roomProxy.members() ?? roomProxy.membersPublisher.value
+                                                              return Set(members
+                                                                  .filter { $0.membership == .join || $0.membership == .invite }
+                                                                  .map(\.userID))
+                                                          },
+                                                          inviteAgent: { mxid in
+                                                              if case .failure(let error) = await roomProxy.invite(userID: mxid) {
+                                                                  MXLog.warning("Agent center: agent invite failed: \(error)")
+                                                                  return false
+                                                              }
+                                                              return true
+                                                          },
+                                                          canKick: {
+                                                              roomProxy.infoPublisher.value.powerLevels?.canOwnUserKick() ?? false
+                                                          },
+                                                          kickAgent: { mxid in
+                                                              // D6: the moderator's own client removes the assistant (ADR-0082). One
+                                                              // already out of the room is removed (bug S2): no error for a second tap.
+                                                              if case .failure(let error) = await roomProxy.removeFromRoom(mxid) {
+                                                                  MXLog.warning("Agent center: removing \(mxid) from the chat failed: \(error)")
+                                                                  return false
+                                                              }
+                                                              return true
+                                                          },
+                                                          // ADR-0094: the catalog and the tool from the platform, the
+                                                          // languages from this call's memberships.
+                                                          translationPort: parameters.agentPlatformService.map {
+                                                              NativeCallTranslationPort(service: $0, memberships: session)
+                                                          },
+                                                          agentEdited: { [weak agentsStore = parameters.agentsStore] readModel in
+                                                              agentsStore?.agentEdited(readModel)
+                                                          })
 
             videoRenderer = session.videoRenderer
             voiceLevelReader = session.voiceLevelReader
@@ -206,6 +230,8 @@ final class NativeCallScreenCoordinator: CoordinatorProtocol, SelfMinimizingOver
                     self?.actionsSubject.send(.minimize)
                 case .expand:
                     self?.actionsSubject.send(.expand)
+                case .showProfile(let userID):
+                    self?.actionsSubject.send(.showProfile(userID: userID))
                 case .didSendRingNotification(let eventID):
                     if self?.configuration.scope == .direct {
                         self?.observeDeclineEvents(rtcNotificationEventID: eventID)

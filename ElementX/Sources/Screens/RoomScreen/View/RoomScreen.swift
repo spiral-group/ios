@@ -8,6 +8,7 @@
 
 import Combine
 import Compound
+import SpiralTokens
 import SwiftUI
 import WysiwygComposer
 
@@ -25,6 +26,7 @@ struct RoomScreen: View {
     /// Which scroll button (if any) currently has the "Mark as read" pill displayed alongside it.
     /// Set when the user long-presses one of the scroll buttons; the pill anchors to that button.
     @State private var markAsReadSource: MarkAsReadSource?
+    @State private var topBlockHeight: CGFloat = 0 // AGENT-PLATFORM (Brief 0083, decision 345)
     
     init(context: RoomScreenViewModelType.Context,
          timelineContext: TimelineViewModelType.Context,
@@ -36,6 +38,10 @@ struct RoomScreen: View {
     
     var body: some View {
         TimelineView(timelineContext: timelineContext)
+            // AGENT-PLATFORM (Brief 0083, decision 345): under VoiceOver the block is in the safe area's inset, not over the table.
+            .environment(\.timelineHeaderBlockHeight, isVoiceOverEnabled ? 0 : topBlockHeight)
+            .timelineUnderComposerBar() // AGENT-PLATFORM (Brief 0083, decision 334): it scrolls under the glass composer
+            .timelineUnderHeader(isEnabled: !isVoiceOverEnabled) // AGENT-PLATFORM (Brief 0083, decision 344): and under the header
             .overlay {
                 // Sits below the bottom-trailing overlay in z-order, so taps on the pill or
                 // buttons still go to them; taps anywhere else dismiss the pill.
@@ -60,23 +66,22 @@ struct RoomScreen: View {
                                 .transition(.move(edge: .trailing).combined(with: .opacity))
                         }
                         TimelineScrollButton(isHidden: !timelineContext.viewState.shouldShowScrollToBottomButton,
-                                             showsBadge: scrollToBottomShowsBadge,
-                                             onLongPress: scrollToBottomShowsBadge ? { revealMarkAsReadPill(source: .down) } : nil) {
+                                             showsBadge: timelineContext.viewState.bindings.hasNewMessagesAtBottom,
+                                             onLongPress: timelineContext.viewState.offersMarkAsReadOnScrollToBottom ? { revealMarkAsReadPill(source: .down) } : nil,
+                                             accessibilityIdentifier: A11yIdentifiers.roomScreen.scrollToBottom) {
                             dismissMarkAsReadPill()
                             timelineContext.send(viewAction: .scrollToBottom)
                         }
-                        .accessibilityIdentifier(A11yIdentifiers.roomScreen.scrollToBottom)
                     }
                 }
                 .padding()
                 .animation(.elementDefault, value: markAsReadSource)
             }
-            .background(Color.compound.bgCanvasDefault.ignoresSafeArea())
+            .chatBackground() // AGENT-PLATFORM (Brief 0083, question 357)
             .topBanners([
                 TopBannerLayer(verticalBanners: [
-                    TopBannerItem(pinnedItemsBanner, isVisible: context.viewState.shouldShowPinnedEventsBanner && !isVoiceOverEnabled),
-                    TopBannerItem(liveLocationBanner, isVisible: context.viewState.isSharingLiveLocation && !isVoiceOverEnabled),
-                    TopBannerItem(activeToolsBanner, isVisible: context.viewState.shouldShowActiveToolsBanner && !isVoiceOverEnabled)
+                    TopBannerItem(topBlock, isVisible: isTopBlockVisible && !isVoiceOverEnabled), // AGENT-PLATFORM (Brief 0083, decision 345)
+                    TopBannerItem(liveLocationBanner, isVisible: context.viewState.isSharingLiveLocation && !isVoiceOverEnabled)
                 ]),
                 // This can overlay on top of the stacked banners
                 TopBannerLayer(knockRequestsBanner, isVisible: context.viewState.shouldSeeKnockRequests)
@@ -87,21 +92,18 @@ struct RoomScreen: View {
                 // the timeline. So whenever VoiceOver is enabled we use a safe area inset to
                 // vertically stack it above the timeline instead.
                 // AGENT-PLATFORM (Brief 0044): the active-tools banner joins the stack.
-                if context.viewState.shouldShowPinnedEventsBanner || context.viewState.isSharingLiveLocation || context.viewState.shouldShowActiveToolsBanner, isVoiceOverEnabled {
+                if isTopBlockVisible || context.viewState.isSharingLiveLocation, isVoiceOverEnabled {
                     VStack(spacing: 0) {
-                        if context.viewState.shouldShowPinnedEventsBanner {
-                            pinnedItemsBanner
+                        if isTopBlockVisible {
+                            topBlock
                         }
                         if context.viewState.isSharingLiveLocation {
                             liveLocationBanner
                         }
-                        if context.viewState.shouldShowActiveToolsBanner {
-                            activeToolsBanner
-                        }
                     }
                 }
             }
-            .safeAreaInset(edge: .bottom, spacing: 0) {
+            .timelineComposerBar { // AGENT-PLATFORM (Brief 0083, decision 334): a bar on iOS 26+, an inset before
                 VStack(spacing: 0) {
                     RoomScreenFooterView(details: context.viewState.footerDetails,
                                          mediaProvider: context.mediaProvider) { action in
@@ -110,18 +112,26 @@ struct RoomScreen: View {
                     
                     composer
                         .padding(.top, 8)
-                        .background(Color.compound.bgCanvasDefault.ignoresSafeArea())
+                        .spiralComposerBar(scrollsUnder: true) // AGENT-PLATFORM (Brief 0083): the composer's bar, shared with threads and comments
                         .environmentObject(timelineContext)
                         .environment(\.timelineContext, timelineContext)
                         // Make sure the reply header honours the hideTimelineMedia setting too.
                         .environment(\.shouldAutomaticallyLoadImages, !timelineContext.viewState.hideTimelineMedia)
+                        .collapsedInPlace(isMessageSelectionActive)
+                    
+                    if isMessageSelectionActive {
+                        TimelineMessageSelectionActionBar(context: timelineContext)
+                    }
                 }
+            } floating: {
+                composerSuggestions
             }
-            .toolbarRole(RoomHeaderView.toolbarRole)
+            .navigationBarBackButtonHidden(isMessageSelectionActive)
+            .toolbarRole(.automatic) // AGENT-PLATFORM (Brief 0083, decision 344): the capsule is centred on iOS 26+ too
             .navigationTitle(L10n.screenRoomTitle) // Hidden but used for back button text.
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { toolbar }
-            .toolbarBackground(.visible, for: .navigationBar) // Fix the toolbar's background.
+            .timelineHeaderBackground() // AGENT-PLATFORM (Brief 0083, decision 344): a clear bar with Liquid Glass
             .overlay { loadingIndicator }
             .alert(item: $context.alertInfo)
             .timelineMediaPreview(viewModel: $context.mediaPreviewViewModel)
@@ -141,17 +151,21 @@ struct RoomScreen: View {
         }
     }
     
-    private var pinnedItemsBanner: some View {
-        PinnedItemsBannerView(state: context.viewState.pinnedEventsBannerState,
-                              onMainButtonTap: { context.send(viewAction: .tappedPinnedEventsBanner) },
-                              onViewAllButtonTap: { context.send(viewAction: .viewAllPins) })
+    // AGENT-PLATFORM (Brief 0083, decision 345): the pinned message and the active tools (Brief 0036), floating under the
+    // header. The timeline's inset follows the block's height.
+    private var isTopBlockVisible: Bool {
+        context.viewState.shouldShowPinnedEventsBanner || context.viewState.shouldShowActiveToolsBanner
     }
-
-    // AGENT-PLATFORM: the in-chat active-tools banner (Brief 0036).
-    private var activeToolsBanner: some View {
-        ToolsBannerView(state: context.viewState.activeToolsBannerState,
-                        onMainButtonTap: { context.send(viewAction: .rotateActiveToolsBanner) },
-                        onManageButtonTap: { context.send(viewAction: .tappedActiveToolsBanner) })
+    
+    private var topBlock: some View {
+        RoomTopBlock(pinned: context.viewState.shouldShowPinnedEventsBanner ? context.viewState.pinnedEventsBannerState : nil,
+                     tools: context.viewState.shouldShowActiveToolsBanner ? context.viewState.activeToolsBannerState : nil,
+                     onPinnedTap: { context.send(viewAction: .tappedPinnedEventsBanner) },
+                     onViewAllTap: { context.send(viewAction: .viewAllPins) },
+                     onToolTap: { context.send(viewAction: .rotateActiveToolsBanner) },
+                     onManageTap: { context.send(viewAction: .tappedActiveToolsBanner) })
+            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { topBlockHeight = $0 }
+            .onDisappear { topBlockHeight = 0 }
     }
     
     private var knockRequestsBanner: some View {
@@ -169,6 +183,7 @@ struct RoomScreen: View {
             FloatingDateBadge(dateText: timelineContext.floatingDate?.formattedDateSeparator()) {
                 timelineContext.send(viewAction: .scrollToFirstItemForCurrentDate)
             }
+            .onChatBackground() // AGENT-PLATFORM (Brief 0083, question 359)
         }
     }
     
@@ -246,12 +261,6 @@ struct RoomScreen: View {
         }
     }
     
-    /// Hide the new-messages dot when the jump-to-read-marker feature is disabled.
-    private var scrollToBottomShowsBadge: Bool {
-        timelineContext.viewState.jumpToReadMarkerEnabled
-            && timelineContext.viewState.bindings.hasNewMessagesAtBottom
-    }
-    
     @ViewBuilder
     private var composer: some View {
         if context.viewState.hasSuccessor {
@@ -261,6 +270,14 @@ struct RoomScreen: View {
             composerToolbar
         } else {
             ComposerDisabledView()
+        }
+    }
+    
+    // AGENT-PLATFORM (question 357): they go with the composer they belong to.
+    @ViewBuilder
+    private var composerSuggestions: some View {
+        if !context.viewState.hasSuccessor, context.viewState.canSendMessage, !ProcessInfo.isRunningAccessibilityTests, !isMessageSelectionActive {
+            composerToolbar.floatingSuggestions
         }
     }
     
@@ -287,13 +304,25 @@ struct RoomScreen: View {
     @ViewBuilder
     private var loadingIndicator: some View {
         if timelineContext.viewState.showLoading {
-            ProgressView()
+            let spinner = ProgressView()
                 .progressViewStyle(.circular)
                 .tint(.compound.textPrimary)
                 .padding(16)
-                .background(.ultraThickMaterial)
-                .cornerRadius(8)
+            if #available(iOS 26, *) { // AGENT-PLATFORM (Brief 0083, decision 346)
+                spinner.snapshotableGlassEffect(.regular,
+                                                snapshotBackground: .compound.bgSubtleSecondary,
+                                                in: RoundedRectangle(cornerRadius: SpiralRadius.block, style: .continuous))
+            } else {
+                spinner
+                    .background(.ultraThickMaterial)
+                    // swiftlint:disable:next spiral_raw_corner_radius - predates the rule
+                    .cornerRadius(8)
+            }
         }
+    }
+    
+    private var isMessageSelectionActive: Bool {
+        timelineContext.viewState.messageSelection.isActive
     }
     
     @ToolbarContentBuilder
@@ -302,48 +331,52 @@ struct RoomScreen: View {
         // as the latter disables interaction in the action button for rooms with long names
         ToolbarItem(placement: .principal) {
             RoomHeaderView(roomName: context.viewState.roomTitle,
+                           roomSubtitle: context.viewState.headerSubtitle, // AGENT-PLATFORM (Brief 0083, question 392)
                            roomAvatar: context.viewState.roomAvatar,
                            dmRecipientDetails: context.viewState.dmRecipientDetails,
                            roomHistorySharingState: context.viewState.roomHistorySharingState,
+                           typing: timelineContext.viewState.headerTyping, // AGENT-PLATFORM (Brief 0083, question 359)
+                           isCapsule: true, // AGENT-PLATFORM (Brief 0083, decision 344)
                            mediaProvider: context.mediaProvider) {
                 context.send(viewAction: .displayRoomDetails)
             }
+            .disabled(isMessageSelectionActive) // The room details would cover the selection.
+            .onChatBackground() // AGENT-PLATFORM (Brief 0083, question 359)
         }
         
-        if !ProcessInfo.processInfo.isiOSAppOnMac {
+        if isMessageSelectionActive {
+            TimelineMessageSelectionToolbar {
+                timelineContext.send(viewAction: .clearMessageSelection)
+            }
+        } else {
+            roomActions
+        }
+    }
+    
+    @ToolbarContentBuilder
+    private var roomActions: some ToolbarContent {
+        if !ProcessInfo.processInfo.isiOSAppOnMac || context.viewState.isNativeCallingEnabled {
             if context.viewState.shouldShowCallButton {
                 RoomCallControlsToolbar(viewState: context.viewState) { isVoiceCall in
                     context.send(viewAction: .displayCall(isVoiceCall: isVoiceCall))
                 }
             }
         }
-        
-        if context.viewState.roomThreadListEnabled {
-            if #available(iOS 26, *) {
-                ToolbarSpacer(.fixed, placement: .primaryAction)
-            }
-            
-            ToolbarItem(placement: .primaryAction) {
-                Button {
-                    context.send(viewAction: .displayThreadList)
-                } label: {
-                    CompoundIcon(\.threads)
-                }
-            }
-        }
+        // AGENT-PLATFORM (Brief 0083, decision 344): Threads left the header. Its list opens from the profile's row.
     }
 }
 
 // MARK: - Previews
 
-struct RoomScreen_Previews: PreviewProvider, TestablePreview {
+struct RoomScreen_Previews: PreviewProvider, TestablePreview, SpiralGatedPreview { // AGENT-PLATFORM (Brief 0083): Spiral's gates
     static let viewModels = makeViewModels()
     static let readOnlyViewModels = makeViewModels(canSendMessage: false)
     static let tombstonedViewModels = makeViewModels(hasSuccessor: true)
+    static let selectingViewModels = makeViewModels(isSelecting: true)
     static let composerViewModel = ComposerToolbarViewModel.mock()
-    // AGENT-PLATFORM (Brief 0063, G9): a live call to sit above the room in
-    // the production-composition preview below.
-    static let minimizedCallViewModel = NativeCallScreen_Previews.makeAgentViewModel()
+    static let assistantDMViewModels = makeAssistantDMViewModels() // AGENT-PLATFORM (Brief 0083)
+    static let dmWithPresenceViewModels = makeDMWithPresenceViewModels() // AGENT-PLATFORM (Brief 0083)
+    static let groupWithAgentViewModels = makeGroupWithAgentViewModels() // AGENT-PLATFORM (Brief 0083, decision 357)
     
     static var previews: some View {
         ElementNavigationStack {
@@ -369,6 +402,83 @@ struct RoomScreen_Previews: PreviewProvider, TestablePreview {
         .previewDisplayName("Tombstoned")
         .snapshotPreferences(expect: tombstonedViewModels.room.context.$viewState.map(\.hasSuccessor))
         
+        ElementNavigationStack {
+            RoomScreen(context: selectingViewModels.room.context,
+                       timelineContext: selectingViewModels.timeline.context,
+                       composerToolbar: ComposerToolbar(context: composerViewModel.context))
+        }
+        .previewDisplayName("Selecting")
+        .snapshotPreferences(expect: selectingViewModels.timeline.context.$viewState.map(\.messageSelection.isActive))
+        
+        // AGENT-PLATFORM (Brief 0083): the assistant's DM, the room on the reviewer's path.
+        ElementNavigationStack {
+            RoomScreen(context: assistantDMViewModels.room.context,
+                       timelineContext: assistantDMViewModels.timeline.context,
+                       composerToolbar: ComposerToolbar(context: composerViewModel.context))
+        }
+        .previewDisplayName("Assistant DM")
+        
+        // AGENT-PLATFORM (Brief 0083): a person's DM, so the audit reaches the header's subtitle (their presence).
+        ElementNavigationStack {
+            RoomScreen(context: dmWithPresenceViewModels.room.context,
+                       timelineContext: dmWithPresenceViewModels.timeline.context,
+                       composerToolbar: ComposerToolbar(context: composerViewModel.context))
+        }
+        .previewDisplayName("DM with presence")
+        .snapshotPreferences(expect: dmWithPresenceViewModels.room.context.$viewState.map { $0.dmRecipientDetails.presence != nil })
+        
+        // AGENT-PLATFORM (Brief 0083, decision 357)
+        ElementNavigationStack {
+            RoomScreen(context: groupWithAgentViewModels.room.context,
+                       timelineContext: groupWithAgentViewModels.timeline.context,
+                       composerToolbar: ComposerToolbar(context: composerViewModel.context))
+        }
+        .previewDisplayName("Group with an agent")
+    }
+    
+    static func makeViewModels(canSendMessage: Bool = true, hasSuccessor: Bool = false, isSelecting: Bool = false) -> ViewModels {
+        let roomProxyMock = JoinedRoomProxyMock(.init(id: "stable_id",
+                                                      name: "Preview room",
+                                                      hasOngoingCall: true,
+                                                      successor: hasSuccessor ? .init(roomId: UUID().uuidString, reason: nil) : nil,
+                                                      powerLevelsConfiguration: .init(canUserSendMessage: canSendMessage)))
+        let roomViewModel = RoomScreenViewModel.mock(roomProxyMock: roomProxyMock)
+        
+        let timelineController = TimelineControllerMock(.init())
+        let timelineViewModel = TimelineViewModel(roomProxy: roomProxyMock,
+                                                  timelineController: timelineController,
+                                                  userSession: UserSessionMock(.init()),
+                                                  mediaPlayerProvider: MediaPlayerProviderMock(),
+                                                  userIndicatorController: UserIndicatorControllerMock(),
+                                                  appMediator: AppMediatorMock(.init()),
+                                                  analyticsService: AnalyticsServiceMock(.init()),
+                                                  emojiProvider: EmojiProvider(userSettings: .mock()),
+                                                  linkMetadataProvider: LinkMetadataProvider(),
+                                                  timelineControllerFactory: TimelineControllerFactoryMock(.init()))
+        
+        if isSelecting {
+            let eventIDs = timelineController.timelineItems.compactMap { ($0 as? EventBasedTimelineItemProtocol)?.id.eventID }
+            timelineViewModel.state.messageSelection.isActive = true
+            timelineViewModel.state.messageSelection.selectedEventIDs = Set(eventIDs.prefix(2))
+        }
+        
+        return .init(room: roomViewModel, timeline: timelineViewModel)
+    }
+    
+    struct ViewModels {
+        let room: RoomScreenViewModelProtocol
+        let timeline: TimelineViewModelProtocol
+    }
+}
+
+// AGENT-PLATFORM (Brief 0083): the call bar over the room joins Spiral's gates with decision 307's green fill
+// (phase 3): its white read 2.48:1 on #4DB87E in dark (contrast triage, cause E), 4.50:1 on #2D8659.
+struct RoomScreenMinimizedCall_Previews: PreviewProvider, TestablePreview, SpiralGatedPreview {
+    // AGENT-PLATFORM (Brief 0063, G9): a live call to sit above the room in
+    // the production-composition preview below.
+    static let minimizedCallViewModel = NativeCallScreen_Previews.makeAgentViewModel()
+    
+    static var previews: some View {
         // AGENT-PLATFORM (Brief 0063, G9): the PRODUCTION composition — the
         // minimized call bar stacked above a whole room, the way
         // `NavigationTabCoordinator` lays the two out.
@@ -383,40 +493,11 @@ struct RoomScreen_Previews: PreviewProvider, TestablePreview {
             NativeCallBar(context: minimizedCallViewModel.context)
             
             ElementNavigationStack {
-                RoomScreen(context: viewModels.room.context,
-                           timelineContext: viewModels.timeline.context,
-                           composerToolbar: ComposerToolbar(context: composerViewModel.context))
+                RoomScreen(context: RoomScreen_Previews.viewModels.room.context,
+                           timelineContext: RoomScreen_Previews.viewModels.timeline.context,
+                           composerToolbar: ComposerToolbar(context: RoomScreen_Previews.composerViewModel.context))
             }
         }
         .previewDisplayName("Minimized call over room")
-    }
-    
-    static func makeViewModels(canSendMessage: Bool = true, hasSuccessor: Bool = false) -> ViewModels {
-        let roomProxyMock = JoinedRoomProxyMock(.init(id: "stable_id",
-                                                      name: "Preview room",
-                                                      hasOngoingCall: true,
-                                                      successor: hasSuccessor ? .init(roomId: UUID().uuidString, reason: nil) : nil,
-                                                      powerLevelsConfiguration: .init(canUserSendMessage: canSendMessage)))
-        let roomViewModel = RoomScreenViewModel.mock(roomProxyMock: roomProxyMock)
-        
-        let appSettings = AppSettings.volatile()
-        let timelineViewModel = TimelineViewModel(roomProxy: roomProxyMock,
-                                                  timelineController: TimelineControllerMock(.init()),
-                                                  userSession: UserSessionMock(.init()),
-                                                  mediaPlayerProvider: MediaPlayerProviderMock(),
-                                                  userIndicatorController: UserIndicatorControllerMock(),
-                                                  appMediator: AppMediatorMock(.init()),
-                                                  appSettings: appSettings,
-                                                  analyticsService: AnalyticsServiceMock(.init()),
-                                                  emojiProvider: EmojiProvider(appSettings: appSettings),
-                                                  linkMetadataProvider: LinkMetadataProvider(),
-                                                  timelineControllerFactory: TimelineControllerFactoryMock(.init()))
-        
-        return .init(room: roomViewModel, timeline: timelineViewModel)
-    }
-    
-    struct ViewModels {
-        let room: RoomScreenViewModelProtocol
-        let timeline: TimelineViewModelProtocol
     }
 }

@@ -31,9 +31,7 @@ struct BannerToolItem: Equatable, Identifiable {
     /// Compact display line — the tool's name only (e.g. "Translating
     /// to English", "Summarise").
     let title: String
-    /// The Compound icon for this tool's kind, resolved via its capability
-    /// (`AgentCapability.icon(forToolKind:)`) so the banner icon matches the
-    /// one shown in the capabilities sheet. Defaults to the translate icon.
+    /// The Compound icon for this tool's kind, as the chat's tools show it.
     var icon: KeyPath<CompoundIcons, Image> = \.translate
     // periphery:ignore - used via the synthesized Hashable conformance
     /// The agent whose tool this is (attribution lives in Manage).

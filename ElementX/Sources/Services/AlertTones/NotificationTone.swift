@@ -43,6 +43,10 @@ nonisolated struct NotificationTone: Hashable, Comparable, Codable {
         case appLibrary
     }
     
+    /// The default bundled message tone.
+    static let `default`: NotificationTone = .createBundledSound(label: UntranslatedL10n.screenNotificationSettingsSoundSpiralDefault, // AGENT-PLATFORM (App Review 5.2)
+                                                                filename: "message.caf")
+    
     /// Creates a tone backed by a file in the system sounds directory.
     static func createSystemSound(label: String?, filename: String, systemSoundsSubdirectory: [String] = []) -> NotificationTone {
         NotificationTone(labelOverride: label, storageLocationRoot: .system, relativePath: systemSoundsSubdirectory + [filename])

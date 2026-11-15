@@ -8,8 +8,8 @@
 
 import AgentPlatformClient
 import Combine
-@testable import ElementX
 import Foundation
+@testable import Spiral
 import Synchronization
 import Testing
 
@@ -194,7 +194,7 @@ struct SpiralOwnerBlocksServiceTests {
     private static func card(id: String, kind: String) -> String {
         #"""
         {"agent_id":"\#(id)","matrix_user_id":"@assistant-me:spiral.md","display_name":"Assistant","kind":"\#(kind)",
-         "visibility":"private","lifecycle_state":"active","presence":"online","room_count":0,"active_tool_count":0,"paused":false}
+         "visibility":"private","lifecycle_state":"active","presence":"online","last_active_at":"2026-10-31T07:00:00Z","room_count":0,"active_tool_count":0,"paused":false}
         """#
     }
 

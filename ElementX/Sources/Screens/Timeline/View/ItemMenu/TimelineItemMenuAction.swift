@@ -26,11 +26,14 @@ struct TimelineItemMenuActions {
         self.actions = actions
         self.secondaryActions = secondaryActions
         
+        // AGENT-PLATFORM (Brief 0083, decision 335): Messages' tapbacks, in their order, where Element's were 👍👎🎉❤️.
         var frequentlyUsed: OrderedSet<TimelineItemMenuReaction> = [
+            .init(key: "❤️", symbol: .heart),
             .init(key: "👍️", symbol: .handThumbsup),
             .init(key: "👎️", symbol: .handThumbsdown),
-            .init(key: "🎉", symbol: .partyPopper),
-            .init(key: "❤️", symbol: .heart)
+            .init(key: "😂", symbol: .faceSmiling),
+            .init(key: "‼️", symbol: .exclamationmark2),
+            .init(key: "❓", symbol: .questionmark)
         ]
         
         frequentlyUsed.append(contentsOf: emojiProvider.frequentlyUsedSystemEmojis().map { TimelineItemMenuReaction(key: $0, symbol: .heart) })
@@ -69,6 +72,8 @@ enum TimelineItemMenuAction: Identifiable, Hashable {
     case replyInThread
     case forward(itemID: TimelineItemIdentifier)
     case viewSource
+    // AGENT-PLATFORM (Brief 0083, question 357): who read it, now the bubble only shows ticks.
+    case seenBy
     // AGENT-PLATFORM (Brief 0066 step 6): a draft's module, to read.
     case viewDraftCode
     // AGENT-PLATFORM (§ 5.55): reopen the thread a published post was made
@@ -110,7 +115,7 @@ enum TimelineItemMenuAction: Identifiable, Hashable {
     /// Whether the action should be shown for a redacted item.
     var canAppearInRedacted: Bool {
         switch self {
-        case .viewSource, .viewDraftCode, .unpin, .viewInRoomTimeline:
+        case .viewSource, .viewDraftCode, .seenBy, .unpin, .viewInRoomTimeline:
             true
         default:
             false
@@ -178,6 +183,8 @@ enum TimelineItemMenuAction: Identifiable, Hashable {
             Label(isMedia ? L10n.actionDeleteFile : L10n.actionRemoveMessage, icon: \.delete)
         case .viewSource:
             Label(L10n.actionViewSource, icon: \.code)
+        case .seenBy:
+            Label(L10n.commonSeenBy, icon: \.visibilityOn)
         case .viewDraftCode:
             Label(UntranslatedL10n.screenRoomInteractiveDraftCode, icon: \.code)
         case .editInteractivePost:

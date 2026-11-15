@@ -5,15 +5,15 @@
 // and the server's source is and where to ask for it, as NOTICE and SOURCES.md do.
 //
 
-@testable import ElementX
 import Foundation
+@testable import Spiral
 import Testing
 
 @MainActor
 struct SpiralSourceOfferTests {
     @Test
     func aboutOffersTheSourceAndTheAddressToAskForIt() {
-        let viewModel = LegalInformationScreenViewModel(appSettings: .volatile(), appMediator: AppMediatorMock())
+        let viewModel = LegalInformationScreenViewModel(userSettings: .mock(), appMediator: AppMediatorMock())
         let state = viewModel.context.viewState
 
         #expect(state.sourceCodeURL == URL(string: "https://github.com/spiral-group/ios"))

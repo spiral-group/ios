@@ -8,13 +8,10 @@
 
 import Combine
 import Foundation
-#if IS_MAIN_APP
-import MapLibre
-#endif
 import MatrixRustSDK
 
 nonisolated enum Target: String {
-    case mainApp = "elementx"
+    case mainApp = "spiral" // AGENT-PLATFORM (Brief 0083 L1b): the tracing target
     case nse
     case shareExtension = "shareextension"
     case tests
@@ -63,9 +60,7 @@ nonisolated enum Target: String {
         // later together with the analytics service if the user consents.
         enableSentryLogging(enabled: false)
         
-        MXLog.configure(currentTarget: rawValue)
-        
-        configureMapLibreIfAvailable()
+        MXLog.configure(currentTarget: rawValue, logLevel: Tracing.level(for: logLevel))
         
         let hookCancellable = rageshakeURL.publisher
             .sink { _ in
@@ -73,28 +68,6 @@ nonisolated enum Target: String {
             }
         
         return ConfigurationResult(hookCancellable: hookCancellable)
-    }
-    
-    private func configureMapLibreIfAvailable() {
-        #if IS_MAIN_APP
-        MLNLoggingConfiguration.shared.loggingLevel = .debug
-        MLNLoggingConfiguration.shared.handler = { loggingLevel, _, _, message in
-            switch loggingLevel {
-            case .error:
-                MXLog.error(message)
-            case .warning:
-                MXLog.warning(message)
-            case .info:
-                MXLog.info(message)
-            case .debug:
-                MXLog.debug(message)
-            case .verbose:
-                MXLog.verbose(message)
-            default:
-                break
-            }
-        }
-        #endif
     }
     
     /// The result of calling ``configure(logLevel:traceLogPacks:sentryURL:)``.

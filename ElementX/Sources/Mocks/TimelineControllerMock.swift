@@ -48,6 +48,7 @@ struct TimelineControllerMockConfiguration {
         allowedGalleryItemTypes = configuration.allowedGalleryItemTypes
         paginationState = configuration.paginationState
         timelineItems = configuration.timelineItems
+        readProgress = .init(timelineItems: configuration.timelineItems, ownUserID: RoomMemberProxyMock.mockMe.userID)
         
         callbacks.send(.paginationState(configuration.paginationState))
         callbacks.send(.isLive(true))
@@ -74,9 +75,9 @@ struct TimelineControllerMockConfiguration {
             _ = await timelineProxy.toggleReaction(reaction, to: eventOrTransactionID)
         }
         
-        redactClosure = { [timelineProxy] eventOrTransactionID in
+        redactReasonClosure = { [timelineProxy] eventOrTransactionID, reason in
             guard let timelineProxy else { return }
-            _ = await timelineProxy.redact(eventOrTransactionID, reason: nil)
+            _ = await timelineProxy.redact(eventOrTransactionID, reason: reason)
         }
         
         editMessageHtmlIntentionalMentionsClosure = { [weak self] _, message, _, _ in

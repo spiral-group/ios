@@ -5,11 +5,11 @@
 //
 
 import Compound
+import SpiralTokens
 import SwiftUI
 
-/// The card for a `com.spiral.notice`. Shaped like the ended-call tile
-/// (`CallNotificationRoomTimelineView`): icon, two lines, the time; the
-/// tile is the action — for a referral, it opens the newcomer's profile.
+/// The card for a `com.spiral.notice`, in the family of `ChatCardRow`: the
+/// card is the action — for a referral, it opens the newcomer's profile.
 struct SpiralNoticeRoomTimelineView: View {
     @Environment(\.openURL) private var openURL
     // Nil outside a timeline (previews): a relayed note then names its sender by MXID.
@@ -25,44 +25,46 @@ struct SpiralNoticeRoomTimelineView: View {
     @State private var readerAllowsAI: Bool?
     
     var body: some View {
-        HStack(spacing: 12) {
-            CompoundIcon(icon, size: .medium, relativeTo: .compound.headingMDBold)
-                .foregroundStyle(.compound.iconAccentPrimary)
-                .accessibilityHidden(true)
-            
-            VStack(alignment: .leading, spacing: 1) {
-                Text(title)
-                    .font(.compound.bodyMDSemibold)
-                    .foregroundColor(.compound.textPrimary)
-                Text(subtitle)
-                    .font(.compound.bodySM)
-                    .foregroundColor(.compound.textSecondary)
-                    .lineLimit(isOneLine ? 1 : nil)
-                    .truncationMode(.middle)
-                if let actionTitle {
-                    Text(actionTitle)
-                        .font(.compound.bodySMSemibold)
-                        .foregroundColor(.compound.textActionAccent)
-                        .padding(.top, 6)
+        // Brief 0083, question 359: a card in the chat's family, on the incoming side.
+        VStack(alignment: .trailing, spacing: 2) {
+            ChatCardRow(icon: icon, isCritical: timelineItem.notice.kind.isFailure, title: title) {
+                VStack(alignment: .leading, spacing: 6) {
+                    ForEach(Array(paragraphs.enumerated()), id: \.offset) { _, paragraph in
+                        Text(paragraph)
+                            .font(.compound.bodySM)
+                            .foregroundColor(.compound.textSecondary)
+                            .lineLimit(isOneLine ? 1 : nil)
+                            .truncationMode(.middle)
+                    }
+                    if let actionTitle {
+                        // The link colour: #0A84FF reads 4.67:1 on the dark card, which the contrast audit fails
+                        // as "nearly passed"; #6CB2FF reads 7.5:1 there and #2455B5 6.2:1 on the light one.
+                        Text(actionTitle)
+                            .font(.compound.bodySMSemibold)
+                            .foregroundColor(.compound.textLinkExternal)
+                    }
                 }
             }
-            
-            Spacer(minLength: 8)
             
             Text(timelineItem.timestamp.formattedTime())
                 .font(.compound.bodyXS)
                 .foregroundColor(.compound.textSecondary)
         }
-        .padding(12)
-        .overlay(RoundedRectangle(cornerRadius: 8)
-            .stroke(.compound.borderInteractiveSecondary, lineWidth: 1))
-        .padding(16)
-        .contentShape(Rectangle())
+        .padding(.top, 8)
+        .padding(.bottom, 6)
+        .padding(.leading, 8)
+        .padding(.trailing, 12)
+        .chatCardBubble()
         .onTapGesture { open() }
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(isActionable ? .isButton : .isStaticText)
         .accessibilityHint(hint ?? "")
         .accessibilityIdentifier(A11yIdentifiers.roomScreen.spiralNotice(timelineItem.notice.kind.wireName))
+        .frame(maxWidth: 340, alignment: .leading)
+        .padding(.trailing, 48) // As a message's.
+        .padding(.horizontal, 16)
+        .padding(.vertical, ChatCardLayout.rowPadding)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .task(id: relayedFromUserID) { await resolveRelayedSender() }
         .task(id: timelineItem.id) { await resolveReaderAllowsAI() }
     }
@@ -75,6 +77,7 @@ struct SpiralNoticeRoomTimelineView: View {
         case .replyFailed: \.error
         case .replyWithheld: \.info
         case .aiBudgetReached: \.time
+        case .aiCategoryPaused: \.pause
         case .messagePassedToOwner: \.send
         case .introSuggestion: \.userProfile
         case .summaryMovedToDM: \.info
@@ -92,6 +95,7 @@ struct SpiralNoticeRoomTimelineView: View {
         case .replyFailed: UntranslatedL10n.noticeReplyFailedTitle
         case .replyWithheld: UntranslatedL10n.noticeReplyWithheldTitle
         case .aiBudgetReached: UntranslatedL10n.noticeAiBudgetReachedTitle
+        case .aiCategoryPaused(let category, let pauseUntil): SpiralNotice.categoryPausedTitle(category, pauseUntil: pauseUntil)
         case .messagePassedToOwner: UntranslatedL10n.noticeMessagePassedTitle
         case .introSuggestion: UntranslatedL10n.noticeIntroSuggestionTitle
         case .summaryMovedToDM: UntranslatedL10n.noticeSummaryMovedTitle
@@ -125,9 +129,11 @@ struct SpiralNoticeRoomTimelineView: View {
             UntranslatedL10n.noticeReplyFailedBody
         case .replyWithheld:
             UntranslatedL10n.noticeReplyWithheldBody
-        // The reset is the next UTC midnight: within a day, so the time says it.
+        // The end of the limit's window, named by weekday and date: the card stays in the timeline.
         case .aiBudgetReached(let resetsAt):
-            UntranslatedL10n.noticeAiBudgetReachedBody(resetsAt.formatted(date: .omitted, time: .shortened))
+            AgentLimitWording.budgetCardBody(resetsAt)
+        case .aiCategoryPaused:
+            UntranslatedL10n.noticeAiCategoryPausedBody
         // The owner's own greeting, when they wrote one, then the promise.
         case .messagePassedToOwner(let ownerDisplayName, let greeting):
             [greeting, UntranslatedL10n.noticeMessagePassedBody(ownerDisplayName)]
@@ -148,6 +154,11 @@ struct SpiralNoticeRoomTimelineView: View {
         }
     }
 
+    /// The subtitle's paragraphs, each its own text with the storyboard's 6 pt between them.
+    private var paragraphs: [String] {
+        subtitle.components(separatedBy: "\n\n")
+    }
+    
     /// Decision 150. Someone who has allowed AI since — or anyone else reading
     /// the room who has — is not asked to; a failed read still offers the way.
     static func aiConsentBody(agentName: String, readerAllowsAI: Bool?) -> String {
@@ -168,7 +179,7 @@ struct SpiralNoticeRoomTimelineView: View {
         case .referralJoined, .introSuggestion: true
         case .relayedToOwner(_, let fromUserID, _): fromUserID != context?.viewState.ownUserID
         case .aiConsentNeeded: readerAllowsAI != true
-        case .welcome, .phraseChanged, .replyFailed, .replyWithheld, .aiBudgetReached, .messagePassedToOwner,
+        case .welcome, .phraseChanged, .replyFailed, .replyWithheld, .aiBudgetReached, .aiCategoryPaused, .messagePassedToOwner,
              .summaryMovedToDM, .recordingMovedToDM: false
         }
     }
@@ -214,7 +225,7 @@ struct SpiralNoticeRoomTimelineView: View {
     
     /// A member of this room by their name here; anyone else once their profile is read.
     private func relayedSenderName(_ userID: String) -> String? {
-        if let name = context?.viewState.members[userID]?.displayName?.trimmingCharacters(in: .whitespacesAndNewlines), !name.isEmpty {
+        if let name = context?.viewState.member(userID)?.displayName?.trimmingCharacters(in: .whitespacesAndNewlines), !name.isEmpty {
             return name
         }
         guard let relayedSender, relayedSender.userID == userID else { return nil }
@@ -257,7 +268,7 @@ struct SpiralNoticeRoomTimelineView: View {
         case .relayedToOwner(_, let fromUserID, _):
             guard isActionable else { return }
             userID = fromUserID
-        case .welcome, .phraseChanged, .replyFailed, .replyWithheld, .aiBudgetReached, .messagePassedToOwner,
+        case .welcome, .phraseChanged, .replyFailed, .replyWithheld, .aiBudgetReached, .aiCategoryPaused, .messagePassedToOwner,
              .summaryMovedToDM, .recordingMovedToDM:
             return
         }
@@ -268,7 +279,8 @@ struct SpiralNoticeRoomTimelineView: View {
 
 // MARK: - Previews
 
-struct SpiralNoticeRoomTimelineView_Previews: PreviewProvider, TestablePreview {
+// Sized to fit: in a timeline the card grows with its text; a device frame cut the welcome short at AX3.
+struct SpiralNoticeRoomTimelineView_Previews: PreviewProvider, TestablePreview, SpiralGatedPreview {
     static var previews: some View {
         SpiralNoticeRoomTimelineView(timelineItem: .init(id: .randomEvent,
                                                          timestamp: .mock,
@@ -276,48 +288,67 @@ struct SpiralNoticeRoomTimelineView_Previews: PreviewProvider, TestablePreview {
                                                          notice: SpiralNotice(msgtype: SpiralNotice.msgtype,
                                                                               data: #"{"com.spiral.notice":{"kind":"referral_joined","joined_user_id":"@diana:spiral.md"}}"#)!))
             .previewDisplayName("Referral joined")
+            .previewLayout(.sizeThatFits)
         SpiralNoticeRoomTimelineView(timelineItem: .init(id: .randomEvent,
                                                          timestamp: .mock,
                                                          sender: .init(id: "@assistant-alice:spiral.md", displayName: "Alice's Assistant"),
                                                          notice: SpiralNotice(msgtype: SpiralNotice.msgtype,
                                                                               data: #"{"com.spiral.notice":{"kind":"welcome","owner_display_name":"Alice","agent_display_name":"Alice's Assistant","behavior":"personal_assistant"}}"#)!))
             .previewDisplayName("Welcome")
+            .previewLayout(.sizeThatFits)
         SpiralNoticeRoomTimelineView(timelineItem: .init(id: .randomEvent,
                                                          timestamp: .mock,
                                                          sender: .init(id: "@assistant-alice:spiral.md", displayName: "Alice's Assistant"),
                                                          notice: SpiralNotice(msgtype: SpiralNotice.msgtype,
                                                                               data: #"{"com.spiral.notice":{"kind":"phrase_changed","device_name":"Spiral на iPhone 15"}}"#)!))
             .previewDisplayName("Phrase changed")
+            .previewLayout(.sizeThatFits)
         SpiralNoticeRoomTimelineView(timelineItem: .init(id: .randomEvent,
                                                          timestamp: .mock,
                                                          sender: .init(id: "@assistant-alice:spiral.md", displayName: "Alice's Assistant"),
                                                          notice: SpiralNotice(msgtype: SpiralNotice.msgtype,
                                                                               data: #"{"com.spiral.notice":{"kind":"phrase_changed"}}"#)!))
             .previewDisplayName("Phrase changed, device unknown")
+            .previewLayout(.sizeThatFits)
         notice(#"{"kind":"reply_failed"}"#)
             .previewDisplayName("Reply failed")
+            .previewLayout(.sizeThatFits)
         notice(#"{"kind":"reply_withheld"}"#)
             .previewDisplayName("Reply withheld")
+            .previewLayout(.sizeThatFits)
         notice(#"{"kind":"ai_budget_reached","resets_at":"2026-10-11T00:00:00Z"}"#)
             .previewDisplayName("AI budget reached")
+            .previewLayout(.sizeThatFits)
+        // No date, so the snapshot doesn't move with the clock.
+        notice(#"{"kind":"ai_category_paused","category":"call_translation","pause_until":null}"#)
+            .previewDisplayName("AI category paused")
+            .previewLayout(.sizeThatFits)
         notice(#"{"kind":"message_passed_to_owner","owner_display_name":"Alice"}"#)
             .previewDisplayName("Message passed to the owner")
+            .previewLayout(.sizeThatFits)
         notice(#"{"kind":"message_passed_to_owner","owner_display_name":"Alice","greeting":"Hi! Alice is travelling this week."}"#)
             .previewDisplayName("Message passed, the owner's greeting")
+            .previewLayout(.sizeThatFits)
         notice(#"{"kind":"intro_suggestion","candidate_agent_mxid":"@assistant-carlos:spiral.md","summary":"Carlos builds iOS tools — close to what you asked about.","suggested_opener":"Hi Carlos, could we compare notes on TestFlight?"}"#)
             .previewDisplayName("Intro suggestion")
+            .previewLayout(.sizeThatFits)
         notice(#"{"kind":"summary_moved_to_dm","room_id":"!call:spiral.md"}"#)
             .previewDisplayName("Summary moved to the DM")
+            .previewLayout(.sizeThatFits)
         notice(#"{"kind":"recording_moved_to_dm","room_id":"!call:spiral.md"}"#)
             .previewDisplayName("Recording moved to the DM")
+            .previewLayout(.sizeThatFits)
         // Decision 38. In a timeline: the sender is a member there, the room one the owner is in.
         notice(#"{"kind":"relayed_to_owner","note":"Bob is running 20 minutes late and asks you to start without him.","from_user_id":"@bob:matrix.org","room_id":"!room:matrix.org"}"#)
             .environment(\.timelineContext, TimelineViewModel.mock.context)
             .previewDisplayName("Relayed to the owner")
+            .previewLayout(.sizeThatFits)
         notice(#"{"kind":"relayed_to_owner","note":"Bob is running 20 minutes late and asks you to start without him.","from_user_id":"@bob:spiral.md","room_id":"!visitor:spiral.md"}"#)
             .previewDisplayName("Relayed to the owner, names unknown")
+            .previewLayout(.sizeThatFits)
         notice(#"{"kind":"ai_consent_needed","agent_display_name":"Alice's Assistant"}"#)
             .previewDisplayName("AI consent needed")
+            .previewLayout(.sizeThatFits)
     }
     
     private static func notice(_ facts: String) -> SpiralNoticeRoomTimelineView {

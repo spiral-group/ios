@@ -61,19 +61,19 @@ struct CreateRoomSpaceSelectionSheet: View {
 
 struct CreateRoomSpaceSelectionSheet_Previews: PreviewProvider, TestablePreview {
     static let viewModel = {
+        let userSettings = UserSettings.mock()
+        userSettings.app.spacesEnabled = true // AGENT-PLATFORM (decision 301): the picker loads spaces only while they are shown.
         let clientProxy = ClientProxyMock(.init(userID: "@userid:example.com"))
         clientProxy.spaceService = SpaceServiceProxyMock(.init(editableSpaces: .mockJoinedSpaces2))
-        let userSession = UserSessionMock(.init(clientProxy: clientProxy))
-        
-        let appSettings = AppSettings.volatile()
+        let userSession = UserSessionMock(.init(clientProxy: clientProxy, userSettings: userSettings))
         
         return CreateRoomScreenViewModel(isSpace: false,
                                          spaceSelectionMode: .editableSpacesList(preSelectedSpace: nil),
                                          shouldShowCancelButton: false,
                                          userSession: userSession,
+                                         appMediator: AppMediatorMock(.init()),
                                          analytics: AnalyticsServiceMock(.init()),
-                                         userIndicatorController: UserIndicatorControllerMock(),
-                                         appSettings: appSettings)
+                                         userIndicatorController: UserIndicatorControllerMock())
     }()
     
     static var previews: some View {

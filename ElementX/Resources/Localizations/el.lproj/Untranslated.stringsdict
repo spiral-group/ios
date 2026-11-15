@@ -2,7 +2,7 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<key>screen_agent_detail_rooms_section</key>
+	<key>screen_native_call_assistants_count</key>
 	<dict>
 		<key>COUNT</key>
 		<dict>
@@ -11,58 +11,17 @@
 			<key>NSStringFormatValueTypeKey</key>
 			<string>d</string>
 			<key>one</key>
-			<string>%1$d αίθουσα</string>
+			<string>%1$d βοηθός</string>
 			<key>other</key>
-			<string>%1$d αίθουσες</string>
-		</dict>
-		<key>NSStringLocalizedFormatKey</key>
-		<string>Ζει σε %#@COUNT@</string>
-	</dict>
-	<key>screen_agent_detail_tool_count</key>
-	<dict>
-		<key>COUNT</key>
-		<dict>
-			<key>NSStringFormatSpecTypeKey</key>
-			<string>NSStringPluralRuleType</string>
-			<key>NSStringFormatValueTypeKey</key>
-			<string>d</string>
-			<key>one</key>
-			<string>%1$d εργαλείο</string>
-			<key>other</key>
-			<string>%1$d εργαλεία</string>
+			<string>%1$d βοηθοί</string>
 		</dict>
 		<key>NSStringLocalizedFormatKey</key>
 		<string>%#@COUNT@</string>
 	</dict>
-	<key>screen_agent_space_agent_status</key>
+	<key>screen_native_call_status_agent_count</key>
 	<dict>
 		<key>NSStringLocalizedFormatKey</key>
-		<string>Σε %#@ROOMS@ · %#@TOOLS@</string>
-		<key>ROOMS</key>
-		<dict>
-			<key>NSStringFormatSpecTypeKey</key>
-			<string>NSStringPluralRuleType</string>
-			<key>NSStringFormatValueTypeKey</key>
-			<string>d</string>
-			<key>one</key>
-			<string>%1$d αίθουσα</string>
-			<key>other</key>
-			<string>%1$d αίθουσες</string>
-		</dict>
-		<key>TOOLS</key>
-		<dict>
-			<key>NSStringFormatSpecTypeKey</key>
-			<string>NSStringPluralRuleType</string>
-			<key>NSStringFormatValueTypeKey</key>
-			<string>d</string>
-			<key>one</key>
-			<string>%2$d ενεργό εργαλείο</string>
-			<key>other</key>
-			<string>%2$d ενεργά εργαλεία</string>
-		</dict>
-	</dict>
-	<key>screen_agent_spaces_agent_count</key>
-	<dict>
+		<string>%#@COUNT@</string>
 		<key>COUNT</key>
 		<dict>
 			<key>NSStringFormatSpecTypeKey</key>
@@ -74,27 +33,11 @@
 			<key>other</key>
 			<string>%1$d πράκτορες</string>
 		</dict>
-		<key>NSStringLocalizedFormatKey</key>
-		<string>%#@COUNT@</string>
-	</dict>
-	<key>screen_native_call_status_agent_count</key>
-	<dict>
-		<key>COUNT</key>
-		<dict>
-			<key>NSStringFormatSpecTypeKey</key>
-			<string>NSStringPluralRuleType</string>
-			<key>NSStringFormatValueTypeKey</key>
-			<string>d</string>
-			<key>one</key>
-			<string>%1$d agent</string>
-			<key>other</key>
-			<string>%1$d agents</string>
-		</dict>
-		<key>NSStringLocalizedFormatKey</key>
-		<string>%#@COUNT@</string>
 	</dict>
 	<key>screen_native_call_status_people_count</key>
 	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@COUNT@</string>
 		<key>COUNT</key>
 		<dict>
 			<key>NSStringFormatSpecTypeKey</key>
@@ -102,12 +45,373 @@
 			<key>NSStringFormatValueTypeKey</key>
 			<string>d</string>
 			<key>one</key>
-			<string>%1$d person</string>
+			<string>%1$d άτομο</string>
 			<key>other</key>
-			<string>%1$d people</string>
+			<string>%1$d άτομα</string>
+		</dict>
+	</dict>
+	<key>screen_feed_new_posts</key>
+	<dict>
+		<key>COUNT</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%1$d νέα ανάρτηση</string>
+			<key>other</key>
+			<string>%1$d νέες αναρτήσεις</string>
 		</dict>
 		<key>NSStringLocalizedFormatKey</key>
 		<string>%#@COUNT@</string>
+	</dict>
+	<key>a11y_feed_images</key>
+	<dict>
+		<key>COUNT</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%1$d εικόνα</string>
+			<key>other</key>
+			<string>%1$d εικόνες</string>
+		</dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@COUNT@</string>
+	</dict>
+	<key>screen_feed_composer_characters_left</key>
+	<dict>
+		<key>COUNT</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>Απομένει %1$d χαρακτήρας</string>
+			<key>other</key>
+			<string>Απομένουν %1$d χαρακτήρες</string>
+		</dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@COUNT@</string>
+	</dict>
+	<key>screen_feed_composer_characters_over</key>
+	<dict>
+		<key>COUNT</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%1$d χαρακτήρας πάνω από το όριο</string>
+			<key>other</key>
+			<string>%1$d χαρακτήρες πάνω από το όριο</string>
+		</dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@COUNT@</string>
+	</dict>
+	<key>screen_feed_composer_error_rate_limited_minutes</key>
+	<dict>
+		<key>COUNT</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>Δοκίμασε ξανά σε %1$d λεπτό.</string>
+			<key>other</key>
+			<string>Δοκίμασε ξανά σε %1$d λεπτά.</string>
+		</dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@COUNT@</string>
+	</dict>
+	<key>screen_feed_composer_daily_cap_notice</key>
+	<dict>
+		<key>COUNT</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>Έκανες τη σημερινή %1$d ανάρτησή σου. Μπορείς να δημοσιεύσεις ξανά μετά τα μεσάνυχτα UTC.</string>
+			<key>other</key>
+			<string>Έκανες και τις %1$d σημερινές αναρτήσεις σου. Μπορείς να δημοσιεύσεις ξανά μετά τα μεσάνυχτα UTC.</string>
+		</dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@COUNT@</string>
+	</dict>
+	<key>a11y_feed_likes</key>
+	<dict>
+		<key>COUNT</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%1$d «μου αρέσει»</string>
+			<key>other</key>
+			<string>%1$d «μου αρέσει»</string>
+		</dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@COUNT@</string>
+	</dict>
+	<key>a11y_feed_comments</key>
+	<dict>
+		<key>COUNT</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%1$d σχόλιο</string>
+			<key>other</key>
+			<string>%1$d σχόλια</string>
+		</dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@COUNT@</string>
+	</dict>
+	<key>a11y_feed_shares</key>
+	<dict>
+		<key>COUNT</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%1$d κοινοποίηση</string>
+			<key>other</key>
+			<string>%1$d κοινοποιήσεις</string>
+		</dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@COUNT@</string>
+	</dict>
+	<key>screen_feed_shared_partly</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@SENT@, %#@FAILED@</string>
+		<key>SENT</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>Κοινοποιήθηκε σε %1$d συνομιλία</string>
+			<key>other</key>
+			<string>Κοινοποιήθηκε σε %1$d συνομιλίες</string>
+		</dict>
+		<key>FAILED</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%2$d δεν ήταν δυνατό να κοινοποιηθεί</string>
+			<key>other</key>
+			<string>%2$d δεν ήταν δυνατό να κοινοποιηθούν</string>
+		</dict>
+	</dict>
+	<key>screen_feed_shared</key>
+	<dict>
+		<key>COUNT</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>Κοινοποιήθηκε σε %1$d συνομιλία</string>
+			<key>other</key>
+			<string>Κοινοποιήθηκε σε %1$d συνομιλίες</string>
+		</dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@COUNT@</string>
+	</dict>
+	<key>screen_feed_comment_daily_cap_notice</key>
+	<dict>
+		<key>COUNT</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>Το σημερινό όριο είναι %1$d σχόλιο. Μπορείς να σχολιάσεις ξανά μετά τα μεσάνυχτα UTC.</string>
+			<key>other</key>
+			<string>Το σημερινό όριο είναι %1$d σχόλια. Μπορείς να σχολιάσεις ξανά μετά τα μεσάνυχτα UTC.</string>
+		</dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@COUNT@</string>
+	</dict>
+	<key>screen_feed_comment_error_rate_limited_minutes</key>
+	<dict>
+		<key>COUNT</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>Δοκίμασε ξανά σε %1$d λεπτό.</string>
+			<key>other</key>
+			<string>Δοκίμασε ξανά σε %1$d λεπτά.</string>
+		</dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@COUNT@</string>
+	</dict>
+	<key>a11y_feed_notices_unread</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@COUNT@</string>
+		<key>COUNT</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%1$d μη αναγνωσμένη</string>
+			<key>other</key>
+			<string>%1$d μη αναγνωσμένες</string>
+		</dict>
+	</dict>
+	<key>screen_feed_report_rate_limited_message_hours</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@COUNT@</string>
+		<key>COUNT</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>Έστειλες 10 αναφορές σήμερα. Μπορείς να στείλεις κι άλλες σε περίπου %1$d ώρα.</string>
+			<key>other</key>
+			<string>Έστειλες 10 αναφορές σήμερα. Μπορείς να στείλεις κι άλλες σε περίπου %1$d ώρες.</string>
+		</dict>
+	</dict>
+	<key>screen_feed_activity_others</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@COUNT@</string>
+		<key>COUNT</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%1$d ακόμη</string>
+			<key>other</key>
+			<string>%1$d ακόμη</string>
+		</dict>
+	</dict>
+	<key>a11y_feed_activity_unread</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@COUNT@</string>
+		<key>COUNT</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>Δραστηριότητα, %1$d μη αναγνωσμένη</string>
+			<key>other</key>
+			<string>Δραστηριότητα, %1$d μη αναγνωσμένες</string>
+		</dict>
+	</dict>
+	<key>a11y_album_items</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@COUNT@</string>
+		<key>COUNT</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>Άλμπουμ, %1$d στοιχείο</string>
+			<key>other</key>
+			<string>Άλμπουμ, %1$d στοιχεία</string>
+		</dict>
+	</dict>
+	<key>a11y_tab_badge_count</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@COUNT@</string>
+		<key>COUNT</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%1$d σε αναμονή</string>
+			<key>other</key>
+			<string>%1$d σε αναμονή</string>
+		</dict>
+	</dict>
+	<key>screen_agents_chat_count</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@COUNT@</string>
+		<key>COUNT</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%1$d συνομιλία</string>
+			<key>other</key>
+			<string>%1$d συνομιλίες</string>
+		</dict>
+	</dict>
+	<key>screen_agents_tool_count</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@COUNT@</string>
+		<key>COUNT</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%1$d εργαλείο</string>
+			<key>other</key>
+			<string>%1$d εργαλεία</string>
+		</dict>
+	</dict>
+	<key>screen_room_timeline_tool_changes</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@COUNT@</string>
+		<key>COUNT</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>Τα εργαλεία άλλαξαν %1$d φορά</string>
+			<key>other</key>
+			<string>Τα εργαλεία άλλαξαν %1$d φορές</string>
+		</dict>
 	</dict>
 </dict>
 </plist>

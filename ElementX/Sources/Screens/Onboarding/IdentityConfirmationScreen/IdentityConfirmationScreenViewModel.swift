@@ -20,11 +20,11 @@ class IdentityConfirmationScreenViewModel: IdentityConfirmationScreenViewModelTy
         actionsSubject.eraseToAnyPublisher()
     }
     
-    init(userSession: UserSessionProtocol, appSettings: AppSettings, userIndicatorController: UserIndicatorControllerProtocol) {
+    init(userSession: UserSessionProtocol, userSettings: UserSettings, userIndicatorController: UserIndicatorControllerProtocol) {
         self.userSession = userSession
         self.userIndicatorController = userIndicatorController
         
-        super.init(initialViewState: IdentityConfirmationScreenViewState(learnMoreURL: appSettings.deviceVerificationURL))
+        super.init(initialViewState: IdentityConfirmationScreenViewState(learnMoreURL: userSettings.app.deviceVerificationURL))
         
         Task { [weak self] in
             for await state in userSession.sessionSecurityStatePublisher.values {
@@ -93,10 +93,11 @@ class IdentityConfirmationScreenViewModel: IdentityConfirmationScreenViewModelTy
         // onboarding flow's modal being dismissed (by SwiftUI, not us). However we don't need any of the additional
         // checks made in the UserSession flow as the user's account isn't verified so there's no much they can do unless
         // they complete verification.
+        // AGENT-PLATFORM (Brief 0083, decision 314): Spiral's sign-out copy, as in Settings (decision 187).
         state.bindings.alertInfo = .init(id: .logout,
-                                         title: L10n.screenSignoutConfirmationDialogTitle,
-                                         message: L10n.screenSignoutConfirmationDialogContent,
-                                         primaryButton: .init(title: L10n.screenSignoutConfirmationDialogSubmit, role: .destructive) { [weak self] in
+                                         title: UntranslatedL10n.screenIdentityConfirmationSignOutTitleSpiral,
+                                         message: UntranslatedL10n.screenIdentityConfirmationSignOutContentSpiral,
+                                         primaryButton: .init(title: UntranslatedL10n.screenIdentityConfirmationSignOutSubmitSpiral, role: .destructive) { [weak self] in
                                              self?.actionsSubject.send(.logoutConfirmed)
                                          })
     }

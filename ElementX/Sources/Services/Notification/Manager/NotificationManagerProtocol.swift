@@ -36,17 +36,16 @@ protocol NotificationManagerProtocol: AnyObject {
     var delegate: NotificationManagerDelegate? { get set }
     
     func start()
-    func register(with deviceToken: Data) async -> Bool
+    func register(with deviceToken: Data) async
     func registrationFailed(with error: Error)
     func showLocalNotification(with title: String, subtitle: String?) async
-    func setUserSession(_ userSession: UserSessionProtocol?)
     
-    func requestAuthorization()
-    
-    func removeDeliveredMessageNotifications(for roomID: String) async
-    
-    func removeDeliveredNotificationsForFullyReadRooms(_ rooms: [RoomSummary]) async
-    /// AGENT-PLATFORM: recompute the icon badge from the room list's own
-    /// truth. See `NotificationManager.updateBadgeCount`.
-    func updateBadgeCount(with rooms: [RoomSummary]) async
+    /// Starts handling a live account's notifications, replacing the service it had before (e.g. after clearing the cache).
+    func add(_ service: NotificationServiceProtocol)
+    func remove(userID: String)
+    /// Resets the app badge and stops receiving notifications, once no account is signed in.
+    func reset()
+    /// AGENT-PLATFORM: writes the accounts' badge counts to the icon again, over
+    /// whatever the extension left there.
+    func updateAppBadgeCount()
 }

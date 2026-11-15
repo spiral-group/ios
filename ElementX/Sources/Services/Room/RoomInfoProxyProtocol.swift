@@ -89,15 +89,7 @@ extension BaseRoomInfoProxyProtocol {
             return .tombstoned
         }
         
-        if isSpace {
-            return .space(id: id, name: displayName, avatarURL: avatarURL)
-        }
-        
-        if isDirect, avatarURL == nil, heroes.count == 1 {
-            return .heroes(heroes.map(UserProfile.init))
-        }
-        
-        return .room(id: id, name: displayName, avatarURL: avatarURL)
+        return .make(id: id, name: displayName, avatarURL: avatarURL, isDirect: isDirect, isSpace: isSpace, heroes: heroes.map(UserProfile.init))
     }
     
     var statusEmoji: Character? {
@@ -133,6 +125,11 @@ extension RoomInfoProxyProtocol {
     /// Checks if the other person left the room in a direct chat
     var isUserAloneInDirectRoom: Bool {
         isDirect && activeMembersCount == 1
+    }
+    
+    /// The room's name, falling back to its identifier when it doesn't have one.
+    var displayNameOrID: String {
+        displayName ?? id
     }
     
     /// Find the first alias that matches the given homeserver

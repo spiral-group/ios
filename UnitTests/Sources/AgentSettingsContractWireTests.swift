@@ -7,8 +7,8 @@
 //
 
 import AgentPlatformClient
-@testable import ElementX
 import Foundation
+@testable import Spiral
 import Synchronization
 import Testing
 
@@ -67,9 +67,9 @@ struct AgentSettingsContractWireTests {
         stub(status: 200, body: Data(#"""
         {"org_id":"org-1","name":"Acme","kind":"company","owner_user_id":"@me:spiral.md","agents":[
          {"agent_id":"a-1","matrix_user_id":"@agent-acme-1:spiral.md","display_name":"Sales","kind":"sales",
-          "visibility":"public","lifecycle_state":"suspended","presence":"offline","room_count":0,"active_tool_count":0,"paused":true},
+          "visibility":"public","lifecycle_state":"suspended","presence":"offline","last_active_at":"2026-10-31T07:00:00Z","room_count":0,"active_tool_count":0,"paused":true},
          {"agent_id":"a-2","matrix_user_id":"@agent-acme-2:spiral.md","display_name":"Support","kind":"support",
-          "visibility":"public","lifecycle_state":"active","presence":"online","room_count":1,"active_tool_count":0,"paused":false}]}
+          "visibility":"public","lifecycle_state":"active","presence":"online","last_active_at":"2026-10-31T07:04:00Z","room_count":1,"active_tool_count":0,"paused":false}]}
         """#.utf8))
 
         let detail = try await service.fetchAgentSpace(orgID: "org-1").get()
@@ -192,20 +192,13 @@ struct AgentSettingsContractWireTests {
         platformService.fetchNotificationsActivityCursorLimitReturnValue = .success(snapshot)
         platformService.markNotificationsSeenReturnValue = .success(Date())
         platformService.listMyAgentSpacesReturnValue = .success(.init(spaces: [], provisioningStatus: .ready))
-        let streamService = ApprovalsStreamServiceMock()
-        streamService.needsAction = []
-        streamService.underlyingConnectionState = .connected
-        streamService.connectClosure = {}
-        streamService.reseedClosure = {}
-        streamService.markSeenClosure = {}
         let clientProxy = ClientProxyMock(.init())
         clientProxy.profileForClosure = { .success(UserProfile(userID: $0, displayName: nil)) }
-        let viewModel = NotificationsHubScreenViewModel(approvalsStreamService: streamService,
+        let viewModel = NotificationsHubScreenViewModel(store: AgentsStore(service: platformService),
                                                         agentPlatformService: platformService,
                                                         clientProxy: clientProxy,
                                                         userIndicatorController: UserIndicatorControllerMock())
         let shown = deferFulfillment(viewModel.context.observe(\.viewState.visitorMessages)) { !$0.isEmpty }
-        viewModel.context.send(viewAction: .appeared)
         try await shown.fulfill()
 
         let row = try #require(viewModel.context.viewState.visitorMessages.first)

@@ -10,12 +10,11 @@ import SwiftUI
 
 /// The app's logo styled to fit on various launch pages.
 ///
-/// AGENT-PLATFORM (ADR-0005 auth-screen pass): the asset itself is now the
-/// generated START-SCREEN TILE — the twin of the operator-owned AppIcon
-/// (accent-blue rounded tile + white glyph, emitted by gen-ios-assets.mjs
-/// from the same brand master) — so the upstream brand chrome (white card,
-/// circle shadows, hardcoded shadow colour) is gone; a single soft shadow
-/// presents the tile like an app icon.
+/// AGENT-PLATFORM (ADR-0005 auth-screen pass): the asset is a light and dark
+/// render of `AppIcon.icon` (gen-ios-assets.mjs, question 358), so the upstream
+/// brand chrome (white card, circle shadows, hardcoded shadow colour) is gone;
+/// a single soft shadow presents the tile like an app icon, around the edge
+/// every drawing of the logo has (decision 370).
 struct AuthenticationStartLogo: View {
     /// Set to specify a custom size for the Logo, otherwise the default size of 158pt will be used.
     var size: CGFloat?
@@ -34,10 +33,52 @@ struct AuthenticationStartLogo: View {
             .resizable()
             .scaledToFit()
             .frame(width: side, height: side)
+            .appLogoEdge(hasShadow: false)
             .shadow(color: .black.opacity(hideBrandChrome ? 0 : 0.16),
                     radius: side / 10,
                     y: side / 20)
             .accessibilityHidden(true)
+    }
+}
+
+// AGENT-PLATFORM (Brief 0083, decision 370): the logo's character is white out to the tile's edge, so on a white page
+// the tile lost its shape. What holds it: a hairline and a soft shadow in light, the line alone in dark.
+extension View {
+    /// For the tile drawn at any size. `hasShadow` is off where a larger shadow of its own already lies under it.
+    func appLogoEdge(hasShadow: Bool = true) -> some View {
+        modifier(AppLogoEdge(hasShadow: hasShadow))
+    }
+}
+
+private struct AppLogoEdge: ViewModifier {
+    let hasShadow: Bool
+    
+    @Environment(\.colorScheme) private var colorScheme
+    
+    func body(content: Content) -> some View {
+        content
+            .overlay {
+                AppLogoTile().strokeBorder(colorScheme == .dark ? .white.opacity(0.16) : .black.opacity(0.12), lineWidth: 0.5)
+            }
+            // A blur of 5 is a radius of 2.5.
+            .shadow(color: hasShadow && colorScheme == .light ? .black.opacity(0.14) : .clear, radius: 2.5, y: 1)
+    }
+}
+
+/// The tile's outline. 26 % of its side is what fits the asset's own corner, to within a pixel at 474 px.
+nonisolated private struct AppLogoTile: InsettableShape {
+    var insetAmount: CGFloat = 0
+    
+    func path(in rect: CGRect) -> Path {
+        let radius = 0.26 * min(rect.width, rect.height) - insetAmount
+        return RoundedRectangle(cornerRadius: radius, style: .continuous)
+            .path(in: rect.insetBy(dx: insetAmount, dy: insetAmount))
+    }
+    
+    func inset(by amount: CGFloat) -> Self {
+        var shape = self
+        shape.insetAmount += amount
+        return shape
     }
 }
 

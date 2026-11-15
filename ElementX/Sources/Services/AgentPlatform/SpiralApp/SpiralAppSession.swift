@@ -40,7 +40,11 @@ protocol SpiralAppSessionProtocol: AnyObject {
     /// Answers `state.shared.read`.
     var snapshot: SpiralAppStateReader.Snapshot { get }
     /// Answers `state.shared.write`.
-    func apply(_ operation: SpiralAppOperation, summary: [String: Any]?) async -> Result<Void, SpiralAppPostError>
+    ///
+    /// - Parameter touched: whether the reader touched the post just now.
+    ///   An untouched write may still ping, but only whoever it answers
+    ///   (decision 235); a session with nobody to push ignores it.
+    func apply(_ operation: SpiralAppOperation, summary: [String: Any]?, touched: Bool) async -> Result<Void, SpiralAppPostError>
     /// Answers `time.read`: `now` in ms since the epoch, and the `floor` it
     /// was clamped to — the newest `origin_server_ts` this post has seen.
     ///
@@ -60,18 +64,16 @@ protocol SpiralAppSessionProtocol: AnyObject {
     /// post keeps only here. Nil keeps nothing, and says so to a writer.
     var privateCorner: SpiralAppPrivateCorner? { get }
 
-    /// Begin listening for other people's actions.
-    func start() async
-    /// Stop listening.
-    func stop()
+    /// Waits for the first verdict on the state, and says whether there is
+    /// anything to show. False is "couldn't read", never an empty post.
+    func hasReadableState() async -> Bool
 }
 
 extension SpiralAppSessionProtocol {
-    // A session with nothing behind it — a preview — has nothing to listen to
-    // and nothing to give up. Defaulted rather than required so that stays
-    // obvious instead of being written out as two empty methods.
-    func start() async { }
-    func stop() { }
+    /// A session with nothing behind it — a preview — has its state already.
+    func hasReadableState() async -> Bool {
+        true
+    }
 
     /// Nowhere to expand to, which is the truth for a session nobody is
     /// showing in a row. Defaulted so a conformer only writes this when it
@@ -107,7 +109,11 @@ extension SpiralAppSessionProtocol {
     /// The `default` arm matters as much as the others: a capability the
     /// manifest did not get is refused here too, so the granted list is not the
     /// only thing between an app and a method.
-    func answer(method: String, args: Data) async -> String {
+    ///
+    /// - Parameter activation: the reader's touches on this post, as the host
+    ///   saw them. A shared write and `ui.expand` act in the reader's name and
+    ///   need a recent one; the frame's own `userActivation` is never asked.
+    func answer(method: String, args: Data, activation: SpiralAppActivation) async -> String {
         switch method {
         case SpiralAppCapability.appContextRead.rawValue:
             return SpiralAppBridge.success(context)
@@ -116,6 +122,12 @@ extension SpiralAppSessionProtocol {
             return await SpiralAppBridge.success(members())
 
         case SpiralAppCapability.stateSharedRead.rawValue:
+            // An app mounts alongside the read now, so this can come first.
+            // Answered with the empty fold, the SDK would take `{}` for a
+            // state the host vouched for, and the post would draw as untouched.
+            guard await hasReadableState() else {
+                return SpiralAppBridge.failure(code: "unavailable", message: "this post's state could not be read")
+            }
             return SpiralAppBridge.success(["state": snapshot.state.jsonObject,
                                             "seq": snapshot.seq])
 
@@ -147,7 +159,10 @@ extension SpiralAppSessionProtocol {
             // no Taptic engine simply does nothing.
             let strength = (try? JSONSerialization.jsonObject(with: args) as? [String: Any])?
                 .flatMap { $0["strength"] as? String } ?? "light"
-            SpiralAppFeedback.play(strength)
+            // Bounded: a buzz that never stops is not feel any more (L3).
+            if activation.allowsHaptic() {
+                SpiralAppFeedback.play(strength)
+            }
             return SpiralAppBridge.success(nil)
 
         case SpiralAppCapability.uiExpand.rawValue:
@@ -155,6 +170,13 @@ extension SpiralAppSessionProtocol {
             // viewer is already open, so the app is told it was heard and
             // the host decides. Without a handler (a preview, the lab) it is
             // heard and ignored, which is the honest answer.
+            //
+            // Only for a touch, and once per touch: an app that took the
+            // screen unasked, or again the moment it was closed, is chrome
+            // the reader never asked for (M2).
+            guard activation.consumeForExpand() else {
+                return SpiralAppBridge.failure(code: "rejected", message: Self.needsTouch)
+            }
             onExpandRequested?()
             return SpiralAppBridge.success(nil)
 
@@ -164,8 +186,12 @@ extension SpiralAppSessionProtocol {
                   let operation = SpiralAppOperation(json: raw) else {
                 return SpiralAppBridge.failure(code: "rejected", message: "not an operation this runtime knows")
             }
-
-            switch await apply(operation, summary: body["summary"] as? [String: Any]) {
+            // A PING pushes people in the reader's name. With the reader's
+            // touch it names whom it likes; without one it still goes, but
+            // may push only whoever it answers (H2, decision 235) — a
+            // defender's phone answering a shot by itself tells the shooter,
+            // and nobody else. The token bucket bounds every write.
+            switch await apply(operation, summary: body["summary"] as? [String: Any], touched: activation.hasRecentTouch) {
             case .success:
                 MXLog.info("[SpiralApp] write ok: \(operation.shortDescription)")
                 return SpiralAppBridge.success(nil)
@@ -180,6 +206,12 @@ extension SpiralAppSessionProtocol {
         default:
             return SpiralAppBridge.failure(code: "rejected", message: "not granted: \(method)")
         }
+    }
+}
+
+private extension SpiralAppSessionProtocol {
+    static var needsTouch: String {
+        "needs a tap on the post in the last \(Int(SpiralAppActivation.window)) s"
     }
 }
 
@@ -242,7 +274,7 @@ final class SpiralAppPreviewSession: SpiralAppSessionProtocol {
         .init(state: state, seq: seq, readiness: .ready, summary: nil)
     }
 
-    func apply(_ operation: SpiralAppOperation, summary: [String: Any]?) async -> Result<Void, SpiralAppPostError> {
+    func apply(_ operation: SpiralAppOperation, summary: [String: Any]?, touched: Bool = true) async -> Result<Void, SpiralAppPostError> {
         let next = operation.applied(to: state)
 
         guard let encoded = next.encoded(), encoded.count <= SpiralAppPostSession.maxStateBytes else {

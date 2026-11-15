@@ -20,27 +20,35 @@ struct InteractivePostCatalogScreenCoordinatorParameters {
     let ownUserID: String
     /// The template a catalogue link named, to open on (decision 111).
     var initialTemplateID: String?
-    /// Whether the viewer has an agent; without one, browse and Publish only (decision 129).
+    /// Whether the viewer has an agent; without one, browse and Send only (decision 129).
     var assistant = InteractivePostCatalogAssistant.available
+    /// Whether the one-time introduction has been shown (question 412).
+    var hasSeenIntroduction = true
+    var introductionSeen: () -> Void = { }
+    /// How many people are in the room, nil if unknown: it orders the shelves.
+    let countPeople: @MainActor () async -> Int?
     let loadMembers: @MainActor () async -> [String: Any]
 }
 
 enum InteractivePostCatalogScreenCoordinatorAction {
-    case startNew
+    case startNew(description: String?)
     case openThread(InteractivePostThreadItem)
     case publishTemplate(SpiralAppTemplate)
     case changeTemplate(SpiralAppTemplate)
-    case showAllThreads
+    /// Close the catalogue for the Agents tab.
+    case showAgents
+    /// Read the agents again and open the catalogue on this post.
+    case retryAgents(templateID: String)
+    /// Push `postCoordinator()` onto the catalogue's stack.
+    case showPost
+    /// Push `yoursCoordinator()` onto the catalogue's stack.
+    case showYours
     case cancel
 }
 
 final class InteractivePostCatalogScreenCoordinator: CoordinatorProtocol {
-    private let viewModel: InteractivePostCatalogScreenViewModelProtocol
-
-    /// The full list of yours, for the stack the catalogue is on to push.
-    var threadsCoordinator: InteractivePostThreadsScreenCoordinator {
-        InteractivePostThreadsScreenCoordinator(viewModel: viewModel)
-    }
+    /// Internal so a flow's tests can press the screen's buttons.
+    let viewModel: InteractivePostCatalogScreenViewModelProtocol
 
     /// What the catalogue knows of the viewer's agents (decision 129).
     var assistant: InteractivePostCatalogAssistant {
@@ -61,6 +69,9 @@ final class InteractivePostCatalogScreenCoordinator: CoordinatorProtocol {
                                                           ownUserID: parameters.ownUserID,
                                                           initialTemplateID: parameters.initialTemplateID,
                                                           assistant: parameters.assistant,
+                                                          hasSeenIntroduction: parameters.hasSeenIntroduction,
+                                                          introductionSeen: parameters.introductionSeen,
+                                                          countPeople: parameters.countPeople,
                                                           loadMembers: parameters.loadMembers)
     }
 
@@ -68,16 +79,22 @@ final class InteractivePostCatalogScreenCoordinator: CoordinatorProtocol {
         viewModel.actionsPublisher.sink { [weak self] action in
             guard let self else { return }
             switch action {
-            case .startNew:
-                actionsSubject.send(.startNew)
+            case .startNew(let description):
+                actionsSubject.send(.startNew(description: description))
             case .openThread(let item):
                 actionsSubject.send(.openThread(item))
             case .publishTemplate(let template):
                 actionsSubject.send(.publishTemplate(template))
             case .changeTemplate(let template):
                 actionsSubject.send(.changeTemplate(template))
-            case .showAllThreads:
-                actionsSubject.send(.showAllThreads)
+            case .showAgents:
+                actionsSubject.send(.showAgents)
+            case .retryAgents(let templateID):
+                actionsSubject.send(.retryAgents(templateID: templateID))
+            case .showPost:
+                actionsSubject.send(.showPost)
+            case .showYours:
+                actionsSubject.send(.showYours)
             case .cancel:
                 actionsSubject.send(.cancel)
             }
@@ -85,14 +102,28 @@ final class InteractivePostCatalogScreenCoordinator: CoordinatorProtocol {
         .store(in: &cancellables)
     }
 
+    func stop() {
+        viewModel.stop()
+    }
+
+    /// The post page, for the stack the catalogue is on to push.
+    func postCoordinator() -> InteractivePostCatalogPostScreenCoordinator {
+        InteractivePostCatalogPostScreenCoordinator(viewModel: viewModel)
+    }
+
+    /// Yours, for the stack the catalogue is on to push.
+    func yoursCoordinator() -> InteractivePostCatalogYoursScreenCoordinator {
+        InteractivePostCatalogYoursScreenCoordinator(viewModel: viewModel)
+    }
+
     func toPresentable() -> AnyView {
         AnyView(InteractivePostCatalogScreen(context: viewModel.context))
     }
 }
 
-/// «Yours › All», over the catalogue on the same stack (§ 5.63): the same
-/// view model, so the list is the one the main screen already holds.
-final class InteractivePostThreadsScreenCoordinator: CoordinatorProtocol {
+/// The post page over the catalogue, on the same view model: the catalogue
+/// below keeps its place for the way back.
+final class InteractivePostCatalogPostScreenCoordinator: CoordinatorProtocol {
     private let viewModel: InteractivePostCatalogScreenViewModelProtocol
 
     init(viewModel: InteractivePostCatalogScreenViewModelProtocol) {
@@ -100,6 +131,19 @@ final class InteractivePostThreadsScreenCoordinator: CoordinatorProtocol {
     }
 
     func toPresentable() -> AnyView {
-        AnyView(InteractivePostThreadsScreen(context: viewModel.context))
+        AnyView(InteractivePostCatalogPostScreen(context: viewModel.context))
+    }
+}
+
+/// Yours, over the catalogue on the same stack.
+final class InteractivePostCatalogYoursScreenCoordinator: CoordinatorProtocol {
+    private let viewModel: InteractivePostCatalogScreenViewModelProtocol
+
+    init(viewModel: InteractivePostCatalogScreenViewModelProtocol) {
+        self.viewModel = viewModel
+    }
+
+    func toPresentable() -> AnyView {
+        AnyView(InteractivePostCatalogYoursScreen(context: viewModel.context))
     }
 }

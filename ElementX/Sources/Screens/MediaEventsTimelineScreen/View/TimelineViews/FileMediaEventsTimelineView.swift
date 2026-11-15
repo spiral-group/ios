@@ -19,18 +19,18 @@ struct FileMediaEventsTimelineView: View {
     @State private var contentScanningFailure: ContentScanningFailure?
     
     var body: some View {
+        // AGENT-PLATFORM (Brief 0083): no room kept for a time this screen never draws.
         MediaFileRoomTimelineContent(filename: timelineItem.content.filename,
                                      fileSize: timelineItem.content.fileSize,
                                      caption: timelineItem.content.caption,
                                      formattedCaption: timelineItem.content.formattedCaption,
-                                     trailingReservedSize: timelineItem.trailingReservedSize,
                                      contentScannerService: context?.contentScannerService,
                                      mediaSource: timelineItem.content.source,
                                      thumbnailSource: timelineItem.content.thumbnailSource)
             .accessibilityLabel(L10n.commonFile)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .bubbleBackground(isOutgoing: timelineItem.isOutgoing,
-                              color: contentScanningFailure == nil ? .compound.bgSubtleSecondary : .compound.bgCriticalSubtle,
+            // AGENT-PLATFORM (Brief 0083): a bubble's corners no longer depend on its side.
+            .bubbleBackground(color: contentScanningFailure == nil ? .compound.bgSubtleSecondary : .compound.bgCriticalSubtle,
                               borderColor: contentScanningFailure == nil ? nil : .compound.borderCriticalSubtle)
             .onPreferenceChange(ContentScanningFailurePreferenceKey.self) { contentScanningFailure = $0 }
     }

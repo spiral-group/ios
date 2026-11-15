@@ -17,10 +17,8 @@ struct SpacesScreen: View {
             .navigationTitle(L10n.screenSpaceListTitle)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { toolbar }
-            .background(Color.compound.bgCanvasDefault.ignoresSafeArea())
-            // AGENT-PLATFORM: navigation-bar bloom restored (ADR-0005 revision) — now
-            // a blue glow via the synced alpha-blue subtle gradient (see HomeScreen).
-            .toolbarBloom(hasSearchBar: false)
+            .toolbarRole(Compound.supportsGlass ? .editor : .automatic)
+            .background(Color.compound.bgCanvasDefault.ignoresSafeArea()) // AGENT-PLATFORM (Brief 0083, decisions 308 and 346): no bloom over it.
     }
     
     @ViewBuilder
@@ -56,7 +54,7 @@ struct SpacesScreen: View {
             
             VStack(spacing: 8) {
                 Text(L10n.screenSpaceListTitle)
-                    .font(.compound.headingLGBold)
+                    .font(.compound.headingMDBold)
                     .foregroundStyle(.compound.textPrimary)
                     .multilineTextAlignment(.center)
                 
@@ -94,25 +92,26 @@ struct SpacesScreen: View {
     
     @ToolbarContentBuilder
     private var toolbar: some ToolbarContent {
-        ToolbarItem(placement: .navigationBarLeading) {
-            Button {
+        // Use the title placement on iOS 26 to match the chats tab and fix a weird animation.
+        ToolbarItem(placement: Compound.supportsGlass ? .title : .navigationBarLeading) {
+            AvatarSettingsButton(userProfile: context.viewState.userProfile,
+                                 mediaProvider: context.mediaProvider) {
                 context.send(viewAction: .showSettings)
-            } label: {
-                AvatarSettingsButtonLabel(userProfile: context.viewState.userProfile,
-                                          mediaProvider: context.mediaProvider)
             }
             .buttonStyle(.borderless)
-            .accessibilityLabel(L10n.commonSettings)
-            .accessibilityIdentifier(A11yIdentifiers.homeScreen.userAvatar)
-        }
-        
-        ToolbarItem(placement: .principal) {
-            // Hides the navigationTitle (which is set for the navigation stack label).
-            Text("").accessibilityHidden(true)
         }
         .backportSharedBackgroundVisibility(.hidden)
         
-        ToolbarItem(placement: .navigationBarTrailing) {
+        // No need to hide the title on iOS 26, as we use the .title placement for the settings
+        // button to workaround a weird liquid glass transition.
+        if #unavailable(iOS 26) {
+            ToolbarItem(placement: .principal) {
+                // Hides the navigationTitle (which is set for the navigation stack label).
+                Text("").accessibilityHidden(true)
+            }
+        }
+        
+        ToolbarItem(placement: .primaryAction) {
             Button {
                 context.send(viewAction: .createSpace)
             } label: {

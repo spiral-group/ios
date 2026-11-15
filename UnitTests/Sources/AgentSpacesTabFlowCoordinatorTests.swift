@@ -8,7 +8,7 @@
 //
 
 import Combine
-@testable import ElementX
+@testable import Spiral
 import Testing
 
 @MainActor
@@ -97,8 +97,7 @@ struct AgentSpacesTabFlowCoordinatorTests {
 struct AgentFlowCoordinatorTests {
     private static let card = AgentSpaceAgentCard(agentID: "agent-1", matrixUserID: "@assistant-owner:spiral.md",
                                                   displayName: "Assistant", avatarMXC: nil, kind: "personal_assistant",
-                                                  visibility: "public", lifecycleState: "active", presence: .online,
-                                                  roomCount: 1, activeToolCount: 0)
+                                                  visibility: "public", lifecycleState: "active", roomCount: 1, activeToolCount: 0)
 
     /// The chat is pushed over the agent's screens, so back returns to them
     /// and the owner stays on the Agents tab.
@@ -121,40 +120,100 @@ struct AgentFlowCoordinatorTests {
         #expect(actions.isEmpty)
     }
     
-    private func makeFlowCoordinator(navigationStackCoordinator: NavigationStackCoordinator) -> AgentFlowCoordinator {
+    /// «Open chat» of the agent in a chat that isn't the one the flow came from opens it on the agent's stack.
+    @Test
+    func openChatOfAnotherChatOpensItOnTheAgentsStack() async throws {
+        let navigationStackCoordinator = NavigationStackCoordinator()
+        var asked: [String] = []
+        let flowCoordinator = makeFlowCoordinator(navigationStackCoordinator: navigationStackCoordinator) { roomID in
+            asked.append(roomID)
+            return false
+        }
+        flowCoordinator.start(animated: false)
+        
+        flowCoordinator.openChat(roomID: "1")
+        let pushed = deferFulfillment(navigationStackCoordinator.observe(\.stackCoordinators.count)) { $0 == 1 }
+        try await pushed.fulfill()
+        
+        #expect(asked == ["1"])
+        #expect(navigationStackCoordinator.stackCoordinators.last is RoomScreenCoordinator)
+    }
+    
+    /// A second tap on a room that is still opening doesn't start a second flow.
+    @Test
+    func aSecondTapOnAChatThatIsOpeningPushesItOnce() async throws {
+        let navigationStackCoordinator = NavigationStackCoordinator()
+        let flowCoordinator = makeFlowCoordinator(navigationStackCoordinator: navigationStackCoordinator)
+        flowCoordinator.start(animated: false)
+        
+        flowCoordinator.openRoom(roomID: "1")
+        flowCoordinator.openRoom(roomID: "1")
+        let pushed = deferFulfillment(navigationStackCoordinator.observe(\.stackCoordinators.count)) { $0 == 1 }
+        try await pushed.fulfill()
+        
+        let pushedAgain = deferFailure(navigationStackCoordinator.observe(\.stackCoordinators.count), timeout: .seconds(1)) { $0 != 1 }
+        try await pushedAgain.fulfill()
+        #expect(navigationStackCoordinator.stackCoordinators.count == 1)
+    }
+    
+    /// «Open chat» of the chat the flow came from returns to that chat, and doesn't stack a second copy of it.
+    @Test
+    func openChatOfTheOriginChatLeavesItToItsOwnFlow() async throws {
+        let navigationStackCoordinator = NavigationStackCoordinator()
+        var asked: [String] = []
+        let flowCoordinator = makeFlowCoordinator(navigationStackCoordinator: navigationStackCoordinator) { roomID in
+            asked.append(roomID)
+            return true
+        }
+        flowCoordinator.start(animated: false)
+        
+        flowCoordinator.openChat(roomID: "1")
+        let notPushed = deferFailure(navigationStackCoordinator.observe(\.stackCoordinators.count), timeout: .seconds(1)) { $0 != 0 }
+        try await notPushed.fulfill()
+        
+        #expect(asked == ["1"])
+        #expect(navigationStackCoordinator.stackCoordinators.isEmpty)
+    }
+    
+    private func makeFlowCoordinator(navigationStackCoordinator: NavigationStackCoordinator,
+                                     showOriginRoom: ((String) -> Bool)? = nil) -> AgentFlowCoordinator {
         let clientProxy = ClientProxyMock(.init(userID: "@owner:spiral.md",
                                                 roomSummaryProvider: RoomSummaryProviderMock(.init(state: .loaded(.mockRooms)))))
         clientProxy.directRoomForUserIDReturnValue = .success(nil)
         
         let service = AgentPlatformServiceMock()
         service.listVerificationsForAgentAgentIDReturnValue = .success([])
-        service.fetchAgentReadModelAgentIDReturnValue = .failure(.notFound)
+        // Not a 404, which says the agent is gone and closes its flow.
+        service.fetchAgentReadModelAgentIDReturnValue = .failure(.serverError(status: 503))
         service.fetchAgentRoomsAgentIDReturnValue = .success([])
         service.listBlockedContactsAgentIDCursorLimitReturnValue = .success(.init(blocks: [], nextCursor: nil))
         service.listMyPersonalAgentsReturnValue = .success(.init(agents: [], provisioningStatus: .ready))
         service.fetchRoomToolsRoomIDReturnValue = .success(.init(roomID: "1", agents: [])) // the room screen's tools banner
+        // AGENT-PLATFORM: platform sync (decision 289): the agent screen shows what waits for the owner.
+        service.fetchNotificationsActivityCursorLimitReturnValue = .success(.init(needsAction: [], activity: [], nextActivityCursor: nil,
+                                                                                  lastSeenAt: nil, unseenCount: 0))
         
         let userSession = UserSessionMock(.init(clientProxy: clientProxy))
         userSession.agentPlatformService = service
         
         let appSettings = AppSettings.volatile()
         let flowParameters = CommonFlowParameters(userSession: userSession,
+                                                  availableSessionsPublisher: .init([.init(userSession: userSession)]),
                                                   bugReportService: BugReportServiceMock(.init()),
                                                   callKitService: CallKitServiceMock(.init()),
                                                   timelineControllerFactory: TimelineControllerFactoryMock(.init()),
-                                                  emojiProvider: EmojiProvider(appSettings: appSettings),
+                                                  emojiProvider: EmojiProvider(userSettings: userSession.userSettings),
                                                   linkMetadataProvider: LinkMetadataProvider(),
                                                   appMediator: AppMediatorMock(.init()),
-                                                  appSettings: appSettings,
-                                                  appHooks: AppHooks(),
                                                   analytics: AnalyticsServiceMock(.init()),
                                                   userIndicatorController: UserIndicatorControllerMock(),
-                                                  notificationManager: NotificationManagerMock(),
                                                   stateMachineFactory: StateMachineFactory())
         
         return AgentFlowCoordinator(selection: .init(card: Self.card, companyName: nil),
                                     agentPlatformService: service,
+                                    agentsStore: AgentsStore(service: service),
                                     navigationStackCoordinator: navigationStackCoordinator,
-                                    flowParameters: flowParameters)
+                                    flowParameters: flowParameters,
+                                    showOriginRoom: showOriginRoom)
     }
 }

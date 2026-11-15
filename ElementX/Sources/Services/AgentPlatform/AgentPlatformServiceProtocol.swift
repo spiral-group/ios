@@ -279,6 +279,14 @@ protocol AgentPlatformServiceProtocol: RoomToolsServiceProtocol {
     /// again.
     var ownerBlocksResyncPublisher: AnyPublisher<Void, Never> { get }
 
+    // MARK: - Public feed (AGENT-PLATFORM: feed, Brief 0082)
+
+    /// The public feed's read side (lane I1).
+    var feed: FeedServiceProtocol { get }
+
+    /// The one change stream of the app (decision 289).
+    var sync: PlatformSyncServiceProtocol { get }
+
     // MARK: - Unified Tool + Trigger control (Brief 0036 / ADR-0048)
 
     //
@@ -374,37 +382,35 @@ protocol AgentPlatformServiceProtocol: RoomToolsServiceProtocol {
     /// `GET /api/v1/voice-sessions/{id}/controls`.
     func voiceSessionControls(sessionID: String) async -> Result<VoiceControlsState, VoiceControlsError>
 
-    /// `GET /api/v1/agents/{id}/voice-controls/catalog` — the agent's call
-    /// controls and languages, with or without a session (decision 180).
-    func voiceControlsCatalog(agentID: String) async -> Result<VoiceControlsCatalog, VoiceControlsError>
+    /// `GET /api/v1/voice/languages` (ADR-0094 A.8) — the voice-translation catalog, for anyone signed in.
+    func voiceLanguages() async -> Result<[VoiceControlsCatalogLanguage], VoiceControlsError>
 
     /// `PUT /api/v1/voice-sessions/{id}/controls/translation`
-    /// (`state: enabled`). CAS-guarded by `revision`; 0 = no
-    /// override row yet.
+    /// (`state: enabled`, ADR-0094 A.2). CAS-guarded by `revision`; 0 = no
+    /// override row yet. A 503 is retried once after its `Retry-After`.
     func setVoiceTranslation(sessionID: String, params: VoiceTranslationParams, revision: Int32) async -> Result<VoiceControlsState, VoiceControlsError>
 
     /// `PUT /api/v1/voice-sessions/{id}/controls/translation`
     /// (`state: disabled`).
     func disableVoiceTranslation(sessionID: String, revision: Int32) async -> Result<VoiceControlsState, VoiceControlsError>
 
-    /// `DELETE /api/v1/voice-sessions/{id}/controls/translation` —
-    /// back to inheriting the room Tool.
-    func clearVoiceTranslationOverride(sessionID: String) async -> Result<VoiceControlsState, VoiceControlsError>
-
-    /// `POST …/controls/translation/save-as-room-default` —
-    /// promote the call override to the room's LiveTranslate Tool.
-    func saveVoiceTranslationAsRoomDefault(sessionID: String) async -> Result<Void, VoiceControlsError>
-
     /// `POST /api/v1/agents/{id}/voice-sessions` with attach-time
     /// controls (Brief 0055): add the agent to THIS call,
     /// session-scoped (`leave_policy=call_end`), configured
     /// explicitly. Returns the new session id (or the existing one on
-    /// a benign 409).
+    /// a benign 409). A 503 is retried once after its `Retry-After`.
     func attachVoiceAgent(agentID: String, roomID: String, params: VoiceAttachParams) async -> Result<String, VoiceControlsError>
 
     /// `DELETE /api/v1/voice-sessions/{id}` — remove the agent from
     /// the call (live teardown backend-side).
     func endVoiceSession(sessionID: String) async -> Result<Void, VoiceControlsError>
+
+    /// `GET /api/v1/voice-sessions/{id}` — where an attached session is, and why it ended (question 387, B1).
+    func voiceSessionProgress(sessionID: String) async -> Result<VoiceSessionProgress, VoiceControlsError>
+
+    /// `GET /api/v1/agents/{id}/voice-sessions/join-check` — can the owner's agent join a call in this room
+    /// (question 387, B4). A fact the backend could not read is `.unavailable`, not an answer.
+    func voiceJoinCheck(agentID: String, roomID: String) async -> Result<VoiceJoinCheckReason, VoiceControlsError>
 
     /// `PUT …/controls/{control}` with `state=enabled|disabled` and no
     /// params — every on/off session control, CAS-guarded by `revision`.
@@ -1415,12 +1421,7 @@ nonisolated struct AgentSpaceDetail: Equatable {
 }
 
 /// One agent inside a space — the rich card 0037-B/C rows render.
-nonisolated struct AgentSpaceAgentCard: Equatable, Identifiable {
-    /// Derived server-side from `last_active_at` (5-minute window).
-    enum Presence: String, Equatable {
-        case online, offline
-    }
-
+nonisolated struct AgentSpaceAgentCard: Hashable, Identifiable {
     let agentID: String
     let matrixUserID: String
     let displayName: String
@@ -1429,7 +1430,6 @@ nonisolated struct AgentSpaceAgentCard: Equatable, Identifiable {
     let kind: String
     let visibility: String
     let lifecycleState: String
-    let presence: Presence
     /// Rooms the agent is currently joined to.
     let roomCount: Int
     /// Active tools across those rooms.
@@ -1496,13 +1496,30 @@ nonisolated enum AgentVisitorPolicy: String, CaseIterable, Equatable {
 }
 
 /// An agent's AI use as its person sees it (`GET /agents/{id}/usage`,
-/// Brief 0079 3c): shares of the daily limit, never money.
+/// question 394): shares of the limit, never money.
 nonisolated struct AgentUsage: Equatable {
-    struct Today: Equatable {
+    /// The limit's period. The page words a week; any other period (the
+    /// backend's `day`, or one newer than this build) reads as a neutral limit.
+    enum Period: Equatable {
+        case week
+        case other
+
+        init(serverValue: String) {
+            self = serverValue == "week" ? .week : .other
+        }
+    }
+
+    /// The window in force.
+    struct Current: Equatable {
+        let period: Period
+        /// The period's start, or a later reset.
+        let startsAt: Date
+        let resetsAt: Date
         /// Past 100 when a call ran over the limit.
         let usedPercent: Double
         let limitReached: Bool
-        let resetsAt: Date
+        /// The window's non-zero categories.
+        let categories: [CategoryShare]
     }
 
     /// One UTC day; the server sends 30, newest first, today included.
@@ -1511,6 +1528,7 @@ nonisolated struct AgentUsage: Equatable {
         let id: String
         /// Midnight UTC of the day; format it in UTC.
         let date: Date
+        /// A share of the current limit.
         let usedPercent: Double
         /// Largest first; empty on a day without use.
         let categories: [CategoryShare]
@@ -1519,24 +1537,32 @@ nonisolated struct AgentUsage: Equatable {
     struct CategoryShare: Equatable {
         let category: Category
         let usedPercent: Double
-    }
+        /// The category's cap is reached (question 395): its AI waits while the rest works.
+        var pause: Pause?
 
-    enum Category: String, Equatable {
-        case messages
-        case roomTools = "room_tools"
-        case posts
-        case calls
-        case callTranslation = "call_translation"
-        case callSummaries = "call_summaries"
-        case other
-
-        /// A category this build does not know reads as other.
-        init(serverValue: String) {
-            self = Category(rawValue: serverValue) ?? .other
+        /// Unknown categories all read as other (decision 96): their shares add up into one row, and a pause among
+        /// them pauses it. The order is the server's, by first appearance.
+        static func merged(_ shares: [CategoryShare]) -> [CategoryShare] {
+            var merged: [CategoryShare] = []
+            for share in shares {
+                guard let index = merged.firstIndex(where: { $0.category == share.category }) else {
+                    merged.append(share)
+                    continue
+                }
+                let existing = merged[index]
+                merged[index] = CategoryShare(category: share.category,
+                                              usedPercent: existing.usedPercent + share.usedPercent,
+                                              pause: existing.pause ?? share.pause)
+            }
+            return merged
         }
     }
 
-    let today: Today
+    typealias Pause = AILimitPause
+
+    typealias Category = AILimitCategory
+
+    let current: Current
     let days: [Day]
 }
 

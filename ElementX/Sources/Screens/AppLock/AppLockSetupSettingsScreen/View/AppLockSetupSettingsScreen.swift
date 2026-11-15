@@ -36,7 +36,7 @@ struct AppLockSetupSettingsScreen: View {
                 }
             }
         }
-        .compoundList()
+        .spiralGroupedList() // AGENT-PLATFORM (Brief 0083): Spiral's grouped list, was `compoundList()`.
         .navigationTitle(L10n.commonScreenLock)
         .navigationBarTitleDisplayMode(.inline)
         .alert(item: $context.alertInfo)
@@ -45,7 +45,8 @@ struct AppLockSetupSettingsScreen: View {
 
 // MARK: - Previews
 
-struct AppLockSetupSettingsScreen_Previews: PreviewProvider, TestablePreview {
+// AGENT-PLATFORM (Brief 0083, lane settings): gated.
+struct AppLockSetupSettingsScreen_Previews: PreviewProvider, TestablePreview, SpiralGatedPreview {
     static let faceIDViewModel = AppLockSetupSettingsScreenViewModel(appLockService: AppLockServiceMock.mock(biometryType: .faceID))
     static let touchIDViewModel = AppLockSetupSettingsScreenViewModel(appLockService: AppLockServiceMock.mock(isMandatory: true, biometryType: .touchID))
     static let biometricsUnavailableViewModel = AppLockSetupSettingsScreenViewModel(appLockService: AppLockServiceMock.mock(biometryType: .none))

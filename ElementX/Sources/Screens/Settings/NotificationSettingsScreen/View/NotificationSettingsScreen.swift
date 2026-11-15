@@ -12,6 +12,8 @@ import UniformTypeIdentifiers
 
 struct NotificationSettingsScreen: View {
     @Bindable var context: NotificationSettingsScreenViewModel.Context
+    // AGENT-PLATFORM: feed (Brief 0082): the feed's switch, with the agent platform.
+    var feedContext: FeedNotificationSettingsViewModel.Context?
     
     var body: some View {
         Form {
@@ -26,17 +28,17 @@ struct NotificationSettingsScreen: View {
                 
                 if context.enableNotifications {
                     roomsNotificationSection
-                    
-                    if context.viewState.settings?.roomMentionsEnabled != nil {
-                        mentionsSection
-                    }
-                    
+                }
+                
+                roomListActivitySection
+                
+                if context.enableNotifications {
                     if context.viewState.showCallsSettings, context.viewState.settings?.callsEnabled != nil {
                         callsSection
                     }
                     
-                    if context.viewState.settings?.invitationsEnabled != nil {
-                        additionalSettingsSection
+                    if let feedContext { // AGENT-PLATFORM: feed (Brief 0082)
+                        FeedNotificationSettingsSection(context: feedContext)
                     }
                     
                     if context.viewState.customToneSelectionEnabled {
@@ -45,7 +47,7 @@ struct NotificationSettingsScreen: View {
                 }
             }
         }
-        .compoundList()
+        .spiralGroupedList() // AGENT-PLATFORM (Brief 0083): Spiral's grouped list, was `compoundList()`.
         .navigationTitle(L10n.screenNotificationSettingsTitle)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar { toolbar }
@@ -123,14 +125,16 @@ struct NotificationSettingsScreen: View {
                     .disabled(context.viewState.settings == nil)
                     .accessibilityIdentifier(A11yIdentifiers.roomDetailsScreen.notifications)
             
-        } header: {
-            Text(L10n.screenNotificationSettingsNotificationSectionTitle)
-                .compoundListSectionHeader()
-        }
-    }
-    
-    private var mentionsSection: some View {
-        Section {
+            // Invitations
+            ListRow(label: .plain(title: L10n.screenNotificationSettingsInviteForMeLabel),
+                    kind: .toggle($context.invitationsEnabled))
+                .disabled(context.viewState.settings?.invitationsEnabled == nil)
+                .allowsHitTesting(!context.viewState.applyingChange)
+                .onChange(of: context.invitationsEnabled) {
+                    context.send(viewAction: .invitationsChanged)
+                }
+            
+            // @room mentions
             ListRow(label: .plain(title: L10n.screenNotificationSettingsRoomMentionLabel),
                     kind: .toggle($context.roomMentionsEnabled))
                 .disabled(context.viewState.settings?.roomMentionsEnabled == nil)
@@ -138,9 +142,21 @@ struct NotificationSettingsScreen: View {
                 .onChange(of: context.roomMentionsEnabled) {
                     context.send(viewAction: .roomMentionChanged)
                 }
+            
         } header: {
-            Text(L10n.screenNotificationSettingsMentionsSectionTitle)
+            Text(L10n.screenNotificationSettingsNotificationSectionTitle)
                 .compoundListSectionHeader()
+        }
+    }
+    
+    private var roomListActivitySection: some View {
+        Section {
+            ListRow(label: .plain(title: L10n.screenNotificationSettingsShowAllActivityTitle,
+                                  description: L10n.screenNotificationSettingsShowAllActivitySubtitle),
+                    kind: .toggle($context.showAllRoomListActivity))
+                .onChange(of: context.showAllRoomListActivity) {
+                    context.send(viewAction: .showAllRoomListActivityChanged)
+                }
         }
     }
     
@@ -159,21 +175,6 @@ struct NotificationSettingsScreen: View {
         }
     }
     
-    private var additionalSettingsSection: some View {
-        Section {
-            ListRow(label: .plain(title: L10n.screenNotificationSettingsInviteForMeLabel),
-                    kind: .toggle($context.invitationsEnabled))
-                .disabled(context.viewState.settings?.invitationsEnabled == nil)
-                .allowsHitTesting(!context.viewState.applyingChange)
-                .onChange(of: context.invitationsEnabled) {
-                    context.send(viewAction: .invitationsChanged)
-                }
-        } header: {
-            Text(L10n.screenNotificationSettingsAdditionalSettingsSectionTitle)
-                .compoundListSectionHeader()
-        }
-    }
-    
     @ViewBuilder
     private var soundSelectionSection: some View {
         Section {
@@ -181,7 +182,7 @@ struct NotificationSettingsScreen: View {
                 customSoundSelectionSection
             }
             .foregroundStyle(.compound.textPrimary)
-            .listRowBackground(Color.compound.bgCanvasDefaultLevel1)
+            .listRowBackground(Color.compound.bgSubtlePrimary) // AGENT-PLATFORM (Brief 0083): the grouped list's cards.
             .listRowSeparatorTint(ListRowColor.separatorTint)
         } header: {
             Text(L10n.screenNotificationSettingsSoundSectionTitle)
@@ -264,10 +265,10 @@ struct NotificationSettingsScreen: View {
 
 // MARK: - Previews
 
-@available(iOS 26.0, *)
-struct NotificationSettingsScreen_Previews: PreviewProvider, TestablePreview {
+// AGENT-PLATFORM (Brief 0083, lane settings): gated, and built for iOS 18's lane too.
+struct NotificationSettingsScreen_Previews: PreviewProvider, TestablePreview, SpiralGatedPreview {
     static let viewModel: NotificationSettingsScreenViewModel = {
-        let appSettings = AppSettings.volatile()
+        let userSettings = UserSettings.mock()
         let notificationCenter = UserNotificationCenterMock()
         notificationCenter.authorizationStatusReturnValue = .notDetermined
         let notificationSettingsProxy = NotificationSettingsProxyMock(with: .init())
@@ -284,7 +285,7 @@ struct NotificationSettingsScreen_Previews: PreviewProvider, TestablePreview {
         
         let userSession = UserSessionMock(.init(clientProxy: ClientProxyMock(.init(userID: "John Doe"))))
         
-        var viewModel = NotificationSettingsScreenViewModel(appSettings: appSettings,
+        var viewModel = NotificationSettingsScreenViewModel(userSettings: userSettings,
                                                             userNotificationCenter: notificationCenter,
                                                             notificationToneManager: NotificationToneManagerMock(.init()),
                                                             notificationSettingsProxy: notificationSettingsProxy,
@@ -295,7 +296,7 @@ struct NotificationSettingsScreen_Previews: PreviewProvider, TestablePreview {
     }()
     
     static let viewModelConfigurationMismatch: NotificationSettingsScreenViewModel = {
-        let appSettings = AppSettings.volatile()
+        let userSettings = UserSettings.mock()
         let notificationCenter = UserNotificationCenterMock()
         notificationCenter.authorizationStatusReturnValue = .notDetermined
         let notificationSettingsProxy = NotificationSettingsProxyMock(with: .init())
@@ -314,7 +315,7 @@ struct NotificationSettingsScreen_Previews: PreviewProvider, TestablePreview {
         
         let userSession = UserSessionMock(.init(clientProxy: ClientProxyMock(.init(userID: "John Doe"))))
         
-        var viewModel = NotificationSettingsScreenViewModel(appSettings: appSettings,
+        var viewModel = NotificationSettingsScreenViewModel(userSettings: userSettings,
                                                             userNotificationCenter: notificationCenter,
                                                             notificationToneManager: NotificationToneManagerMock(.init()),
                                                             notificationSettingsProxy: notificationSettingsProxy,

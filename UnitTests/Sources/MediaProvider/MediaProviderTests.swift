@@ -7,8 +7,8 @@
 //
 
 import Combine
-@testable import ElementX
 import Kingfisher
+@testable import Spiral
 import SwiftUI
 import Testing
 
@@ -204,6 +204,31 @@ struct MediaProviderTests {
         case .failure(let error):
             #expect(error == MediaProviderError.invalidImageData)
         }
+    }
+    
+    // AGENT-PLATFORM (Brief 0083, question 359)
+    @Test
+    func aPictureFromTheNetworkComesDecoded() async throws {
+        let data = try #require(loadTestImage().jpegData(compressionQuality: 0.9))
+        let undecoded = try #require(UIImage(data: data)?.cgImage)
+        mediaLoader.loadMediaThumbnailForSourceWidthHeightReturnValue = data
+        
+        let result = try await mediaProvider.loadImageFromSource(MediaSourceProxy(url: .mockMXCImage, mimeType: "image/jpeg"),
+                                                                 size: Avatars.Size.room(on: .timeline).scaledSize)
+        
+        let image = try result.get()
+        #expect(image.cgImage?.bitmapInfo != undecoded.bitmapInfo || image.cgImage?.bytesPerRow != undecoded.bytesPerRow)
+        #expect(imageCache.storedImages.values.first === image)
+    }
+    
+    @Test
+    func aPictureFromTheDiskIsDecodedOnTheCachesQueue() async throws {
+        mediaLoader.loadMediaThumbnailForSourceWidthHeightReturnValue = Data()
+        
+        _ = try await mediaProvider.loadImageFromSource(MediaSourceProxy(url: .mockMXCImage, mimeType: "image/jpeg"),
+                                                        size: Avatars.Size.room(on: .timeline).scaledSize)
+        
+        #expect(imageCache.retrieveOptions?.contains { if case .backgroundDecode = $0 { true } else { false } } == true)
     }
     
     private func loadTestImage() throws -> UIImage {

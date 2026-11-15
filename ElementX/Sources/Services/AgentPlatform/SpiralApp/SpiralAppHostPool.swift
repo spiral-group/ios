@@ -43,7 +43,14 @@ final class SpiralAppHostPool {
         parked.count
     }
 
-    init(makeHost: @escaping @MainActor () -> SpiralAppHostProtocol) {
+    /// How long an app gets to leave (M3). `while (true) {}` in a frame
+    /// blocks the shell's own JavaScript with it, so an unmount that waits
+    /// for an answer waits for ever — and with it the eviction that asked,
+    /// and every post behind that.
+    private let unmountDeadline: Duration
+
+    init(unmountDeadline: Duration = .seconds(2), makeHost: @escaping @MainActor () -> SpiralAppHostProtocol) {
+        self.unmountDeadline = unmountDeadline
         self.makeHost = makeHost
     }
 
@@ -53,16 +60,34 @@ final class SpiralAppHostPool {
     /// mounting, and a host handed out here answers `gone` until then.
     func acquire() -> SpiralAppHostProtocol {
         if let host = parked.popLast() {
+            host.onContentProcessDied = nil
             return host
         }
         return makeHost()
     }
 
+    /// Have a host warming for the next `acquire`, unless one already is.
+    ///
+    /// Its process launches and its shell loads while nothing waits for them.
+    /// It serves no post and holds no artifact, so it reaches nothing.
+    func prewarm() {
+        guard parked.isEmpty else { return }
+        park(makeHost())
+    }
+
     /// Give a host back. Its app is destroyed and the bridge unbound; the
     /// shell stays warm for the next `acquire`. Beyond `maxParked`, the host
-    /// is destroyed instead of kept.
-    func release(_ host: SpiralAppHostProtocol) async {
-        await host.unmount()
+    /// is destroyed instead of kept, and so is one whose app does not answer
+    /// the unmount in time — a wedged shell is not warm.
+    @discardableResult
+    func release(_ host: SpiralAppHostProtocol) async -> SpiralAppUnmount {
+        guard await unmount(host) else {
+            MXLog.error("[SpiralApp] an app did not leave in \(unmountDeadline) — destroying its host")
+            host.onContentProcessDied = nil
+            host.containerView.removeFromSuperview()
+            host.destroy()
+            return .wedged
+        }
         host.onContentProcessDied = nil
         // Out of whatever row was showing it, NOW. SwiftUI will get round to
         // removing it when the old row's slot updates, but the next app may
@@ -78,12 +103,50 @@ final class SpiralAppHostPool {
         // to stop twice as well; this is the second lock on the same door,
         // because the cost of being wrong here is invisible until someone is
         // staring at it.
-        guard !parked.contains(where: { $0 === host }) else { return }
+        guard !parked.contains(where: { $0 === host }) else { return .answered }
 
         if parked.count < Self.maxParked {
-            parked.append(host)
+            park(host)
         } else {
             host.destroy()
+        }
+        return .answered
+    }
+
+    /// A parked host that dies has no warm shell left to give, and the next
+    /// app must not be handed a web view that will never paint.
+    private func park(_ host: SpiralAppHostProtocol) {
+        host.onContentProcessDied = { [weak self, weak host] in
+            guard let self, let host else { return }
+            parked.removeAll { $0 === host }
+            host.destroy()
+        }
+        parked.append(host)
+    }
+
+    /// Whether `host` unmounted inside the deadline. The call itself is not
+    /// cancelled — WebKit's is not cancellable — only no longer waited for.
+    private func unmount(_ host: SpiralAppHostProtocol) async -> Bool {
+        final class Latch {
+            var isClosed = false
+        }
+        let latch = Latch()
+        let deadline = unmountDeadline
+        // `host` weakly (N1): a wedged host is destroyed at the deadline,
+        // and this task must not be what keeps it — and its web view — alive.
+        return await withCheckedContinuation { continuation in
+            Task { @MainActor [weak host] in
+                await host?.unmount()
+                guard !latch.isClosed else { return }
+                latch.isClosed = true
+                continuation.resume(returning: true)
+            }
+            Task { @MainActor in
+                try? await Task.sleep(for: deadline)
+                guard !latch.isClosed else { return }
+                latch.isClosed = true
+                continuation.resume(returning: false)
+            }
         }
     }
 
@@ -95,4 +158,11 @@ final class SpiralAppHostPool {
         }
         parked.removeAll()
     }
+}
+
+/// How an app left its host.
+enum SpiralAppUnmount {
+    case answered
+    /// It did not answer in time; its host was destroyed. Counted as a death.
+    case wedged
 }

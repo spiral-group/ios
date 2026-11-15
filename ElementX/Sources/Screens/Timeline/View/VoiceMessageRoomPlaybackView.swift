@@ -11,6 +11,7 @@ import DSWaveformImageViews
 import SwiftUI
 
 struct VoiceMessageRoomPlaybackView: View {
+    @Environment(\.ownBubbleInk) private var ownBubbleInk // AGENT-PLATFORM (Brief 0083)
     @ObservedObject var playerState: AudioPlayerState
     @ScaledMetric private var waveformLineWidth = 2.0
     @ScaledMetric private var waveformLinePadding = 2.0
@@ -36,7 +37,7 @@ struct VoiceMessageRoomPlaybackView: View {
                 Text(timeLabelContent)
                     .lineLimit(1)
                     .font(.compound.bodyXSSemibold)
-                    .foregroundColor(.compound.textSecondary)
+                    .bubbleForegroundStyle(.secondary) // AGENT-PLATFORM (Brief 0083): white on an own bubble
                     .monospacedDigit()
                     .fixedSize(horizontal: true, vertical: true)
             }
@@ -95,7 +96,7 @@ struct VoiceMessageRoomPlaybackView: View {
                                               verticalScalingFactor: 1.0)) {
                 estimatedWaveformView
             }
-            .progressMask(progress: playerState.progress)
+            .progressMask(progress: playerState.progress, trackColor: waveformTrackColor, backgroundTrackColor: waveformBackgroundTrackColor) // AGENT-PLATFORM (Brief 0083)
         } else {
             estimatedWaveformView
         }
@@ -105,7 +106,18 @@ struct VoiceMessageRoomPlaybackView: View {
         EstimatedWaveformView(lineWidth: waveformLineWidth,
                               linePadding: waveformLinePadding,
                               waveform: playerState.waveform,
-                              progress: playerState.progress)
+                              progress: playerState.progress,
+                              trackColor: waveformTrackColor, // AGENT-PLATFORM (Brief 0083)
+                              backgroundTrackColor: waveformBackgroundTrackColor)
+    }
+    
+    // AGENT-PLATFORM (Brief 0083, decision 300a): the waveform takes the own bubble's ink.
+    private var waveformTrackColor: Color {
+        ownBubbleInk?.waveformPlayed ?? .compound.iconSecondary
+    }
+    
+    private var waveformBackgroundTrackColor: Color {
+        ownBubbleInk?.waveformRest ?? .compound.iconQuaternary
     }
 }
 

@@ -27,6 +27,21 @@ nonisolated enum LogLevel: String, Codable, Hashable {
         }
     }
     
+    /// AGENT-PLATFORM (Brief 0083, question 359): whether a log set to this level writes what's logged at `level`.
+    func includes(_ level: LogLevel) -> Bool {
+        level.verbosity <= verbosity
+    }
+    
+    private var verbosity: Int {
+        switch self {
+        case .error: 0
+        case .warn: 1
+        case .info: 2
+        case .debug: 3
+        case .trace: 4
+        }
+    }
+    
     var rustLogLevel: MatrixRustSDK.LogLevel {
         switch self {
         case .error:

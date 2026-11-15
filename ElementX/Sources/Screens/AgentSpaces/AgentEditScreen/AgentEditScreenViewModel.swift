@@ -13,6 +13,10 @@ typealias AgentEditScreenViewModelType = StateStoreViewModelV2<AgentEditScreenVi
 
 class AgentEditScreenViewModel: AgentEditScreenViewModelType, AgentEditScreenViewModelProtocol {
     private let agentPlatformService: AgentPlatformServiceProtocol
+    // AGENT-PLATFORM (Brief 0083, question 359): the form opens filled, from the store.
+    private let store: AgentsStore
+    /// The last read the store answered. A save's answer is newer, so only a later read is adopted.
+    private var storeReadModel: AgentReadModel?
     private let userSession: UserSessionProtocol
     private let mediaUploadingPreprocessor: MediaUploadingPreprocessor
     private let userIndicatorController: UserIndicatorControllerProtocol
@@ -26,20 +30,47 @@ class AgentEditScreenViewModel: AgentEditScreenViewModelType, AgentEditScreenVie
     
     init(agent: AgentSpaceAgentCard,
          agentPlatformService: AgentPlatformServiceProtocol,
+         store: AgentsStore,
          userSession: UserSessionProtocol,
-         userIndicatorController: UserIndicatorControllerProtocol,
-         appSettings: AppSettings) {
+         userIndicatorController: UserIndicatorControllerProtocol) {
         self.agentPlatformService = agentPlatformService
+        self.store = store
         self.userSession = userSession
-        mediaUploadingPreprocessor = MediaUploadingPreprocessor(appSettings: appSettings)
+        mediaUploadingPreprocessor = MediaUploadingPreprocessor(userSettings: userSession.userSettings)
         self.userIndicatorController = userIndicatorController
         
         super.init(initialViewState: AgentEditScreenViewState(card: agent),
                    mediaProvider: userSession.mediaProvider)
-        state.avatarMXC = agent.avatarMXC
-        state.initialAvatarMXC = agent.avatarMXC
+        seed()
         
-        Task { await load() }
+        for resource in shownResources {
+            store.show(resource, by: self)
+        }
+        store.refresh(agentResource)
+        render()
+        store.observe { [weak self] in
+            guard let self else { return false }
+            render()
+            return true
+        }
+    }
+    
+    isolated deinit {
+        for resource in shownResources {
+            store.stopShowing(resource, by: self)
+        }
+    }
+    
+    private var agentResource: AgentsResource {
+        .agent(agentID: state.card.agentID)
+    }
+    
+    private var limitsResource: AgentsResource {
+        .editSchema(agentID: state.card.agentID)
+    }
+    
+    private var shownResources: [AgentsResource] {
+        [agentResource, limitsResource]
     }
     
     override func process(viewAction: AgentEditScreenViewAction) {
@@ -51,8 +82,8 @@ class AgentEditScreenViewModel: AgentEditScreenViewModelType, AgentEditScreenVie
         case .cancel:
             cancel()
         case .retry:
-            state.loadState = .loading
-            Task { await load() }
+            store.refresh(limitsResource)
+            render()
         case .presentMediaSource:
             state.bindings.showMediaSheet = true
         case .displayCameraPicker:
@@ -98,23 +129,30 @@ class AgentEditScreenViewModel: AgentEditScreenViewModelType, AgentEditScreenVie
     
     // MARK: - Private
     
-    private func load() async {
-        switch await agentPlatformService.fetchAgentEditSchema(agentID: state.card.agentID) {
-        case .success(let schema):
-            // Seed from the FRESH read-model (the tapped card can be stale
-            // after an earlier save — 0038 I1 fix); the card only if it fails.
-            let readModel = try? await agentPlatformService.fetchAgentReadModel(agentID: state.card.agentID).get()
-            let displayName = readModel?.displayName ?? state.card.displayName
-            let avatarMXC = readModel.map(\.avatarMXC) ?? state.card.avatarMXC
-            state.bindings.displayName = displayName
-            state.initialDisplayName = displayName
-            state.avatarMXC = avatarMXC
-            state.initialAvatarMXC = avatarMXC
-            state.loadState = .loaded(schema)
-        case .failure(let error):
-            MXLog.error("Failed to load edit schema: \(error)")
-            state.loadState = .failure
+    /// Once, from what the store holds of the agent: the tapped card can be stale after an
+    /// earlier save (0038 I1 fix). Every later read goes through `adoptServerState`.
+    private func seed() {
+        storeReadModel = store.value(agentResource)?.agent?.readModel
+        let displayName = storeReadModel?.displayName ?? state.card.displayName
+        let avatarMXC = storeReadModel.map(\.avatarMXC) ?? state.card.avatarMXC
+        state.bindings.displayName = displayName
+        state.initialDisplayName = displayName
+        state.avatarMXC = avatarMXC
+        state.initialAvatarMXC = avatarMXC
+    }
+    
+    private func render() {
+        state.loadState = switch store.readState(limitsResource, \.editSchema) {
+        case .loading: .loading
+        case .loaded(let schema): .loaded(schema)
+        case .failed: .failure
         }
+        
+        guard let readModel = store.value(agentResource)?.agent?.readModel, readModel != storeReadModel else { return }
+        storeReadModel = readModel
+        // The save's answer, or the read after a failure, is newer than this.
+        guard !state.isSaving else { return }
+        adoptServerState(readModel)
     }
     
     /// Moves the baselines to what the server holds. A field the user
@@ -189,10 +227,14 @@ class AgentEditScreenViewModel: AgentEditScreenViewModelType, AgentEditScreenVie
         switch await agentPlatformService.editAgent(agentID: state.card.agentID, patch: patch) {
         case .success(let readModel):
             adoptServerState(readModel)
+            // S5: every screen holding the agent, the Agents tab's row included, shows the answer before the form goes.
+            storeReadModel = readModel
+            store.agentEdited(readModel)
             actionsSubject.send(.saved)
         case .failure(let error):
             showSaveFailure(error)
-            if case .success(let readModel) = await agentPlatformService.fetchAgentReadModel(agentID: state.card.agentID) {
+            await store.reread(agentResource)
+            if store.failures[agentResource] == nil, let readModel = store.value(agentResource)?.agent?.readModel {
                 adoptServerState(readModel)
             }
         }

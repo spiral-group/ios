@@ -11,6 +11,9 @@ import SwiftUI
 /// A vertical list of file rows for a gallery message. Used when a gallery has a non-visual
 /// attachment (file/audio), where the grid layout doesn't read well.
 struct GalleryListView: View {
+    /// AGENT-PLATFORM (question 413): the list's width, the old grid's, which the album no longer has.
+    static let width: CGFloat = 264
+    
     let items: [GalleryItem]
     let mediaProvider: MediaProviderProtocol?
     let contentScannerService: ContentScannerServiceProtocol?
@@ -87,11 +90,11 @@ private struct GalleryListRow: View {
         Label {
             VStack(alignment: .leading, spacing: 0) {
                 Text(item.filename)
-                    .foregroundStyle(.compound.textPrimary)
+                    .bubbleForegroundStyle(.primary) // AGENT-PLATFORM (Brief 0083): white on an own bubble
                     .font(.compound.bodyLG)
                 Text(fileDescription)
                     .font(.compound.bodySM)
-                    .foregroundStyle(.compound.textSecondary)
+                    .bubbleForegroundStyle(.secondary) // AGENT-PLATFORM (Brief 0083)
             }
             .lineLimit(2)
         } icon: {
@@ -104,7 +107,7 @@ private struct GalleryListRow: View {
     /// The critical row shown when an item fails content scanning. Reuses ``ContentScanningFailureView``
     /// (icon + title + message) inside its own critical container as the surrounding bubble stays regular.
     private func failureRow(_ failure: ContentScanningFailure) -> some View {
-        ContentScanningFailureView(failure: failure)
+        ContentScanningFailureView(failure: failure, isCompact: true)
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 12)
             .padding(.vertical, 4)
@@ -125,7 +128,7 @@ private struct GalleryListRow: View {
                           size: item.size,
                           mediaProvider: mediaProvider) { imageView in
                 imageView
-                    .aspectRatio(contentMode: .fill)
+                    .scaledToFill()
             } placeholder: {
                 Color.compound.bgSubtleSecondary
             }

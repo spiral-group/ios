@@ -1,0 +1,625 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>screen_native_call_assistants_count</key>
+	<dict>
+		<key>COUNT</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>few</key>
+			<string>%1$d مساعدين</string>
+			<key>many</key>
+			<string>%1$d مساعدًا</string>
+			<key>one</key>
+			<string>مساعد واحد</string>
+			<key>other</key>
+			<string>%1$d مساعد</string>
+			<key>two</key>
+			<string>مساعدان</string>
+			<key>zero</key>
+			<string>%1$d مساعد</string>
+		</dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@COUNT@</string>
+	</dict>
+	<key>screen_feed_new_posts</key>
+	<dict>
+		<key>COUNT</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>zero</key>
+			<string>%1$d منشور جديد</string>
+			<key>one</key>
+			<string>%1$d منشور جديد</string>
+			<key>two</key>
+			<string>%1$d منشوران جديدان</string>
+			<key>few</key>
+			<string>%1$d منشورات جديدة</string>
+			<key>many</key>
+			<string>%1$d منشورًا جديدًا</string>
+			<key>other</key>
+			<string>%1$d منشور جديد</string>
+		</dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@COUNT@</string>
+	</dict>
+	<key>a11y_feed_images</key>
+	<dict>
+		<key>COUNT</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>zero</key>
+			<string>%1$d صورة</string>
+			<key>one</key>
+			<string>%1$d صورة</string>
+			<key>two</key>
+			<string>%1$d صورتان</string>
+			<key>few</key>
+			<string>%1$d صور</string>
+			<key>many</key>
+			<string>%1$d صورة</string>
+			<key>other</key>
+			<string>%1$d صورة</string>
+		</dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@COUNT@</string>
+	</dict>
+	<key>screen_feed_composer_characters_left</key>
+	<dict>
+		<key>COUNT</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>zero</key>
+			<string>تبقّى %1$d حرف</string>
+			<key>one</key>
+			<string>تبقّى %1$d حرف</string>
+			<key>two</key>
+			<string>تبقّى %1$d حرفان</string>
+			<key>few</key>
+			<string>تبقّت %1$d أحرف</string>
+			<key>many</key>
+			<string>تبقّى %1$d حرفًا</string>
+			<key>other</key>
+			<string>تبقّى %1$d حرف</string>
+		</dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@COUNT@</string>
+	</dict>
+	<key>screen_feed_composer_characters_over</key>
+	<dict>
+		<key>COUNT</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>zero</key>
+			<string>%1$d حرف فوق الحد</string>
+			<key>one</key>
+			<string>%1$d حرف فوق الحد</string>
+			<key>two</key>
+			<string>%1$d حرفان فوق الحد</string>
+			<key>few</key>
+			<string>%1$d أحرف فوق الحد</string>
+			<key>many</key>
+			<string>%1$d حرفًا فوق الحد</string>
+			<key>other</key>
+			<string>%1$d حرف فوق الحد</string>
+		</dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@COUNT@</string>
+	</dict>
+	<key>screen_feed_composer_error_rate_limited_minutes</key>
+	<dict>
+		<key>COUNT</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>zero</key>
+			<string>حاول مرة أخرى بعد %1$d دقيقة.</string>
+			<key>one</key>
+			<string>حاول مرة أخرى بعد %1$d دقيقة.</string>
+			<key>two</key>
+			<string>حاول مرة أخرى بعد %1$d دقيقتين.</string>
+			<key>few</key>
+			<string>حاول مرة أخرى بعد %1$d دقائق.</string>
+			<key>many</key>
+			<string>حاول مرة أخرى بعد %1$d دقيقة.</string>
+			<key>other</key>
+			<string>حاول مرة أخرى بعد %1$d دقيقة.</string>
+		</dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@COUNT@</string>
+	</dict>
+	<key>screen_feed_composer_daily_cap_notice</key>
+	<dict>
+		<key>COUNT</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>zero</key>
+			<string>بلغت حد اليوم: %1$d منشور. يمكنك النشر مجددًا بعد منتصف الليل بتوقيت UTC.</string>
+			<key>one</key>
+			<string>بلغت حد اليوم: %1$d منشور. يمكنك النشر مجددًا بعد منتصف الليل بتوقيت UTC.</string>
+			<key>two</key>
+			<string>بلغت حد اليوم: %1$d منشوران. يمكنك النشر مجددًا بعد منتصف الليل بتوقيت UTC.</string>
+			<key>few</key>
+			<string>بلغت حد اليوم: %1$d منشورات. يمكنك النشر مجددًا بعد منتصف الليل بتوقيت UTC.</string>
+			<key>many</key>
+			<string>بلغت حد اليوم: %1$d منشورًا. يمكنك النشر مجددًا بعد منتصف الليل بتوقيت UTC.</string>
+			<key>other</key>
+			<string>بلغت حد اليوم: %1$d منشور. يمكنك النشر مجددًا بعد منتصف الليل بتوقيت UTC.</string>
+		</dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@COUNT@</string>
+	</dict>
+	<key>a11y_feed_likes</key>
+	<dict>
+		<key>COUNT</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>zero</key>
+			<string>%1$d إعجاب</string>
+			<key>one</key>
+			<string>%1$d إعجاب</string>
+			<key>two</key>
+			<string>%1$d إعجابان</string>
+			<key>few</key>
+			<string>%1$d إعجابات</string>
+			<key>many</key>
+			<string>%1$d إعجابًا</string>
+			<key>other</key>
+			<string>%1$d إعجاب</string>
+		</dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@COUNT@</string>
+	</dict>
+	<key>a11y_feed_comments</key>
+	<dict>
+		<key>COUNT</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>zero</key>
+			<string>%1$d تعليق</string>
+			<key>one</key>
+			<string>%1$d تعليق</string>
+			<key>two</key>
+			<string>%1$d تعليقان</string>
+			<key>few</key>
+			<string>%1$d تعليقات</string>
+			<key>many</key>
+			<string>%1$d تعليقًا</string>
+			<key>other</key>
+			<string>%1$d تعليق</string>
+		</dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@COUNT@</string>
+	</dict>
+	<key>a11y_feed_shares</key>
+	<dict>
+		<key>COUNT</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>zero</key>
+			<string>%1$d مشاركة</string>
+			<key>one</key>
+			<string>%1$d مشاركة</string>
+			<key>two</key>
+			<string>%1$d مشاركتان</string>
+			<key>few</key>
+			<string>%1$d مشاركات</string>
+			<key>many</key>
+			<string>%1$d مشاركة</string>
+			<key>other</key>
+			<string>%1$d مشاركة</string>
+		</dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@COUNT@</string>
+	</dict>
+	<key>screen_feed_shared_partly</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@SENT@، %#@FAILED@</string>
+		<key>SENT</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>zero</key>
+			<string>تمت المشاركة في %1$d محادثة</string>
+			<key>one</key>
+			<string>تمت المشاركة في %1$d محادثة</string>
+			<key>two</key>
+			<string>تمت المشاركة في %1$d محادثتين</string>
+			<key>few</key>
+			<string>تمت المشاركة في %1$d محادثات</string>
+			<key>many</key>
+			<string>تمت المشاركة في %1$d محادثة</string>
+			<key>other</key>
+			<string>تمت المشاركة في %1$d محادثة</string>
+		</dict>
+		<key>FAILED</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>zero</key>
+			<string>تعذّرت المشاركة في %2$d</string>
+			<key>one</key>
+			<string>تعذّرت المشاركة في %2$d</string>
+			<key>two</key>
+			<string>تعذّرت المشاركة في %2$d</string>
+			<key>few</key>
+			<string>تعذّرت المشاركة في %2$d</string>
+			<key>many</key>
+			<string>تعذّرت المشاركة في %2$d</string>
+			<key>other</key>
+			<string>تعذّرت المشاركة في %2$d</string>
+		</dict>
+	</dict>
+	<key>screen_feed_shared</key>
+	<dict>
+		<key>COUNT</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>zero</key>
+			<string>تمت المشاركة في %1$d محادثة</string>
+			<key>one</key>
+			<string>تمت المشاركة في %1$d محادثة</string>
+			<key>two</key>
+			<string>تمت المشاركة في %1$d محادثتين</string>
+			<key>few</key>
+			<string>تمت المشاركة في %1$d محادثات</string>
+			<key>many</key>
+			<string>تمت المشاركة في %1$d محادثة</string>
+			<key>other</key>
+			<string>تمت المشاركة في %1$d محادثة</string>
+		</dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@COUNT@</string>
+	</dict>
+	<key>screen_feed_comment_daily_cap_notice</key>
+	<dict>
+		<key>COUNT</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>zero</key>
+			<string>حد اليوم هو %1$d تعليق. يمكنك التعليق مجددًا بعد منتصف الليل بتوقيت UTC.</string>
+			<key>one</key>
+			<string>حد اليوم هو %1$d تعليق. يمكنك التعليق مجددًا بعد منتصف الليل بتوقيت UTC.</string>
+			<key>two</key>
+			<string>حد اليوم هو %1$d تعليقان. يمكنك التعليق مجددًا بعد منتصف الليل بتوقيت UTC.</string>
+			<key>few</key>
+			<string>حد اليوم هو %1$d تعليقات. يمكنك التعليق مجددًا بعد منتصف الليل بتوقيت UTC.</string>
+			<key>many</key>
+			<string>حد اليوم هو %1$d تعليقًا. يمكنك التعليق مجددًا بعد منتصف الليل بتوقيت UTC.</string>
+			<key>other</key>
+			<string>حد اليوم هو %1$d تعليق. يمكنك التعليق مجددًا بعد منتصف الليل بتوقيت UTC.</string>
+		</dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@COUNT@</string>
+	</dict>
+	<key>screen_feed_comment_error_rate_limited_minutes</key>
+	<dict>
+		<key>COUNT</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>zero</key>
+			<string>حاول مرة أخرى بعد %1$d دقيقة.</string>
+			<key>one</key>
+			<string>حاول مرة أخرى بعد %1$d دقيقة.</string>
+			<key>two</key>
+			<string>حاول مرة أخرى بعد %1$d دقيقتين.</string>
+			<key>few</key>
+			<string>حاول مرة أخرى بعد %1$d دقائق.</string>
+			<key>many</key>
+			<string>حاول مرة أخرى بعد %1$d دقيقة.</string>
+			<key>other</key>
+			<string>حاول مرة أخرى بعد %1$d دقيقة.</string>
+		</dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@COUNT@</string>
+	</dict>
+	<key>a11y_feed_notices_unread</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@COUNT@</string>
+		<key>COUNT</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>zero</key>
+			<string>%1$d غير مقروء</string>
+			<key>one</key>
+			<string>%1$d غير مقروء</string>
+			<key>two</key>
+			<string>%1$d غير مقروء</string>
+			<key>few</key>
+			<string>%1$d غير مقروء</string>
+			<key>many</key>
+			<string>%1$d غير مقروء</string>
+			<key>other</key>
+			<string>%1$d غير مقروء</string>
+		</dict>
+	</dict>
+	<key>screen_feed_report_rate_limited_message_hours</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@COUNT@</string>
+		<key>COUNT</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>zero</key>
+			<string>أرسلت 10 بلاغات اليوم. يمكنك إرسال المزيد بعد نحو %1$d ساعة.</string>
+			<key>one</key>
+			<string>أرسلت 10 بلاغات اليوم. يمكنك إرسال المزيد بعد نحو %1$d ساعة.</string>
+			<key>two</key>
+			<string>أرسلت 10 بلاغات اليوم. يمكنك إرسال المزيد بعد نحو %1$d ساعتين.</string>
+			<key>few</key>
+			<string>أرسلت 10 بلاغات اليوم. يمكنك إرسال المزيد بعد نحو %1$d ساعات.</string>
+			<key>many</key>
+			<string>أرسلت 10 بلاغات اليوم. يمكنك إرسال المزيد بعد نحو %1$d ساعة.</string>
+			<key>other</key>
+			<string>أرسلت 10 بلاغات اليوم. يمكنك إرسال المزيد بعد نحو %1$d ساعة.</string>
+		</dict>
+	</dict>
+	<key>screen_feed_activity_others</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@COUNT@</string>
+		<key>COUNT</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>zero</key>
+			<string>%1$d آخرين</string>
+			<key>one</key>
+			<string>%1$d شخص آخر</string>
+			<key>two</key>
+			<string>%1$d شخصان آخران</string>
+			<key>few</key>
+			<string>%1$d أشخاص آخرين</string>
+			<key>many</key>
+			<string>%1$d شخصًا آخر</string>
+			<key>other</key>
+			<string>%1$d شخص آخر</string>
+		</dict>
+	</dict>
+	<key>a11y_feed_activity_unread</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@COUNT@</string>
+		<key>COUNT</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>zero</key>
+			<string>النشاط، %1$d غير مقروء</string>
+			<key>one</key>
+			<string>النشاط، %1$d غير مقروء</string>
+			<key>two</key>
+			<string>النشاط، %1$d غير مقروء</string>
+			<key>few</key>
+			<string>النشاط، %1$d غير مقروء</string>
+			<key>many</key>
+			<string>النشاط، %1$d غير مقروء</string>
+			<key>other</key>
+			<string>النشاط، %1$d غير مقروء</string>
+		</dict>
+	</dict>
+	<key>a11y_tab_badge_count</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@COUNT@</string>
+		<key>COUNT</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>zero</key>
+			<string>%1$d بالانتظار</string>
+			<key>one</key>
+			<string>%1$d بالانتظار</string>
+			<key>two</key>
+			<string>%1$d بالانتظار</string>
+			<key>few</key>
+			<string>%1$d بالانتظار</string>
+			<key>many</key>
+			<string>%1$d بالانتظار</string>
+			<key>other</key>
+			<string>%1$d بالانتظار</string>
+		</dict>
+	</dict>
+	<key>screen_native_call_status_agent_count</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@COUNT@</string>
+		<key>COUNT</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>zero</key>
+			<string>%1$d وكيل</string>
+			<key>one</key>
+			<string>وكيل واحد</string>
+			<key>two</key>
+			<string>وكيلان</string>
+			<key>few</key>
+			<string>%1$d وكلاء</string>
+			<key>many</key>
+			<string>%1$d وكيلًا</string>
+			<key>other</key>
+			<string>%1$d وكيل</string>
+		</dict>
+	</dict>
+	<key>screen_agents_tool_count</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@COUNT@</string>
+		<key>COUNT</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>zero</key>
+			<string>%1$d أداة</string>
+			<key>one</key>
+			<string>أداة واحدة</string>
+			<key>two</key>
+			<string>أداتان</string>
+			<key>few</key>
+			<string>%1$d أدوات</string>
+			<key>many</key>
+			<string>%1$d أداة</string>
+			<key>other</key>
+			<string>%1$d أداة</string>
+		</dict>
+	</dict>
+	<key>screen_room_timeline_tool_changes</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@COUNT@</string>
+		<key>COUNT</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>zero</key>
+			<string>تغيّرت الأدوات %1$d مرة</string>
+			<key>one</key>
+			<string>تغيّرت الأدوات مرة واحدة</string>
+			<key>two</key>
+			<string>تغيّرت الأدوات مرتين</string>
+			<key>few</key>
+			<string>تغيّرت الأدوات %1$d مرات</string>
+			<key>many</key>
+			<string>تغيّرت الأدوات %1$d مرة</string>
+			<key>other</key>
+			<string>تغيّرت الأدوات %1$d مرة</string>
+		</dict>
+	</dict>
+	<key>screen_agents_chat_count</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@COUNT@</string>
+		<key>COUNT</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>zero</key>
+			<string>%1$d دردشة</string>
+			<key>one</key>
+			<string>دردشة واحدة</string>
+			<key>two</key>
+			<string>دردشتان</string>
+			<key>few</key>
+			<string>%1$d دردشات</string>
+			<key>many</key>
+			<string>%1$d دردشة</string>
+			<key>other</key>
+			<string>%1$d دردشة</string>
+		</dict>
+	</dict>
+	<key>screen_native_call_status_people_count</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@COUNT@</string>
+		<key>COUNT</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>zero</key>
+			<string>%1$d شخص</string>
+			<key>one</key>
+			<string>شخص واحد</string>
+			<key>two</key>
+			<string>شخصان</string>
+			<key>few</key>
+			<string>%1$d أشخاص</string>
+			<key>many</key>
+			<string>%1$d شخصًا</string>
+			<key>other</key>
+			<string>%1$d شخص</string>
+		</dict>
+	</dict>
+	<key>a11y_album_items</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@COUNT@</string>
+		<key>COUNT</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>zero</key>
+			<string>ألبوم، لا توجد عناصر</string>
+			<key>one</key>
+			<string>ألبوم، عنصر واحد</string>
+			<key>two</key>
+			<string>ألبوم، عنصران</string>
+			<key>few</key>
+			<string>ألبوم، %1$d عناصر</string>
+			<key>many</key>
+			<string>ألبوم، %1$d عنصرًا</string>
+			<key>other</key>
+			<string>ألبوم، %1$d عنصر</string>
+		</dict>
+	</dict>
+</dict>
+</plist>

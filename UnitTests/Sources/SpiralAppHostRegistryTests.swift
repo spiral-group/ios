@@ -11,10 +11,10 @@
 //
 
 import Combine
-@testable import ElementX
 import Foundation
 import MatrixRustSDK
-import SpiralAppShell
+@testable import Spiral
+import SpiralAppTestArtifacts
 import Testing
 import UIKit
 
@@ -204,8 +204,9 @@ struct SpiralAppHostRegistryTests {
             world.show("$seen\(index)")
             try await Task.sleep(for: .milliseconds(20))
         }
-        world.showOffScreen("$unseen")
+        world.show("$unseen")
         try await world.settle()
+        world.moveOffScreen("$unseen")
         #expect(world.registry.liveHostCount == SpiralAppHostRegistry.defaultMaxLiveHosts,
                 "the pool should be full before the newcomer arrives")
 
@@ -297,6 +298,7 @@ struct SpiralAppHostRegistryTests {
         replacement.post = world.post
         replacement.eventID = "$post0"
         world.window.addSubview(replacement)
+        try await world.settleOnReturn()
 
         #expect(replacement.presented === container, "the new row did not take the app")
         #expect(world.presented("$post0") == nil, "the old row still shows the app")
@@ -383,12 +385,15 @@ struct SpiralAppHostRegistryTests {
     func aRowPastTheViewportIsNotVisibleAndMayBeEvicted() async throws {
         let world = try World()
         for index in 0..<SpiralAppHostRegistry.defaultMaxLiveHosts {
-            world.showOffScreen("$past\(index)")
+            world.show("$past\(index)")
             try await Task.sleep(for: .milliseconds(20))
         }
         try await world.settle()
+        for index in 0..<SpiralAppHostRegistry.defaultMaxLiveHosts {
+            world.moveOffScreen("$past\(index)")
+        }
         #expect(world.registry.liveHostCount == SpiralAppHostRegistry.defaultMaxLiveHosts,
-                "rows past the viewport were never started")
+                "the rows past the viewport were never started")
 
         world.show("$seen")
         try await world.settle()
@@ -529,6 +534,60 @@ struct SpiralAppHostRegistryTests {
         #expect(counts.made == 2, "the pool served a host it had already given away")
     }
 
+    /// M3: an app spinning in `while (true) {}` blocks the shell's own
+    /// JavaScript, so its unmount never answers. The host is destroyed at
+    /// the deadline instead of waited on, and never parked.
+    @Test
+    func aHostWhoseUnmountNeverReturnsIsDestroyedAtTheDeadline() async {
+        let counts = Counts()
+        counts.unmountHangs = true
+        let pool = SpiralAppHostPool(unmountDeadline: .milliseconds(100)) {
+            counts.made += 1
+            return FakeHost(counts: counts)
+        }
+
+        let started = ContinuousClock.now
+        let outcome = await pool.release(pool.acquire())
+
+        #expect(outcome == .wedged)
+        #expect(ContinuousClock.now - started < .seconds(2), "the release waited on the hung unmount")
+        #expect(counts.destroyed == 1)
+        #expect(pool.parkedCount == 0, "a wedged host was parked for the next app")
+    }
+
+    /// M3, as the reader meets it: a wedged app must not keep the next post
+    /// from mounting, and a post that wedges twice stays a card.
+    @Test
+    func aWedgedAppDoesNotHoldUpTheNextPost() async throws {
+        let world = try World(maxLiveHosts: 1, unmountDeadline: .milliseconds(100))
+        world.show("$wedged")
+        try await world.settle()
+        #expect(world.presented("$wedged") != nil)
+
+        world.wedgeUnmounts()
+        world.hide("$wedged")
+        world.show("$next")
+        try await world.settle()
+
+        #expect(world.presented("$next") != nil, "the eviction waited on an app that never left")
+        #expect(world.destroyed >= 1, "the wedged host was kept")
+
+        // A first wedge is a death and the post may run again; a second is
+        // final, as for a content process killed twice.
+        world.hide("$next")
+        world.show("$wedged")
+        try await world.settle()
+        #expect(world.presented("$wedged") != nil, "one wedge was final")
+
+        world.hide("$wedged")
+        world.show("$next")
+        try await world.settle()
+        world.hide("$next")
+        world.show("$wedged")
+        try await world.settle()
+        #expect(world.presented("$wedged") == nil, "a post that wedged twice was mounted again")
+    }
+
     /// The instance refuses the second stop, which is where the double-park
     /// came from: an eviction takes an app down WHILE it is starting, and the
     /// start's own cleanup then takes it down again.
@@ -574,6 +633,7 @@ struct SpiralAppHostRegistryTests {
         second.post = world.post
         second.eventID = "$post0"
         world.window.addSubview(second)
+        try await world.settleOnReturn()
         #expect(second.presented === container, "the newest surface in a window did not become the current one")
 
         // Laying either one out must MOVE nothing. Layout that mutates the
@@ -588,6 +648,134 @@ struct SpiralAppHostRegistryTests {
         }
         #expect(second.presented === container, "layout moved the app")
         #expect(first.presented == nil, "layout gave the app to the surface that lost")
+    }
+
+    /// A table keeps the cells it may reuse as hidden subviews, in the window
+    /// and at the frame they last had. One that last showed this post asked for
+    /// its app at the table's rest like any row, and won: the page drew in a
+    /// cell nobody could see, and the row in sight stayed an empty grey frame
+    /// (Dev-B, a finished tug-of-war, question 411).
+    @Test
+    func aHiddenRowDoesNotTakeTheAppFromTheRowInSight() async throws {
+        let world = try World()
+        world.showInTable("$post0")
+        try await world.settle()
+        let container = try #require(world.presented("$post0"))
+
+        // Lying right under the row in sight, as a cell hidden in place does.
+        let hidden = world.showHiddenInTable("$post0")
+        #expect(hidden.visibleFraction == 0, "a hidden row counted as seen")
+        #expect(!hidden.isOnScreen)
+
+        // The table's rest has every surface in its window ask again.
+        hidden.reclaim()
+        try await world.settleOnReturn()
+        #expect(world.presented("$post0") === container, "the hidden row took the app from the row in sight")
+        #expect(hidden.presented == nil, "the app went into a row nobody can see")
+        #expect(world.registry.slot(for: "$post0", post: world.post).phase == .ready)
+    }
+
+    /// The other half: a table can show a reused cell again, and hide the one
+    /// it replaces, with no row entering or leaving its window. The row now in
+    /// sight gets the app without waiting for the table to move and rest.
+    @Test
+    func aRowShownAgainInItsWindowGetsItsApp() async throws {
+        let world = try World()
+        world.showInTable("$post0")
+        try await world.settle()
+        let container = try #require(world.presented("$post0"))
+
+        // The replacement arrives hidden, so it doesn't ask…
+        let replacement = world.showHiddenInTable("$post0")
+        try await world.settleOnReturn()
+        #expect(replacement.presented == nil)
+
+        // …then the table swaps them in place.
+        try #require(world.surface("$post0")).isHidden = true
+        try #require(replacement.superview).isHidden = false
+        let deadline = ContinuousClock.now + .seconds(3)
+        while replacement.presented !== container, ContinuousClock.now < deadline {
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        #expect(replacement.presented === container, "the row in sight never got its app")
+        #expect(world.presented("$post0") == nil)
+        #expect(world.registry.slot(for: "$post0", post: world.post).phase == .ready, "the row in sight kept its cover")
+    }
+
+    /// An animated reload keeps two shown cells for one post. The second one,
+    /// past the viewport under a still table, covers the post for a return that
+    /// never comes; the row in sight, which never lost the app, is then adopted
+    /// and lifts that cover rather than keep it over a live app (411 L1).
+    @Test
+    func aRowAdoptedWhileItShowsTheAppLiftsItsCover() async throws {
+        let world = try World()
+        world.showInTable("$post0")
+        try await world.settle()
+        let row = try #require(world.surface("$post0"))
+        let container = try #require(row.presented)
+        let slot = world.registry.slot(for: "$post0", post: world.post)
+        #expect(slot.phase == .ready)
+
+        // Read at once: the registry's watch may adopt the row in sight on its next tick.
+        world.showInTable("$post0", below: 2000)
+        #expect(row.presented === container, "the cell out of sight took the app")
+        #expect(slot.phase == .away)
+
+        // That cell's return finds it out of sight; the watch adopts the row in sight.
+        let deadline = ContinuousClock.now + .seconds(3)
+        while slot.phase != .ready, ContinuousClock.now < deadline {
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        #expect(slot.phase == .ready, "the row in sight kept its cover over its own app")
+        #expect(row.presented === container)
+    }
+
+    /// A row in sight under the full-screen viewer is the one row the watch
+    /// leaves alone: the viewer keeps the app, also while its cover slides and
+    /// it is out of sight (411 L3).
+    @Test
+    func theWatchLeavesTheViewerItsApp() async throws {
+        let world = try World()
+        world.showInTable("$post0")
+        try await world.settle()
+        let container = try #require(world.presented("$post0"))
+
+        world.showViewer("$post0")
+        try await world.settleOnReturn()
+        let viewer = try #require(world.viewer("$post0"))
+        #expect(viewer.presented === container)
+
+        let ticks = world.registry.watchdogTicks
+        try await Task.sleep(for: .milliseconds(600))
+        #expect(world.registry.watchdogTicks > ticks, "the watch never ran")
+        #expect(viewer.presented === container, "the watch gave the viewer's app to the row behind it")
+
+        // Mid-slide: in the window, out of sight.
+        viewer.frame.origin.y = world.window.bounds.height
+        try await Task.sleep(for: .milliseconds(600))
+        #expect(viewer.presented === container, "the watch took the app from a sliding viewer")
+        #expect(world.presented("$post0") == nil)
+    }
+
+    /// The timeline hides its whole table while the opening rows load, and
+    /// shows it again without a scroll. A post whose row arrived meanwhile was
+    /// refused (hidden), so the registry has never heard of it; it still gets
+    /// its app once the table is shown, not on the reader's first scroll.
+    @Test
+    func aPostFirstSeenInAHiddenTableStartsOnceTheTableShows() async throws {
+        let world = try World()
+        let row = world.showHiddenInTable("$post0")
+        try await world.settle()
+        #expect(world.registry.rememberedPostCount == 0, "a hidden row registered its post")
+        #expect(row.presented == nil)
+
+        try #require(row.superview).isHidden = false
+        let deadline = ContinuousClock.now + .seconds(3)
+        while row.presented == nil, ContinuousClock.now < deadline {
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        #expect(row.presented != nil, "the row stayed on its card until a scroll")
+        #expect(world.registry.liveHostCount == 1)
     }
 
     /// Among posts NOT on screen, the coldest goes first — recency still
@@ -616,10 +804,12 @@ struct SpiralAppHostRegistryTests {
         // and scrolling back to it starts from the card.
         let mountsBefore = world.hostsMade
         world.show("$post1")
+        try await world.untilPresented("$post1")
         #expect(world.presented("$post1") != nil, "a warmer post was evicted instead")
         #expect(world.hostsMade == mountsBefore, "a running app was mounted again on return")
 
         world.show("$post0")
+        try await world.settleOnReturn()
         #expect(world.presented("$post0") == nil, "the coldest off-screen post survived")
     }
 
@@ -629,7 +819,7 @@ struct SpiralAppHostRegistryTests {
     /// permanently blank rectangle — reproduced on a simulator by killing the
     /// process by hand.
     @Test
-    func anAppWhoseContentProcessDiesComesBackOnce() async throws {
+    func anAppWhoseContentProcessDiesComesBack() async throws {
         let world = try World()
         world.show("$post0")
         try await world.settle()
@@ -641,13 +831,37 @@ struct SpiralAppHostRegistryTests {
         #expect(world.registry.liveHostCount == 1, "the app did not come back after a first death")
         #expect(world.destroyed == 1, "a host whose process died was parked as if warm")
 
-        // A second death is memory running out, not a transient reclaim, and a
-        // retry loop is the worst possible answer to that.
+        // It started again, so this is a new life and not a second death in
+        // one: iOS kills what a backgrounded app leaves, and it mustn't add up.
         world.killContentProcess()
         try await world.settle()
 
-        #expect(world.registry.liveHostCount == 0, "a second death was retried")
-        #expect(world.presented("$post0") == nil)
+        #expect(world.registry.liveHostCount == 1, "one death was final after a good start")
+    }
+
+    /// Dying again before it has started is memory running out, not a
+    /// transient reclaim, and a retry loop is the worst answer to that.
+    @Test
+    func aPostThatDiesTwiceBeforeStartingBacksOff() async throws {
+        let world = try World()
+        world.blockStart()
+        world.show("$post0")
+        try await world.settle()
+
+        world.killContentProcess()
+        try await world.settle()
+        let made = world.hostsMade
+        world.killContentProcess()
+        world.unblockStart()
+        // Past the watchdog's beat, which used to start it again regardless.
+        try await Task.sleep(for: .milliseconds(1100))
+
+        #expect(world.registry.liveHostCount == 0, "a second death was retried at once")
+        #expect(world.hostsMade == made)
+        #expect(world.registry.slot(for: "$post0", post: world.post).couldNotStart)
+
+        try await Task.sleep(for: .seconds(2))
+        #expect(world.registry.liveHostCount == 1, "a second death was final")
     }
 
     /// An eviction used to cost a whole new web view. Now the evicted app's
@@ -926,12 +1140,12 @@ struct SpiralAppHostRegistryTests {
     // MARK: - A mount that never answers (§ 7 #19)
 
     /// A mount the frame never answers is bounded by the host
-    /// (`mountDeadline`) and arrives here as `mountTimedOut`: the row keeps
+    /// (`mountDeadline`) and arrives here as `timedOut`: the row keeps
     /// its card, never uncovering a frame the app did not draw into.
     @Test
     func aMountThatNeverAnswersLeavesTheCard() async throws {
         let world = try World()
-        world.failNextMount(SpiralAppHostError.mountTimedOut)
+        world.failNextMount(SpiralAppHostError.timedOut)
 
         world.show("$silent")
         try await world.settle()
@@ -939,6 +1153,22 @@ struct SpiralAppHostRegistryTests {
         let slot = world.registry.slot(for: "$silent", post: world.post)
         #expect(slot.phase == .waiting, "the card lifted off an app that never drew")
         #expect(world.presented("$silent") == nil, "a frame nobody drew into was left in the row")
+        #expect(world.registry.liveHostCount == 0)
+    }
+
+    /// F6: an artifact whose manifest names a runtime this build does not
+    /// carry keeps its card, says the app needs updating, and is not retried.
+    @Test
+    func aPostForANewerRuntimeAsksForAnUpdate() async throws {
+        let world = try World()
+        world.failNextMount(SpiralAppHostError.newerRuntime)
+
+        world.show("$future")
+        try await world.settle()
+
+        let slot = world.registry.slot(for: "$future", post: world.post)
+        #expect(slot.needsNewerApp)
+        #expect(slot.phase == .waiting)
         #expect(world.registry.liveHostCount == 0)
     }
 
@@ -967,288 +1197,22 @@ struct SpiralAppHostRegistryTests {
 
         #expect(world.registry.liveHostCount == 0)
         #expect(world.presented("$broken") == nil)
+        #expect(world.registry.slot(for: "$broken", post: world.post).couldNotStart)
     }
 
-    // MARK: - Helpers
+    /// The watchdog asks for a visible post with no app every half second,
+    /// which for a failed download was a request every 0.75 s for as long as
+    /// the row stayed.
+    @Test
+    func aFailedDownloadIsNotAskedForOnTheWatchdogsBeat() async throws {
+        let world = try World()
+        // Through the closure: the mock throws its own error before it counts.
+        world.loader.loadMediaContentForSourceClosure = { _ in throw MediaLoaderError.unexpectedResponse }
 
-    /// Everything one test needs, wired the way the app wires it.
-    private final class World {
-        let loader = MediaLoaderMock()
-        /// The room the posts are in: its relations are what a session reads.
-        let room = JoinedRoomProxyMock(.init(id: "!room:spiral.md"))
-        let registry: SpiralAppHostRegistry
-        let post: SpiralAppPost
-        private let counts = Counts()
-        /// A real window, because "visible" means "in a window" and nothing
-        /// less. Surfaces are added to it to appear and removed to disappear.
-        @MainActor let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 400, height: 800))
-        @MainActor private var surfaces: [String: SpiralAppSurface] = [:]
+        world.show("$broken")
+        try await Task.sleep(for: .milliseconds(1800))
 
-        /// Put a post's row in the hierarchy but BELOW the window — what a
-        /// timeline does with rows just past the viewport. In a window, not on
-        /// screen.
-        @MainActor
-        func showOffScreen(_ eventID: String) {
-            let surface = SpiralAppSurface(frame: CGRect(x: 0, y: 2000, width: 300, height: 200))
-            surface.registry = registry
-            surface.post = post
-            surface.eventID = eventID
-            surfaces[eventID] = surface
-            window.addSubview(surface)
-        }
-
-        /// Put a post's row on screen. The surface reports itself from
-        /// `didMoveToWindow`, exactly as the timeline's does.
-        @MainActor
-        /// A row hanging off the bottom edge with only `visible` points of its
-        /// 200 inside the window — what the reader sees as a sliver.
-        func showPartly(_ eventID: String, visible: CGFloat) {
-            let surface = SpiralAppSurface(frame: CGRect(x: 0, y: window.bounds.height - visible, width: 300, height: 200))
-            surface.registry = registry
-            surface.post = post
-            surface.eventID = eventID
-            surfaces[eventID] = surface
-            window.addSubview(surface)
-        }
-
-        /// `mayRun: false` is a reader who hid media: the row may not run its app.
-        func show(_ eventID: String, mayRun: Bool = true) {
-            let surface = SpiralAppSurface(frame: CGRect(x: 0, y: 0, width: 300, height: 200))
-            surface.mayRunAutomatically = mayRun
-            surface.registry = registry
-            surface.post = post
-            surface.eventID = eventID
-            surfaces[eventID] = surface
-            window.addSubview(surface)
-        }
-
-        /// Take a post's row off screen.
-        @MainActor
-        func hide(_ eventID: String) {
-            surfaces[eventID]?.removeFromSuperview()
-            surfaces[eventID] = nil
-        }
-
-        /// Make the next mount fail with this error.
-        @MainActor
-        func failNextMount(_ error: Error) {
-            counts.mountFailures.append(error)
-        }
-
-        @MainActor
-        var mountAttempts: Int {
-            counts.mountAttempts
-        }
-
-        /// What the row for this post is showing, or nil for the card.
-        @MainActor
-        func presented(_ eventID: String) -> UIView? {
-            surfaces[eventID]?.presented
-        }
-
-        @MainActor
-        func surface(_ eventID: String) -> SpiralAppSurface? {
-            surfaces[eventID]
-        }
-
-        var hostsMade: Int {
-            counts.made
-        }
-
-        var destroyed: Int {
-            counts.destroyed
-        }
-
-        @MainActor
-        var lastHost: FakeHost? {
-            counts.lastHost as? FakeHost
-        }
-
-        @MainActor
-        init(maxLiveHosts: Int = SpiralAppHostRegistry.defaultMaxLiveHosts) throws {
-            let packed = try #require(SpiralAppShell.conformanceArtifact)
-            loader.loadMediaContentForSourceClosure = { _ in packed.bytes }
-
-            post = SpiralAppPost(InteractivePostContent(body: "Conformance",
-                                                        appId: "conformance",
-                                                        runtime: "1",
-                                                        title: "Conformance",
-                                                        aspect: "4:3",
-                                                        stateChannel: "default",
-                                                        sha256: packed.digest,
-                                                        url: "mxc://spiral.md/abcdef",
-                                                        fileJson: nil))
-
-            // A room that answers the two Spiral calls a session makes. The
-            // subscription is refused on purpose: a post without live updates
-            // still reads and still writes, and these tests are about the
-            // registry's policy, not about delivery.
-            room.loadSpiralAppRelationsForReturnValue = .success([])
-            room.subscribeToSpiralEventsTypesListenerReturnValue = .failure(.sdkError(SpiralAppTestError.noSubscription))
-
-            let counts = counts
-            registry = SpiralAppHostRegistry(artifacts: .init(mediaLoader: loader),
-                                             roomProxy: room,
-                                             maxLiveHosts: maxLiveHosts) {
-                counts.made += 1
-                return FakeHost(counts: counts)
-            }
-        }
-
-        /// The same post after an edit: the conformance app with one more
-        /// line, served at its own address, so its digest is its own.
-        func editedPost() throws -> SpiralAppPost {
-            let packed = try #require(SpiralAppShell.conformanceArtifact)
-            let container = try #require(SpiralAppContainer.unpack(packed.bytes))
-            let capabilities = try String(decoding: JSONSerialization.data(withJSONObject: container.manifest.capabilities), as: UTF8.self)
-            let manifestJSON = #"{"app_id":"conformance","runtime":"1","entry":"app.jsx","aspect":"4:3","state_channel":"default","capabilities":\#(capabilities),"limits":{"max_state_bytes":16384}}"#
-            let edited = SpiralAppContainer.pack(manifestJSON: manifestJSON,
-                                                 entry: container.manifest.entry,
-                                                 source: String(decoding: container.source, as: UTF8.self) + "\n// edited\n")
-            let original = packed.bytes
-            loader.loadMediaContentForSourceClosure = { source in
-                source.url.absoluteString.contains("edited") ? edited : original
-            }
-            return SpiralAppPost(InteractivePostContent(body: "Conformance",
-                                                        appId: "conformance",
-                                                        runtime: "1",
-                                                        title: "Conformance",
-                                                        aspect: "4:3",
-                                                        stateChannel: "default",
-                                                        sha256: SpiralAppArtifact.digest(of: edited),
-                                                        url: "mxc://spiral.md/edited",
-                                                        fileJson: nil))
-        }
-
-        /// Long enough for the arming to fire and the mount to finish.
-        /// Stand in for the system killing the live host's content process.
-        func killContentProcess() {
-            (counts.lastHost as? FakeHost)?.onContentProcessDied?()
-        }
-
-        func settle() async throws {
-            try await Task.sleep(for: .milliseconds(400))
-        }
-
-        /// Hold every host at `waitUntilReady`, so a test can look at the world
-        /// as it is WHILE an app is starting rather than after.
-        @MainActor func blockStart() {
-            counts.startGate = false
-        }
-
-        @MainActor func unblockStart() {
-            counts.startGate = true
-        }
-    }
-
-    private enum SpiralAppTestError: Error, CustomStringConvertible {
-        case noSubscription
-        /// Reads the way the real one does: the shell's word for "a newer
-        /// mount replaced you", carried out through a `WKError` description.
-        case superseded
-        /// An artifact that will not run however many times it is asked.
-        case broken
-
-        var description: String {
-            switch self {
-            case .noSubscription: "noSubscription"
-            case .superseded: "Error: \(SpiralAppShellContract.abandoned)"
-            case .broken: "the artifact refused to start"
-            }
-        }
-    }
-
-    private final class Counts: @unchecked Sendable {
-        var made = 0
-        var destroyed = 0
-        /// When false, hosts never finish becoming ready.
-        @MainActor var startGate = true
-        /// Errors the next mounts should throw, oldest first. Empty means
-        /// every mount succeeds.
-        @MainActor var mountFailures: [Error] = []
-        /// How many mounts were attempted, whatever they returned.
-        @MainActor var mountAttempts = 0
-        /// The most recently built host, so a test can read what it was told.
-        @MainActor var lastHost: AnyObject?
-    }
-
-    /// A session that answers nothing. Enough to build an instance, which is
-    /// all a teardown test needs.
-    @MainActor
-    private final class SilentSession: SpiralAppSessionProtocol {
-        var snapshotPublisher: AnyPublisher<SpiralAppStateReader.Snapshot, Never> {
-            Empty().eraseToAnyPublisher()
-        }
-
-        var context: [String: Any] {
-            [:]
-        }
-
-        func members() async -> [String: Any] {
-            [:]
-        }
-
-        var snapshot: SpiralAppStateReader.Snapshot {
-            .loading
-        }
-
-        func apply(_ operation: SpiralAppOperation, summary: [String: Any]?) async -> Result<Void, SpiralAppPostError> {
-            .success(())
-        }
-
-        func start() async { }
-        func stop() { }
-    }
-
-    /// A host that does everything but touch WebKit.
-    @MainActor
-    private final class FakeHost: SpiralAppHostProtocol {
-        let containerView = UIView(frame: .zero)
-        /// Recorded so a test can ask whether a running app was TOLD about a
-        /// change. A fake that silently swallowed pushes is why the timeline
-        /// never forwarded them and no test noticed.
-        private(set) var pushes: [[String: Any]] = []
-        var onContentProcessDied: (@MainActor () -> Void)?
-        /// What the bridge would call right now, or nil when unbound. A test
-        /// reads this to check a parked host cannot reach a session.
-        private(set) var boundHandler: SpiralAppMethodHandler?
-        private(set) var unmounts = 0
-        private let counts: Counts
-
-        init(counts: Counts) {
-            self.counts = counts
-            counts.lastHost = self
-        }
-
-        func waitUntilReady() async {
-            while !counts.startGate {
-                try? await Task.sleep(for: .milliseconds(20))
-            }
-        }
-
-        func bind(_ handler: @escaping SpiralAppMethodHandler) {
-            boundHandler = handler
-        }
-
-        func mount(_ mount: SpiralAppMount) async throws {
-            counts.mountAttempts += 1
-            if !counts.mountFailures.isEmpty {
-                throw counts.mountFailures.removeFirst()
-            }
-        }
-
-        func push(_ message: [String: Any]) async {
-            pushes.append(message)
-        }
-
-        func unmount() async {
-            boundHandler = nil
-            unmounts += 1
-        }
-
-        func destroy() {
-            counts.destroyed += 1
-        }
+        #expect(world.loader.loadMediaContentForSourceCallsCount == 1)
     }
 
     #endif

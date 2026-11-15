@@ -21,9 +21,7 @@ class OnboardingFlowCoordinator: FlowCoordinatorProtocol {
     private let appLockService: AppLockServiceProtocol
     private let analyticsService: AnalyticsServiceProtocol
     private let appMediator: AppMediatorProtocol
-    private let appSettings: AppSettings
-    private let appHooks: AppHooks
-    private let notificationManager: NotificationManagerProtocol
+    private let userSettings: UserSettings
     private let userIndicatorController: UserIndicatorControllerProtocol
     private let windowManager: WindowManagerProtocol
     private var isNewLogin: Bool
@@ -77,9 +75,7 @@ class OnboardingFlowCoordinator: FlowCoordinatorProtocol {
         self.appLockService = appLockService
         analyticsService = flowParameters.analytics
         appMediator = flowParameters.appMediator
-        appSettings = flowParameters.appSettings
-        appHooks = flowParameters.appHooks
-        notificationManager = flowParameters.notificationManager
+        userSettings = flowParameters.userSession.userSettings
         userIndicatorController = flowParameters.userIndicatorController
         windowManager = flowParameters.windowManager
         
@@ -102,7 +98,7 @@ class OnboardingFlowCoordinator: FlowCoordinatorProtocol {
                       value == .verified,
                       stateMachine.state == .identityConfirmation else { return }
                 
-                appSettings.hasRunIdentityConfirmationOnboarding = true
+                userSettings.account.hasRunIdentityConfirmationOnboarding = true
                 stateMachine.tryEvent(.nextSkippingIdentityConfirmed)
             }
     }
@@ -148,15 +144,15 @@ class OnboardingFlowCoordinator: FlowCoordinatorProtocol {
     // onboarding. A failed fetch asks nothing — without a grant the server
     // keeps everything from AI anyway.
     func refreshAIConsent() async {
-        guard let agentPlatformService = userSession.agentPlatformService else {
+        // AGENT-PLATFORM (Brief 0083, question 359): through the store, so that Privacy opens knowing the value.
+        guard let agentsStore = userSession.agentsStore else {
             setAIConsentRequirement(.notRequired)
             return
         }
-        switch await agentPlatformService.fetchAIConsent() {
-        case .success(let consent):
+        await agentsStore.reread(.aiConsent)
+        if let consent = agentsStore.aiConsent, agentsStore.failures[.aiConsent] == nil {
             setAIConsentRequirement(consent.needsDecision ? .required : .notRequired)
-        case .failure(let error):
-            MXLog.error("Fetching the AI consent failed: \(error)")
+        } else {
             setAIConsentRequirement(.notRequired)
         }
     }
@@ -176,11 +172,11 @@ class OnboardingFlowCoordinator: FlowCoordinatorProtocol {
     
     private var requiresVerification: Bool {
         // We want to make sure onboarding finishes but also every time the user becomes unverified (e.g. account reset)
-        !appSettings.hasRunIdentityConfirmationOnboarding || userSession.sessionSecurityStatePublisher.value.verificationState == .unverified
+        !userSettings.account.hasRunIdentityConfirmationOnboarding || userSession.sessionSecurityStatePublisher.value.verificationState == .unverified
     }
     
     private var requiresAppLockSetup: Bool {
-        appSettings.appLockIsMandatory && !appLockService.isEnabled
+        userSettings.app.appLockIsMandatory && !appLockService.isEnabled
     }
     
     private var requiresAnalyticsSetup: Bool {
@@ -188,7 +184,7 @@ class OnboardingFlowCoordinator: FlowCoordinatorProtocol {
     }
     
     private var requiresNotificationsSetup: Bool {
-        !appSettings.hasRunNotificationPermissionsOnboarding
+        !userSettings.app.hasRunNotificationPermissionsOnboarding
     }
     
     private func configureStateMachine() {
@@ -236,8 +232,7 @@ class OnboardingFlowCoordinator: FlowCoordinatorProtocol {
             case (_, _, .notificationPermissions):
                 presentNotificationPermissionsScreen()
             case (_, _, .finished):
-                isNewLogin = false
-                appSettings.hasSignedInBefore = true
+                isNewLogin = false // AGENT-PLATFORM (Brief 0083 L1b): no hasSignedInBefore, it only gated Element Classic's import
                 actionsSubject.send(.dismiss)
                 stateMachine.tryState(.initial)
             case (.finished, _, .initial):
@@ -321,7 +316,7 @@ class OnboardingFlowCoordinator: FlowCoordinatorProtocol {
     
     private func presentIdentityConfirmationScreen() {
         let parameters = IdentityConfirmationScreenCoordinatorParameters(userSession: userSession,
-                                                                         appSettings: appSettings,
+                                                                         userSettings: userSettings,
                                                                          userIndicatorController: userIndicatorController)
         
         let coordinator = IdentityConfirmationScreenCoordinator(parameters: parameters)
@@ -334,7 +329,7 @@ class OnboardingFlowCoordinator: FlowCoordinatorProtocol {
             case .recoveryKey:
                 presentRecoveryKeyScreen()
             case .skip:
-                appSettings.hasRunIdentityConfirmationOnboarding = true
+                userSettings.account.hasRunIdentityConfirmationOnboarding = true
                 stateMachine.tryEvent(.nextSkippingIdentityConfirmed)
             case .reset:
                 startEncryptionResetFlow()
@@ -354,8 +349,7 @@ class OnboardingFlowCoordinator: FlowCoordinatorProtocol {
         
         let parameters = SessionVerificationScreenCoordinatorParameters(sessionVerificationControllerProxy: sessionVerificationController,
                                                                         flow: .deviceInitiator,
-                                                                        appSettings: appSettings,
-                                                                        mediaProvider: userSession.mediaProvider)
+                                                                        userSession: userSession)
         
         let coordinator = SessionVerificationScreenCoordinator(parameters: parameters)
         
@@ -376,8 +370,7 @@ class OnboardingFlowCoordinator: FlowCoordinatorProtocol {
                                                                             userIndicatorController: userIndicatorController,
                                                                             isModallyPresented: false)
         
-        let coordinator = appHooks.recoveryKeyScreenHook.makeCoordinator(parameters: parameters,
-                                                                         homeserver: userSession.clientProxy.homeserver)
+        let coordinator = userSession.userHooks.recoveryKeyScreenHook.makeCoordinator(parameters: parameters)
         
         coordinator.actions
             .sink { action in
@@ -395,8 +388,6 @@ class OnboardingFlowCoordinator: FlowCoordinatorProtocol {
         let resetNavigationStackCoordinator = NavigationStackCoordinator()
         let coordinator = EncryptionResetFlowCoordinator(parameters: .init(userSession: userSession,
                                                                            appMediator: appMediator,
-                                                                           appSettings: appSettings,
-                                                                           appHooks: appHooks,
                                                                            userIndicatorController: userIndicatorController,
                                                                            navigationStackCoordinator: resetNavigationStackCoordinator,
                                                                            windowManger: windowManager))
@@ -458,7 +449,7 @@ class OnboardingFlowCoordinator: FlowCoordinatorProtocol {
     }
     
     private func presentAnalyticsPromptScreen() {
-        let coordinator = AnalyticsPromptScreenCoordinator(analytics: analyticsService, termsURL: appSettings.analyticsTermsURL)
+        let coordinator = AnalyticsPromptScreenCoordinator(analytics: analyticsService, termsURL: userSettings.app.analyticsTermsURL)
         
         coordinator.actions
             .sink { [weak self] action in
@@ -475,14 +466,14 @@ class OnboardingFlowCoordinator: FlowCoordinatorProtocol {
     
     // AGENT-PLATFORM (Brief 0078 phase 2)
     private func presentAIConsentPromptScreen() {
-        guard let agentPlatformService = userSession.agentPlatformService else {
+        guard let agentsStore = userSession.agentsStore else {
             aiConsentRequirement = .notRequired
             stateMachine.tryEvent(.next)
             return
         }
         
-        let coordinator = AIConsentPromptScreenCoordinator(parameters: .init(agentPlatformService: agentPlatformService,
-                                                                             privacyURL: appSettings.privacyURL))
+        let coordinator = AIConsentPromptScreenCoordinator(parameters: .init(store: agentsStore,
+                                                                             privacyURL: userSettings.app.privacyURL))
         coordinator.actionsPublisher
             .sink { [weak self] action in
                 guard let self else { return }
@@ -504,14 +495,14 @@ class OnboardingFlowCoordinator: FlowCoordinatorProtocol {
     }
     
     private func presentNotificationPermissionsScreen() {
-        let coordinator = NotificationPermissionsScreenCoordinator(parameters: .init(notificationManager: notificationManager))
+        let coordinator = NotificationPermissionsScreenCoordinator(parameters: .init(notificationService: userSession.notificationService))
         
         coordinator.actions
             .sink { [weak self] action in
                 guard let self else { return }
                 switch action {
                 case .done:
-                    appSettings.hasRunNotificationPermissionsOnboarding = true
+                    userSettings.app.hasRunNotificationPermissionsOnboarding = true
                     stateMachine.tryEvent(.next)
                 }
             }

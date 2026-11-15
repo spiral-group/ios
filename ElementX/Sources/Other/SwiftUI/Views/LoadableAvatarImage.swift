@@ -6,12 +6,15 @@
 // Please see LICENSE files in the repository root for full details.
 //
 
+import SpiralTokens
 import SwiftUI
 
 struct LoadableAvatarImage: View {
     enum Shape {
         case circle
         case roundedRect
+        // AGENT-PLATFORM (Brief 0083, decision 357): a group room's. `roundedRect` stays a space's.
+        case roundedSquare
     }
     
     private let url: URL?
@@ -58,9 +61,12 @@ struct LoadableAvatarImage: View {
     private var clippedAvatar: some View {
         avatar
             .frame(width: frameSize, height: frameSize)
-            .background(Color.compound.bgCanvasDefault)
+            .background {
+                Color.compound.bgCanvasDefault
+                    .allowedDynamicRange(.standard) // Workaround an iOS 27.0 bug where full white goes HDR in a toolbar.
+            }
             .avatarShape(shape, scaledSize: _frameSize)
-            .allowedDynamicRange(.standard) // Prevent avatars from triggering HDR display.
+            .allowedDynamicRange(.standard) // Prevent loaded avatars from triggering HDR display.
             .environment(\.shouldAutomaticallyLoadImages, true) // We always load avatars.
     }
     
@@ -74,10 +80,21 @@ struct LoadableAvatarImage: View {
                 image
                     .scaledToFill()
             } placeholder: {
-                PlaceholderAvatarImage(name: name, contentID: contentID)
+                fallback
             }
         } else {
+            fallback
+        }
+    }
+    
+    // AGENT-PLATFORM (question 389): an agent shows the Peek, not its letter; in a colour of its own (390).
+    @ViewBuilder
+    private var fallback: some View {
+        switch AgentAvatar.fallback(contentID: contentID) {
+        case .letter:
             PlaceholderAvatarImage(name: name, contentID: contentID)
+        case .peek:
+            PeekAvatarImage(agentID: contentID)
         }
     }
 }
@@ -115,6 +132,8 @@ private struct AvatarShapeModifier: ViewModifier {
             content
                 .clipShape(shape)
                 .overlay(shape.stroke(.compound.iconQuaternaryAlpha, lineWidth: 1))
+        case .roundedSquare:
+            content.clipShape(RoundedRectangle(cornerRadius: SpiralRadius.groupAvatar(side: scaledSize), style: .continuous))
         }
     }
 }

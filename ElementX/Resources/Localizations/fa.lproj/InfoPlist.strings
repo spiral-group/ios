@@ -1,6 +1,4 @@
 "NSCameraUsageDescription" = "برای تماس تصویری، و نیز گرفتن عکس یا فیلم و ارسال آنها به عنوان پیام، Spiral نیاز به دسترسی به دوربین دارد.";
 "NSFaceIDUsageDescription" = "از Face ID برای دسترسی به حسابتان استفاده می‌شود.";
-"NSLocationAlwaysAndWhenInUseUsageDescription" = "To share your location live in chats, location access is needed when the app is in the background.";
-"NSLocationWhenInUseUsageDescription" = "دسترسی به موقعیت مکانی را اعطا کنید تا Spiral بتواند موقعیت مکانی شما را به اشتراک بگذارد.";
 "NSMicrophoneUsageDescription" = "برای تماس، و نیز ضبط و ارسال پیام‌های صوتی، Spiral باید به میکروفون دسترسی داشته باشد.";
 "NSPhotoLibraryUsageDescription" = "این به شما امکان می‌دهد تصاویر و ویدیوها را در کتابخانه عکس خود ذخیره کنید.";

@@ -26,23 +26,17 @@ class AgentToolsFlowStateMachine {
     indirect enum State: StateType {
         /// The flow hasn't started.
         case initial
-        /// The agent bottom-sheet (composer entry) — the caller's own agents
-        /// in the room + "Add agent". The room → agent → tool root.
+        /// A chat's tools: every agent in the chat with its tools, and "Add agent".
         case agentSheet
         /// The "Add agent" picker (invite one of the caller's other agents).
         case addAgentPicker(previousState: State)
-        /// Choosing which of the caller's own agents to manage (>1 agent).
-        case agentPicker
-        /// One agent in this chat, from the sheet: its tools here, «Добавить
-        /// инструмент» and «Убрать агента из чата» (the Agents tab's screen).
-        case agentInRoom(agentID: String, previousState: State)
-        /// The active-tools edit list for a resolved agent (banner entry).
-        case toolsList(agentID: String, previousState: State)
-        /// The capabilities catalog for a resolved agent (composer entry).
-        case capabilities(agentID: String, previousState: State)
-        /// The arm / edit form. `editingToolID` non-nil = editing an existing
-        /// tool (seeded from `pendingEdit`); nil = creating.
-        case armTool(agentID: String, capability: AgentCapability, editingToolID: String?, previousState: State)
+        /// The kinds of tool an own agent can take here.
+        case addTool(agentID: String, previousState: State)
+        /// The form. `editingToolID` non-nil = editing an existing tool (seeded
+        /// from `pendingEdit`); nil = creating.
+        case armTool(agentID: String, kind: AgentToolKind, editingToolID: String?, previousState: State)
+        /// Someone else's tool, read-only.
+        case toolDetail(previousState: State)
         /// The room-member multi-select for a member-carrying scope.
         case memberPicker(previousState: State)
         /// The shared language picker (target language for a translate tool).
@@ -53,16 +47,14 @@ class AgentToolsFlowStateMachine {
         case presentAgentSheet
         case presentAddAgentPicker
         case dismissedAddAgentPicker
-        case presentAgentPicker
-        case presentAgentInRoom(agentID: String)
-        case dismissedAgentInRoom
-        case presentToolsList(agentID: String)
-        case dismissedToolsList
-        case presentCapabilities(agentID: String)
-        case dismissedCapabilities
+        case presentAddTool(agentID: String)
+        case dismissedAddTool
 
-        case presentArmTool(agentID: String, capability: AgentCapability, editingToolID: String?)
+        case presentArmTool(agentID: String, kind: AgentToolKind, editingToolID: String?)
         case dismissedArmTool
+
+        case presentToolDetail
+        case dismissedToolDetail
 
         case presentMemberPicker(current: [String])
         case dismissedMemberPicker
@@ -93,35 +85,25 @@ class AgentToolsFlowStateMachine {
             case (.addAgentPicker(let previousState), .dismissedAddAgentPicker):
                 return previousState
 
-            case (.initial, .presentAgentPicker):
-                return .agentPicker
-
-            case (.agentSheet, .presentAgentInRoom(let agentID)):
-                return .agentInRoom(agentID: agentID, previousState: fromState)
-            case (.agentInRoom(_, let previousState), .dismissedAgentInRoom):
-                return previousState
-
-            case (_, .presentToolsList(let agentID)):
-                return .toolsList(agentID: agentID, previousState: fromState)
-            case (.toolsList(_, let previousState), .dismissedToolsList):
-                return previousState
-
             // After an add-agent invite: skip the (popped) picker so the new
-            // agent's capabilities sits directly on the sheet — back → sheet.
-            case (.addAgentPicker(let previousState), .presentCapabilities(let agentID)):
-                return .capabilities(agentID: agentID, previousState: previousState)
-            case (_, .presentCapabilities(let agentID)):
-                return .capabilities(agentID: agentID, previousState: fromState)
-            case (.capabilities(_, let previousState), .dismissedCapabilities):
+            // agent's kinds sit directly on the sheet — back → sheet.
+            case (.addAgentPicker(let previousState), .presentAddTool(let agentID)):
+                return .addTool(agentID: agentID, previousState: previousState)
+            case (.agentSheet, .presentAddTool(let agentID)):
+                return .addTool(agentID: agentID, previousState: fromState)
+            case (.addTool(_, let previousState), .dismissedAddTool):
                 return previousState
 
-            // Arm/edit can be reached from the catalog (capabilities), the edit
-            // list (toolsList) or a tool on the agent-in-chat screen.
-            case (.capabilities(let agentID, _), .presentArmTool(_, let capability, let editingToolID)),
-                 (.toolsList(let agentID, _), .presentArmTool(_, let capability, let editingToolID)),
-                 (.agentInRoom(let agentID, _), .presentArmTool(_, let capability, let editingToolID)):
-                return .armTool(agentID: agentID, capability: capability, editingToolID: editingToolID, previousState: fromState)
+            // The form opens from a kind, or from the sheet: a tool, or a quick row.
+            case (.addTool, .presentArmTool(let agentID, let kind, let editingToolID)),
+                 (.agentSheet, .presentArmTool(let agentID, let kind, let editingToolID)):
+                return .armTool(agentID: agentID, kind: kind, editingToolID: editingToolID, previousState: fromState)
             case (.armTool(_, _, _, let previousState), .dismissedArmTool):
+                return previousState
+
+            case (.agentSheet, .presentToolDetail):
+                return .toolDetail(previousState: fromState)
+            case (.toolDetail(let previousState), .dismissedToolDetail):
                 return previousState
 
             case (.armTool, .presentMemberPicker):

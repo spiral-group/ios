@@ -23,15 +23,10 @@ struct JoinCallButton: View {
     
     var glassButton: some View {
         Button(action: action) {
-            // Use an HStack on iOS 26 as .labelStyle(.titleAndIcon) doesn't
-            // seem to have any effect on a label in the navigation bar 🤷‍♂️
-            HStack(spacing: 6) {
-                CompoundIcon(isVoiceCall ? \.voiceCallSolid : \.videoCallSolid)
-                Text(L10n.actionJoin)
-                    .padding(.trailing, 4)
-            }
-            .font(.compound.bodyLG.weight(.medium))
-            .foregroundStyle(.compound.textOnSolidPrimary)
+            // AGENT-PLATFORM (Brief 0083, decision 344): the icon alone, in the call button's place. The word beside the
+            // centred capsule left a long name three letters in ru («Присоединиться»). VoiceOver still says it.
+            CompoundIcon(isVoiceCall ? \.voiceCallSolid : \.videoCallSolid)
+                .foregroundStyle(.compound.textOnSolidPrimary)
         }
         .tint(.compound.bgActionPrimaryRest)
         .backportButtonStyleGlassProminent()
@@ -40,8 +35,7 @@ struct JoinCallButton: View {
     
     var customButton: some View {
         Button(action: action) {
-            Label(L10n.actionJoin, icon: \.videoCallSolid)
-                .labelStyle(.titleAndIcon)
+            CompoundIcon(isVoiceCall ? \.voiceCallSolid : \.videoCallSolid) // AGENT-PLATFORM (Brief 0083, decision 344)
         }
         .buttonStyle(CustomStyle())
         .accessibilityLabel(L10n.a11yJoinCall)
@@ -52,8 +46,10 @@ struct JoinCallButton: View {
             configuration.label
                 .padding(.horizontal, 16.0)
                 .padding(.vertical, 4.0)
-                .foregroundColor(.compound.bgCanvasDefault)
-                .background(Color.compound.iconAccentTertiary)
+                // AGENT-PLATFORM (Brief 0083, decision 306): white on the filled blue, 4.81:1 in both themes.
+                // It was the canvas colour on the icon blue: black on #0A84FF in dark.
+                .foregroundColor(.compound.textOnSolidPrimary)
+                .background(Color.compound.bgActionPrimaryRest)
                 .clipShape(Capsule())
         }
     }

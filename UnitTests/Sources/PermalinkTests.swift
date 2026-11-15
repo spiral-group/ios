@@ -6,9 +6,9 @@
 // Please see LICENSE files in the repository root for full details.
 //
 
-@testable import ElementX
 import Foundation
 import MatrixRustSDK
+@testable import Spiral
 import Testing
 
 /// Just for API sanity checking, they're already properly tested in the SDK/Ruma

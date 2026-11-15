@@ -6,8 +6,8 @@
 // scrolls to the top of the timeline so it never obscures the messages the user
 // just scrolled up to read.
 
-@testable import ElementX
 import Foundation
+@testable import Spiral
 import Testing
 
 @MainActor

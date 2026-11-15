@@ -12,9 +12,10 @@ import DSWaveformImageViews
 import Foundation
 import SwiftUI
 
-struct VoiceMessagePreviewComposer: View {
+struct VoiceMessagePreviewComposer<Trailing: View>: View { // AGENT-PLATFORM (Brief 0083): drawn in the composer's field
     @ObservedObject var playerState: AudioPlayerState
     let waveform: WaveformSource
+    let trailing: Trailing // AGENT-PLATFORM (Brief 0083): send, inside the field's trailing end
     @ScaledMetric private var waveformLineWidth = 2.0
     @ScaledMetric private var waveformLinePadding = 2.0
     @GestureState var isDragging = false
@@ -53,13 +54,9 @@ struct VoiceMessagePreviewComposer: View {
         .onChange(of: isDragging) { _, newValue in
             onScrubbing(newValue)
         }
-        .padding(.vertical, Compound.supportsGlass ? 7 : 4)
-        .padding(.horizontal, Compound.supportsGlass ? 8 : 6)
-        .padding(.trailing, Compound.supportsGlass ? 8 : 0)
-        .background {
-            RoundedRectangle(cornerRadius: Compound.supportsGlass ? 21 : 12)
-                .fill(.compound.bgSubtleSecondary)
-        }
+        // AGENT-PLATFORM (Brief 0083): in the composer's field, with send inside its trailing end. It was a grey box
+        // beside a separate send button.
+        .messageComposerStyle(trailing: trailing, insetsContent: false)
     }
     
     @ViewBuilder
@@ -107,7 +104,8 @@ struct VoiceMessagePreviewComposer_Previews: PreviewProvider, TestablePreview {
     static let waveformData: [Float] = Array(repeating: 1.0, count: 1000)
     
     static var previews: some View {
-        VoiceMessagePreviewComposer(playerState: playerState, waveform: .data(waveformData), onPlay: { }, onPause: { }, onSeek: { _ in }, onScrubbing: { _ in })
+        VoiceMessagePreviewComposer(playerState: playerState, waveform: .data(waveformData), trailing: SendButton { }, // AGENT-PLATFORM (Brief 0083)
+                                    onPlay: { }, onPause: { }, onSeek: { _ in }, onScrubbing: { _ in })
             .fixedSize(horizontal: false, vertical: true)
     }
 }

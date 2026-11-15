@@ -9,7 +9,10 @@ import SwiftUI
 
 /// The button component for sending messages and media.
 ///
-/// The button's size is 44pt x 44pt on iOS 26 and later, and 36pt x 36pt on iOS 18 and earlier.
+/// The button's size is 36pt x 36pt on iOS 26 and later, and 32pt x 32pt on iOS 18 and earlier: it sits inside the
+/// composer's field.
+///
+/// AGENT-PLATFORM (Brief 0083): it was 44pt and 36pt, beside the field.
 public struct SendButton: View {
     @Environment(\.isEnabled) private var isEnabled
     @Environment(\.colorScheme) private var colorScheme
@@ -28,12 +31,15 @@ public struct SendButton: View {
     }
     
     private var iconColor: Color {
-        guard isEnabled else { return .compound.iconQuaternary }
+        guard isEnabled else { return .compound.textDisabled } // AGENT-PLATFORM (Brief 0083): the disabled primary's label
         return colorScheme == .light ? .compound.iconOnSolidPrimary : .compound.iconPrimary
     }
     
+    // AGENT-PLATFORM (Brief 0083): disabled is the disabled primary's disc (decision 329), so the end of the field
+    // keeps its shape; it was a bare arrow.
     private var backgroundColor: Color {
-        isEnabled ? .compound.bgAccentRest : .clear
+        guard isEnabled else { return colorScheme == .dark ? .compound.bgCanvasDisabled : .compound.bgActionPrimaryDisabled }
+        return .compound.bgAccentRest
     }
     
     /// Creates a send button that performs the provided action.
@@ -46,24 +52,31 @@ public struct SendButton: View {
         Button(action: action) {
             label
                 .compositingGroup()
+                // AGENT-PLATFORM (Brief 0083): a 44 pt target around the 36 pt disc (32 pt before iOS 26), the look unchanged.
+                .padding(hitPadding)
+                .contentShape(.rect)
+                .padding(-hitPadding)
         }
     }
     
-    @ViewBuilder
+    private var hitPadding: CGFloat {
+        Compound.supportsGlass ? 4 : 6
+    }
+    
+    // AGENT-PLATFORM (Brief 0083): a solid disc inside the composer's glass field, as Messages draws send; glass on
+    // glass isn't drawn. It was a tinted glass disc beside the field.
     public var label: some View {
-        if #available(iOS 26, *), isEnabled, !ProcessInfo.processInfo.isRunningTests {
-            baseIcon
-                .glassEffect(.regular.tint(backgroundColor).interactive(), in: .circle)
-        } else {
-            baseIcon
-                .background(backgroundColor, in: .circle)
-        }
+        baseIcon
+            .background(backgroundColor, in: .circle)
     }
     
     var baseIcon: some View {
-        CompoundIcon(icon, size: .medium, relativeTo: .compound.headingLG)
+        CompoundIcon(icon, size: Compound.supportsGlass ? .medium : .small, relativeTo: .compound.headingLG) // AGENT-PLATFORM (Brief 0083)
+            .fontWeight(.semibold) // AGENT-PLATFORM (Brief 0083, decision 320): an arrow on a disc, as iOS draws send.
             .foregroundStyle(iconColor)
-            .scaledPadding(Compound.supportsGlass ? 10 : 6, relativeTo: .compound.headingLG)
+            // AGENT-PLATFORM (Brief 0083, question 357): the plane flies forward, right to left too; an edit keeps its check.
+            .flipsForRightToLeftLayoutDirection(mode == .send)
+            .scaledPadding(6, relativeTo: .compound.headingLG) // AGENT-PLATFORM (Brief 0083): 36pt, and 32pt before iOS 26
     }
 }
 

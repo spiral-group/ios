@@ -13,6 +13,11 @@ nonisolated struct CollapsibleTimelineItem: RoomTimelineItemProtocol, Equatable 
     let items: [RoomTimelineItemProtocol]
     let itemIDs: [TimelineItemIdentifier]
     
+    /// AGENT-PLATFORM: every folded row is an agent's tool change.
+    var isOnlyAgentToolChanges: Bool {
+        items.allSatisfy { ($0 as? StateRoomTimelineItem)?.isAgentToolChange == true }
+    }
+    
     init(items: [RoomTimelineItemProtocol]) {
         self.items = items
         itemIDs = items.map(\.id)

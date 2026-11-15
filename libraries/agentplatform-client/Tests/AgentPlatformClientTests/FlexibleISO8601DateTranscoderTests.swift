@@ -6,8 +6,8 @@
 // any fractional-second precision in incoming timestamps,
 // which breaks every endpoint that surfaces a chrono::DateTime
 // from the Rust backend. These tests pin the wider precision
-// matrix we accept (plain, ms, μs, ns) and confirm the encoder
-// emits a stable, RFC 3339-compliant millisecond form.
+// matrix we accept (plain, ms, μs, ns), kept to the microsecond,
+// and confirm the encoder gives the server back its own instant.
 
 @testable import AgentPlatformClient
 import XCTest
@@ -40,66 +40,66 @@ final class FlexibleISO8601DateTranscoderTests: XCTestCase {
         // smoke run that motivated this transcoder.
         let date = try transcoder.decode("2026-05-11T12:10:08.866997Z")
         XCTAssertEqual(date.timeIntervalSince1970,
-                       Self.expectedTimeIntervalSince1970(seconds: 8, fractional: 0.866),
-                       accuracy: 0.001)
+                       Self.expectedTimeIntervalSince1970(seconds: 8, fractional: 0.866997),
+                       accuracy: 0.0000005)
     }
 
-    func testDecodesNanosecondPrecision() throws {
+    func testDecodesNanosecondPrecisionToTheMicrosecond() throws {
         let date = try transcoder.decode("2026-05-11T12:10:08.866997123Z")
         XCTAssertEqual(date.timeIntervalSince1970,
-                       Self.expectedTimeIntervalSince1970(seconds: 8, fractional: 0.866),
-                       accuracy: 0.001)
+                       Self.expectedTimeIntervalSince1970(seconds: 8, fractional: 0.866997),
+                       accuracy: 0.0000005)
+    }
+
+    func testDecodesAnOffset() throws {
+        let date = try transcoder.decode("2026-05-11T14:10:08.866997+02:00")
+        XCTAssertEqual(try transcoder.encode(date), "2026-05-11T12:10:08.866997Z")
     }
 
     func testDecodeRejectsGarbage() {
         XCTAssertThrowsError(try transcoder.decode("not a date"))
         XCTAssertThrowsError(try transcoder.decode(""))
         XCTAssertThrowsError(try transcoder.decode("2026-05-11"))
+        XCTAssertThrowsError(try transcoder.decode("2026-05-11T12:10:08.Z"))
     }
 
     // MARK: - Encode
 
-    func testEncodeEmitsMillisecondPrecisionUTC() throws {
-        // Pick a date with a precisely representable fractional
-        // component so encode is deterministic.
-        let date = Date(timeIntervalSince1970: 1_778_581_808.123)
-        let encoded = try transcoder.encode(date)
-        // Foundation's ISO 8601 formatter renders in UTC when
-        // `.withInternetDateTime` is set and never localises;
-        // assert the full RFC 3339 shape so a future regression
-        // to non-UTC output (or a missing fractional component)
-        // fails loudly.
-        let pattern = #"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$"#
-        XCTAssertNotNil(encoded.range(of: pattern, options: .regularExpression),
-                        "Encoded value '\(encoded)' did not match RFC 3339 UTC millisecond shape")
+    func testEncodeEmitsMicrosecondPrecisionUTC() throws {
+        let encoded = try transcoder.encode(Date(timeIntervalSince1970: 1_778_581_808.123))
+        XCTAssertEqual(encoded, "2026-05-12T10:30:08.123000Z")
     }
 
-    func testRoundTripPreservesMillisecondPrecision() throws {
-        let original = Date(timeIntervalSince1970: 1_778_581_808.123)
-        let encoded = try transcoder.encode(original)
-        let decoded = try transcoder.decode(encoded)
-        XCTAssertEqual(decoded.timeIntervalSince1970,
-                       original.timeIntervalSince1970,
-                       accuracy: 0.001)
+    /// The feed's seen mark (Brief 0082, FD10) echoes the newest activity entry's `at`: a
+    /// millisecond echo fell just before the entry, which then stayed unread.
+    func testAServerTimestampRoundTripsExactly() throws {
+        for timestamp in ["2026-10-30T09:12:00.123456Z", "2026-10-30T09:12:00.999999Z", "2026-10-30T09:12:00.000001Z",
+                          "2026-10-30T23:59:59.987654Z", "2026-10-30T09:12:00.000000Z", "1969-12-31T23:59:59.500001Z"] {
+            XCTAssertEqual(try transcoder.encode(transcoder.decode(timestamp)), timestamp)
+        }
+        // Every microsecond of a second, around now.
+        for microsecond in stride(from: 0, to: 1_000_000, by: 997) {
+            let digits = String(microsecond)
+            let timestamp = "2026-10-30T09:12:07." + String(repeating: "0", count: 6 - digits.count) + digits + "Z"
+            XCTAssertEqual(try transcoder.encode(transcoder.decode(timestamp)), timestamp)
+        }
     }
 
-    // MARK: - Fractional-second truncation helper
-
-    func testTruncateRetainsThreeFractionalDigits() {
-        let input = "2026-05-11T12:10:08.866997Z"
-        let truncated = FlexibleISO8601DateTranscoder.truncateFractionalSecondsToMilliseconds(input)
-        XCTAssertEqual(truncated, "2026-05-11T12:10:08.866Z")
+    func testAPlainTimestampGainsZeroMicroseconds() throws {
+        XCTAssertEqual(try transcoder.encode(transcoder.decode("2026-05-11T12:10:08Z")), "2026-05-11T12:10:08.000000Z")
     }
 
-    func testTruncateHandlesOffsetTimezone() {
-        let input = "2026-05-11T12:10:08.866997123+02:00"
-        let truncated = FlexibleISO8601DateTranscoder.truncateFractionalSecondsToMilliseconds(input)
-        XCTAssertEqual(truncated, "2026-05-11T12:10:08.866+02:00")
+    // MARK: - Fractional seconds
+
+    func testSplitKeepsSixFractionalDigits() {
+        let split = FlexibleISO8601DateTranscoder.splitFraction("2026-05-11T12:10:08.8669971+02:00")
+        XCTAssertEqual(split?.whole, "2026-05-11T12:10:08+02:00")
+        XCTAssertEqual(split?.microseconds, 866_997)
     }
 
-    func testTruncateReturnsNilWhenAlreadyMillisecondOrCoarser() {
-        XCTAssertNil(FlexibleISO8601DateTranscoder.truncateFractionalSecondsToMilliseconds("2026-05-11T12:10:08.866Z"))
-        XCTAssertNil(FlexibleISO8601DateTranscoder.truncateFractionalSecondsToMilliseconds("2026-05-11T12:10:08Z"))
+    func testSplitPadsShortFractions() {
+        XCTAssertEqual(FlexibleISO8601DateTranscoder.splitFraction("2026-05-11T12:10:08.12Z")?.microseconds, 120_000)
+        XCTAssertEqual(FlexibleISO8601DateTranscoder.splitFraction("2026-05-11T12:10:08Z")?.microseconds, 0)
     }
 
     // MARK: - Helpers

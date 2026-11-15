@@ -13,20 +13,21 @@ import UserNotifications
 
 nonisolated class NotificationHandler {
     private let userSession: NSEUserSession
-    private let settings: CommonSettingsProtocol
     private let contentHandler: (UNNotificationContent) -> Void
     private var notificationContent: UNMutableNotificationContent
     private let tag: String
     
     private let notificationContentBuilder: NotificationContentBuilder
     
+    private var userSettings: UserSettings {
+        userSession.userSettings
+    }
+    
     init(userSession: NSEUserSession,
-         settings: CommonSettingsProtocol,
          contentHandler: @escaping (UNNotificationContent) -> Void,
          notificationContent: UNMutableNotificationContent,
          tag: String) {
         self.userSession = userSession
-        self.settings = settings
         self.contentHandler = contentHandler
         self.notificationContent = notificationContent
         self.tag = tag
@@ -35,13 +36,19 @@ nonisolated class NotificationHandler {
                                                                style: .plain)
         
         notificationContentBuilder = NotificationContentBuilder(messageEventStringBuilder: eventStringBuilder,
-                                                                notificationSoundName: settings.notificationSoundName,
                                                                 userSession: userSession)
     }
     
     func processEvent(_ eventID: String, roomID: String) async {
         MXLog.info("\(tag) Processing event: \(eventID) in room: \(roomID)")
         
+        // The pusher of an account with its notifications off can outlive a failed deletion.
+        guard userSettings.account.enableNotifications else {
+            MXLog.error("\(tag) Received a push for an account with notifications off, discarding.")
+            discardNotification(updatingBadge: false) // AGENT-PLATFORM (§ 5.83): the client filtered it.
+            return
+        }
+
         // AGENT-PLATFORM (Brief 0066, § 5.83): the badge is NOT the server's
         // `unread_count`. That number is how many rooms the server holds an
         // unanswered notification for — and in an encrypted room it counts
@@ -51,11 +58,11 @@ nonisolated class NotificationHandler {
         // notification and the room list nothing unread. The badge is the
         // rooms this phone has a notification for, this one included; the
         // app recomputes it from the room list on every open
-        // (`NotificationManager.updateBadgeCount`).
+        // (`NotificationService.attentionCount`).
         let delivered = await UNUserNotificationCenter.current().deliveredNotifications()
         notificationContent.badge = Self.badge(roomsWithDeliveredNotifications: Set(delivered.compactMap(\.request.content.roomID)),
                                                roomID: roomID) as NSNumber
-        MXLog.info("\(tag) New badge value: \(notificationContent.badge?.stringValue ?? "nil") (server said \(notificationContent.unreadCount.map(String.init) ?? "nil"))")
+        MXLog.info("\(tag) New badge value: \(notificationContent.badge?.stringValue ?? "nil")")
         
         guard let notificationItemProxy = await userSession.notificationItemProxy(roomID: roomID, eventID: eventID) else {
             // AGENT-PLATFORM (§ 5.83): nothing could be shown — the fetch failed
@@ -80,7 +87,7 @@ nonisolated class NotificationHandler {
         case .processedShouldDiscard, .unsupportedShouldDiscard:
             discardNotification(updatingBadge: false)
         case .shouldDisplay:
-            if settings.hideQuietNotificationAlerts, !notificationItemProxy.isNoisy {
+            if userSettings.app.hideQuietNotificationAlerts, !notificationItemProxy.isNoisy {
                 discardNotification()
                 return
             }
@@ -114,6 +121,13 @@ nonisolated class NotificationHandler {
         return false
     }
     
+    /// AGENT-PLATFORM (decision 371): a call's summary is the one custom message people get a push for, as it says what
+    /// the agent said. It reads as its `body`.
+    static func isPushedAsAMessage(_ messageType: MessageType) -> Bool {
+        guard case .other(let msgtype, _, let data) = messageType else { return false }
+        return SpiralCallSummary(msgtype: msgtype, data: data) != nil
+    }
+    
     func handleTimeExpiration() {
         // Called just before the extension will be terminated by the system.
         // Use this as an opportunity to deliver your "best attempt" at modified content
@@ -124,6 +138,8 @@ nonisolated class NotificationHandler {
     // MARK: - Private
     
     private func deliverNotification() {
+        // AGENT-PLATFORM (§ 5.83): the badge was computed in `processEvent` from this phone's
+        // notifications; upstream's per-delivery increment of `lastKnownBadgeCount` is not used.
         MXLog.info("\(tag) Delivering notification")
         contentHandler(notificationContent)
     }
@@ -138,7 +154,7 @@ nonisolated class NotificationHandler {
     /// user reported: in an encrypted room the homeserver can only match the
     /// blanket "encrypted event" rule, so it counted an event we are in the
     /// middle of deciding not to show. Leaving the badge alone lets the app's
-    /// own recompute (`NotificationManager.updateBadgeCount`) own the number.
+    /// own recompute (`NotificationService.attentionCount`) own the number.
     private func discardNotification(updatingBadge: Bool = true) {
         MXLog.info("\(tag) Discarding notification")
         
@@ -178,7 +194,7 @@ nonisolated class NotificationHandler {
                 case .emote, .image, .audio, .video, .file, .notice, .text, .location, .gallery, .interactivePost, .interactiveDraft:
                     return .shouldDisplay
                 case .other:
-                    return .unsupportedShouldDiscard
+                    return Self.isPushedAsAMessage(messageType) ? .shouldDisplay : .unsupportedShouldDiscard
                 }
             case .roomRedaction(let redactedEventID, _):
                 guard let redactedEventID else {
@@ -190,6 +206,7 @@ nonisolated class NotificationHandler {
                 
                 if let targetNotification = deliveredNotifications.first(where: { $0.request.content.eventID == redactedEventID }) {
                     UNUserNotificationCenter.current().removeDeliveredNotifications(withIdentifiers: [targetNotification.request.identifier])
+                    userSettings.app.lastKnownBadgeCount = max(0, userSettings.app.lastKnownBadgeCount - 1)
                 }
                 
                 return .processedShouldDiscard

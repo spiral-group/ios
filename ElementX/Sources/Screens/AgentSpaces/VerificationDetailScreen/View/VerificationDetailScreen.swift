@@ -185,6 +185,7 @@ struct VerificationDetailScreen: View {
         }
         .padding(16)
         .background(Color.compound.bgSubtleSecondary,
+                    // swiftlint:disable:next spiral_raw_corner_radius - predates the rule
                     in: RoundedRectangle(cornerRadius: 8))
         .padding(.horizontal, 16)
     }

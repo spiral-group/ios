@@ -11,13 +11,21 @@ import SwiftUI
 
 struct RoomTimelineItemView: View {
     @Environment(\.timelineContext) var context
+    @Environment(\.timelineRowMotion) private var rowMotion // AGENT-PLATFORM (Brief 0083, question 359)
     @ObservedObject var viewState: RoomTimelineItemViewState
     
     var body: some View {
+        #if SPIRAL_TIMELINE_BENCH // AGENT-PLATFORM (Brief 0083, question 359): how many rows re-render.
+        let _ = TimelineBenchProbe.shared.noteRowBody(viewState.id)
+        #endif
+        #if DEBUG
+        let _ = TimelineSignposts.noteBody(.row, of: viewState.id) // AGENT-PLATFORM (Brief 0083, question 359)
+        #endif
         timelineView
-            .animation(.elementDefault, value: viewState.groupStyle)
-            .animation(.elementDefault, value: viewState.type)
+            .animation(rowMotion.animation, value: viewState.groupStyle)
+            .animation(rowMotion.animation, value: viewState.type)
             .environment(\.timelineGroupStyle, viewState.groupStyle)
+            .environment(\.timelineRowContext, viewState.rowContext) // AGENT-PLATFORM (Brief 0083, question 359)
             .onAppear {
                 context?.send(viewAction: .itemAppeared(itemID: viewState.identifier))
             }
@@ -70,6 +78,9 @@ struct RoomTimelineItemView: View {
             let slot = item.id.eventID.flatMap {
                 context?.viewState.spiralAppHosts?.slot(for: $0, post: item.post)
             } ?? SpiralAppSlot()
+            #if SPIRAL_TIMELINE_BENCH // AGENT-PLATFORM (Brief 0083, question 359): when the post has drawn.
+            let _ = TimelineBenchProbe.shared.notePost(item.id.uniqueID, slot: slot)
+            #endif
             InteractivePostRoomTimelineView(timelineItem: item, slot: slot)
         case .interactiveDraft(let item):
             InteractiveDraftRoomTimelineView(timelineItem: item)
@@ -77,6 +88,8 @@ struct RoomTimelineItemView: View {
             InteractiveGeneratingRoomTimelineView(timelineItem: item)
         case .spiralNotice(let item):
             SpiralNoticeRoomTimelineView(timelineItem: item)
+        case .callSummary(let item):
+            CallSummaryRoomTimelineView(timelineItem: item)
         case .unsupported(let item):
             UnsupportedRoomTimelineView(timelineItem: item)
         case .timelineStart(let item):
@@ -99,7 +112,7 @@ struct RoomTimelineItemView: View {
         case .callNotification(let item):
             CallNotificationRoomTimelineView(timelineItem: item)
         case .liveLocation(let item):
-            LiveLocationRoomTimelineView(timelineItem: item, isStopped: context?.viewState.stoppedLiveLocationIDs.contains(item.id) ?? false)
+            LiveLocationRoomTimelineView(timelineItem: item, isStopped: viewState.rowContext.isLiveLocationStopped)
         }
     }
     

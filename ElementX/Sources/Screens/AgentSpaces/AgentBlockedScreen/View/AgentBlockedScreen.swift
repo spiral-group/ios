@@ -3,6 +3,7 @@
 //
 
 import Compound
+import SpiralComponents
 import SwiftUI
 
 /// The people one agent blocks (decision 194), newest first, each with «Разблокировать».
@@ -15,11 +16,11 @@ struct AgentBlockedScreen: View {
             case .loading:
                 Section {
                     ListRow(kind: .custom {
-                        DelayedProgressView()
-                            .frame(minHeight: 80)
+                        SpiralPreloader(label: L10n.commonLoading) {
+                            SpiralPlaceholderRows(count: 3)
+                        }
                     })
                 }
-                .listRowBackground(Color.clear)
             case .failed:
                 AgentSpacesRetryErrorSection(title: UntranslatedL10n.screenAgentBlockedLoadFailure) {
                     context.send(viewAction: .retry)
@@ -34,7 +35,7 @@ struct AgentBlockedScreen: View {
             }
         }
         .compoundList()
-        .refreshable { context.send(viewAction: .retry) }
+        .feedSyncStatus(context.viewState.syncStatus) // AGENT-PLATFORM: platform sync (decision 289)
         .navigationTitle(UntranslatedL10n.screenAgentDetailBlocked)
         .navigationBarTitleDisplayMode(.inline)
         .background(Color.compound.bgCanvasDefault.ignoresSafeArea())
@@ -81,10 +82,10 @@ struct AgentBlockedScreen: View {
 
     private var emptySection: some View {
         Section {
-            ListRow(label: .plain(title: UntranslatedL10n.screenAgentBlockedEmpty), kind: .label)
-        } footer: {
-            Text(UntranslatedL10n.screenAgentBlockedFooter)
-                .compoundListSectionFooter()
+            SpiralEmptyState(symbol: .nosign,
+                             title: UntranslatedL10n.screenAgentBlockedEmpty,
+                             message: UntranslatedL10n.screenAgentBlockedFooter)
+                .listRowBackground(Color.clear)
         }
     }
 
@@ -138,9 +139,9 @@ struct AgentBlockedScreen_Previews: PreviewProvider, TestablePreview {
         service.listBlockedContactsAgentIDCursorLimitReturnValue = result
         return AgentBlockedScreenViewModel(agent: AgentSpaceAgentCard(agentID: "agent-1", matrixUserID: "@assistant-owner:spiral.md",
                                                                       displayName: "Anna's assistant", avatarMXC: nil, kind: "personal_assistant",
-                                                                      visibility: "public", lifecycleState: "active", presence: .online,
-                                                                      roomCount: 1, activeToolCount: 0),
+                                                                      visibility: "public", lifecycleState: "active", roomCount: 1, activeToolCount: 0),
                                            agentPlatformService: service,
+                                           store: AgentsStore(service: service),
                                            userIndicatorController: UserIndicatorControllerMock())
     }
 }

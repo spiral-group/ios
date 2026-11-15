@@ -14,6 +14,7 @@
 
 import Combine
 import Compound
+import SpiralTokens
 import SwiftUI
 
 enum NativeCallIncomingScreenAction {
@@ -68,124 +69,124 @@ struct NativeCallIncomingScreen: View {
     let agentPreflightText: String?
     let onAction: (NativeCallIncomingScreenAction) -> Void
 
+    /// The caller's picture fills the screen, as in the call itself (Brief 0083, decision 340).
     var body: some View {
-        VStack(spacing: 0) {
-            // `01 · Incoming · in-app`: everything about WHO leads from
-            // the top — the kind, the face, the name, the fact.
-            VStack(spacing: 16) {
-                Text(isVoiceCall
-                    ? UntranslatedL10n.screenNativeCallIncomingVoice
-                    : UntranslatedL10n.screenNativeCallIncomingVideo)
-                    .font(.body)
-                    .foregroundStyle(Color(.tertiaryLabel))
+        VStack(spacing: CompoundDesignTokens.space6X) {
+            Spacer(minLength: 0)
 
-                // The push's avatar thumbnail when it carried one; the
-                // letter placeholder was all this screen ever showed even
-                // when the caller's picture was sitting in the payload.
-                if let callerAvatarData, let avatar = UIImage(data: callerAvatarData) {
-                    Image(uiImage: avatar)
+            identity
+
+            Spacer(minLength: 0)
+
+            // What will happen once answered: a fact, not a control, so plain words. No glyph: the push carries no
+            // assistant to draw, and sparkles mark agents as a function, never an assistant as an entity (critique F5).
+            if let agentPreflightText {
+                Text(agentPreflightText)
+                    .font(.compound.bodyLG)
+                    .foregroundStyle(.compound.textPrimary)
+                    .multilineTextAlignment(.center)
+                    .lineLimit(2)
+                    .padding(.horizontal, CompoundDesignTokens.space6X)
+            }
+
+            // The Phone app's pair: Decline leading, Accept trailing, each a large round button over its word.
+            HStack(alignment: .top, spacing: 0) {
+                answerButton(title: L10n.actionDecline, icon: \.endCall, background: .compound.bgCriticalPrimary) {
+                    onAction(.decline)
+                }
+                .frame(maxWidth: .infinity)
+
+                // The green white reads on in both themes (decision 307).
+                answerButton(title: L10n.actionAccept,
+                             icon: isVoiceCall ? \.voiceCall : \.videoCall,
+                             background: .spiral.successFill) {
+                    onAction(.accept)
+                }
+                .frame(maxWidth: .infinity)
+            }
+            .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
+            .padding(.horizontal, CompoundDesignTokens.space6X)
+            .padding(.bottom, CompoundDesignTokens.space8X)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background {
+            NativeCallBackdrop(photoData: callerAvatarData, tone: .wash)
+                .ignoresSafeArea()
+        }
+    }
+
+    private var callerPhoto: UIImage? {
+        callerAvatarData.flatMap(UIImage.init(data:))
+    }
+
+    /// `01 · Incoming · in-app`: the face, then the kind, the name and the fact, in the calling screen's places.
+    /// Only the ink reads on the backdrop.
+    private var identity: some View {
+        VStack(spacing: CompoundDesignTokens.space6X) {
+            // The push's avatar thumbnail when it carried one; the monogram without.
+            Group {
+                if let callerPhoto {
+                    Image(uiImage: callerPhoto)
                         .resizable()
                         .scaledToFill()
-                        .frame(width: 160, height: 160)
+                        .frame(width: SpiralAvatarSize.xLarge, height: SpiralAvatarSize.xLarge)
                         .clipShape(Circle())
                         .accessibilityHidden(true)
                 } else {
                     NativeCallLetterAvatar(userID: nil,
                                            profile: nil,
                                            fallbackName: callerDisplayName,
-                                           size: 160,
+                                           size: SpiralAvatarSize.xLarge,
                                            mediaProvider: nil)
                 }
-
-                VStack(spacing: 8) {
-                    Text(callerDisplayName)
-                        .font(.largeTitle.weight(.bold))
-                        .foregroundStyle(.primary)
-                        .multilineTextAlignment(.center)
-
-                    Text(UntranslatedL10n.screenNativeCallIncomingIsCalling)
-                        .font(.title3)
-                        .foregroundStyle(.secondary)
-                }
             }
-            .padding(.top, 40)
-            .padding(.horizontal, 24)
+            .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
 
-            Spacer()
+            VStack(spacing: CompoundDesignTokens.space2X) {
+                Text(isVoiceCall
+                    ? UntranslatedL10n.screenNativeCallIncomingVoice
+                    : UntranslatedL10n.screenNativeCallIncomingVideo)
+                    .font(.compound.bodyMD)
 
-            // The agent preflight pill sits alone mid-screen — a fact
-            // about what will happen, not a control.
-            if let agentPreflightText {
-                HStack(spacing: 12) {
-                    Image(systemName: "sparkles")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                        .frame(width: 36, height: 36)
-                        .background(Color(.systemGroupedBackground), in: Circle())
+                Text(callerDisplayName)
+                    .font(.compound.headingXLBold)
+                    .multilineTextAlignment(.center)
 
-                    Text(agentPreflightText)
-                        .font(.body)
-                        .foregroundStyle(.primary)
-                        .lineLimit(1)
-                }
-                .padding(.leading, 12)
-                .padding(.trailing, 20)
-                .padding(.vertical, 10)
-                .background(Color(.secondarySystemGroupedBackground), in: Capsule())
+                Text(UntranslatedL10n.screenNativeCallIncomingIsCalling)
+                    .font(.compound.headingSM)
             }
-
-            Spacer()
-
-            HStack(spacing: 0) {
-                Spacer()
-
-                answerButton(title: L10n.actionDecline,
-                             icon: \.endCall,
-                             background: .compound.iconCriticalPrimary) {
-                    onAction(.decline)
-                }
-
-                Spacer()
-                Spacer()
-
-                answerButton(title: L10n.actionAccept,
-                             icon: isVoiceCall ? \.voiceCall : \.videoCall,
-                             background: .compound.iconSuccessPrimary) {
-                    onAction(.accept)
-                }
-
-                Spacer()
-            }
-            .padding(.bottom, 32)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color(.systemGroupedBackground).ignoresSafeArea())
+        .foregroundStyle(.compound.textPrimary)
+        .padding(.horizontal, CompoundDesignTokens.space6X)
     }
 
     private func answerButton(title: String,
                               icon: KeyPath<CompoundIcons, Image>,
                               background: Color,
                               action: @escaping () -> Void) -> some View {
-        VStack(spacing: 10) {
-            Button(action: action) {
-                CompoundIcon(icon, size: .medium, relativeTo: .compound.bodyLG)
-                    .foregroundStyle(.white)
+        Button(action: action) {
+            VStack(spacing: CompoundDesignTokens.space2X) {
+                CompoundIcon(icon, size: .custom(30), relativeTo: .compound.headingLG)
+                    .foregroundStyle(.compound.iconOnSolidPrimary)
                     .frame(width: 76, height: 76)
                     .background(background, in: Circle())
-            }
-            .buttonStyle(.plain)
 
-            Text(title)
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
+                Text(title)
+                    .font(.compound.bodyMD)
+                    .foregroundStyle(.compound.textPrimary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.75)
+            }
+            .contentShape(.rect)
         }
-        .accessibilityElement(children: .combine)
+        .buttonStyle(.plain)
+        .accessibilityLabel(title)
     }
 }
 
 // MARK: - Previews
 
-struct NativeCallIncomingScreen_Previews: PreviewProvider, TestablePreview {
+struct NativeCallIncomingScreen_Previews: PreviewProvider, TestablePreview, SpiralGatedPreview {
     static var previews: some View {
         NativeCallIncomingScreen(callerDisplayName: "Marta Illienko",
                                  isVoiceCall: false,
@@ -196,5 +197,12 @@ struct NativeCallIncomingScreen_Previews: PreviewProvider, TestablePreview {
                                  isVoiceCall: true,
                                  agentPreflightText: nil) { _ in }
             .previewDisplayName("Incoming voice")
+
+        NativeCallIncomingScreen(callerDisplayName: "Marta Illienko",
+                                 callerAvatarData: Bundle.main.url(forResource: "preview_avatar_user", withExtension: "jpg")
+                                     .flatMap { try? Data(contentsOf: $0) },
+                                 isVoiceCall: true,
+                                 agentPreflightText: "Your assistant will join · EN · UK") { _ in }
+            .previewDisplayName("Incoming with a photo")
     }
 }

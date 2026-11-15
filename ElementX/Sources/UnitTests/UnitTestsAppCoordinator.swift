@@ -29,6 +29,8 @@ class UnitTestsAppCoordinator: AppCoordinatorProtocol {
                                                      sentryURL: nil,
                                                      rageshakeURL: Self.targetRageshakeURL,
                                                      appHooks: Self.targetAppHooks)
+        
+        NativeCallTonePlayer.isOutputEnabled = false // AGENT-PLATFORM: a test run makes no sound.
     }
     
     func start() { }

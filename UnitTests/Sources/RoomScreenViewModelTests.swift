@@ -7,20 +7,15 @@
 //
 
 import Combine
-@testable import ElementX
 import Foundation
 import MatrixRustSDK
 import MatrixRustSDKMocks
+@testable import Spiral
+import Synchronization
 import Testing
 
 @MainActor
 final class RoomScreenViewModelTests {
-    private let appSettings: AppSettings
-    
-    init() async throws {
-        appSettings = AppSettings.volatile()
-    }
-    
     @Test
     func pinnedEventsBanner() async throws {
         var configuration = JoinedRoomProxyMockConfiguration()
@@ -41,8 +36,6 @@ final class RoomScreenViewModelTests {
                                             roomProxy: roomProxyMock,
                                             initialSelectedPinnedEventID: nil,
                                             ongoingCallRoomIDPublisher: .init(.init(nil)),
-                                            appSettings: appSettings,
-                                            appHooks: AppHooks(),
                                             analyticsService: AnalyticsServiceMock(.init()),
                                             userIndicatorController: UserIndicatorControllerMock())
         
@@ -121,8 +114,6 @@ final class RoomScreenViewModelTests {
                                             roomProxy: roomProxyMock,
                                             initialSelectedPinnedEventID: "test1",
                                             ongoingCallRoomIDPublisher: .init(.init(nil)),
-                                            appSettings: appSettings,
-                                            appHooks: AppHooks(),
                                             analyticsService: AnalyticsServiceMock(.init()),
                                             userIndicatorController: UserIndicatorControllerMock())
         
@@ -160,7 +151,9 @@ final class RoomScreenViewModelTests {
     
     @Test
     func pinnedEventsBannerThreadedSelection() async throws {
-        appSettings.threadsEnabled = true
+        let userSettings = UserSettings.mock()
+        userSettings.app.threadsEnabled = true
+        let userSession = UserSessionMock(.init(userSettings: userSettings))
         
         let roomProxyMock = JoinedRoomProxyMock(.init())
         let eventMock = TimelineEventSDKMock()
@@ -177,12 +170,10 @@ final class RoomScreenViewModelTests {
                                                       .event(.init(item: EventTimelineItem(configuration: .init(eventID: "test3")), uniqueID: .init("3")))]
         roomProxyMock.pinnedEventsTimelineReturnValue = .success(pinnedTimelineMock)
         
-        let viewModel = RoomScreenViewModel(userSession: UserSessionMock(.init()),
+        let viewModel = RoomScreenViewModel(userSession: userSession,
                                             roomProxy: roomProxyMock,
                                             initialSelectedPinnedEventID: "test1",
                                             ongoingCallRoomIDPublisher: .init(.init(nil)),
-                                            appSettings: appSettings,
-                                            appHooks: AppHooks(),
                                             analyticsService: AnalyticsServiceMock(.init()),
                                             userIndicatorController: UserIndicatorControllerMock())
         
@@ -237,8 +228,6 @@ final class RoomScreenViewModelTests {
                                             roomProxy: roomProxyMock,
                                             initialSelectedPinnedEventID: nil,
                                             ongoingCallRoomIDPublisher: .init(.init(nil)),
-                                            appSettings: appSettings,
-                                            appHooks: AppHooks(),
                                             analyticsService: AnalyticsServiceMock(.init()),
                                             userIndicatorController: UserIndicatorControllerMock())
         
@@ -272,8 +261,6 @@ final class RoomScreenViewModelTests {
                                             roomProxy: roomProxyMock,
                                             initialSelectedPinnedEventID: nil,
                                             ongoingCallRoomIDPublisher: ongoingCallRoomIDSubject.asCurrentValuePublisher(),
-                                            appSettings: appSettings,
-                                            appHooks: AppHooks(),
                                             analyticsService: AnalyticsServiceMock(.init()),
                                             userIndicatorController: UserIndicatorControllerMock())
         #expect(viewModel.state.shouldShowCallButton)
@@ -311,8 +298,6 @@ final class RoomScreenViewModelTests {
                                             roomProxy: roomProxyMock,
                                             initialSelectedPinnedEventID: nil,
                                             ongoingCallRoomIDPublisher: .init(.init(nil)),
-                                            appSettings: appSettings,
-                                            appHooks: AppHooks(),
                                             analyticsService: AnalyticsServiceMock(.init()),
                                             userIndicatorController: UserIndicatorControllerMock())
 
@@ -320,25 +305,48 @@ final class RoomScreenViewModelTests {
         #expect(viewModel.state.canStartGroupVoiceCall)
     }
     
+    /// An agent added to the DM is a member too, and can come first: the badge is the person's (357 item 4).
     @Test
-    func roomFullyRead() async {
-        await waitForConfirmation("Wait for fully read") { confirm in
-            let roomProxyMock = JoinedRoomProxyMock(.init(id: "MyRoomID"))
-            roomProxyMock.markAsReadReceiptTypeClosure = { readReceiptType in
-                #expect(readReceiptType == .fullyRead)
-                confirm()
-                return .success(())
-            }
-            let viewModel = RoomScreenViewModel(userSession: UserSessionMock(.init()),
-                                                roomProxy: roomProxyMock,
-                                                initialSelectedPinnedEventID: nil,
-                                                ongoingCallRoomIDPublisher: .init(.init(nil)),
-                                                appSettings: appSettings,
-                                                appHooks: AppHooks(),
-                                                analyticsService: AnalyticsServiceMock(.init()),
-                                                userIndicatorController: UserIndicatorControllerMock())
-            viewModel.stop()
+    func theVerificationBadgeIsTheDMsPerson() async throws {
+        let agent = RoomMemberProxyMock(with: .init(userID: "@assistant-me:matrix.org", membership: .join))
+        let roomProxyMock = JoinedRoomProxyMock(.init(isDirect: true, members: [agent, .mockMe], heroes: [.mockAlice]))
+        let clientProxy = ClientProxyMock(.init())
+        var askedFor: [String] = []
+        clientProxy.userIdentityForFallBackToServerClosure = { userID, _ in
+            askedFor.append(userID)
+            return .success(UserIdentityProxyMock(.init()))
         }
+        let viewModel = RoomScreenViewModel(userSession: UserSessionMock(.init(clientProxy: clientProxy)),
+                                            roomProxy: roomProxyMock,
+                                            initialSelectedPinnedEventID: nil,
+                                            ongoingCallRoomIDPublisher: .init(.init(nil)),
+                                            analyticsService: AnalyticsServiceMock(.init()),
+                                            userIndicatorController: UserIndicatorControllerMock())
+        
+        for _ in 0..<100 where askedFor.isEmpty {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        
+        #expect(viewModel.state.isDM)
+        #expect(askedFor.first == RoomMemberProxyMock.mockAlice.userID)
+        #expect(!askedFor.contains(agent.userID))
+    }
+    
+    @Test
+    func leavingNamesNoLatestEvent() async {
+        let roomProxyMock = JoinedRoomProxyMock(.init(id: "MyRoomID"))
+        let viewModel = RoomScreenViewModel(userSession: UserSessionMock(.init()),
+                                            roomProxy: roomProxyMock,
+                                            initialSelectedPinnedEventID: nil,
+                                            ongoingCallRoomIDPublisher: .init(.init(nil)),
+                                            analyticsService: AnalyticsServiceMock(.init()),
+                                            userIndicatorController: UserIndicatorControllerMock())
+        
+        viewModel.stop()
+        try? await Task.sleep(for: .milliseconds(20))
+        
+        // The timeline names the newest row you've seen instead (`TimelineOpeningTests`).
+        #expect(!roomProxyMock.markAsReadReceiptTypeCalled)
     }
     
     // MARK: - Knock Requests
@@ -353,8 +361,6 @@ final class RoomScreenViewModelTests {
                                             roomProxy: roomProxyMock,
                                             initialSelectedPinnedEventID: nil,
                                             ongoingCallRoomIDPublisher: .init(.init(nil)),
-                                            appSettings: appSettings,
-                                            appHooks: AppHooks(),
                                             analyticsService: AnalyticsServiceMock(.init()),
                                             userIndicatorController: UserIndicatorControllerMock())
         
@@ -386,8 +392,6 @@ final class RoomScreenViewModelTests {
                                             roomProxy: roomProxyMock,
                                             initialSelectedPinnedEventID: nil,
                                             ongoingCallRoomIDPublisher: .init(.init(nil)),
-                                            appSettings: appSettings,
-                                            appHooks: AppHooks(),
                                             analyticsService: AnalyticsServiceMock(.init()),
                                             userIndicatorController: UserIndicatorControllerMock())
         
@@ -414,8 +418,6 @@ final class RoomScreenViewModelTests {
                                             roomProxy: roomProxyMock,
                                             initialSelectedPinnedEventID: nil,
                                             ongoingCallRoomIDPublisher: .init(.init(nil)),
-                                            appSettings: appSettings,
-                                            appHooks: AppHooks(),
                                             analyticsService: AnalyticsServiceMock(.init()),
                                             userIndicatorController: UserIndicatorControllerMock())
         
@@ -433,8 +435,6 @@ final class RoomScreenViewModelTests {
                                             roomProxy: roomProxyMock,
                                             initialSelectedPinnedEventID: nil,
                                             ongoingCallRoomIDPublisher: .init(.init(nil)),
-                                            appSettings: appSettings,
-                                            appHooks: AppHooks(),
                                             analyticsService: AnalyticsServiceMock(.init()),
                                             userIndicatorController: UserIndicatorControllerMock())
         
@@ -459,8 +459,6 @@ final class RoomScreenViewModelTests {
                                             roomProxy: roomProxyMock,
                                             initialSelectedPinnedEventID: nil,
                                             ongoingCallRoomIDPublisher: .init(.init(nil)),
-                                            appSettings: appSettings,
-                                            appHooks: AppHooks(),
                                             analyticsService: AnalyticsServiceMock(.init()),
                                             userIndicatorController: UserIndicatorControllerMock())
         

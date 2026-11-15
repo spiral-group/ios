@@ -16,120 +16,93 @@ typealias ArmToolScreenViewModelType = StateStoreViewModelV2<ArmToolScreenViewSt
 
 /// Drives `ArmToolScreen`. Builds a typed `ToolParams` (WHAT) + typed
 /// `TriggerKind` (WHEN) from the form bindings and arms them through the
-/// gate via `armTool`, or turns the capability off via `disableTool`.
-/// The capabilities screen re-pulls the room tools after the sheet
-/// dismisses, so this ViewModel only reports success — it doesn't hold
-/// the read model.
+/// gate via `armTool`, or turns the edited tool off via `disableTool`. The
+/// screen under it reads the tools again, so this only reports success.
 class ArmToolScreenViewModel: ArmToolScreenViewModelType, ArmToolScreenViewModelProtocol {
     private let roomID: String
     private let agentID: String
     private let agentPlatformService: any RoomToolsServiceProtocol
+    private let store: AgentsStore
     /// Set when editing an existing tool — the arm carries it and the backend
     /// turns it off in the same transaction (ADR-0088). `nil` when creating.
     private let replacingToolID: String?
-    private var selectedLanguageIndex: Int?
-
-    /// The transport-specific translation language sets, fetched once from
-    /// `GET /tools/catalog`. The language picker is populated from the set
-    /// that matches the capability: `voice` for live translation (an
-    /// off-list code crashes the runtime), `text` otherwise. Empty until
-    /// the catalog resolves; a picker tap before then still works but shows
-    /// no rows, so the fetch is kicked off at init.
-    private var textLanguages: [AgentLanguage] = []
-    private var voiceLanguages: [AgentLanguage] = []
-    /// The catalogue's `available_tool_kinds`, once read (live translation
-    /// only): says whether a refused call tool means this agent doesn't join
-    /// calls (decision 168) or this room doesn't take it.
-    private var availableToolKinds: Set<String>?
 
     private let actionsSubject: PassthroughSubject<ArmToolScreenViewModelAction, Never> = .init()
     var actionsPublisher: AnyPublisher<ArmToolScreenViewModelAction, Never> {
         actionsSubject.eraseToAnyPublisher()
     }
 
-    /// Create a tool. `active` (if any) drives the bulk "Turn off".
+    private var catalogResource: AgentsResource {
+        .toolsCatalog(agentID: agentID, roomID: roomID)
+    }
+
+    /// A new tool: the same form without "Turn off".
     convenience init(roomID: String,
                      agentID: String,
                      agentDisplayName: String,
-                     capability: AgentCapability,
-                     active: ActiveCapabilityTool?,
-                     agentPlatformService: any RoomToolsServiceProtocol) {
+                     kind: AgentToolKind,
+                     agentPlatformService: any RoomToolsServiceProtocol,
+                     store: AgentsStore) {
         self.init(roomID: roomID,
                   agentID: agentID,
                   agentDisplayName: agentDisplayName,
-                  capability: capability,
-                  activeToolIDs: active?.toolIDs ?? [],
+                  kind: kind,
                   editing: nil,
-                  agentPlatformService: agentPlatformService)
+                  agentPlatformService: agentPlatformService,
+                  store: store)
     }
 
     /// Edit an existing tool — the form is seeded from its typed params /
-    /// trigger and submit replaces it.
-    convenience init(roomID: String,
-                     agentID: String,
-                     agentDisplayName: String,
-                     editing tool: ActiveToolDetail,
-                     agentPlatformService: any RoomToolsServiceProtocol) {
+    /// trigger and submit replaces it. Only a tool of a known kind gets here.
+    convenience init?(roomID: String,
+                      agentID: String,
+                      agentDisplayName: String,
+                      editing tool: ActiveToolDetail,
+                      agentPlatformService: any RoomToolsServiceProtocol,
+                      store: AgentsStore) {
+        guard let kind = tool.kind else { return nil }
         self.init(roomID: roomID,
                   agentID: agentID,
                   agentDisplayName: agentDisplayName,
-                  capability: tool.capability,
-                  activeToolIDs: [tool.toolID],
+                  kind: kind,
                   editing: tool,
-                  agentPlatformService: agentPlatformService)
+                  agentPlatformService: agentPlatformService,
+                  store: store)
     }
 
     private init(roomID: String,
                  agentID: String,
                  agentDisplayName: String,
-                 capability: AgentCapability,
-                 activeToolIDs: [String],
+                 kind: AgentToolKind,
                  editing: ActiveToolDetail?,
-                 agentPlatformService: any RoomToolsServiceProtocol) {
+                 agentPlatformService: any RoomToolsServiceProtocol,
+                 store: AgentsStore) {
         self.roomID = roomID
         self.agentID = agentID
         self.agentPlatformService = agentPlatformService
+        self.store = store
         replacingToolID = editing?.toolID
 
         var bindings = ArmToolScreenViewStateBindings()
         if let editing {
             Self.seed(&bindings, from: editing)
         }
-        let state = ArmToolScreenViewState(capability: capability,
-                                           activeToolIDs: activeToolIDs,
-                                           isEditing: editing != nil,
-                                           agentDisplayName: agentDisplayName,
-                                           bindings: bindings)
-        super.init(initialViewState: state)
+        super.init(initialViewState: ArmToolScreenViewState(kind: kind,
+                                                            isEditing: editing != nil,
+                                                            agentDisplayName: agentDisplayName,
+                                                            bindings: bindings))
 
-        // Translation capabilities need the catalog's per-transport language
-        // allow-lists so the picker offers only supported languages (Brief
-        // 0047 / ADR-0062). Non-translation capabilities never open the
-        // picker, so skip the fetch.
-        if capability == .translateMessages || capability == .liveCallTranslation {
-            Task { await loadTranslationLanguages() }
+        render()
+        store.observe { [weak self] in
+            guard let self else { return false }
+            render()
+            return true
         }
+        store.show(catalogResource, by: self)
     }
 
-    /// Resolve the per-transport translation language sets from the catalog.
-    /// A failure leaves the sets empty — the picker then shows no rows rather
-    /// than the whole ISO catalogue, keeping an unsupported language
-    /// unselectable.
-    private func loadTranslationLanguages() async {
-        switch await agentPlatformService.fetchToolsCatalog(agentID: agentID, roomID: roomID) {
-        case .success(let catalog):
-            textLanguages = catalog.textTranslationLanguages
-            voiceLanguages = catalog.voiceTranslationLanguages
-            availableToolKinds = Set(catalog.availableToolKinds)
-        case .failure(let error):
-            MXLog.error("Failed to load tool catalog languages: \(error)")
-        }
-    }
-
-    /// The language set the picker should offer for this capability: the
-    /// voice allow-list for live translation, the text set otherwise.
-    private var languagesForCapability: [AgentLanguage] {
-        state.isLiveTranslation ? voiceLanguages : textLanguages
+    isolated deinit {
+        store.stopShowing(catalogResource, by: self)
     }
 
     /// Reverse-map a tool's typed params + trigger into the form bindings —
@@ -137,26 +110,10 @@ class ArmToolScreenViewModel: ArmToolScreenViewModelType, ArmToolScreenViewModel
     private static func seed(_ bindings: inout ArmToolScreenViewStateBindings, from tool: ActiveToolDetail) {
         switch tool.params {
         case .translate(let language):
-            bindings.kind = .translate
             bindings.language = language
-        case .simplify:
-            bindings.kind = .simplify
-        case .correct:
-            bindings.kind = .correct
-        case .rephrase(let instruction):
-            bindings.kind = .rephrase
+        case .rephrase(let instruction), .custom(let instruction):
             bindings.instruction = instruction
-        case .summarize:
-            bindings.kind = .summarize
-        case .custom(let instruction):
-            bindings.kind = .custom
-            bindings.instruction = instruction
-        case .liveTranslate(let languages, let style):
-            bindings.targetLanguages = languages
-            bindings.liveStyle = style
-        case .callSummary, .callRecording:
-            break
-        case .unknown:
+        case .simplify, .correct, .summarize, .liveTranslate, .callSummary, .callRecording, .unknown:
             break
         }
 
@@ -195,15 +152,8 @@ class ArmToolScreenViewModel: ArmToolScreenViewModelType, ArmToolScreenViewModel
             confirmTurnOff()
         case .selectMembers:
             actionsSubject.send(.selectMembers(current: state.bindings.members))
-        case .selectLanguage(let index):
-            selectedLanguageIndex = index
-            let current = index.flatMap { state.bindings.targetLanguages[safe: $0] } ?? state.bindings.language
-            actionsSubject.send(.selectLanguage(languages: languagesForCapability, current: current))
-        case .removeLanguage(let index):
-            guard state.bindings.targetLanguages.indices.contains(index) else { return }
-            state.bindings.targetLanguages.remove(at: index)
-        case .moveLanguages(let fromOffsets, let toOffset):
-            state.bindings.targetLanguages.move(fromOffsets: fromOffsets, toOffset: toOffset)
+        case .selectLanguage:
+            selectLanguage()
         }
     }
 
@@ -212,25 +162,31 @@ class ArmToolScreenViewModel: ArmToolScreenViewModelType, ArmToolScreenViewModel
     }
 
     func applyLanguageSelection(_ code: String) {
-        guard state.isLiveTranslation else {
-            state.bindings.language = code
-            return
-        }
-
-        if let selectedLanguageIndex,
-           state.bindings.targetLanguages.indices.contains(selectedLanguageIndex) {
-            if let duplicateIndex = state.bindings.targetLanguages.firstIndex(of: code), duplicateIndex != selectedLanguageIndex {
-                state.bindings.targetLanguages.remove(at: selectedLanguageIndex)
-            } else {
-                state.bindings.targetLanguages[selectedLanguageIndex] = code
-            }
-        } else if !state.bindings.targetLanguages.contains(code) {
-            state.bindings.targetLanguages.append(code)
-        }
-        selectedLanguageIndex = nil
+        state.bindings.language = code
     }
 
     // MARK: - Private
+
+    /// The languages come only from the catalogue: an off-list code crashes a call's session (Brief 0047 / ADR-0062).
+    /// So a catalogue that can't be read says so and reads again, rather than opening an empty picker.
+    private func selectLanguage() {
+        switch store.readState(catalogResource, \.toolsCatalog) {
+        case .loading:
+            break
+        case .failed:
+            state.bindings.alertInfo = AlertInfo(id: .languagesFailed, title: L10n.commonError, message: L10n.errorUnknown)
+            store.refresh(catalogResource)
+        case .loaded(let catalog):
+            actionsSubject.send(.selectLanguage(languages: catalog.textTranslationLanguages, current: state.bindings.language))
+        }
+    }
+
+    private func render() {
+        let isLoadingLanguages = if case .loading = store.readState(catalogResource, \.toolsCatalog) { true } else { false }
+        if state.isLoadingLanguages != isLoadingLanguages {
+            state.isLoadingLanguages = isLoadingLanguages
+        }
+    }
 
     private func arm() async {
         guard state.canSubmit else { return }
@@ -275,21 +231,13 @@ class ArmToolScreenViewModel: ArmToolScreenViewModelType, ArmToolScreenViewModel
     /// Decision 168: a company agent joins no call, so the arm refuses its
     /// call tools. Told from data, not the refusal's English detail: the call
     /// artifacts fire in every kind of room for an agent that joins calls, so
-    /// their refusal can mean only this; for live translation (also refused
-    /// in a 1:1 room) the catalogue says so by naming no call artifact.
+    /// their refusal can mean only this.
     private var agentDoesNotJoinCalls: Bool {
-        switch state.capability {
-        case .callSummary, .callRecording:
-            true
-        case .liveCallTranslation:
-            availableToolKinds.map { $0.isDisjoint(with: ["call_summary", "call_recording"]) } ?? false
-        case .translateMessages:
-            false
-        }
+        state.kind == .callSummary || state.kind == .callRecording
     }
 
-    /// Re-walk R5: one tap on the bulk "Turn off" used to turn the room's
-    /// tool off for everyone, and it could land there by mistake.
+    /// Re-walk R5: one tap on "Turn off" used to turn the room's tool off for
+    /// everyone, and it could land there by mistake.
     private func confirmTurnOff() {
         state.bindings.alertInfo = AlertInfo(id: .confirmTurnOff,
                                              title: UntranslatedL10n.screenArmToolTurnOffConfirmTitle,
@@ -301,25 +249,20 @@ class ArmToolScreenViewModel: ArmToolScreenViewModelType, ArmToolScreenViewModel
     }
 
     private func turnOff() async {
+        guard let replacingToolID else { return }
         state.isSubmitting = true
         defer { state.isSubmitting = false }
 
-        // Disable every active tool for this capability; report success
-        // only if they all applied.
-        for toolID in state.activeToolIDs {
-            switch await agentPlatformService.disableTool(agentID: agentID, roomID: roomID, toolID: toolID) {
-            case .success:
-                continue
-            case .failure(let error):
-                MXLog.error("Failed to disable tool \(toolID): \(error)")
-                state.bindings.alertInfo = AlertInfo(id: .disableFailed,
-                                                     title: L10n.commonError,
-                                                     message: error.roomToolMessage)
-                return
-            }
+        switch await agentPlatformService.disableTool(agentID: agentID, roomID: roomID, toolID: replacingToolID) {
+        case .success:
+            MXLog.info("Disabled tool \(replacingToolID)")
+            actionsSubject.send(.finished)
+        case .failure(let error):
+            MXLog.error("Failed to disable tool \(replacingToolID): \(error)")
+            state.bindings.alertInfo = AlertInfo(id: .disableFailed,
+                                                 title: L10n.commonError,
+                                                 message: error.roomToolMessage)
         }
-        MXLog.info("Disabled \(state.activeToolIDs.count) tool(s)")
-        actionsSubject.send(.finished)
     }
 
     /// Map the form bindings to a typed `ToolParams`.
@@ -327,29 +270,24 @@ class ArmToolScreenViewModel: ArmToolScreenViewModelType, ArmToolScreenViewModel
         let bindings = state.bindings
         let language = bindings.language.trimmingCharacters(in: .whitespacesAndNewlines)
         let instruction = bindings.instruction.trimmingCharacters(in: .whitespacesAndNewlines)
-        if state.isLiveTranslation {
-            return .liveTranslate(targetLanguages: bindings.targetLanguages, style: bindings.liveStyle)
-        }
-        if state.capability == .callSummary { return .callSummary }
-        if state.capability == .callRecording { return .callRecording }
-        switch bindings.kind {
+        switch state.kind {
         case .translate: return .translate(targetLanguage: language)
         case .simplify: return .simplify
         case .correct: return .correct
         case .rephrase: return .rephrase(instruction: instruction)
         case .summarize: return .summarize
         case .custom: return .custom(instruction: instruction)
+        case .liveTranslate: return .liveTranslate(language: language)
+        case .callSummary: return .callSummary
+        case .callRecording: return .callRecording
         }
     }
 
-    /// Map the form bindings to a typed `TriggerKind`. Text transforms
-    /// arm an `on_message` trigger; live translation an `on_voice_call`.
+    /// Map the form bindings to a typed `TriggerKind`. Text transforms arm an
+    /// `on_message` trigger; the call tools an `on_voice_call`, for everyone.
     private func buildTrigger() -> TriggerKind {
-        if state.capability == .translateMessages {
+        guard state.kind.firesOnCalls else {
             return .onMessage(senderScope: buildScope())
-        }
-        if state.capability == .liveCallTranslation {
-            return .onVoiceCall(speakerScope: buildScope())
         }
         return .onVoiceCall(speakerScope: .anyone)
     }

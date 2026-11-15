@@ -18,5 +18,10 @@ nonisolated struct StateRoomTimelineItem: EventBasedTimelineItemProtocol, Equata
     
     let sender: TimelineItemSender
     
+    /// AGENT-PLATFORM: a row for a `com.spiral.tools` state event, which a fold names.
+    var isAgentToolChange = false
+    /// AGENT-PLATFORM: the agent's echo of this user's own tool change, which isn't new to them.
+    var isAgentToolChangeByYou = false
+    
     var properties = RoomTimelineItemProperties()
 }

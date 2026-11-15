@@ -1,0 +1,198 @@
+/* Copyright 2026 the Spiral authors. AGPL-3.0-or-later. */
+
+"screen_notification_settings_sound_spiral_default" = "Spiral Default";
+"screen_notification_settings_sound_spiral_fade" = "Spiral Fade";
+"screen_room_timeline_legacy_call_spiral" = "Unsupported call. Ask if the caller can use Spiral.";
+"screen_interactive_catalog_error_title" = "Couldn't load the catalog";
+"screen_interactive_catalog_intro_action" = "See the catalog";
+"screen_native_call_agent_pill_your_assistant" = "Your assistant";
+"screen_native_call_agent_pill_listening" = "Listening";
+"screen_native_call_agent_pill_translating" = "Translating";
+"screen_native_call_agent_pill_translation_paused" = "Translation paused";
+"screen_native_call_agent_pill_original_voice" = "Original voice";
+"screen_native_call_agent_pill_taking_notes" = "Taking notes";
+"screen_native_call_agent_pill_summary_not_sent" = "Summary not sent";
+"screen_native_call_agent_pill_recording_not_saved" = "Recording not saved";
+"a11y_native_call_agent_pill_in_call" = "%1$@, in the call";
+"a11y_native_call_agent_pill_other_agents" = "%1$@, other agents in the call: %2$d";
+
+/* Question 387: the call's Assistants sheet. */
+"screen_native_call_assistants_others_footer" = "Only the person who added an assistant can change it.";
+"screen_native_call_assistants_your_assistant" = "Your assistant";
+"screen_native_call_assistants_remove_from_call" = "Remove from call";
+"screen_native_call_assistants_remove_confirm_message" = "Notes and the recording so far will still be posted.";
+"screen_native_call_assistants_remove" = "Remove";
+"screen_native_call_assistants_joining" = "Joining the call…";
+"screen_native_call_assistants_still_joining" = "Still joining…";
+"screen_native_call_assistants_joins_when_answered" = "Joins when someone answers";
+"screen_native_call_assistants_leaving" = "Leaving…";
+"screen_native_call_assistants_cancel_join" = "Cancel";
+"screen_native_call_assistants_job_talks" = "Talks with you";
+"screen_native_call_assistants_recording" = "Recording";
+"screen_native_call_assistants_recording_stopped" = "Stopped. What was captured will be posted.";
+"screen_native_call_assistants_recording_covered_button" = "Recording";
+"screen_native_call_assistants_recording_covered" = "%1$@ is already recording this call";
+"screen_native_call_assistants_recording_covered_someone" = "Someone is already recording this call";
+"screen_native_call_assistants_recording_continue" = "Continue";
+"screen_native_call_assistants_recording_covered_card_detail" = "The file will come to this chat. When the recording stops, “Continue” will appear here.";
+"screen_native_call_assistants_recording_covered_got_it" = "Got it";
+"screen_native_call_assistants_record_confirm_message_after_other" = "%1$@ is no longer recording. Your recording will come to the chat as a separate file.";
+"screen_native_call_assistants_record_confirm_message_after_someone" = "The previous recording stopped. Your recording will come to the chat as a separate file.";
+"screen_native_call_assistants_record_confirm_title" = "Record the call?";
+"screen_native_call_assistants_record_confirm_message" = "Everyone sees REC in the header. The recording appears in the chat after the call.";
+"screen_native_call_assistants_record_confirm_action" = "Record";
+"screen_native_call_assistants_none_of_your_own" = "You don't have an assistant";
+"screen_native_call_assistants_which" = "Which assistant";
+"screen_native_call_assistants_reason_paused" = "Your assistant is paused";
+"screen_native_call_assistants_reason_paused_detail" = "While it's paused, it doesn't join calls";
+"screen_native_call_assistants_resume" = "Resume";
+"screen_native_call_assistants_reason_consent_owner_detail" = "Your assistant listens to the call through an AI model";
+"screen_native_call_assistants_allow_ai" = "Allow AI";
+"screen_native_call_assistants_reason_consent_room" = "Not everyone in this chat has allowed AI";
+"screen_native_call_assistants_reason_consent_room_detail" = "Assistants can join when everyone has";
+"screen_native_call_assistants_learn_more" = "Learn more";
+"screen_native_call_assistants_consent_room_explainer" = "AI in a call starts only when everyone in this chat has allowed it. Each person decides for themselves in Settings, and you can change your own choice there too.";
+"screen_native_call_assistants_reason_ask_to_join" = "Only admins can add members to this chat";
+"screen_native_call_assistants_reason_ask_to_join_detail" = "Ask an admin to add your assistant";
+"screen_native_call_assistants_copy_id" = "Copy assistant's ID";
+"screen_native_call_assistants_reason_budget" = "Weekly limit reached";
+"screen_native_call_assistants_reason_budget_detail" = "Your assistant can join again when the limit resets";
+"screen_native_call_assistants_reason_cannot_join_calls" = "Your assistant can't join calls";
+"screen_native_call_assistants_reason_cannot_join_calls_detail" = "Turn on its voice in the assistant's settings";
+"screen_native_call_assistants_reason_failed" = "Your assistant couldn't join";
+"screen_native_call_assistants_reason_failed_detail" = "Check your connection and try again";
+"screen_native_call_assistants_try_again" = "Try again";
+"screen_native_call_assistants_reason_needs_update" = "Update the app to add your assistant here";
+"screen_native_call_assistants_unavailable" = "Assistants are unavailable right now";
+"screen_native_call_assistants_unavailable_detail" = "The call itself is not affected";
+"screen_native_call_assistants_error_changed" = "Changed elsewhere a moment ago. Try again.";
+"screen_native_call_assistants_error_left" = "Your assistant has left the call";
+"screen_native_call_assistants_error_failed" = "Couldn't change it. Try again.";
+"screen_native_call_assistants_error_talk_refused" = "Talking isn't available in this call right now";
+"screen_native_call_assistants_foreign_translates_you" = "Translates you into %1$@";
+"screen_native_call_assistants_foreign_translates" = "Translates into %1$@";
+"screen_native_call_assistants_foreign_records_you" = "Records the call";
+"screen_native_call_assistants_foreign_records_you_detail" = "The recording appears in the chat after the call";
+"screen_native_call_assistants_foreign_notes" = "Takes notes of this call";
+"screen_native_call_assistants_foreign_notes_detail" = "Notes are posted in the chat after the call";
+"screen_native_call_assistants_foreign_talks" = "Talks with its owner";
+"screen_native_call_assistants_foreign_talks_detail" = "Everyone hears it";
+"screen_native_call_assistants_foreign_listening" = "Listening";
+"screen_native_call_assistants_foreign_listening_detail" = "Doesn't talk or translate";
+"screen_native_call_assistants_remove_from_chat" = "Remove from chat";
+"screen_native_call_assistants_remove_from_chat_message" = "Removes %1$@ from this chat, not just the call. Its tools in this chat stop. Its owner can add it again.";
+"screen_native_call_assistants_search_languages" = "Search languages";
+"a11y_native_call_assistants_more" = "More";
+"screen_native_call_assistants_remove_confirm_recording" = "The recording so far will still be posted.";
+"screen_native_call_assistants_remove_confirm_notes" = "Notes so far will still be posted.";
+"screen_native_call_assistants_my_limit" = "My limit";
+"screen_native_call_assistants_foreign_status_translates_you" = "Translates you into %1$@";
+"screen_native_call_assistants_foreign_status_records_you" = "Records the call, you too";
+"screen_native_call_assistants_foreign_status_also_records" = "records";
+"screen_native_call_assistants_foreign_status_also_notes" = "takes notes";
+"screen_native_call_assistants_menu_profile" = "Assistant's profile";
+"screen_native_call_assistants_owner_assistant" = "%1$@'s assistant";
+"screen_native_call_assistants_owner" = "Owner: %1$@";
+"screen_native_call_assistants_delivery_pending" = "Delivering…";
+"screen_native_call_assistants_delivered_room" = "Delivered to this chat";
+"screen_native_call_assistants_delivered_owner_dm" = "Delivered to your chat with your assistant";
+"screen_native_call_assistants_delivery_failed" = "Couldn't be delivered";
+// Localazy: change %1$@ -> %1$s
+"a11y_native_call_translate_listening" = "Listening in %1$@";
+"a11y_native_call_translate_new" = "A new language is available";
+// Localazy: change %1$@ -> %1$s
+"a11y_native_call_participant_heard_in" = "You hear them in %1$@";
+"screen_native_call_translate_menu_title" = "Listen to the call";
+"screen_native_call_translate_original" = "Original";
+"screen_native_call_translate_original_detail" = "No translation";
+"screen_native_call_translate_free" = "Free";
+// Localazy: change %1$@ -> %1$s
+"screen_native_call_translate_free_by" = "From %1$@ · free";
+"screen_native_call_translate_partial" = "%1$d of %2$d · free";
+// Localazy: change %1$@ -> %1$s
+// Localazy: change %1$@ -> %1$s
+"screen_native_call_translate_my_language" = "My language";
+"screen_native_call_translate_block_consent_owner" = "You haven't allowed AI yet";
+// Localazy: change %1$@ -> %1$s
+// Localazy: change %1$@ -> %1$s
+"screen_native_call_capsule_available" = "Translation into %1$@ is available";
+"screen_native_call_capsule_listen" = "Listen";
+"screen_native_call_capsule_stopped" = "Translation stopped";
+"screen_native_call_capsule_continue" = "Continue";
+// Localazy: change %1$@ -> %1$s
+"screen_native_call_capsule_stopped_limit" = "%1$@ · their AI limit ran out";
+// Localazy: change %1$@ -> %1$s
+"screen_native_call_capsule_stopped_owner" = "%1$@ · turned it off";
+"screen_native_call_capsule_tool" = "Translation on, by the chat's tool";
+// Localazy: change %1$@ -> %1$s
+// Localazy: change %2$@ -> %2$s
+"screen_native_call_capsule_own_translating" = "Translating %1$@ into %2$@";
+"screen_native_call_assistants_job_translation" = "Translation";
+"screen_native_call_assistants_job_summary" = "Notes";
+"screen_native_call_assistants_job_conversation" = "Talk";
+// Localazy: change %1$@ -> %1$s
+"screen_native_call_assistants_translating" = "Translating into %1$@";
+"screen_native_call_assistants_stop_translation" = "Stop translation";
+"screen_native_call_assistants_talk_caption" = "Answers you aloud, and everyone hears it. Translation is off while it talks.";
+"screen_native_call_assistants_pick_footer" = "Remembered for this chat";
+"screen_native_call_assistants_neighbour_language" = "Language of the person next to you";
+"screen_native_call_assistants_pocket_detail" = "After each phrase · both ways";
+// Localazy: change %1$@ -> %1$s
+"screen_native_call_assistants_foreign_you_listen" = "you listen";
+"screen_native_call_translation_tool_title" = "Call translation";
+// Localazy: change %1$@ -> %1$s
+"screen_native_call_translation_tool_summary" = "In this chat's calls you listen in %1$@";
+"screen_native_call_translation_tool_summary_off" = "Calls in this chat start in the original";
+"screen_native_call_translation_tool_enabled" = "On";
+"screen_native_call_translation_tool_language" = "Language";
+"screen_native_call_translation_tool_fallback" = "If nobody translates, my assistant does";
+"screen_native_call_translation_tool_not_saved" = "Couldn't save this yet. Try again later.";
+
+/* Brief 0085, question 403, lab round 2 (L1–L5): the Assistants sheet in the call's glass. */
+"screen_native_call_assistants_not_in_call" = "Not in the call";
+"screen_native_call_assistants_status_paused" = "Paused";
+"screen_native_call_assistants_status_limit" = "Translation stopped: limit";
+"screen_native_call_assistants_status_both_ways" = "Translating both ways";
+"screen_native_call_assistants_translate_into" = "Translate into";
+"screen_native_call_assistants_translate_into_detail" = "You hear the call in it";
+"screen_native_call_assistants_in_call" = "In the call";
+"screen_native_call_assistants_in_call_more" = "In the call: %1$d more";
+"screen_native_call_assistants_new_translation" = "New translation";
+"screen_native_call_assistants_new_translation_detail" = "Your assistant will translate the call";
+"screen_native_call_assistants_new_translation_others" = "Your assistant translates %1$@. The others are already translated, free.";
+"screen_native_call_assistants_start_translation" = "Start translation";
+"screen_native_call_assistants_start_translation_detail" = "Uses your limit. Anyone who picks this language listens free.";
+"screen_native_call_assistants_listen_language" = "Listen in %1$@";
+"screen_native_call_assistants_listen_free_by" = "Free: %1$@'s assistant already translates.";
+"screen_native_call_assistants_listen_free" = "Free: another assistant already translates.";
+"screen_native_call_assistants_free_section" = "Already translated: free";
+"screen_native_call_assistants_all_languages" = "All languages";
+"screen_native_call_assistants_phone_language" = "Phone language";
+"screen_native_call_assistants_limit_title" = "Translation limit reached";
+"screen_native_call_assistants_neighbour" = "Person next to you";
+"screen_native_call_assistants_i_speak" = "I speak";
+"screen_native_call_assistants_i_speak_detail" = "You speak it and hear the translation in it";
+"screen_native_call_assistants_remove_from_chat_title" = "Remove %1$@ from the chat?";
+"screen_native_call_assistants_foreign_for_language" = "For those who picked %1$@";
+"screen_native_call_translate_add_own" = "Add your translation…";
+"screen_native_call_capsule_undo" = "Undo";
+"screen_native_call_translate_partial_by" = "%1$d of %2$d · from %3$@ · free";
+"screen_native_call_assistants_nothing_to_translate" = "Everyone here speaks this language: nothing to translate.";
+"screen_native_call_assistants_status_standby" = "On standby · will take over";
+"screen_native_call_assistants_nothing_to_translate_one" = "%1$@ already speaks %2$@";
+"screen_native_call_assistants_nothing_to_translate_everyone" = "Everyone already speaks %1$@";
+"screen_native_call_assistants_nothing_to_translate_detail" = "Nothing to translate. Pick another language in “Translate into”, or turn translation on when someone speaks another language.";
+"screen_native_call_assistants_status_nothing_to_translate" = "Nothing to translate · everyone speaks this language";
+"screen_native_call_assistants_foreign_standby" = "On standby · %1$@";
+"screen_native_call_assistants_stop_standby" = "Stop";
+"screen_native_call_assistants_status_owner_left" = "The owner left the call";
+"screen_native_call_capsule_stopped_owner_left" = "%1$@ · left the call";
+"screen_native_call_assistants_status_starting" = "Starting translation…";
+"screen_native_call_translation_tool_fallback_detail" = "Uses your AI limit";
+"screen_native_call_translation_tool_footer_shared" = "You hear this chat's calls in the language you pick. If your assistant translates, everyone in the chat sees the tool.";
+"screen_native_call_capsule_translating_you" = "Translating you from %1$@";
+"screen_native_call_capsule_change" = "Change";
+"screen_native_call_translate_own" = "Your translation…";
+"screen_native_call_translate_other_language" = "Other language…";
+"screen_language_picker_suggested_section" = "Suggested";
+"screen_language_picker_all_section" = "All languages";

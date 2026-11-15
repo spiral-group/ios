@@ -8,8 +8,8 @@
 // in-memory UserDefaults so tests don't touch the real App
 // Group container.
 
-@testable import ElementX
 import Foundation
+@testable import Spiral
 import Testing
 
 struct PendingApprovalActionStoreTests {

@@ -41,6 +41,7 @@ struct CreateCompanyScreen: View {
         if #available(iOS 26, *) {
             AnyShape(ConcentricRectangle(corners: .concentric(minimum: 26)))
         } else {
+            // swiftlint:disable:next spiral_raw_corner_radius - predates the rule
             AnyShape(RoundedRectangle(cornerRadius: 12))
         }
     }
@@ -149,6 +150,7 @@ struct CreateCompanyScreen: View {
         Section {
             ListRow(label: .plain(title: UntranslatedL10n.screenCreateCompanyWebsiteExample),
                     kind: .textField(text: $context.website, axis: .horizontal))
+                .accessibilityLabel(UntranslatedL10n.screenCreateCompanyWebsitePlaceholder)
         } header: {
             Text(UntranslatedL10n.screenCreateCompanyWebsitePlaceholder)
                 .compoundListSectionHeader()
@@ -181,8 +183,7 @@ struct CreateCompanyScreen: View {
 struct CreateCompanyScreen_Previews: PreviewProvider, TestablePreview {
     static let viewModel = CreateCompanyScreenViewModel(agentPlatformService: AgentPlatformServiceMock(),
                                                         userSession: UserSessionMock(.init(clientProxy: ClientProxyMock(.init()))),
-                                                        userIndicatorController: UserIndicatorControllerMock(),
-                                                        appSettings: .volatile())
+                                                        userIndicatorController: UserIndicatorControllerMock())
     
     static var previews: some View {
         ElementNavigationStack {

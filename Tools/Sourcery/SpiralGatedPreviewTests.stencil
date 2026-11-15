@@ -1,0 +1,38 @@
+// swiftlint:disable all{# Copyright 2026 the Spiral authors. AGPL-3.0-or-later. AGENT-PLATFORM (Brief 0083 L1c): a test per SpiralGatedPreview, run by SpiralGatedPreviewTests. #}
+// swiftformat:disable all
+
+import Testing
+@testable import Spiral
+
+extension SpiralGatedPreviewTests {
+    /// The tests' names, which are those of upstream's tests of the same previews (`SpiralGlassRendering`).
+    static let suites: Set<String> = [
+        {% for type in types.types where type.implements.SpiralGatedPreview and type.kind != "protocol" %}
+        "{{ type.name|replace:"_Previews", ""| lowerFirstLetter }}",
+        {% endfor %}
+    ]
+
+    {% for type in types.types where type.implements.SpiralGatedPreview and type.kind != "protocol" %}
+    {% if not type.implements.TestablePreview %}
+    #error("{{ type.name }} conforms to SpiralGatedPreview but not to TestablePreview, so its light snapshot and its audit aren't generated.")
+    {% endif %}
+    @Test
+    func {{ type.name|replace:"_Previews", ""| lowerFirstLetter }}() async throws {
+        {% if type.attributes.available %}
+        guard #available(iOS 26.0, *) else {
+            Issue.record("{{ type.name }} is available from iOS 26 only, so the pre-glass lane can't render it.")
+            return
+        }
+        {% endif %}
+        for (index, preview) in {{ type.name }}._allPreviews.enumerated() {
+            try await assertSnapshots(matching: preview, step: index)
+        }
+    }
+    {%- if not forloop.last %}
+
+    {% endif %}
+    {% endfor %}
+}
+
+// swiftlint:enable all
+// swiftformat:enable all

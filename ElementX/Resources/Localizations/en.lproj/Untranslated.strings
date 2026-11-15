@@ -1,9 +1,3 @@
-"screen_home_tab_search" = "Search";
-"screen_search_empty_state_message" = "Search for chats and messages";
-"screen_search_empty_state_title" = "Start searching...";
-"screen_search_no_results_message" = "There are no results for “%1$@.” Try a new search term.";
-"screen_search_tab_chats" = "Chats";
-"screen_search_tab_messages" = "Messages";
 "soft_logout_clear_data_dialog_content" = "Clear all data currently stored on this device?\nSign in again to access your account data and messages.";
 "soft_logout_clear_data_dialog_title" = "Clear data";
 "soft_logout_clear_data_notice" = "Warning: Your personal data (including encryption keys) is still stored on this device.\n\nClear it if you’re finished using this device, or want to sign in to another account.";
@@ -32,6 +26,19 @@
 "screen_agent_space_error_title" = "Couldn't load these agents";
 "screen_agent_space_agent_presence_online" = "Online";
 "screen_agent_detail_error_title" = "Couldn't load this agent";
+/* AGENT-PLATFORM (1.0.2 critic polish): Spiral's “Couldn't load …” for each failed read, the recovery key's unknown state, the catalogue's setting-up and update actions, and a room's name in quotes. Localazy: change %1$@ -> %1$s */
+"screen_add_tool_load_failed" = "Couldn't load the tools";
+"screen_agent_sheet_load_failed" = "Couldn't load this chat's agents";
+"screen_agent_activity_load_failed" = "Couldn't load the activity";
+"screen_notifications_hub_load_failed" = "Couldn't load your notifications";
+"screen_public_profile_load_failed" = "Couldn't load this profile";
+"screen_outreach_queue_load_failed" = "Couldn't load the queue";
+"screen_add_agent_picker_load_failed" = "Couldn't load your agents";
+"screen_recovery_key_unknown_title_spiral" = "Couldn't check your recovery key";
+"screen_recovery_key_unknown_description_spiral" = "Check your connection and try again.";
+"screen_interactive_catalog_agent_setting_up_action" = "Setting up your agent…";
+"screen_interactive_catalog_update_action" = "Update";
+"screen_interactive_catalog_room_name_quoted" = "“%1$@”";
 "screen_agent_detail_no_rooms" = "Not in any chat yet. Tap “Add to chat” to bring it into one.";
 "screen_agent_detail_no_tools" = "No tools";
 /* AGENT-PLATFORM (agents-tab B3): when a room tool runs, from its kind; the server's English summaries are never shown. */
@@ -47,6 +54,7 @@
 "screen_agent_in_room_remove_alert_message" = "The agent leaves this chat and its tools here turn off.";
 "screen_agent_in_room_remove_failure" = "Couldn't remove the agent";
 "screen_agent_in_room_add_tool" = "Add a tool";
+"screen_agent_in_room_open_chat" = "Open chat";
 
 "screen_agent_in_room_member_picker_unavailable" = "Open this chat from the Chats tab to pick members.";
 "screen_create_company_title" = "New company";
@@ -100,127 +108,44 @@
 "screen_agent_detail_archive_failure" = "Couldn't archive the agent";
 "screen_agent_detail_archive_refused" = "Your personal assistant stays with your account and can't be archived.";
 
-/* AGENT-PLATFORM: strings for the Approvals list screen (S151). */
-"screen_approvals_list_connecting_title" = "Connecting…";
-"screen_approvals_list_reconnecting_title" = "Reconnecting…";
-// Localazy: change %1$d -> %1$s
-"screen_approvals_list_reconnecting_subtitle_attempt" = "The live stream dropped — retrying (attempt %1$d)";
-"screen_approvals_list_offline_title" = "Live updates unavailable";
-"screen_approvals_list_offline_subtitle" = "Showing the last known list. Pull to refresh or check your connection.";
-
 "screen_notifications_hub_title" = "Notifications";
 "screen_notifications_hub_needs_action_section" = "Needs action";
 "screen_notifications_hub_activity_section" = "Recent activity";
-"screen_notifications_hub_connecting_subtitle" = "Subscribing to live updates";
 "screen_notifications_hub_empty_title" = "You're all caught up";
 "screen_notifications_hub_empty_subtitle" = "Approvals, consent requests and your agents' activity will appear here.";
 "screen_notifications_hub_kind_approval" = "Approval";
 "screen_notifications_hub_kind_verification" = "Verification";
 
 /* AGENT-PLATFORM (Brief 0063 Slice 4): personal listening. */
-"screen_native_call_agent_center_translation" = "Translation";
-"screen_native_call_agent_center_translation_off" = "Off";
 /* Brief 0062 parity — the two-tier booth editor. */
-"screen_native_call_translation_who" = "Who is translated";
-"screen_native_call_translation_master" = "Live translation";
-"screen_native_call_translation_master_call_only" = "For this call only";
-"screen_native_call_translation_master_room_rule" = "Following the room's rule";
-"screen_native_call_translation_translate" = "Translate";
-"screen_native_call_translation_into" = "Into";
-"screen_native_call_translation_who_row" = "Who";
-"screen_native_call_translation_booths" = "Booths";
-"screen_native_call_translation_booths_count" = "%1$d booths";
-"screen_native_call_translation_setup_booths" = "Set up booths";
-"screen_native_call_translation_how_section" = "How the agent interprets";
-"screen_native_call_translation_style_interpreter" = "Interpreter";
-"screen_native_call_translation_style_interpreter_detail" = "Speaks in the pause after each turn";
-"screen_native_call_translation_style_interpreter_langs" = "Several languages, played in order";
-"screen_native_call_translation_style_live" = "Live";
-"screen_native_call_translation_style_live_detail" = "Speaks over the talker, a few seconds behind";
-"screen_native_call_translation_style_live_langs" = "One language";
-"screen_native_call_translation_auto_badge" = "AUTO";
 // Localazy: change %1$@ -> %1$s
-"screen_native_call_translation_displaced_note" = "%1$@ brought their own agent for their voice, so this booth was narrowed automatically.";
-"screen_native_call_translation_default_dialog_title" = "Make this the room default?";
 // Localazy: change %1$@ -> %1$s
-"screen_native_call_translation_default_dialog_body" = "Every future call in %1$@ starts with these booths — not just this call.";
 // Localazy: change %1$@ -> %1$s
-"screen_native_call_translation_hint_ducked" = "Listeners hear the agent's voice over the original, which is turned down for them while they receive the translation.";
-"screen_native_call_translation_language_title" = "Language";
-"screen_native_call_translation_mode_single" = "One language · used for the whole call";
-"screen_native_call_translation_mode_multi" = "Several languages · played in order";
 
-"screen_native_call_translation_add_booth" = "Add a rule";
-"screen_native_call_translation_remove_booth" = "Remove this rule";
-"screen_native_call_translation_scope_everyone" = "Everyone";
-"screen_native_call_translation_scope_everyone_except_me" = "Everyone except me";
-"screen_native_call_translation_scope_only_me" = "Only me";
-"screen_native_call_translation_scope_specific" = "Specific people";
 // Localazy: change %1$@ -> %1$s
-"screen_native_call_translation_everyone_except" = "Everyone except %1$@";
-"screen_native_call_translation_no_participants" = "No other participants in the call yet";
-"screen_native_call_translation_choose_language" = "Choose a language";
-"screen_native_call_translation_search_languages" = "Search languages";
-"screen_native_call_translation_apply_short" = "Apply";
-"screen_native_call_translation_save_default" = "Save as this room's standard";
-"screen_native_call_translation_saved_default" = "Saved as the room standard";
-"screen_native_call_translation_clear_override" = "Forget this call's changes";
-"screen_native_call_translation_footnote" = "Drops what you set for this call. If the room has a standing translation rule, it takes over; otherwise translation turns off.";
 // Localazy: change %1$@ -> %1$s
 // Localazy: change %1$@ -> %1$s
 "screen_native_call_agent_center_translation_on" = "Translating %1$@";
-"screen_native_call_listening_translation" = "Hear the translation";
-// Localazy: change %1$@ -> %1$s
-"screen_native_call_participant_translated" = "Translated";
-"screen_native_call_participant_muted" = "Muted";
 "screen_native_call_participant_reconnecting" = "Reconnecting…";
-// Localazy: change %1$@ -> %1$s
-"screen_native_call_participant_covered" = "Covered in %1$@";
 /* Phase 2 of the native call UI plan (G3): listening atop the Agent
    Center; every agent in the call listed, foreign ones read-only. */
-"screen_native_call_agent_center_listening_section" = "What you hear";
-"screen_native_call_agent_center_listening_footer" = "Only you. Off means original voices only.";
-"screen_native_call_agent_center_others_section" = "Also in this call";
+"a11y_message_read" = "Read";
 "a11y_native_call_signal" = "Signal strength %1$d of 3";
-"screen_native_call_control_agent" = "Agent";
+"a11y_native_call_show_controls" = "Show controls";
+"screen_native_call_control_agent" = "Assistant";
 "screen_native_call_control_mute" = "Mute";
 "screen_native_call_control_video" = "Video";
 "screen_native_call_control_sound" = "Sound";
 "screen_native_call_control_flip" = "Flip";
 "screen_native_call_control_end" = "End";
-"screen_native_call_agent_center_stop" = "Stop";
-"screen_native_call_add_agent_translate_me" = "Translate me";
-"screen_native_call_add_agent_translate_me_detail" = "Others hear you in their language";
-"screen_native_call_add_agent_note" = "Your assistant joins for this call and leaves when it ends.";
-"screen_native_call_add_agent_consent_note" = "Everyone in the call sees what the agent is doing. Audio handled by these functions is processed by an AI model.";
-"screen_native_call_agent_center_ai_disclosure" = "Audio handled by these functions is processed by an AI model.";
-"screen_native_call_add_agent_pick_section" = "Or pick what it does";
-// Localazy: change %1$@ -> %1$s
-"screen_native_call_add_agent_translation_detail" = "Everyone into %1$@";
-"screen_native_call_add_agent_translation_unavailable" = "Couldn’t load the languages";
-"screen_native_call_add_agent_record" = "Record the call";
-"screen_native_call_add_agent_record_detail" = "The recording is posted to the chat afterwards";
-"screen_native_call_add_agent_summary" = "Post a summary";
-"screen_native_call_add_agent_summary_detail" = "Sent when the call ends";
-"screen_native_call_add_agent_add" = "Add";
 
-"screen_native_call_agent_center_record" = "Record";
 // Localazy: change %1$@ -> %1$s
 // Localazy: change %1$@ -> %1$s
-"screen_native_call_agent_center_translation_paused" = "Paused · %1$@";
-// Localazy: change %1$@ -> %1$s
-"screen_native_call_agent_center_booth_everyone" = "everyone into %1$@";
 // Localazy: change %1$@ -> %1$s
 "screen_native_call_agent_center_booth_you" = "you into %1$@";
 // Localazy: change %1$@ -> %1$s, %2$@ -> %2$s
 "screen_native_call_agent_center_booth_members" = "%1$@ into %2$@";
-"screen_native_call_agent_center_translation_running" = "%1$@ · %2$@";
-"screen_native_call_agent_center_booth_everyone_except" = "everyone except %1$@ into %2$@";
-"screen_native_call_agent_center_covers_you_live" = "Translates you into %1$@ — others hear it, you don't";
-"screen_native_call_agent_center_covers_you_interpreter" = "Translates you into %1$@ — you hear your clip too";
 "screen_native_call_agent_center_foreign_detail_title" = "Agent";
-"screen_native_call_agent_center_foreign_footer" = "Brought by another participant. Only they can change it.";
-"screen_native_call_listening_original_quiet_footer" = "While you receive someone's translation, their original voice is turned down on this device. Voices nobody translates for you stay at full volume.";
 
 /* AGENT-PLATFORM: Spiral room-fact gray rows (Brief 0043). Localazy: change %1$@ -> %1$s */
 "state_event_spiral_tools_updated" = "%1$@ updated agent tools";
@@ -228,6 +153,16 @@
 "state_event_spiral_tools_active" = "%1$@: %2$@";
 // Localazy: change %1$@ -> %1$s
 "state_event_spiral_tools_off" = "%1$@ turned all tools off";
+/* AGENT-PLATFORM (question 357): what a tool change did, one line per action. Localazy: change %1$@/%2$@/%3$@ -> %1$s/%2$s/%3$s */
+"state_event_spiral_tool_on" = "%1$@ turned on %2$@";
+"state_event_spiral_tool_on_by_you" = "You turned on %1$@";
+"state_event_spiral_tool_off" = "%1$@ turned off %2$@";
+"state_event_spiral_tool_off_by_you" = "You turned off %1$@";
+"state_event_spiral_tool_off_by_system" = "%1$@ was turned off for %2$@";
+"state_event_spiral_tool_changed" = "%1$@ changed %2$@";
+"state_event_spiral_tool_changed_by_you" = "You changed %1$@";
+"state_event_spiral_tool_language_changed" = "%1$@ changed Translate: %2$@ → %3$@";
+"state_event_spiral_tool_language_changed_by_you" = "You changed Translate: %1$@ → %2$@";
 // Localazy: change %1$@ -> %1$s ; %2$d stays numeric
 // Localazy: change %1$@/%2$@ -> %1$s/%2$s
 // Localazy: change %1$d/%2$d -> %1$s/%2$s
@@ -359,6 +294,7 @@
 "screen_agent_activity_load_more" = "Loading more…";
 "screen_agent_activity_load_more_failed" = "Failed to load more. Tap to retry.";
 "screen_agent_activity_filter_menu_title" = "Filter";
+"screen_roomlist_filter_menu_title" = "Filter";
 "screen_agent_activity_filter_all" = "All";
 "screen_agent_activity_filter_pending_consent" = "Waiting for you";
 "screen_agent_activity_filter_executed" = "Executed";
@@ -378,7 +314,7 @@
 "screen_agent_activity_action_said_reply_not_sent" = "Said a reply didn't go out";
 "screen_agent_activity_action_told_ai_not_allowed" = "Told someone AI isn't allowed yet";
 "screen_agent_activity_action_said_message_passed_on" = "Told someone their message went to you";
-"screen_agent_activity_action_ai_limit_reached" = "Let you know the daily AI limit was reached";
+"screen_agent_activity_action_ai_limit_reached" = "Let you know the weekly AI limit was reached";
 "screen_agent_activity_action_blocked_someone" = "Blocked someone";
 "screen_agent_activity_action_unblocked_someone" = "Unblocked someone";
 "screen_agent_activity_action_searched_agents" = "Looked for agents";
@@ -413,7 +349,7 @@
 "screen_agent_activity_reason_group_room_trust_implicit" = "A member of the group chat";
 "screen_agent_activity_reason_tool_armed_by_owner" = "A tool you turned on";
 "screen_agent_activity_reason_ai_consent_needed_notice" = "AI isn't allowed yet";
-"screen_agent_activity_reason_ai_budget_notice" = "Daily AI limit reached";
+"screen_agent_activity_reason_ai_budget_notice" = "Weekly AI limit reached";
 "screen_agent_activity_reason_visitor_policy_reply" = "You allowed answering at once";
 "screen_agent_activity_reason_message_passed_to_owner_notice" = "Not answering people";
 "screen_agent_activity_reason_first_contact_with_unknown_visitor" = "First message from someone new";
@@ -429,6 +365,7 @@
 "screen_agent_activity_reason_sender_is_owner" = "Your own message";
 "screen_agent_activity_reason_no_contact_relationship" = "Not one of your contacts";
 "screen_agent_activity_reason_outside_conversation" = "Outside this conversation";
+"screen_agent_activity_reason_not_offered" = "Not offered to it here";
 "screen_agent_activity_reason_blocked_visitor" = "Blocked person";
 "screen_agent_activity_reason_strategy_no_op" = "Nothing to do";
 "screen_agent_activity_reason_group_room_not_woken" = "Not mentioned in a group chat";
@@ -513,25 +450,16 @@
 /* AGENT-PLATFORM: generic on/off state labels for a capability row's trailing
    detail. */
 "common_on" = "On";
-"common_off" = "Off";
 
 /* AGENT-PLATFORM: the "what can this agent do in this room" capabilities sheet
    (Brief 0036 / ADR-0048). Lists each room-scoped tool family with its live
    on/off state; a tap opens the arm form. */
 "screen_agent_capabilities_title" = "Add a tool";
-"screen_agent_capabilities_section_title" = "What it can do here";
-/* %1$@ = the agent's display name. */
-"screen_agent_capabilities_section_footer" = "Turn on what %1$@ should do automatically in this chat. Only you can change this.";
-"screen_agent_capabilities_translate_title" = "Translate messages";
-"screen_agent_capabilities_translate_subtitle" = "Rewrite incoming messages as they arrive";
-"screen_agent_capabilities_live_call_title" = "Translate voice calls";
 "screen_agent_capabilities_live_call_subtitle" = "Interpret speech live during a call";
 "screen_agent_capabilities_call_summary_title" = "Summarise calls";
 "screen_agent_capabilities_call_summary_subtitle" = "Create a summary after each voice call";
-"screen_agent_capabilities_call_summary_active" = "Summaries on for voice calls";
 "screen_agent_capabilities_call_recording_title" = "Record calls";
 "screen_agent_capabilities_call_recording_subtitle" = "Keep a recording of each voice call";
-"screen_agent_capabilities_call_recording_active" = "Recording voice calls";
 /* %1$@ = a target language (e.g. "English"). Subtitle shown when a single
    translate tool is active. */
 /* %1$d = how many tools are active for this capability. Shown when more than
@@ -557,7 +485,6 @@
 "screen_arm_tool_what_section_title" = "What to do";
 "screen_arm_tool_who_section_title" = "Apply to";
 /* The transform-kind picker. */
-"screen_arm_tool_kind_label" = "Action";
 "screen_arm_tool_kind_translate" = "Translate";
 "screen_arm_tool_kind_simplify" = "Simplify";
 "screen_arm_tool_kind_correct" = "Fix spelling & grammar";
@@ -566,19 +493,11 @@
 "screen_arm_tool_kind_custom" = "Custom instruction";
 /* Free-text params. */
 "screen_arm_tool_language_label" = "Language";
-"screen_arm_tool_language_add" = "Add language";
 "screen_arm_tool_language_choose" = "Choose a language";
-"screen_arm_tool_language_footer" = "The language messages are translated into, e.g. English or Ukrainian.";
-"screen_arm_tool_languages_footer" = "Add one or more target languages. Drag to set their priority order.";
 "screen_arm_tool_instruction_label" = "Instruction";
 /* AGENT-PLATFORM (re-walk R5): every kind keeps one row and a footer, so picking one never moves the rows below. */
-"screen_arm_tool_no_settings" = "Nothing else to set";
-"screen_arm_tool_no_settings_footer" = "The agent does this to each message as it arrives.";
 "screen_arm_tool_instruction_footer" = "What the agent does with each message, e.g. “Make it formal”.";
 /* Live-translation style control. */
-"screen_arm_tool_style_label" = "Style";
-"screen_arm_tool_style_simultaneous" = "Simultaneous";
-"screen_arm_tool_style_consecutive" = "Consecutive";
 /* Audience scope options. */
 "screen_arm_tool_scope_anyone" = "Everyone";
 "screen_arm_tool_scope_others" = "Everyone but me";
@@ -621,14 +540,10 @@
 /* AGENT-PLATFORM: the agent bottom-sheet reached from the composer "+" "Agents"
    item (Brief 0035/0036) — the room → agent → tool entry surface. Lists the
    caller's own agents in the room + "Add agent". */
-"screen_agent_sheet_title" = "Agents";
 "screen_agent_sheet_yours_header" = "Your agents";
 "screen_agent_sheet_others_header" = "Other participants";
 "screen_agent_sheet_others_footer" = "Tools other participants' agents run in this chat. You can only change your own.";
-"screen_agent_sheet_no_own_agent" = "You have no agent in this chat yet. Add one to set up tools.";
 "screen_agent_sheet_add_agent" = "Add agent";
-"screen_agent_sheet_no_tools" = "No tools yet · tap to set up";
-"screen_agent_sheet_footer" = "Pick an agent to manage what it does here, or add another to this chat.";
 
 /* AGENT-PLATFORM: the "Add agent" picker reached from the agent-sheet
    (Brief 0035/0036). Lists the agents of every space the caller acts for, one
@@ -642,15 +557,7 @@
 /* AGENT-PLATFORM: the "Active tools" edit surface reached from the in-chat
    banner (Brief 0036) — lists an agent's real armed tools, one row each, to
    edit or turn off. */
-"screen_agent_tools_list_title" = "Active tools";
-"screen_agent_tools_list_section_title" = "On in this chat";
 /* The list's header when a listed tool can't run here (decision 168), so it no longer says "On". */
-"screen_agent_tools_list_section_title_mixed" = "In this chat";
-/* %1$@ = the agent's display name. */
-"screen_agent_tools_list_section_footer" = "Tap a tool to change it, or add another. Only you can change what %1$@ does here.";
-"screen_agent_tools_list_add" = "Add a tool";
-"screen_agent_tools_list_empty_title" = "No tools yet";
-"screen_agent_tools_list_empty_subtitle" = "Add a tool to have the agent do something automatically in this chat.";
 /* Per-tool row titles. %1$@ = a language / an instruction. */
 "screen_agent_tools_list_title_translate" = "Translate → %1$@";
 "screen_agent_tools_list_title_rephrase" = "Rephrase · %1$@";
@@ -673,7 +580,7 @@
    agent-tools surfaces that need a target language (Brief 0036 / ADR-0048). */
 "screen_language_picker_title" = "Language";
 "screen_language_picker_empty" = "No languages match your search.";
-"screen_language_picker_suggested_section" = "Frequently used";
+"screen_language_picker_suggested_section" = "Suggested";
 "screen_language_picker_all_section" = "All languages";
 
 // ADR-0005 auth start screen v2 (public single-server messenger).
@@ -703,33 +610,10 @@
 /* AGENT-PLATFORM: the native in-call agent center (Brief 0063 Slice 3). */
 "screen_native_call_agent_center_title" = "Agent Center";
 "screen_native_call_agent_center_open" = "Agents in this call";
-"screen_native_call_agent_center_active_section" = "Agent in this call";
-"screen_native_call_agent_center_available_section" = "Add an agent";
-"screen_native_call_agent_center_empty" = "No agent has joined this call.";
-"screen_native_call_agent_center_no_agents" = "You have no agents available.";
-"screen_native_call_agent_center_remove" = "Remove from call";
-"screen_native_call_agent_center_recording" = "Recording";
-"screen_native_call_agent_center_summary" = "Summary";
-"screen_native_call_agent_center_recording_stopped" = "Stopped — publishing what was captured";
-"screen_native_call_agent_center_delivery_pending" = "Delivering…";
 "screen_native_call_agent_center_leaving" = "Leaving…";
-"screen_native_call_agent_center_joining" = "Joining…";
-"screen_native_call_agent_center_removing" = "Removing…";
-"screen_native_call_agent_center_delivery_failed" = "Delivery failed";
-"screen_native_call_agent_center_delivered_to_room" = "Delivered to this room";
-"screen_native_call_agent_center_delivered_to_owner_dm" = "Delivered to your chat with the agent";
 "screen_native_call_agent_center_recording_live" = "Recording…";
-"screen_native_call_agent_center_recording_off" = "Not recording";
 "screen_native_call_agent_center_summary_on" = "A summary will be posted";
-"screen_native_call_agent_center_summary_off" = "No summary";
-"screen_native_call_error_conflict_title" = "Someone changed this first";
-"screen_native_call_error_conflict_action" = "Reload and try again";
-"screen_native_call_error_gone_title" = "The session ended";
-"screen_native_call_error_unavailable_title" = "Agent platform unavailable";
-"screen_native_call_error_unavailable_body" = "Controls will come back when the connection returns.";
-"screen_native_call_error_rejected_title" = "That change was refused";
 "screen_native_call_agent_center_error_not_owner" = "Only the owner of this session can change it.";
-"screen_native_call_agent_center_error_invalid_booths" = "Every booth needs a language, and a named booth needs members.";
 "screen_native_call_agent_center_error_conflict" = "Someone changed this first. Please try again.";
 "screen_native_call_agent_center_error_gone" = "That agent session has already ended.";
 "screen_native_call_agent_center_error_unavailable" = "The agent platform is unreachable.";
@@ -755,19 +639,15 @@
 "screen_native_call_recording_badge" = "REC";
 /* The role word for an agent that produces no audio to listen to. */
 "screen_native_call_agent_block_recording" = "Recording";
-"screen_native_call_agent_block_summary" = "Summary";
 /* Resting agent with nothing configured yet. */
 "screen_native_call_agent_block_idle" = "Ready";
 /* Ranked on the ladder now so the ordering never moves; Phase 4 supplies
    the inputs that make them reachable. */
-"screen_native_call_agent_block_paused" = "Paused";
 "screen_native_call_agent_block_not_delivered" = "Not delivered";
 /* %1$d = this agent's position, %2$d = how many agents are in the call.
    The block shows one agent; the Agent Center lists them all. */
-"screen_native_call_agent_block_count" = "%1$d of %2$d agents";
 /* Accessibility: the slot, the wave and REC are presentational, so the block's
    own label has to say what the agent is doing. %1$@ = agent name. */
-"a11y_native_call_agent_block_idle" = "%1$@, resting";
 /* %1$@ = agent name, %2$@ = the languages it is airing. */
 "a11y_native_call_agent_block_airing" = "%1$@, translating into %2$@";
 /* %1$@ = agent name, %2$@ = the role word, e.g. Recording. */
@@ -778,10 +658,7 @@
 /* Phase 4 of the native call UI plan — states that previously rendered
    nowhere (`18 · Call states`, `20 · REF · Agent block`). */
 /* Fail-audible: the chosen translation faltered, the raw voices are back. */
-"screen_native_call_agent_block_original" = "Original";
 /* G7 — the agent joined but the peer has not answered yet. */
-"screen_native_call_agent_block_waiting" = "Waiting";
-"screen_native_call_agent_block_waiting_for_people" = "Waiting for people";
 /* A group call every other person has left; an agent alone does not hold
    it open. */
 "screen_native_call_status_everyone_left" = "Everyone left";
@@ -805,7 +682,6 @@
 "a11y_native_call_audio_routes" = "Choose where to play the call";
 
 /* Phase 5/6 (G9, G13) — the minimized call bar and the way back to it. */
-"screen_native_call_bar_return" = "Tap to return";
 "a11y_native_call_minimize" = "Back to the chat, call continues";
 // Localazy: change %1$@ -> %1$s
 "a11y_native_call_bar" = "Ongoing call with %1$@. Tap to return.";
@@ -849,7 +725,6 @@
 "common_interactive_draft" = "Draft";
 "screen_room_interactive_draft_version" = "Draft v%1$d";
 "screen_room_interactive_draft_code" = "Code";
-"screen_room_interactive_draft_publish" = "Publish";
 "screen_room_interactive_draft_publish_to" = "Publish to…";
 "screen_room_interactive_draft_publishing" = "Publishing…";
 "screen_room_interactive_draft_published" = "Published";
@@ -875,18 +750,16 @@
 "screen_room_interactive_post_marker_published" = "Published in «%1$@»";
 "screen_room_interactive_post_marker_updated" = "Updated «%1$@» in «%2$@»";
 "screen_room_interactive_post_marker_editing" = "Changing «%1$@» in «%2$@»";
-"screen_room_interactive_post_publish_in" = "Publish in «%1$@»";
-"screen_interactive_catalog_title" = "Interactive post";
+"screen_interactive_catalog_title" = "Interactives";
+"screen_interactive_catalog_intro_title" = "Interactive posts";
 "screen_interactive_catalog_new" = "Describe a new one";
-"screen_interactive_catalog_new_description" = "Your agent builds it with you";
 "screen_interactive_catalog_mine" = "Yours";
-"screen_interactive_catalog_mine_footer" = "Open one to change it, or to publish it in «%1$@».";
-"screen_interactive_catalog_loading" = "Loading…";
-"screen_interactive_catalog_empty" = "Nothing yet";
-"screen_interactive_catalog_change_first" = "Change it with the agent first";
-"screen_interactive_catalog_all" = "All";
-"screen_interactive_catalog_new_short" = "New";
-"screen_interactive_catalog_more" = "More";
+"screen_interactive_catalog_mine_footer" = "Open one to change it, or to publish it in “%1$@”.";
+
+/* Brief 0083, decision 344: the profile page's action row. */
+"screen_profile_action_call" = "Call";
+"screen_profile_action_more" = "More";
+
 "screen_interactive_catalog_empty_title" = "Nothing of yours yet";
 "screen_interactive_catalog_empty_hint" = "Every post you make with the agent, or change, is kept here.";
 "notification_interactive_post_your_move" = "Your move";
@@ -900,13 +773,59 @@
 "screen_room_interactive_generating_failed_hint" = "Write again — I will try once more";
 "screen_interactive_catalog_fill_in" = "Fill it in with the agent";
 /* AGENT-PLATFORM (decision 129): a template that is filled in with an agent, seen without one (a catalogue link). */
-"screen_interactive_catalog_needs_agent" = "This one is filled in with an agent. Create one in the Agents tab to post it.";
+"screen_interactive_catalog_create_agent" = "Create an agent";
+"screen_interactive_catalog_agent_fills_hint" = "An agent fills in posts like this — it takes a minute";
 "screen_interactive_catalog_agent_setting_up" = "Your agent is still being set up. Try again in a moment.";
 "screen_interactive_catalog_agent_unknown" = "Couldn't check your agent. Try again.";
-"screen_interactive_catalog_preview_try" = "Try it: nothing is sent until you publish.";
+"screen_interactive_catalog_preview_try" = "Try it — nothing is sent";
 "screen_interactive_catalog_preview_asks" = "The agent will ask: %1$@";
+"screen_interactive_catalog_all_count" = "All %1$d";
+"screen_interactive_catalog_error_title" = "Couldn't load the catalogue";
+"screen_interactive_catalog_error_hint" = "Check your connection and try again.";
+"screen_interactive_catalog_mine_error" = "Couldn't load your posts";
+"a11y_interactive_catalog_all" = "All %1$d in %2$@";
+"screen_interactive_catalog_explanation" = "Games and tools the whole chat plays — each on their own, and everyone sees the result.";
+"screen_interactive_catalog_search_placeholder" = "Game, poll, timer…";
+"screen_interactive_catalog_all_sections" = "All";
+"screen_interactive_catalog_no_results_title" = "Nothing like that yet";
+"screen_interactive_catalog_no_results_hint" = "Try another word.";
+"screen_interactive_catalog_agent_makes" = "The agent will make “%1$@”";
+"screen_interactive_catalog_page_position" = "%1$d of %2$d";
+"a11y_interactive_post_send_to_chat" = "Send to the chat %1$@";
+"screen_interactive_catalog_change_with_agent" = "Change with the agent";
+"screen_interactive_catalog_intro_action" = "See the catalogue";
+"screen_interactive_catalog_intro_line" = "Games and tools the whole chat plays.";
+"screen_interactive_catalog_intro_together_title" = "Together, in any chat";
+"screen_interactive_catalog_intro_together_detail" = "Two of you or the whole room";
+"screen_interactive_catalog_intro_sealed_title" = "Moves in an envelope";
+"screen_interactive_catalog_intro_sealed_detail" = "Nobody peeks until everyone has chosen";
+"screen_interactive_catalog_intro_agent_title" = "Your own, with the agent";
+"screen_interactive_catalog_intro_agent_detail" = "Describe it, and the agent makes a post in a minute";
+"screen_interactive_catalog_fact_players_solo" = "Everyone plays on their own";
+"screen_interactive_catalog_fact_players_two" = "For two, in any chat";
+"screen_interactive_catalog_fact_players_group" = "For the whole chat";
+"screen_interactive_catalog_fact_sealed" = "Shown once everyone has chosen";
+"screen_interactive_catalog_fact_sealed_two" = "A move shows once both have chosen";
+"screen_interactive_catalog_fact_secret" = "Nobody can peek";
+"screen_interactive_catalog_fact_turns" = "Players take turns";
+"screen_interactive_catalog_fact_live" = "Changes live for everyone";
+"screen_interactive_catalog_fact_same_for_all" = "One result, the same for everyone";
+"screen_interactive_catalog_fact_score" = "The score stays in the chat";
+"screen_interactive_catalog_fact_names" = "Made of the people in the chat";
+"screen_interactive_catalog_fact_agent_fills" = "Your agent fills it in with you";
+"screen_interactive_catalog_fact_shown" = "Everyone sees who chose what";
+"screen_interactive_catalog_fact_together" = "Everyone adds their own";
+"screen_interactive_catalog_new_badge" = "New";
+"screen_interactive_catalog_try" = "Try it";
+"a11y_interactive_catalog_new" = "%1$@, new";
 "screen_room_interactive_post_seed" = "Starting from «%1$@»";
 "spiral_app_open_full_screen" = "Open full screen";
+/* AGENT-PLATFORM (security pass 2, M2): the full-screen viewer names who made the code, never the post's own words. */
+"spiral_app_viewer_subtitle" = "Interactive post";
+"spiral_app_viewer_banner" = "Never enter a password or a code here.";
+/* AGENT-PLATFORM (security pass 2, L1): under a card line that another member's action wrote. */
+// Localazy: change %1$@ -> %1$s
+"spiral_app_card_line_by" = "From %1$@";
 
 // AGENT-PLATFORM (Brief 0072, ADR-0083, ADR-0084): presence, worded as Telegram does
 "common_presence_online" = "online";
@@ -997,8 +916,9 @@
 /* AGENT-PLATFORM (coverage walk F7): the content check held the agent's reply back. No "send it again": a resend meets the same check. */
 "notice_reply_withheld_title" = "Reply held back";
 "notice_reply_withheld_body" = "My reply was held back by the automatic content check, so I didn't send it.";
-"notice_ai_budget_reached_title" = "Today's AI limit is used up";
-"notice_ai_budget_reached_body" = "I'll answer again from %1$@.";
+"notice_ai_budget_reached_title" = "Weekly AI limit is used up";
+/* %1$@ = an on_<weekday> phrase (screen_agent_usage_on_*), %2$@ = a date, %3$@ = a time. */
+"notice_ai_budget_reached_body" = "I'll answer again %1$@, %2$@, at %3$@.";
 "notice_message_passed_title" = "Message passed on";
 "notice_message_passed_body" = "Your message has gone to %1$@, who will see it.";
 "notice_intro_suggestion_title" = "Someone you could meet";
@@ -1036,21 +956,42 @@
 "screen_advanced_settings_ai_consent_title" = "Third-party AI";
 "screen_advanced_settings_ai_consent_description" = "Let assistants process what you write and say with OpenAI and Google. When off, your assistant stays off and other people's assistants ignore your messages.";
 
-/* AGENT-PLATFORM (Brief 0079 3c): the agent's AI use against its daily limit. Localazy: change %1$@ -> %1$s */
-"action_agent_usage" = "Usage";
-"screen_agent_usage_title" = "Usage";
-"screen_agent_usage_today_section" = "Today";
-"screen_agent_usage_today_percent" = "%1$@ of today's limit";
-"screen_agent_usage_resets_at" = "Resets at %1$@.";
-"screen_agent_usage_limit_reached" = "Today's limit is used up. Your agent answers again from %1$@.";
-/* AGENT-PLATFORM: the daily limit resets on another day than today (midnight UTC is tomorrow morning in Europe). %1$@ = a time. */
-"screen_agent_usage_resets_tomorrow_at" = "Resets tomorrow at %1$@.";
-"screen_agent_usage_limit_reached_tomorrow" = "Today's limit is used up. Your agent answers again tomorrow from %1$@.";
-"screen_agent_usage_footer" = "A daily limit keeps the cost of AI in check. Messages, room tools, posts and calls all count towards it.";
-"screen_agent_usage_days_section" = "Last 30 days";
-"screen_agent_usage_days_empty" = "No AI use in the last 30 days.";
-"screen_agent_usage_today" = "Today";
-"screen_agent_usage_yesterday" = "Yesterday";
+/* AGENT-PLATFORM (Brief 0079 3c, question 394): the agent's AI use against its weekly limit, as shares. Localazy: change %1$@ -> %1$s */
+"action_agent_usage" = "AI limit";
+"screen_agent_usage_title" = "AI limit";
+/* The week card. %1$@ = the week's days, e.g. "9–15 November". */
+"screen_agent_usage_this_week" = "This week · %1$@";
+"screen_agent_usage_of_weekly_limit" = "of the weekly limit";
+/* A period this build has no words for (the backend's day limit, or a newer one). */
+"screen_agent_usage_of_limit" = "of the limit";
+/* When the limit starts afresh, by distance. %1$@ = a time; on_weekday: %1$@ = an on_<weekday> phrase, %2$@ = a time; on_date: %1$@ = a date, %2$@ = a time. */
+"screen_agent_usage_resets_today" = "Resets today at %1$@";
+"screen_agent_usage_resets_tomorrow" = "Resets tomorrow at %1$@";
+"screen_agent_usage_resets_on_weekday" = "Resets %1$@ at %2$@";
+"screen_agent_usage_resets_on_date" = "Resets on %1$@ at %2$@";
+/* At 85% or more: %1$@ = the share left, then the category taking most. */
+"screen_agent_usage_left_this_week" = "%1$@ left this week.";
+"screen_agent_usage_left" = "%1$@ left.";
+"screen_agent_usage_most_messages" = "Most of it goes to messages.";
+"screen_agent_usage_most_room_tools" = "Most of it goes to room tools.";
+"screen_agent_usage_most_posts" = "Most of it goes to posts.";
+"screen_agent_usage_most_calls" = "Most of it goes to calls.";
+"screen_agent_usage_most_call_translation" = "Most of it goes to call translation.";
+"screen_agent_usage_most_call_summaries" = "Most of it goes to call summaries.";
+"screen_agent_usage_most_other" = "Most of it goes to other things.";
+/* At the limit. ai_back_on: %1$@ = an on_<weekday> phrase, %2$@ = a date, %3$@ = a time; works_ai_paused_detail: %1$@ = an until phrase (until_<weekday>, until_tomorrow or until_moment). */
+"screen_agent_usage_limit_used_up_this_week" = "This week's limit is used up";
+"screen_agent_usage_limit_used_up" = "The limit is used up";
+"screen_agent_usage_ai_back_today" = "AI works again today at %1$@.";
+"screen_agent_usage_ai_back_tomorrow" = "AI works again tomorrow at %1$@.";
+"screen_agent_usage_ai_back_on" = "AI works again %1$@, %2$@, at %3$@.";
+"screen_agent_usage_works_section" = "What still works";
+"screen_agent_usage_works_chats_title" = "Chats and calls";
+"screen_agent_usage_works_chats_detail" = "Work as usual — the limit doesn't touch them.";
+"screen_agent_usage_works_ai_paused_title" = "AI is paused";
+"screen_agent_usage_works_ai_paused_detail" = "Agent replies, room tools and call translation, %1$@.";
+"screen_agent_usage_footer" = "The limit keeps the cost of AI in check. Your chats and calls aren't limited.";
+"screen_agent_usage_categories_section" = "Where it went";
 "screen_agent_usage_category_messages" = "Messages";
 "screen_agent_usage_category_room_tools" = "Room tools";
 "screen_agent_usage_category_posts" = "Posts";
@@ -1058,16 +999,52 @@
 "screen_agent_usage_category_call_translation" = "Call translation";
 "screen_agent_usage_category_call_summaries" = "Call summaries";
 "screen_agent_usage_category_other" = "Other";
-"screen_agent_usage_load_failure" = "Couldn't load usage";
+/* Past weeks: %1$@ = an on_<weekday> phrase, the day a week's limit was used up. */
+"screen_agent_usage_past_weeks_section" = "Past weeks";
+"screen_agent_usage_week_limit_used_up" = "Limit was used up %1$@";
+/* A weekday with its preposition, in the case the sentences around it need ("в пятницу", "до пятницы"). */
+"screen_agent_usage_on_monday" = "on Monday";
+"screen_agent_usage_on_tuesday" = "on Tuesday";
+"screen_agent_usage_on_wednesday" = "on Wednesday";
+"screen_agent_usage_on_thursday" = "on Thursday";
+"screen_agent_usage_on_friday" = "on Friday";
+"screen_agent_usage_on_saturday" = "on Saturday";
+"screen_agent_usage_on_sunday" = "on Sunday";
+"screen_agent_usage_until_monday" = "until Monday";
+"screen_agent_usage_until_tuesday" = "until Tuesday";
+"screen_agent_usage_until_wednesday" = "until Wednesday";
+"screen_agent_usage_until_thursday" = "until Thursday";
+"screen_agent_usage_until_friday" = "until Friday";
+"screen_agent_usage_until_saturday" = "until Saturday";
+"screen_agent_usage_until_sunday" = "until Sunday";
+"screen_agent_usage_load_failure" = "Couldn't load the limit";
+/* Question 395, decisions 14 and 15: a paused category's line. until_today: %1$@ = a time; until_tomorrow: %1$@ = a time; until_weekday: %1$@ = an until_<weekday> phrase, %2$@ = a time; until_date: %1$@ = a date, %2$@ = a time. until_moment: %1$@ = a time or a date. The call lines (D7, D10) are the assistant's owner's only; *_paused_until: %1$@ = an until phrase (until_<weekday>, until_tomorrow or until_moment). Localazy: change %1$@ -> %1$s */
+"screen_agent_usage_paused" = "Paused";
+"screen_agent_usage_paused_until_today" = "Paused until %1$@";
+"screen_agent_usage_paused_until_tomorrow" = "Paused until tomorrow, %1$@";
+"screen_agent_usage_paused_until_weekday" = "Paused %1$@, %2$@";
+"screen_agent_usage_paused_until_date" = "Paused until %1$@, %2$@";
+"screen_agent_usage_paused_footer" = "A pause stops only that kind of AI use. Everything else works as usual.";
+"screen_agent_usage_until_moment" = "until %1$@";
+"screen_agent_usage_until_tomorrow" = "until tomorrow";
+"screen_native_call_limit_used_up_this_week" = "This week's AI limit is used up";
+"screen_native_call_limit_used_up" = "The AI limit is used up";
+"screen_native_call_limit_translation_paused" = "Translation is paused";
+"screen_native_call_limit_translation_paused_until" = "Translation is paused %1$@";
+"screen_native_call_limit_assistant_paused" = "Your assistant is paused";
+"screen_native_call_limit_assistant_paused_until" = "Your assistant is paused %1$@";
+"screen_native_call_assistants_reason_category_paused_detail" = "The AI limit page says when it's back.";
+/* Question 395: a category's pause after its name, the Limit page row's words (the join check, the Assistants sheet, the ai_category_paused card). %1$@ = a category name (screen_agent_usage_category_*); then as screen_agent_usage_paused_until_*, shifted by one. Localazy: change %1$@ -> %1$s */
+"screen_agent_usage_category_paused" = "%1$@: paused";
+"screen_agent_usage_category_paused_until_today" = "%1$@: paused until %2$@";
+"screen_agent_usage_category_paused_until_tomorrow" = "%1$@: paused until tomorrow, %2$@";
+"screen_agent_usage_category_paused_until_weekday" = "%1$@: paused %2$@, %3$@";
+"screen_agent_usage_category_paused_until_date" = "%1$@: paused until %2$@, %3$@";
+"notice_ai_category_paused_body" = "Everything else works as usual.";
 
 /* AGENT-PLATFORM (Brief 0080): the assistant talks in the call or stays silent; everyone sees which. */
 "screen_native_call_agent_center_talking" = "Assistant is talking";
-"screen_native_call_agent_block_talking" = "Talking";
 /* The assistant is answering right now: the wave airs, as for a translation. */
-"screen_native_call_agent_block_speaking" = "Speaking";
-"screen_native_call_agent_center_conversation" = "Conversation";
-"screen_native_call_agent_center_conversation_on" = "The assistant answers you. Everyone in the call hears it.";
-"screen_native_call_agent_center_conversation_off" = "Silent. Recording, summary and translation go on.";
 "screen_native_call_agent_center_error_conversation_refused" = "Couldn't start the conversation. The assistant stays silent.";
 
 /* AGENT-PLATFORM (Brief 0078, GDPR): «Your data» — the account export and one call's export. */
@@ -1116,6 +1093,8 @@
 "screen_room_timeline_legacy_call_spiral" = "Unsupported call. Ask if the caller can use Spiral.";
 /* AGENT-PLATFORM (legal pass): the About row opens the full Terms of Use, not an acceptable use policy. */
 "common_terms_of_use_spiral" = "Terms of Use";
+/* AGENT-PLATFORM (Brief 0083): Settings > Encryption's row and title, under a key of ours so that nl, be, lt, ka and ur can translate what upstream leaves English. */
+"common_encryption_spiral" = "Encryption";
 /* AGENT-PLATFORM (coverage walk F9): a room an agent acted in that this device has no name for (a visitor's chat with the agent). Never the room id. */
 "common_a_conversation" = "A conversation";
 /* AGENT-PLATFORM (decisions 187, 188): the Settings rework — the Security and Privacy hubs, Appearance & media, and «Sign out» in place of upstream's «Remove this device». */
@@ -1139,7 +1118,7 @@
 "screen_agent_spaces_section_retry" = "Tap to try again.";
 "screen_agent_spaces_assistant_pending" = "Your assistant is still being set up";
 "action_add_agent_to_chat" = "Add to chat";
-"screen_agent_detail_kind_personal_assistant" = "your personal assistant";
+"screen_agent_detail_kind_personal_assistant" = "Your personal assistant";
 "screen_agent_detail_added_to_chat" = "The agent is in the chat";
 "screen_agent_detail_add_to_chat_failure" = "Couldn't add the agent to this chat";
 "screen_agent_detail_already_in_chat" = "The agent is already in this chat";
@@ -1191,8 +1170,658 @@
 "screen_notifications_hub_visitor_other_body" = "Update the app to see what it is.";
 "action_dismiss_visitor_message" = "Remove";
 "screen_notifications_hub_visitor_dismiss_failed" = "Couldn't remove it. Try again.";
+"screen_notifications_hub_needs_action_load_failure" = "Couldn't load what waits for you";
 "screen_approval_detail_agent_paused_title" = "The agent is paused";
 "screen_approval_detail_agent_paused_message" = "Turn off its pause on the agent's screen, under Control, to approve or send this. Until then the request stays here.";
 "screen_native_call_agent_center_error_agent_paused" = "The agent is paused — turn off its pause to add it to a call.";
 "notification_approval_action_agent_paused_title" = "The agent is paused";
 "notification_approval_action_agent_paused_body" = "Nothing was sent. Turn off its pause, then approve again.";
+
+// AGENT-PLATFORM: feed (Brief 0082)
+"screen_home_tab_feed" = "Feed";
+"screen_feed_official_label" = "Official";
+"screen_feed_pinned_label" = "Pinned";
+"screen_feed_read_more" = "Read more";
+"screen_feed_new_posts_many" = "99+ new posts";
+"screen_feed_empty_title" = "Be the first today";
+"screen_feed_empty_message" = "Posts from people on Spiral appear here, newest first.";
+"screen_feed_unavailable_title" = "Feed is unavailable";
+"screen_feed_unavailable_message" = "The feed is turned off for now. Your chats work as usual.";
+"screen_feed_load_failed_title" = "Couldn't load the feed";
+"screen_feed_load_failed_message" = "Check your connection and try again.";
+"screen_feed_offline_banner" = "Couldn't reach the feed. These are the posts you saw last.";
+"screen_feed_refresh_failed" = "Couldn't refresh the feed";
+"screen_feed_sync_updating" = "Updating…";
+"screen_feed_sync_no_connection" = "No connection";
+"screen_feed_post_send_failed" = "Couldn't post";
+"screen_feed_comment_send_failed" = "Couldn't send";
+"screen_feed_slow_down" = "Slow down a little. Try again in a moment.";
+"screen_feed_image_load_failed" = "Couldn't open the image";
+"screen_feed_post_unsupported" = "Update Spiral to see this post";
+"screen_feed_sensitive_title" = "Sensitive content";
+"screen_feed_sensitive_message" = "This post was marked as possibly upsetting.";
+"screen_feed_sensitive_show" = "Show";
+"screen_feed_post_title" = "Post";
+"screen_feed_post_not_available_title" = "This post isn't available";
+"screen_feed_post_not_available_message" = "It may have been deleted, or you can't see it.";
+"screen_feed_post_load_failed_title" = "Couldn't load the post";
+"screen_feed_post_held_notice" = "Under review, usually within 24 h. Only you can see this post for now.";
+"screen_feed_post_removed_notice" = "A moderator removed this post. Only you can see it.";
+"screen_feed_post_sensitive_notice" = "Marked as sensitive. Others see this post behind “Show”.";
+"screen_feed_author_block" = "Block";
+"screen_feed_author_blocked" = "Blocked";
+"screen_feed_author_block_message" = "You won't see each other's posts, and they can't message you. This blocks them everywhere in Spiral, not only in the feed. You can unblock them in Settings.";
+"screen_feed_author_block_failed" = "Couldn't block. Try again.";
+"screen_feed_author_chat_failed" = "Couldn't open the chat. Try again.";
+"screen_feed_author_no_posts" = "No posts yet";
+"screen_feed_author_not_available" = "This account's posts aren't available.";
+"screen_feed_author_posts_load_failed" = "Couldn't load the posts";
+// Localazy: change %1$@ -> %1$s
+"screen_feed_author_block_title" = "Block %1$@?";
+// Localazy: change %1$@ -> %1$s
+"screen_feed_author_start_chat_title" = "Start a chat with %1$@?";
+// Localazy: change %1$@ -> %1$s
+"a11y_feed_open_author" = "Open %1$@'s profile";
+// Localazy: change %1$@ -> %1$s
+"a11y_feed_open_link" = "Open link %1$@";
+"a11y_feed_open_image" = "View image %1$d";
+// Localazy: change %2$@ -> %2$s
+"a11y_feed_open_image_with_alt" = "View image %1$d: %2$@";
+
+// AGENT-PLATFORM: feed (Brief 0082), lane I2: the composer, the rules sheet, delete
+"screen_feed_composer_title" = "New post";
+"screen_feed_composer_placeholder" = "What do you want to share?";
+"screen_feed_composer_post" = "Post";
+"screen_feed_composer_posting" = "Posting";
+"screen_feed_composer_posted" = "Posted";
+"screen_feed_composer_public_note" = "Everyone on Spiral can see your post.";
+"screen_feed_composer_cancel_title" = "Keep this post?";
+"screen_feed_composer_cancel_message" = "A draft stays on this device only.";
+"screen_feed_composer_save_draft" = "Save draft";
+"screen_feed_composer_discard" = "Discard";
+"screen_feed_composer_keep_editing" = "Keep editing";
+"screen_feed_composer_error_link_refused_title" = "This link can't be posted";
+"screen_feed_composer_error_link_refused_message" = "A link in your post leads to a site that is blocked on Spiral. Remove it to post.";
+"screen_feed_composer_error_duplicate_title" = "You've already posted this";
+"screen_feed_composer_error_duplicate_message" = "You posted the same text in the last hour.";
+"screen_feed_composer_error_suspended_title" = "You can't post right now";
+"screen_feed_composer_error_suspended_message" = "Posting is suspended for your account. You can still read the feed.";
+"screen_feed_composer_error_rate_limited_title" = "You're posting too often";
+"screen_feed_composer_error_rate_limited_later" = "Take a short break and try again later.";
+"screen_feed_composer_error_read_only_title" = "Posting is paused";
+"screen_feed_composer_error_read_only_message" = "You can still read the feed. Try again later.";
+"screen_feed_composer_error_key_reused_title" = "Already posted";
+"screen_feed_composer_error_key_reused_message" = "An earlier version of this post was already published. Check your posts before you post it again.";
+"screen_feed_composer_error_generic_title" = "Couldn't post";
+"screen_feed_composer_error_generic_message" = "Check your connection and try again. Trying again won't post it twice.";
+"screen_feed_composer_error_try_shortly_message" = "The feed couldn't check your post just now. Try again in a moment.";
+"screen_feed_composer_error_account_restricted_message" = "Your account is restricted. Write to support@spiral.md if you think this is a mistake.";
+"screen_feed_composer_error_not_accepted_message" = "A post needs some text and at most 5,000 characters.";
+"screen_feed_composer_error_unsupported_message" = "The feed can't take this kind of post yet.";
+"screen_feed_composer_error_server_message" = "Something went wrong on Spiral's side. Try again; trying again won't post it twice.";
+"screen_feed_rules_title" = "A few simple rules";
+"screen_feed_rules_intro" = "The feed is for everyone on Spiral. To keep it a good place:";
+"screen_feed_rules_kind" = "Be kind. No hate, harassment or threats.";
+"screen_feed_rules_no_harm" = "Nothing that harms people, and never sexual content involving minors.";
+"screen_feed_rules_privacy" = "Don't share other people's private information.";
+"screen_feed_rules_no_scams" = "No scams, spam or links to harmful sites.";
+"screen_feed_rules_own_content" = "Post only what you have the right to share.";
+"screen_feed_rules_moderation" = "Posts are public to everyone on Spiral. A moderator reviews reports, usually within 24 hours, and may remove posts or suspend posting for breaking these rules. Questions: support@spiral.md";
+"screen_feed_rules_agree" = "Got it, post";
+"screen_feed_rules_accept_failed" = "Couldn't save your answer. Try again.";
+"screen_feed_own_posts" = "Your posts";
+"screen_feed_post_delete" = "Delete post";
+"screen_feed_post_delete_title" = "Delete this post?";
+"screen_feed_post_delete_message" = "It leaves the feed with its comments and likes. This can't be undone.";
+"screen_feed_post_deleting" = "Deleting";
+"screen_feed_post_deleted" = "Post deleted";
+"screen_feed_post_delete_failed" = "Couldn't delete the post";
+"screen_feed_post_delete_failed_message" = "Your post wasn't deleted. Check your connection and try again.";
+"screen_feed_post_delete_failed_unavailable_message" = "The feed is off right now, so your post wasn't deleted. Try again later.";
+"screen_feed_post_delete_failed_try_shortly_message" = "Your post wasn't deleted. Try again in a moment.";
+"screen_feed_post_delete_failed_account_restricted_message" = "Your account is restricted, so your post wasn't deleted. Write to support@spiral.md if you think this is a mistake.";
+"screen_feed_post_delete_failed_server_message" = "Something went wrong on Spiral's side, and your post wasn't deleted. Try again.";
+"screen_feed_post_held_label" = "Under review · only you can see it";
+"screen_feed_post_removed_label" = "Removed by a moderator · only you can see it";
+"a11y_feed_post_options" = "Post options";
+"a11y_feed_expanded" = "Expanded";
+"a11y_feed_collapsed" = "Collapsed";
+"screen_feed_composer_update_required_title" = "Update Spiral to post";
+"screen_feed_composer_update_required_message" = "The feed rules have changed. Update Spiral to read the new rules, then post. Your text is kept.";
+"screen_feed_composer_rules_paused_message" = "Try again in a little while. Your text is kept.";
+"screen_feed_composer_error_unavailable_message" = "The feed is off right now. Try again later.";
+// Localazy: change %1$@ -> %1$s
+"screen_feed_composer_suspended_notice" = "Posting is suspended for your account until %1$@.";
+"screen_feed_share_title" = "Share post";
+"screen_feed_share_action" = "Share";
+"screen_feed_share_failed" = "Couldn't share the post.";
+"screen_feed_share_bridged_room" = "Posts can be shared into Spiral chats only, not Telegram, WhatsApp or Instagram chats.";
+"screen_feed_hide_action" = "Hide post";
+"screen_feed_hidden" = "Hidden from your feed";
+"screen_feed_hide_failed" = "Couldn't hide the post";
+"screen_feed_hidden_notice" = "You hid this post. It's left out of your feed.";
+"screen_feed_unhide_action" = "Show in my feed";
+"screen_feed_unhide_failed" = "Couldn't show the post in your feed";
+"screen_feed_action_failed_message" = "Nothing was changed. Check your connection and try again.";
+"screen_feed_action_failed_unavailable_message" = "The feed is off right now, so nothing was changed. Try again later.";
+"screen_feed_action_failed_try_shortly_message" = "Nothing was changed. Try again in a moment.";
+"screen_feed_action_failed_account_restricted_message" = "Your account is restricted, so nothing was changed. Write to support@spiral.md if you think this is a mistake.";
+"screen_feed_action_failed_server_message" = "Something went wrong on Spiral's side, and nothing was changed. Try again.";
+"screen_feed_like_failed" = "Couldn't like the post";
+"screen_feed_unlike_failed" = "Couldn't remove your like";
+"screen_feed_like_rate_limited" = "You're liking too fast. Try again in a minute.";
+"a11y_feed_like" = "Like";
+"a11y_feed_unlike" = "Remove like";
+"a11y_feed_comment" = "Comment";
+"a11y_feed_liked_by_you" = "Liked by you";
+// Localazy: change %1$@ -> %1$s
+"a11y_feed_replying_to" = "replying to %1$@";
+"a11y_feed_cancel_reply" = "Cancel reply";
+"a11y_feed_send_comment" = "Send comment";
+"screen_feed_comments_title" = "Comments";
+"screen_feed_comments_empty" = "No comments yet.";
+"screen_feed_comments_off" = "The author turned comments off.";
+"screen_feed_comments_off_author" = "You turned comments off. Only you can see these comments now.";
+"screen_feed_comments_not_available" = "Comments aren't available";
+"screen_feed_comments_load_failed" = "Couldn't load the comments";
+"screen_feed_comments_load_more" = "Show more comments";
+"screen_feed_comment_placeholder" = "Add a comment";
+// Localazy: change %1$@ -> %1$s
+"screen_feed_comment_replying_to" = "Replying to %1$@";
+"screen_feed_comment_reply" = "Reply";
+"screen_feed_comment_delete" = "Delete";
+"screen_feed_comment_delete_title" = "Delete this comment?";
+"screen_feed_comment_delete_message" = "It's removed for everyone. This can't be undone.";
+"screen_feed_comment_deleted" = "Comment deleted";
+"screen_feed_comment_delete_failed" = "Couldn't delete the comment";
+"screen_feed_comment_delete_failed_message" = "It's still there. Check your connection and try again.";
+"screen_feed_comment_delete_failed_unavailable_message" = "The feed is off right now, so your comment wasn't deleted. Try again later.";
+"screen_feed_comment_delete_failed_try_shortly_message" = "Your comment wasn't deleted. Try again in a moment.";
+"screen_feed_comment_delete_failed_account_restricted_message" = "Your account is restricted, so your comment wasn't deleted. Write to support@spiral.md if you think this is a mistake.";
+"screen_feed_comment_delete_failed_server_message" = "Something went wrong on Spiral's side, and your comment wasn't deleted. Try again.";
+"screen_feed_comment_not_available" = "This comment isn't available";
+"screen_feed_comments_turn_off" = "Turn off comments";
+"screen_feed_comments_turn_on" = "Turn on comments";
+"screen_feed_comments_turned_off" = "Comments turned off";
+"screen_feed_comments_turned_on" = "Comments turned on";
+"screen_feed_comments_toggle_failed" = "Couldn't change the comments";
+"screen_feed_rules_agree_comment" = "Got it, comment";
+"screen_feed_comment_update_required_message" = "The feed rules have changed. Update Spiral to read the new rules, then comment. Your text is kept.";
+"screen_feed_comment_read_only_message" = "You can still read the feed. Try again later.";
+"screen_feed_comment_error_link_refused_message" = "A link in your comment leads to a site that is blocked on Spiral. Remove it to send.";
+"screen_feed_comment_error_suspended_title" = "You can't comment right now";
+"screen_feed_comment_error_suspended_message" = "Posting and commenting are suspended for your account. You can still read the feed.";
+"screen_feed_comment_error_rate_limited_title" = "You're commenting too often";
+"screen_feed_comment_error_rate_limited_later" = "Take a short break and try again later.";
+"screen_feed_comment_error_unavailable_message" = "The feed is off right now. Try again later.";
+"screen_feed_comment_error_key_reused_title" = "Already sent";
+"screen_feed_comment_error_key_reused_message" = "An earlier version of this comment was already sent. Check the comments before you send it again.";
+"screen_feed_comment_error_not_found_message" = "The post was deleted or its comments were turned off.";
+"screen_feed_comment_error_reply_gone_title" = "That comment is gone";
+"screen_feed_comment_error_reply_gone_message" = "The comment you replied to isn't there anymore. Your text is kept: send it without the reply.";
+"screen_feed_comment_error_generic_title" = "Couldn't send the comment";
+"screen_feed_comment_error_generic_message" = "Check your connection and try again. Trying again won't send it twice.";
+"screen_feed_comment_error_try_shortly_message" = "The feed couldn't check your comment just now. Try again in a moment.";
+"screen_feed_comment_error_account_restricted_message" = "Your account is restricted. Write to support@spiral.md if you think this is a mistake.";
+"screen_feed_comment_error_server_message" = "Something went wrong on Spiral's side. Try again; trying again won't send it twice.";
+
+/* Feed reports and notices (Brief 0082, lane I3 on B4) */
+"a11y_feed_notice_appeal_hint" = "Writes an email";
+"a11y_feed_notice_unread" = "Unread";
+"notification_feed_comment_body" = "Someone commented on your post";
+"notification_feed_notice_body" = "You have a new notice about the feed";
+"screen_feed_author_withheld_name" = "Spiral member";
+"screen_feed_comment_report" = "Report";
+"screen_feed_notice_appeal" = "If you disagree, write to %1$@. You can also go to court.";
+"screen_feed_notice_automated" = "Automated means were used.";
+"screen_feed_notice_automated_detected" = "Automated means detected this.";
+"screen_feed_notice_by_moderator" = "A moderator decided this, without automated means.";
+"screen_feed_notice_decided_automatically" = "It was decided automatically.";
+"screen_feed_notice_deadline" = "A moderator will decide by %1$@.";
+"screen_feed_notice_held_comment_title" = "Your comment is hidden while a moderator reviews it";
+"screen_feed_notice_held_post_title" = "Your post is hidden while a moderator reviews it";
+"screen_feed_notice_legal_ground" = "Legal ground: %1$@";
+"screen_feed_notice_moderator_decided" = "A moderator decided this.";
+"screen_feed_notice_limited_title" = "Your feed limits were lowered";
+"screen_feed_notice_moderator_comment" = "Moderator's comment";
+"screen_feed_notice_outcome_action_taken" = "A moderator acted on it.";
+"screen_feed_notice_outcome_no_action" = "A moderator found that it doesn't break the rules.";
+"screen_feed_notice_outcome_target_deleted" = "It was deleted before a moderator decided.";
+"screen_feed_notice_removed_comment_title" = "A moderator removed your comment";
+"screen_feed_notice_removed_post_title" = "A moderator removed your post";
+"screen_feed_notice_report_decided_title" = "A moderator decided on your report";
+"screen_feed_notice_report_received_title" = "We received your report";
+"screen_feed_notice_reported_author" = "You reported a profile.";
+"screen_feed_notice_reported_comment" = "You reported a comment.";
+"screen_feed_notice_reported_post" = "You reported a post.";
+"screen_feed_notice_restored_comment_title" = "Your comment is back";
+"screen_feed_notice_restored_post_title" = "Your post is back";
+"screen_feed_notice_rule" = "Rule: %1$@";
+"screen_feed_notice_sensitive_comment_title" = "Your comment was marked as sensitive";
+"screen_feed_notice_sensitive_post_title" = "Your post was marked as sensitive";
+"screen_feed_notice_suspended_title" = "You can't post or comment for now";
+"screen_feed_notice_tier_new" = "You now have new-account limits: at most 30 posts and 200 comments a day.";
+"screen_feed_notice_tier_standard" = "You now have standard limits: at most 200 posts and 2,000 comments a day.";
+"screen_feed_notice_trigger_filter" = "Our automatic filter flagged it.";
+"screen_feed_notice_trigger_moderator" = "A moderator reviewed it.";
+"screen_feed_notice_trigger_report" = "Someone reported it.";
+"screen_feed_notice_trigger_reports" = "Several people reported it.";
+"screen_feed_notice_trigger_sla" = "A report stayed open for 24 hours, so it is hidden until a moderator decides.";
+"screen_feed_notice_unsupported" = "Update Spiral to see this notice";
+"screen_feed_notice_unsuspended_title" = "You can post and comment again";
+"screen_feed_notice_until" = "Until %1$@";
+"screen_feed_notice_view_post" = "View post";
+"screen_feed_notices_empty_message" = "Decisions about your posts and your reports appear here.";
+"screen_feed_notices_empty_title" = "No notices";
+"screen_feed_notices_load_failed_title" = "Couldn't load your notices";
+"screen_feed_notices_open" = "All notices";
+"screen_feed_notices_refresh_failed" = "Couldn't refresh your notices";
+"screen_feed_notification_settings_footer" = "Notices about your posts and your reports always arrive.";
+"screen_feed_notification_settings_load_failed" = "Couldn't load the feed's settings";
+"screen_feed_notification_settings_save_failed" = "Couldn't change it. Try again.";
+"screen_feed_notification_settings_title" = "Feed";
+"screen_feed_post_statement_load_failed" = "Couldn't load the reasons.";
+"screen_feed_report_author_title" = "Report profile";
+"screen_feed_report_comment_title" = "Report comment";
+"screen_feed_report_detail_footer" = "Optional. What should the moderator know? The author never sees this, or who reported.";
+"screen_feed_report_detail_placeholder" = "Details for the moderator";
+"screen_feed_report_existing_message" = "Your report is still open. A moderator will decide by %1$@.";
+"screen_feed_report_existing_title" = "You already reported this";
+"screen_feed_report_failed_title" = "Couldn't send the report";
+"screen_feed_report_not_available_message" = "It may have been deleted, or you can't see it any more.";
+"screen_feed_report_not_available_title" = "This isn't available any more";
+"screen_feed_report_other_header" = "Other rules";
+"screen_feed_report_post_action" = "Report";
+"screen_feed_report_post_title" = "Report post";
+"screen_feed_report_rate_limited_message" = "You've sent 10 reports today. You can send more tomorrow.";
+"screen_feed_report_rate_limited_title" = "Too many reports today";
+"screen_feed_report_reason_child_safety" = "Child safety";
+"screen_feed_report_reason_child_safety_description" = "Sexualises, exploits or endangers a child";
+"screen_feed_report_reason_harassment" = "Harassment or bullying";
+"screen_feed_report_reason_hate" = "Hate";
+"screen_feed_report_reason_illegal" = "Illegal content";
+"screen_feed_report_reason_impersonation" = "Pretends to be someone else";
+"screen_feed_report_reason_malware" = "Malware or phishing";
+"screen_feed_report_reason_other" = "Something else";
+"screen_feed_report_reason_private_information" = "Private information";
+"screen_feed_report_reason_private_information_description" = "Someone's address, phone number or other private details";
+"screen_feed_report_reason_regulated_goods" = "Selling drugs, weapons or other regulated goods";
+"screen_feed_report_reason_sexual_content" = "Sexual content";
+"screen_feed_report_reason_spam" = "Spam or scam";
+"screen_feed_report_reason_threat_to_life" = "A threat to someone's life";
+"screen_feed_report_reason_threat_to_life_description" = "Threatens violence, or talks of self-harm";
+"screen_feed_report_reason_violence" = "Violence or graphic content";
+"screen_feed_report_send" = "Send";
+"screen_feed_report_sending" = "Sending the report";
+"screen_feed_report_sent_message" = "A moderator will decide by %1$@. You'll find their decision in your notices.";
+"screen_feed_report_sent_title" = "Report sent";
+"screen_feed_report_severe_footer" = "A report under one of these hides it from everyone at once, until a moderator decides.";
+"screen_feed_report_severe_header" = "Most serious";
+"screen_feed_report_suspended_message" = "Posting, commenting and reporting are suspended for your account. You can still read the feed.";
+"screen_feed_report_suspended_title" = "You can't report right now";
+
+// AGENT-PLATFORM: feed (Brief 0082): the bio in the profile editor
+"screen_edit_profile_bio" = "Bio";
+"screen_edit_profile_bio_placeholder" = "A line about you";
+"screen_edit_profile_bio_footer" = "Shown on your feed profile. Plain text, one line.";
+"screen_edit_profile_bio_load_failed" = "Couldn't load your bio";
+"screen_edit_profile_bio_save_failed" = "Your bio couldn't be saved. Try again.";
+"screen_edit_profile_bio_count" = "%1$d/%2$d";
+"screen_edit_profile_bio_too_long" = "A bio can be at most %1$d characters. Shorten it to save it.";
+"a11y_edit_profile_bio_count" = "%1$d of %2$d characters";
+
+// AGENT-PLATFORM: feed (Brief 0082), lane I5: activity, who liked, live counts, push settings per kind
+"screen_feed_activity_title" = "Activity";
+// Localazy: change %1$@ -> %1$s
+"screen_feed_activity_liked_one" = "%1$@ liked your post";
+// Localazy: change %1$@ -> %1$s, %2$@ -> %2$s
+"screen_feed_activity_liked_many" = "%1$@ and %2$@ liked your post";
+// Localazy: change %1$@ -> %1$s, %2$@ -> %2$s
+"screen_feed_activity_quote" = "%1$@: %2$@";
+"screen_feed_activity_comment_context" = "Comment on your post";
+"screen_feed_activity_reply_context" = "Reply to your comment";
+"screen_feed_activity_empty_title" = "No activity yet";
+"screen_feed_activity_empty_message" = "When people like or comment on your posts, you'll see it here.";
+"screen_feed_activity_load_failed_title" = "Couldn't load your activity";
+"screen_feed_activity_refresh_failed" = "Couldn't refresh your activity";
+"screen_feed_from_spiral_title" = "From Spiral";
+"screen_feed_from_spiral_subtitle" = "Decisions about your posts and reports";
+"screen_feed_likers_title" = "Likes";
+"screen_feed_likers_empty_title" = "No likes to show";
+"screen_feed_likers_empty_message" = "People you can't see in the feed aren't listed.";
+"screen_feed_likers_load_failed_title" = "Couldn't load who liked this";
+"a11y_feed_show_likers" = "Show who liked this";
+"notification_feed_like_body" = "Someone liked your post";
+"notification_feed_reply_body" = "Someone replied to your comment";
+"screen_feed_notification_settings_likes" = "Likes on my posts";
+"screen_feed_notification_settings_comments" = "Comments on my posts";
+"screen_feed_notification_settings_replies" = "Replies to my comments";
+"screen_feed_notification_settings_everyone" = "From everyone";
+"screen_feed_notification_settings_off" = "Off";
+"screen_feed_notification_settings_update_required" = "Update Spiral to change this";
+"screen_feed_notice_why" = "Why?";
+/* AGENT-PLATFORM (Brief 0083, decisions 313 and 314): Spiral's copy for identity confirmation and the screens after it. */
+"screen_identity_confirmation_title_spiral" = "Confirm it's you";
+"screen_identity_confirmation_subtitle_spiral" = "Choose one of the ways below. Then this device can open your messages and send new ones securely.";
+"screen_identity_confirmation_subtitle_no_methods_spiral" = "Once you do, this device can open your messages and send new ones securely.";
+"screen_identity_confirmation_use_another_device_spiral" = "Confirm on another device";
+"screen_identity_confirmation_use_recovery_key_spiral" = "Enter recovery key";
+"screen_identity_confirmation_cannot_confirm_spiral" = "No device or recovery key?";
+"screen_identity_confirmation_sign_out_spiral" = "Sign out";
+"screen_identity_confirmation_sign_out_title_spiral" = "Sign out?";
+"screen_identity_confirmation_sign_out_content_spiral" = "This device will be signed out of Spiral. You can sign in again with your sign-in phrase.";
+"screen_identity_confirmation_sign_out_submit_spiral" = "Sign out";
+"screen_recovery_key_confirm_title_spiral" = "Unlock your messages";
+"screen_recovery_key_confirm_description_spiral" = "Enter your recovery key. Make sure no one can see your screen.";
+"screen_recovery_key_confirm_key_placeholder_spiral" = "Paste or type your key";
+"screen_recovery_key_confirm_key_description_spiral" = "It's not your sign-in phrase.";
+"screen_recovery_key_confirm_submit_spiral" = "Unlock";
+"screen_recovery_key_confirm_error_title_spiral" = "Wrong recovery key";
+"screen_recovery_key_confirm_error_content_spiral" = "Check the key and try again.";
+"screen_recovery_key_confirm_success_spiral" = "Messages unlocked";
+"screen_recovery_key_setup_title_spiral" = "Create your recovery key";
+"screen_recovery_key_setup_description_spiral" = "It unlocks your message history on a new device. If you lose it, you can create a new one in Settings.";
+"screen_recovery_key_setup_generate_key_spiral" = "Create recovery key";
+"screen_recovery_key_setup_generate_key_description_spiral" = "Don't share it with anyone.";
+"screen_recovery_key_change_title_spiral" = "Create a new recovery key?";
+"screen_recovery_key_change_description_spiral" = "Do this if you lost your current key. Once you create a new one, the old key stops working.";
+"screen_recovery_key_change_generate_key_spiral" = "Create new key";
+"screen_recovery_key_change_generate_key_description_spiral" = "Don't share it with anyone.";
+"screen_recovery_key_generating_key_spiral" = "Creating…";
+"screen_recovery_key_save_title_spiral" = "Keep your key somewhere safe";
+"screen_recovery_key_save_description_spiral" = "Save it in a password manager or an encrypted note, or write it down and keep it in a safe place.";
+"screen_recovery_key_save_key_description_spiral" = "Copy or save it before you continue.";
+"screen_recovery_key_save_action_spiral" = "Save key";
+"screen_recovery_key_copied_to_clipboard_spiral" = "Recovery key copied";
+"screen_recovery_key_setup_confirmation_title_spiral" = "Saved your key?";
+"screen_recovery_key_setup_confirmation_description_spiral" = "After this step, you can't see this key again.";
+"screen_recovery_key_setup_success_spiral" = "Recovery key created";
+"screen_recovery_key_change_success_spiral" = "New recovery key created";
+"screen_encryption_reset_title_spiral" = "Reset encryption";
+"screen_encryption_reset_footer_spiral" = "Reset only if you can't confirm on another device and don't have your recovery key.";
+"screen_encryption_reset_bullet_1_spiral" = "Your account, contacts, settings and chat list stay.";
+"screen_encryption_reset_bullet_2_spiral" = "You'll lose message history that's only on the server.";
+"screen_encryption_reset_bullet_3_spiral" = "People you chat with will see that you reset encryption.";
+"screen_encryption_reset_action_continue_reset_spiral" = "Reset";
+"screen_reset_encryption_confirmation_alert_title_spiral" = "Reset encryption now?";
+"screen_reset_encryption_confirmation_alert_subtitle_spiral" = "This can't be undone.";
+"screen_reset_encryption_confirmation_alert_action_spiral" = "Reset";
+"screen_reset_encryption_password_title_spiral" = "Enter your password";
+"screen_reset_encryption_password_subtitle_spiral" = "To reset encryption, confirm it's you.";
+"screen_reset_encryption_password_placeholder_spiral" = "Enter…";
+"screen_reset_encryption_password_submit_spiral" = "Reset";
+"screen_session_verification_use_another_device_title_spiral" = "Open Spiral on another device";
+"screen_session_verification_use_another_device_subtitle_spiral" = "Use a device where you've already confirmed it's you, and keep Spiral open there.";
+"screen_session_verification_start_spiral" = "Continue";
+"screen_session_verification_request_title_spiral" = "Confirmation request";
+"screen_session_verification_request_subtitle_spiral" = "Confirm your other device so it can open your messages safely.";
+"screen_session_verification_request_footer_spiral" = "Continue only if you started this yourself.";
+"screen_session_verification_user_initiator_title_spiral" = "Confirm this person?";
+"screen_session_verification_user_initiator_subtitle_spiral" = "For extra safety, you'll each see a set of emoji. Compare them in person or on a call you trust.";
+"screen_session_verification_user_responder_subtitle_spiral" = "Someone wants to make sure it's really you. You'll both compare a set of emoji.";
+"screen_session_verification_compare_emojis_title_spiral" = "Do the emoji match?";
+"screen_session_verification_compare_emojis_subtitle_spiral" = "Check that your other device shows the same emoji in the same order.";
+"screen_session_verification_compare_emojis_user_subtitle_spiral" = "Check that their device shows the same emoji in the same order.";
+"screen_session_verification_they_match_spiral" = "Yes, they match";
+"screen_session_verification_they_dont_match_spiral" = "No, they don't";
+"screen_session_verification_device_verified_spiral" = "Device confirmed";
+"screen_session_verification_complete_subtitle_spiral" = "Your messages now open on your other device too.";
+"common_verification_complete_spiral" = "Confirmed";
+"screen_session_verification_complete_user_subtitle_spiral" = "You can now be sure you're messaging the real person.";
+"common_verification_failed_spiral" = "Couldn't confirm";
+"screen_session_verification_failed_subtitle_spiral" = "The request timed out, was declined, or the emoji didn't match.";
+"a11y_session_verification_time_limited_action_required_spiral" = "You have one minute to confirm.";
+"banner_set_up_recovery_title_spiral" = "Keep access to your messages";
+"banner_set_up_recovery_content_spiral" = "Your messages are backed up automatically. If you lose all your devices, a recovery key brings back your message history, so you don't have to start over.";
+"banner_set_up_recovery_submit_spiral" = "Create recovery key";
+"confirm_recovery_key_banner_title_spiral" = "Confirm your recovery key";
+"confirm_recovery_key_banner_message_spiral" = "Enter it to keep access to your message history.";
+"confirm_recovery_key_banner_primary_button_title_spiral" = "Enter recovery key";
+"confirm_recovery_key_banner_secondary_button_title_spiral" = "Lost your key?";
+
+/* AGENT-PLATFORM (Brief 0083, decision 357): a room's Threads page. */
+"screen_room_thread_list_empty_title" = "No threads yet";
+"screen_room_thread_list_empty_message" = "Reply to a message in a thread and it shows up here.";
+"screen_room_thread_list_load_failed" = "Couldn't load the threads";
+
+/* AGENT-PLATFORM (Brief 0083, question 359): the room header's status line in a DM, where the name is the title. */
+"screen_room_typing_dm_ios" = "typing…";
+/* Brief 0083, question 359: an agent's page and its Chats screen. */
+"screen_profile_agent_kind_assistant" = "Assistant";
+"screen_profile_agent_kind_agent" = "Agent";
+"screen_agent_chats_empty" = "Not in any chat yet.";
+/* AGENT-PLATFORM (Brief 0083, question 359, item 12): a chat's tools. The example keys are fixed sample messages, never someone's real text. */
+"screen_chat_tools_title" = "Chat tools";
+"screen_chat_tools_all_tools" = "All tools";
+/* %1$@ = the owner's display name. Localazy: change %1$@ -> %1$s */
+"screen_chat_tools_other_agent_owner" = "%1$@'s agent";
+"screen_add_tool_translate_subtitle" = "Translates messages into the language you choose";
+"screen_add_tool_simplify_subtitle" = "Rewrites messages in simpler words";
+"screen_add_tool_correct_subtitle" = "Fixes mistakes without changing the meaning";
+"screen_add_tool_rephrase_subtitle" = "Rewrites messages by your instruction";
+"screen_add_tool_summarize_subtitle" = "Sums up long messages in a few words";
+"screen_add_tool_custom_subtitle" = "Your own instruction in your own words";
+"screen_tool_example_greeting" = "Hello, how are you?";
+"screen_tool_example_message" = "Could you send me the report by Friday? I need it for the meeting.";
+"screen_tool_example_simplified" = "Please send the report by Friday.";
+"screen_tool_example_rephrased" = "I would be grateful to receive the report by Friday.";
+"screen_tool_example_summary" = "The report is needed by Friday.";
+"screen_tool_example_typos" = "Im sending teh report tommorow";
+"screen_tool_example_corrected" = "I'm sending the report tomorrow.";
+"screen_tool_example_call_summary" = "The team went through the report and will send it by Friday.";
+"screen_tool_example_call_summary_decisions_title" = "Decisions";
+"screen_tool_example_call_summary_decision" = "Send the report by Friday";
+"screen_tool_example_call_summary_action_items_title" = "Action items";
+"screen_tool_example_call_summary_action_item" = "Anna: check the figures";
+"screen_tool_example_custom" = "To do: send the report by Friday.";
+"screen_tool_example_instruction_polite" = "Example instruction: make it more polite";
+"screen_tool_example_instruction_todo" = "Example instruction: turn it into a to-do";
+"screen_tool_detail_when" = "When";
+"screen_tool_detail_your_messages" = "Your messages";
+"screen_tool_detail_your_messages_processed" = "Processed";
+"screen_tool_detail_your_messages_not_processed" = "Not processed";
+"screen_tool_detail_your_messages_unknown" = "Couldn't check";
+"screen_tool_detail_footer" = "Only the agent's owner can change or turn off this tool.";
+"screen_native_call_agent_pill_your_assistant" = "Your assistant";
+"screen_native_call_agent_pill_listening" = "Listening";
+"screen_native_call_agent_pill_translating" = "Translating";
+"screen_native_call_agent_pill_translation_paused" = "Translation paused";
+"screen_native_call_agent_pill_original_voice" = "Original voice";
+"screen_native_call_agent_pill_taking_notes" = "Taking notes";
+"screen_native_call_agent_pill_summary_not_sent" = "Summary not sent";
+"screen_native_call_agent_pill_recording_not_saved" = "Recording not saved";
+"a11y_native_call_agent_pill_in_call" = "%1$@, in the call";
+"a11y_native_call_agent_pill_other_agents" = "%1$@, other agents in the call: %2$d";
+
+/* Question 387: the call's Assistants sheet. */
+"screen_native_call_assistants_others_footer" = "Only the person who added an assistant can change it.";
+"screen_native_call_assistants_your_assistant" = "Your assistant";
+"screen_native_call_assistants_remove_from_call" = "Remove from call";
+"screen_native_call_assistants_remove_confirm_message" = "Notes and the recording so far will still be posted.";
+"screen_native_call_assistants_remove" = "Remove";
+"screen_native_call_assistants_joining" = "Joining the call…";
+"screen_native_call_assistants_still_joining" = "Still joining…";
+"screen_native_call_assistants_joins_when_answered" = "Joins when someone answers";
+"screen_native_call_assistants_leaving" = "Leaving…";
+"screen_native_call_assistants_cancel_join" = "Cancel";
+"screen_native_call_assistants_job_talks" = "Talks with you";
+"screen_native_call_assistants_recording" = "Recording";
+"screen_native_call_assistants_recording_stopped" = "Stopped. What was captured will be posted.";
+/* Question 404, one recording per call: someone else's assistant records it. %1$@ is the recording assistant's owner's first name. Localazy: change %1$@ -> %1$s */
+"screen_native_call_assistants_recording_covered_button" = "Recording";
+"screen_native_call_assistants_recording_covered" = "%1$@ is already recording this call";
+"screen_native_call_assistants_recording_covered_someone" = "Someone is already recording this call";
+"screen_native_call_assistants_recording_continue" = "Continue";
+"screen_native_call_assistants_recording_covered_card_detail" = "The file will come to this chat. When the recording stops, “Continue” will appear here.";
+"screen_native_call_assistants_recording_covered_got_it" = "Got it";
+"screen_native_call_assistants_record_confirm_message_after_other" = "%1$@ is no longer recording. Your recording will come to the chat as a separate file.";
+"screen_native_call_assistants_record_confirm_message_after_someone" = "The previous recording stopped. Your recording will come to the chat as a separate file.";
+"screen_native_call_assistants_record_confirm_title" = "Record the call?";
+"screen_native_call_assistants_record_confirm_message" = "Everyone sees REC in the header. The recording appears in the chat after the call.";
+"screen_native_call_assistants_record_confirm_action" = "Record";
+"screen_native_call_assistants_none_of_your_own" = "You don't have an assistant";
+"screen_native_call_assistants_which" = "Which assistant";
+"screen_native_call_assistants_reason_paused" = "Your assistant is paused";
+"screen_native_call_assistants_reason_paused_detail" = "While it's paused, it doesn't join calls";
+"screen_native_call_assistants_resume" = "Resume";
+"screen_native_call_assistants_reason_consent_owner_detail" = "Your assistant listens to the call through an AI model";
+"screen_native_call_assistants_allow_ai" = "Allow AI";
+"screen_native_call_assistants_reason_consent_room" = "Not everyone in this chat has allowed AI";
+"screen_native_call_assistants_reason_consent_room_detail" = "Assistants can join when everyone has";
+"screen_native_call_assistants_learn_more" = "Learn more";
+"screen_native_call_assistants_consent_room_explainer" = "AI in a call starts only when everyone in this chat has allowed it. Each person decides for themselves in Settings, and you can change your own choice there too.";
+"screen_native_call_assistants_reason_ask_to_join" = "Only admins can add members to this chat";
+"screen_native_call_assistants_reason_ask_to_join_detail" = "Ask an admin to add your assistant";
+"screen_native_call_assistants_copy_id" = "Copy assistant's ID";
+"screen_native_call_assistants_reason_budget" = "Weekly limit reached";
+"screen_native_call_assistants_reason_budget_detail" = "Your assistant can join again when the limit resets";
+"screen_native_call_assistants_reason_cannot_join_calls" = "Your assistant can't join calls";
+"screen_native_call_assistants_reason_cannot_join_calls_detail" = "Turn on its voice in the assistant's settings";
+"screen_native_call_assistants_reason_failed" = "Your assistant couldn't join";
+"screen_native_call_assistants_reason_failed_detail" = "Check your connection and try again";
+"screen_native_call_assistants_try_again" = "Try again";
+"screen_native_call_assistants_reason_needs_update" = "Update the app to add your assistant here";
+"screen_native_call_assistants_unavailable" = "Assistants are unavailable right now";
+"screen_native_call_assistants_unavailable_detail" = "The call itself is not affected";
+"screen_native_call_assistants_error_changed" = "Changed elsewhere a moment ago. Try again.";
+"screen_native_call_assistants_error_left" = "Your assistant has left the call";
+"screen_native_call_assistants_error_failed" = "Couldn't change it. Try again.";
+"screen_native_call_assistants_error_talk_refused" = "Talking isn't available in this call right now";
+"screen_native_call_assistants_foreign_translates_you" = "Translates you into %1$@";
+"screen_native_call_assistants_foreign_translates" = "Translates into %1$@";
+"screen_native_call_assistants_foreign_records_you" = "Records the call";
+"screen_native_call_assistants_foreign_records_you_detail" = "The recording appears in the chat after the call";
+"screen_native_call_assistants_foreign_notes" = "Takes notes of this call";
+"screen_native_call_assistants_foreign_notes_detail" = "Notes are posted in the chat after the call";
+"screen_native_call_assistants_foreign_talks" = "Talks with its owner";
+"screen_native_call_assistants_foreign_talks_detail" = "Everyone hears it";
+"screen_native_call_assistants_foreign_listening" = "Listening";
+"screen_native_call_assistants_foreign_listening_detail" = "Doesn't talk or translate";
+"screen_native_call_assistants_remove_from_chat" = "Remove from chat";
+"screen_native_call_assistants_remove_from_chat_message" = "Removes %1$@ from this chat, not just the call. Its tools in this chat stop. Its owner can add it again.";
+"screen_native_call_assistants_search_languages" = "Search languages";
+"a11y_native_call_assistants_more" = "More";
+/* Question 401: the sheet's two tabs (%1$d = other people's assistants in the call), the conflict when the translated person is the viewer, and what a removal still posts. */
+"screen_native_call_assistants_remove_confirm_recording" = "The recording so far will still be posted.";
+"screen_native_call_assistants_remove_confirm_notes" = "Notes so far will still be posted.";
+/* Question 401, board A: the add form's title, the link to the weekly Limit page, and someone else's assistant in one sentence from your side (%1$@ = languages; the two lowercase ones follow a " · " mid-sentence). Localazy: change %1$@ -> %1$s */
+"screen_native_call_assistants_my_limit" = "My limit";
+"screen_native_call_assistants_foreign_status_translates_you" = "Translates you into %1$@";
+"screen_native_call_assistants_foreign_status_records_you" = "Records the call, you too";
+"screen_native_call_assistants_foreign_status_also_records" = "records";
+"screen_native_call_assistants_foreign_status_also_notes" = "takes notes";
+/* Question 401, settings concept A: the three mode tiles, the line under them, the translation's choices, the two toggle buttons and the assistant's menu. */
+"screen_native_call_assistants_menu_profile" = "Assistant's profile";
+"screen_native_call_assistants_owner_assistant" = "%1$@'s assistant";
+"screen_native_call_assistants_owner" = "Owner: %1$@";
+"screen_native_call_assistants_delivery_pending" = "Delivering…";
+"screen_native_call_assistants_delivered_room" = "Delivered to this chat";
+"screen_native_call_assistants_delivered_owner_dm" = "Delivered to your chat with your assistant";
+"screen_native_call_assistants_delivery_failed" = "Couldn't be delivered";
+// Localazy: change %1$@ -> %1$s
+"a11y_native_call_translate_listening" = "Listening in %1$@";
+"a11y_native_call_translate_new" = "A new language is available";
+// Localazy: change %1$@ -> %1$s
+"a11y_native_call_participant_heard_in" = "You hear them in %1$@";
+"screen_native_call_translate_menu_title" = "Listen to the call";
+"screen_native_call_translate_original" = "Original";
+"screen_native_call_translate_original_detail" = "No translation";
+"screen_native_call_translate_free" = "Free";
+// Localazy: change %1$@ -> %1$s
+"screen_native_call_translate_free_by" = "From %1$@ · free";
+"screen_native_call_translate_partial" = "%1$d of %2$d · free";
+// Localazy: change %1$@ -> %1$s
+// Localazy: change %1$@ -> %1$s
+"screen_native_call_translate_my_language" = "My language";
+"screen_native_call_translate_block_consent_owner" = "You haven't allowed AI yet";
+// Localazy: change %1$@ -> %1$s
+// Localazy: change %1$@ -> %1$s
+"screen_native_call_capsule_available" = "Translation into %1$@ is available";
+"screen_native_call_capsule_listen" = "Listen";
+"screen_native_call_capsule_stopped" = "Translation stopped";
+"screen_native_call_capsule_continue" = "Continue";
+// Localazy: change %1$@ -> %1$s
+"screen_native_call_capsule_stopped_limit" = "%1$@ · their AI limit ran out";
+// Localazy: change %1$@ -> %1$s
+"screen_native_call_capsule_stopped_owner" = "%1$@ · turned it off";
+"screen_native_call_capsule_tool" = "Translation on, by the chat's tool";
+// Localazy: change %1$@ -> %1$s
+// Localazy: change %2$@ -> %2$s
+"screen_native_call_capsule_own_translating" = "Translating %1$@ into %2$@";
+"screen_native_call_assistants_job_translation" = "Translation";
+"screen_native_call_assistants_job_summary" = "Notes";
+"screen_native_call_assistants_job_conversation" = "Talk";
+// Localazy: change %1$@ -> %1$s
+"screen_native_call_assistants_translating" = "Translating into %1$@";
+"screen_native_call_assistants_stop_translation" = "Stop translation";
+"screen_native_call_assistants_talk_caption" = "Answers you aloud, and everyone hears it. Translation is off while it talks.";
+"screen_native_call_assistants_pick_footer" = "Remembered for this chat";
+"screen_native_call_assistants_neighbour_language" = "Language of the person next to you";
+"screen_native_call_assistants_pocket_detail" = "After each phrase · both ways";
+// Localazy: change %1$@ -> %1$s
+"screen_native_call_assistants_foreign_you_listen" = "you listen";
+"screen_native_call_translation_tool_title" = "Call translation";
+// Localazy: change %1$@ -> %1$s
+"screen_native_call_translation_tool_summary" = "In this chat's calls you listen in %1$@";
+"screen_native_call_translation_tool_summary_off" = "Calls in this chat start in the original";
+"screen_native_call_translation_tool_enabled" = "On";
+"screen_native_call_translation_tool_language" = "Language";
+"screen_native_call_translation_tool_fallback" = "If nobody translates, my assistant does";
+"screen_native_call_translation_tool_not_saved" = "Couldn't save this yet. Try again later.";
+
+/* Brief 0085, question 403, lab round 2 (L1–L5): the Assistants sheet in the call's glass. */
+"screen_native_call_assistants_not_in_call" = "Not in the call";
+"screen_native_call_assistants_status_paused" = "Paused";
+"screen_native_call_assistants_status_limit" = "Translation stopped: limit";
+"screen_native_call_assistants_status_both_ways" = "Translating both ways";
+"screen_native_call_assistants_translate_into" = "Translate into";
+"screen_native_call_assistants_translate_into_detail" = "You hear the call in it";
+"screen_native_call_assistants_in_call" = "In the call";
+"screen_native_call_assistants_in_call_more" = "In the call: %1$d more";
+"screen_native_call_assistants_new_translation" = "New translation";
+"screen_native_call_assistants_new_translation_detail" = "Your assistant will translate the call";
+"screen_native_call_assistants_new_translation_others" = "Your assistant translates %1$@. The others are already translated, free.";
+"screen_native_call_assistants_start_translation" = "Start translation";
+"screen_native_call_assistants_start_translation_detail" = "Uses your limit. Anyone who picks this language listens free.";
+"screen_native_call_assistants_listen_language" = "Listen in %1$@";
+"screen_native_call_assistants_listen_free_by" = "Free: %1$@'s assistant already translates.";
+"screen_native_call_assistants_listen_free" = "Free: another assistant already translates.";
+"screen_native_call_assistants_free_section" = "Already translated: free";
+"screen_native_call_assistants_all_languages" = "All languages";
+"screen_native_call_assistants_phone_language" = "Phone language";
+"screen_native_call_assistants_limit_title" = "Translation limit reached";
+"screen_native_call_assistants_neighbour" = "Person next to you";
+"screen_native_call_assistants_i_speak" = "I speak";
+"screen_native_call_assistants_i_speak_detail" = "You speak it and hear the translation in it";
+"screen_native_call_assistants_remove_from_chat_title" = "Remove %1$@ from the chat?";
+"screen_native_call_assistants_foreign_for_language" = "For those who picked %1$@";
+"screen_native_call_translate_add_own" = "Add your translation…";
+"screen_native_call_capsule_undo" = "Undo";
+"screen_native_call_translate_partial_by" = "%1$d of %2$d · from %3$@ · free";
+"screen_native_call_assistants_nothing_to_translate" = "Everyone here speaks this language: nothing to translate.";
+"screen_native_call_assistants_status_standby" = "On standby · will take over";
+// Localazy: change %1$@ -> %1$s, %2$@ -> %2$s
+"screen_native_call_assistants_nothing_to_translate_one" = "%1$@ already speaks %2$@";
+// Localazy: change %1$@ -> %1$s
+"screen_native_call_assistants_nothing_to_translate_everyone" = "Everyone already speaks %1$@";
+"screen_native_call_assistants_nothing_to_translate_detail" = "Nothing to translate. Pick another language in “Translate into”, or turn translation on when someone speaks another language.";
+"screen_native_call_assistants_status_nothing_to_translate" = "Nothing to translate · everyone speaks this language";
+"screen_native_call_assistants_foreign_standby" = "On standby · %1$@";
+"screen_native_call_assistants_stop_standby" = "Stop";
+"screen_native_call_assistants_status_owner_left" = "The owner left the call";
+// Localazy: change %1$@ -> %1$s
+"screen_native_call_capsule_stopped_owner_left" = "%1$@ · left the call";
+"screen_native_call_assistants_status_starting" = "Starting translation…";
+"screen_native_call_translation_tool_fallback_detail" = "Uses your AI limit";
+"screen_native_call_translation_tool_footer_shared" = "You hear this chat's calls in the language you pick. If your assistant translates, everyone in the chat sees the tool.";
+// Localazy: change %1$@ -> %1$s
+"screen_native_call_capsule_translating_you" = "Translating you from %1$@";
+"screen_native_call_capsule_change" = "Change";
+"screen_native_call_translate_own" = "Your translation…";
+"screen_native_call_translate_other_language" = "Other language…";
+
+// AGENT-PLATFORM (Brief 0083, question 413): Spiral's own media viewer.
+"screen_media_viewer_open" = "Open";
+"screen_media_viewer_position" = "%1$d of %2$d";
+"a11y_media_viewer_more" = "More";
+"a11y_album_open_item" = "Open item %1$d";

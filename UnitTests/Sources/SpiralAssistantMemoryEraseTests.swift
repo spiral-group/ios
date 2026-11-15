@@ -11,8 +11,8 @@
 // confirmed first, then `DELETE /me/memory`, then a toast that says what went.
 //
 
-@testable import ElementX
 import Foundation
+@testable import Spiral
 import Testing
 
 @MainActor
@@ -115,12 +115,12 @@ struct SpiralAssistantMemoryEraseTests {
         try await offered.fulfill()
     }
 
-    @Test(arguments: [SpiralAssistantMemoryEraseTests.ownAssistant, SpiralAssistantMemoryEraseTests.ownCompanyAgent])
+    @Test(arguments: SpiralAssistantMemoryEraseTests.ownAgents)
     func memberDetailsOffersNoEraseOnTheirOwnAgent(agentID: String) async throws {
         stubOwnAgents()
         let viewModel = makeMemberDetails(member: agentMember(agentID), hasAssistant: true)
 
-        let known = deferFulfillment(viewModel.context.$viewState) { $0.memberDetails != nil && $0.ownAgentMXIDs != nil }
+        let known = deferFulfillment(viewModel.context.$viewState) { $0.memberDetails != nil && $0.agentProfile?.ownCard != nil }
         try await known.fulfill()
         #expect(!viewModel.context.viewState.showEraseAssistantMemorySection)
     }
@@ -134,7 +134,7 @@ struct SpiralAssistantMemoryEraseTests {
         try await Task.sleep(for: .milliseconds(200))
 
         #expect(service.fetchAgentSpaceOrgIDCalled)
-        #expect(viewModel.context.viewState.ownAgentMXIDs == nil)
+        #expect(viewModel.context.viewState.agentOwnership == .unknown(isReading: false))
         #expect(!viewModel.context.viewState.showEraseAssistantMemorySection)
     }
 
@@ -147,13 +147,15 @@ struct SpiralAssistantMemoryEraseTests {
         #expect(!service.listMyAgentSpacesCalled)
     }
 
+    /// Only an answer that it's someone else's offers the erase on an agent; a person's needs none.
     @Test
-    func ownAgentsComeFromEverySpace() async {
-        stubOwnAgents()
-        let eraser = AssistantMemoryEraser(agentPlatformService: service, userIndicatorController: userIndicatorController)
-
-        #expect(await eraser.ownAgentMXIDs() == [Self.ownAssistant, Self.ownCompanyAgent])
-        #expect(Set(service.fetchAgentSpaceOrgIDReceivedInvocations) == ["solo", "acme"])
+    func theEraseOnAnAgentNeedsAnAnswer() {
+        let answers: [(AgentOwnership, Bool)] = [(.someoneElses, true), (.unknown(isReading: true), false), (.unknown(isReading: false), false),
+                                                 (.own(AgentProfileMock.assistant), false)]
+        for (ownership, offers) in answers {
+            #expect(AssistantMemoryEraser.offersErase(onProfileOf: Self.strangersAgent, ownership: ownership) == offers)
+            #expect(AssistantMemoryEraser.offersErase(onProfileOf: RoomMemberProxyMock.mockAlice.userID, ownership: ownership))
+        }
     }
 
     // MARK: - User profile
@@ -198,12 +200,12 @@ struct SpiralAssistantMemoryEraseTests {
         try await offered.fulfill()
     }
 
-    @Test(arguments: [SpiralAssistantMemoryEraseTests.ownAssistant, SpiralAssistantMemoryEraseTests.ownCompanyAgent])
+    @Test(arguments: SpiralAssistantMemoryEraseTests.ownAgents)
     func userProfileOffersNoEraseOnTheirOwnAgent(agentID: String) async throws {
         stubOwnAgents()
         let viewModel = makeUserProfile(userID: agentID, hasAssistant: true)
 
-        let known = deferFulfillment(viewModel.context.observe(\.viewState.ownAgentMXIDs)) { $0 != nil }
+        let known = deferFulfillment(viewModel.context.observe(\.viewState.agentProfile?.ownCard)) { $0 != nil }
         try await known.fulfill()
         let loaded = deferFulfillment(viewModel.context.observe(\.viewState.userProfile)) { $0 != nil }
         try await loaded.fulfill()
@@ -215,6 +217,8 @@ struct SpiralAssistantMemoryEraseTests {
     nonisolated static let ownAssistant = "@assistant-me:matrix.org"
     nonisolated static let ownCompanyAgent = "@agent-acme-1:matrix.org"
     nonisolated static let strangersAgent = "@assistant-bob:matrix.org"
+    /// The person's own agents as the app knows them: no company agent while companies are hidden (396).
+    nonisolated static let ownAgents = SpiralFeatures.companySpaces ? [ownAssistant, ownCompanyAgent] : [ownAssistant]
 
     /// The person's Personal space holds their assistant, their company space a company agent.
     private func stubOwnAgents() {
@@ -225,7 +229,7 @@ struct SpiralAssistantMemoryEraseTests {
             let mxid = orgID == "solo" ? Self.ownAssistant : Self.ownCompanyAgent
             let card = AgentSpaceAgentCard(agentID: "agent-\(orgID)", matrixUserID: mxid, displayName: "Agent", avatarMXC: nil,
                                            kind: orgID == "solo" ? "personal_assistant" : "sales", visibility: "public",
-                                           lifecycleState: "active", presence: .online, roomCount: 0, activeToolCount: 0)
+                                           lifecycleState: "active", roomCount: 0, activeToolCount: 0)
             return .success(.init(orgID: orgID, name: orgID, kind: orgID == "solo" ? .solo : .company,
                                   avatarMXC: nil, industry: nil, website: nil, agents: [card]))
         }
@@ -249,11 +253,12 @@ struct SpiralAssistantMemoryEraseTests {
         roomProxy.getMemberUserIDClosure = { _ in .success(member) }
         let userSession = UserSessionMock(.init())
         userSession.agentPlatformService = hasAssistant ? service : nil
+        userSession.agentsStore = hasAssistant ? AgentsStore(service: service) : nil
         return RoomMemberDetailsScreenViewModel(userID: member.userID,
                                                 roomProxy: roomProxy,
                                                 userSession: userSession,
-                                                userIndicatorController: userIndicatorController,
-                                                analytics: AnalyticsServiceMock(.init()))
+                                                analytics: AnalyticsServiceMock(.init()),
+                                                userIndicatorController: userIndicatorController)
     }
 
     private func waitForMember(_ viewModel: RoomMemberDetailsScreenViewModel) async throws {
@@ -266,11 +271,12 @@ struct SpiralAssistantMemoryEraseTests {
         clientProxy.profileForReturnValue = .success(UserProfile(userID: userID, displayName: userID == RoomMemberProxyMock.mockAlice.userID ? "Alice" : "Me"))
         let userSession = UserSessionMock(.init(clientProxy: clientProxy))
         userSession.agentPlatformService = hasAssistant ? service : nil
+        userSession.agentsStore = hasAssistant ? AgentsStore(service: service) : nil
         return UserProfileScreenViewModel(userID: userID,
                                           isPresentedModally: false,
                                           userSession: userSession,
-                                          userIndicatorController: userIndicatorController,
-                                          analytics: AnalyticsServiceMock(.init()))
+                                          analytics: AnalyticsServiceMock(.init()),
+                                          userIndicatorController: userIndicatorController)
     }
 }
 

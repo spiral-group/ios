@@ -23,7 +23,8 @@ struct VideoMediaEventsTimelineView: View {
                     thumbnail
                 }
                 .clipped()
-                .overlay(alignment: .bottom) { overlay }
+                // AGENT-PLATFORM (Brief 0083, question 413): the chip a video has in a chat's album.
+                .overlay(alignment: .topLeading) { MediaVideoBadge(duration: timelineItem.content.videoInfo.duration) }
                 .accessibilityElement(children: .ignore)
                 .accessibilityLabel(L10n.commonVideo)
         } scanningContent: {
@@ -45,25 +46,8 @@ struct VideoMediaEventsTimelineView: View {
             }
             .mediaGalleryTimelineAspectRatio(imageInfo: timelineItem.content.thumbnailInfo)
         } else {
-            overlay
+            placeholder
         }
-    }
-    
-    var overlay: some View {
-        HStack(spacing: 0) {
-            CompoundIcon(\.videoCallSolid)
-            Spacer()
-            Text(Duration.seconds(timelineItem.content.videoInfo.duration).formatted(.time(pattern: .minuteSecond)))
-        }
-        .padding(8)
-        .background {
-            LinearGradient(stops: [.init(color: .clear, location: 0.0),
-                                   .init(color: .compound.bgCanvasDefault, location: 1.0)],
-                           startPoint: .top,
-                           endPoint: .bottom)
-        }
-        .font(.compound.bodyXSSemibold)
-        .foregroundStyle(.compound.textPrimary)
     }
     
     var placeholder: some View {

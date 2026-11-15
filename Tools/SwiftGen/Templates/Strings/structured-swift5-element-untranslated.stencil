@@ -80,6 +80,12 @@ import Foundation
 // Swift 6.2 default-MainActor isolation change.
 nonisolated extension {{enumName}} {
   static func tr(_ table: String, _ key: String, _ args: CVarArg...) -> String {
+    // AGENT-PLATFORM (Brief 0083, question 359): the timeline's rows ask for their labels each time they're drawn.
+    guard args.isEmpty else { return lookUp(table, key, args) }
+    return Bundle.cachedTranslation(table: table, key: key) { lookUp(table, key, args) }
+  }
+
+  private static func lookUp(_ table: String, _ key: String, _ args: [CVarArg]) -> String {
     // Use preferredLocalizations to get a language that is in the bundle and the user's preferred list of languages.
     let languages = Bundle.overrideLocalizations ?? Bundle.app.preferredLocalizations
 

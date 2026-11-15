@@ -6,8 +6,8 @@
 // Please see LICENSE files in the repository root for full details.
 //
 
-@testable import ElementX
 import OrderedCollections
+@testable import Spiral
 import Testing
 
 @MainActor
@@ -35,7 +35,31 @@ struct TimelineStateTests {
         #expect(state.readMarkerUniqueID == nil)
     }
     
+    @Test("A row folded into a group counts as loaded")
+    func foldedRowIsLoaded() {
+        var state = TimelineState()
+        // Not the first row: the group goes by that one's ID.
+        let group = CollapsibleTimelineItem(items: [makeStateItem(eventID: "$first"), makeStateItem(eventID: "$folded")])
+        state.itemsDictionary[.init("group")] = RoomTimelineItemViewState(type: .group(group), groupStyle: .single)
+        state.fullyReadEventID = "$folded"
+        
+        #expect(!state.isReadMarkerAboveLoadedRows)
+        
+        state.fullyReadEventID = "$older"
+        #expect(state.isReadMarkerAboveLoadedRows)
+    }
+    
     // MARK: - Helpers
+    
+    private func makeStateItem(eventID: String) -> StateRoomTimelineItem {
+        StateRoomTimelineItem(id: .event(uniqueID: .init(eventID), eventOrTransactionID: .eventID(eventID)),
+                              body: "Alice joined",
+                              timestamp: .mock,
+                              isOutgoing: false,
+                              isEditable: false,
+                              canBeRepliedTo: false,
+                              sender: .init(id: "@sender:example.com"))
+    }
     
     private func makeTextViewState(uniqueID: String) -> RoomTimelineItemViewState {
         let item = TextRoomTimelineItem(id: .virtual(uniqueID: .init(uniqueID)),

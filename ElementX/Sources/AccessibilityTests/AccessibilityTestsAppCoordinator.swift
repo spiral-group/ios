@@ -30,6 +30,7 @@ class AccessibilityTestsAppCoordinator: AppCoordinatorProtocol {
     }
     
     private let previewsWrapper: PreviewsWrapper
+    private let contrastExemptions = SpiralContrastExemptions() // AGENT-PLATFORM (Brief 0083)
     
     private var cancellables = Set<AnyCancellable>()
     
@@ -47,12 +48,27 @@ class AccessibilityTestsAppCoordinator: AppCoordinatorProtocol {
         previewsWrapper = .init(name: name, previews: previewType._allPreviews)
         
         setupSignalling()
-        // Used to perform the request check before the tests run on CI, so it can be immediately dismissed.
-        CLLocationManager().requestWhenInUseAuthorization()
+        // AGENT-PLATFORM: App Review F1 (decision 252): no location permission request —
+        // this coordinator ships in the app binary, which must not reference one.
     }
     
     func toPresentable() -> AnyView {
-        AnyView(PreviewsWrapperView(wrapper: previewsWrapper))
+        // AGENT-PLATFORM (Brief 0083): only Spiral's light and dark audits set a colour scheme;
+        // an outer one, even nil, would override a preview's own `preferredColorScheme`.
+        guard let colorScheme = Self.auditColorScheme else {
+            return AnyView(PreviewsWrapperView(wrapper: previewsWrapper))
+        }
+        return AnyView(PreviewsWrapperView(wrapper: previewsWrapper).preferredColorScheme(colorScheme))
+    }
+    
+    /// The appearance AccessibilityTests asked for, `nil` for the simulator's.
+    private static var auditColorScheme: ColorScheme? {
+        switch ProcessInfo.processInfo.environment["ACCESSIBILITY_APPEARANCE"] {
+        case nil: nil
+        case "light": .light
+        case "dark": .dark
+        case let appearance?: fatalError("Unable to audit in the unknown appearance \(appearance).")
+        }
     }
     
     private func setupSignalling() {
@@ -64,6 +80,7 @@ class AccessibilityTestsAppCoordinator: AppCoordinatorProtocol {
                 case .accessibilityAudit(let auditSignal):
                     switch auditSignal {
                     case .nextPreview:
+                        contrastExemptions.remove() // AGENT-PLATFORM (Brief 0083)
                         Task { [weak self] in
                             guard let self else { return }
                             await previewsWrapper.updateCurrentIndex()
@@ -77,6 +94,13 @@ class AccessibilityTestsAppCoordinator: AppCoordinatorProtocol {
                             } catch {
                                 fatalError("Failed sending signal: \(signal)")
                             }
+                        }
+                    case .prepareContrastAudit: // AGENT-PLATFORM (Brief 0083): Spiral's gate audits contrast again, without its exemptions.
+                        let hiddenElements = contrastExemptions.apply()
+                        do {
+                            try client.send(.accessibilityAudit(.contrastAuditReady(name: previewsWrapper.previewName, hiddenElements: hiddenElements)))
+                        } catch {
+                            fatalError("Failed sending signal: \(signal)")
                         }
                     default:
                         break
@@ -114,6 +138,9 @@ struct PreviewsWrapperView: View {
     
     private(set) var isDone = false
     
+    /// On iOS 27, releasing an ImageRenderer that rendered a preview crashes SwiftUI, so keep them alive for the app's lifetime.
+    @ObservationIgnored private var imageRenderers = [AnyObject]()
+    
     var previewName: String {
         "\(name)-\(currentPreview.displayName ?? String(currentIndex))"
     }
@@ -136,6 +163,7 @@ struct PreviewsWrapperView: View {
         // Render an image of the view in order to trigger the preference updates to occur.
         let imageRenderer = ImageRenderer(content: preferenceReadingView)
         _ = imageRenderer.uiImage
+        imageRenderers.append(imageRenderer)
         
         switch fulfillmentSource {
         case .publisher(let publisher):

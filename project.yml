@@ -25,9 +25,7 @@ options:
     - AccessibilityTests
     - IntegrationTests
     - SpiralDevE2ETests
-    - DevelopmentAssets
-    - SDKMocks
-    - Secrets
+    - Components
     - Tools
   - pattern: ElementX
     order:
@@ -49,22 +47,32 @@ options:
       file: true # https://github.com/yonaskolb/XcodeGen/issues/1556
   postGenCommand: cd Tools/XcodeGen && sh postGenCommand.sh
 
+# AGENT-PLATFORM (Brief 0084): Staging is Release's optimisation pointed at
+# staging.spiral.md. A scheme can pick a configuration but no build setting, so
+# Product › Archive needs one. `SpiralEnvironment` is the only reader of the
+# condition; docs/project/CODEBASE/07-build-and-codegen.md.
+configs:
+  Debug: debug
+  Release: release
+  Staging: release
+
 settings:
-  CLANG_ANALYZER_LOCALIZABILITY_NONLOCALIZED: true
-  ENABLE_BITCODE: false
-  APP_NAME: Spiral
-  KEYCHAIN_ACCESS_GROUP_IDENTIFIER: "$(DEVELOPMENT_TEAM).$(BASE_BUNDLE_IDENTIFIER)"
-  # AGENT-PLATFORM: Spiral marketing version (upstream calendar version was 26.08.1).
-  MARKETING_VERSION: 1.0.1
-  CURRENT_PROJECT_VERSION: 5
-  SUPPORTS_MACCATALYST: false
+  base:
+    CLANG_ANALYZER_LOCALIZABILITY_NONLOCALIZED: true
+    ENABLE_BITCODE: false
+    APP_NAME: Spiral
+    KEYCHAIN_ACCESS_GROUP_IDENTIFIER: "$(DEVELOPMENT_TEAM).$(BASE_BUNDLE_IDENTIFIER)"
+    # AGENT-PLATFORM: Spiral marketing version (upstream calendar version was 26.10.8).
+    MARKETING_VERSION: 1.0.2
+    CURRENT_PROJECT_VERSION: 1
+    SUPPORTS_MACCATALYST: false
+    ARCHS: arm64
 
 include:
 - path: app.yml
 - path: ElementX/SupportingFiles/target.yml
 - path: NSE/SupportingFiles/target.yml
 - path: ShareExtension/SupportingFiles/target.yml
-- path: SDKMocks/SupportingFiles/target.yml
 - path: UnitTests/SupportingFiles/target.yml
 - path: PreviewTests/SupportingFiles/target.yml
 - path: UITests/SupportingFiles/target.yml
@@ -72,6 +80,9 @@ include:
 # AGENT-PLATFORM (decision 146): the dev-stack E2E suite; its runner is not published.
 - path: SpiralDevE2ETests/SupportingFiles/target.yml
 - path: AccessibilityTests/SupportingFiles/target.yml
+- path: Components/MapLibre/MapLibreInterface/SupportingFiles/target.yml
+- path: Components/MapLibre/MapLibreShim/SupportingFiles/target.yml
+- path: Components/SDKMocks/SupportingFiles/target.yml
 # - path: MyAppVariant/override.yml
 
 packages:
@@ -83,10 +94,23 @@ packages:
     # PROVENANCE.json. For cross-repo work, swap in the sibling path (a
     # locally built framework beside its Package.swift is used first).
     url: https://github.com/spiral-group/matrix-rust-components-swift
-    exactVersion: 26.07.28-spiral.31
+    exactVersion: 26.10.29-spiral.6
     # path: ../matrix-rust-components-swift
   Compound:
     path: compound-ios
+  # AGENT-PLATFORM (Brief 0083 phase 3, decision 293): Spiral's own design-system
+  # package. Its SpiralTokens target is generated from agent-brand-assets
+  # (gen-spiral-ios.mjs); compound-ios depends on it as well.
+  SpiralUI:
+    path: SpiralUI
+  # AGENT-PLATFORM (Brief 0083 phase 3, decision 293): Spiral's own shared components, built on
+  # Compound and SpiralTokens. A package of its own, as compound-ios depends on SpiralUI.
+  SpiralComponents:
+    path: SpiralComponents
+  # AGENT-PLATFORM (Brief 0067): upstream's `ElementCall` package
+  # (element-call-ios, upstream's own native calls) is deliberately absent,
+  # like `EmbeddedElementCall` below: calls are Spiral's native MatrixRTC
+  # (ADR-0079), and it pulls element-hq's own SDK and token packages.
   # AGENT-PLATFORM: typed REST bindings against the Matrix AI
   # Agent Platform backend (`/api/v1/*`). Local-path package
   # mirroring the compound-ios shape; sources live at
@@ -95,10 +119,10 @@ packages:
   AgentPlatformClient:
     path: libraries/agentplatform-client
   BuildExtensions:
-    path: BuildExtensions
+    path: Components/BuildExtensions
   AnalyticsEvents:
     url: https://github.com/matrix-org/matrix-analytics-events
-    minorVersion: 0.37.0
+    exactVersion: 0.38.0
     # path: ../matrix-analytics-events
   # AGENT-PLATFORM (Brief 0067): upstream's `EmbeddedElementCall` package is
   # deliberately absent — calls are native MatrixRTC only (ADR-0079). Do not
@@ -114,7 +138,7 @@ packages:
   # media. See ADR-0007 § "Reconciliation with ADR-0079".
   SpiralAppShell:
     url: https://github.com/spiral-group/spiral-app-shell
-    exactVersion: 1.0.1
+    exactVersion: 1.1.0
     # path: ../spiral-app-shell/ios
   # AGENT-PLATFORM (Brief 0063): native MatrixRTC media stack. Sibling fork
   # of livekit/client-sdk-swift on the exact 2.16.0 tag (the first release
@@ -133,33 +157,34 @@ packages:
   Emojibase:
     url: https://github.com/matrix-org/emojibase-bindings
     revision: 60bc01f2e3b31445dc723f5af1a777b63d18e6c2 # pinned due to https://github.com/matrix-org/emojibase-bindings/issues/59
-    # minorVersion: 1.5.0
+    # exactVersion: 1.5.0
     # path: ../emojibase-bindings
   SwiftOGG:
     url: https://github.com/element-hq/swift-ogg
-    minorVersion: 0.0.4
+    exactVersion: 0.0.4
     # path: ../swift-ogg
   WysiwygComposer:
     url: https://github.com/element-hq/matrix-rich-text-editor-swift
-    exactVersion: 2.42.0
+    exactVersion: 2.42.1
     # path: ../matrix-rich-text-editor/platforms/ios/lib/WysiwygComposer
   
   # External dependencies
   Algorithms:
     url: https://github.com/apple/swift-algorithms
-    minorVersion: 1.2.1
+    exactVersion: 1.2.1
   AsyncAlgorithms:
     url: https://github.com/apple/swift-async-algorithms
-    minorVersion: 1.1.5
+    exactVersion: 1.1.6
+  # AGENT-PLATFORM (Brief 0067): test-only, for CallKitServiceTests (upstream dropped it with ElementCallService).
   Clocks:
     url: https://github.com/pointfreeco/swift-clocks
-    from: 1.1.0
+    exactVersion: 1.1.0 # 1.1.1 pulls swift-issue-reporting, which clashes with xctest-dynamic-overlay
   Collections:
     url: https://github.com/apple/swift-collections
-    minorVersion: 1.6.0
+    exactVersion: 1.7.1
   DeviceKit:
     url: https://github.com/devicekit/DeviceKit
-    minorVersion: 5.8.0
+    exactVersion: 5.9.0
   DSWaveformImage:
     url: https://github.com/dmrschmidt/DSWaveformImage
     exactVersion: 14.5.0
@@ -168,45 +193,45 @@ packages:
     exactVersion: 1.2
   GZIP:
     url: https://github.com/nicklockwood/GZIP
-    minorVersion: 1.3.2
+    exactVersion: 1.3.2
   KeychainAccess:
     url: https://github.com/kishikawakatsumi/KeychainAccess
-    minorVersion: 4.2.2
+    exactVersion: 4.2.2
   Kingfisher:
     url: https://github.com/onevcat/Kingfisher
-    minorVersion: 8.11.0
+    exactVersion: 8.13.0
   KZFileWatchers:
     url: https://github.com/krzysztofzablocki/KZFileWatchers
-    minorVersion: 1.2.0
+    exactVersion: 1.2.0
   LoremSwiftum:
     url: https://github.com/lukaskubanek/LoremSwiftum
-    minorVersion: 2.2.3
+    exactVersion: 2.2.3
   LRUCache:
     url: https://github.com/nicklockwood/LRUCache
-    minorVersion: 1.2.1
+    exactVersion: 1.3.0
   Mantis:
     url: https://github.com/guoyingtao/Mantis
-    minorVersion: 3.1.0
+    exactVersion: 3.1.0
   MapLibre:
     url: https://github.com/maplibre/maplibre-gl-native-distribution
-    minorVersion: 6.27.0
+    exactVersion: 6.31.0
   # AGENT-PLATFORM (Brief 0078): PostHog and Sentry removed — Spiral collects no
   # analytics or crash data (docs/project/DECISIONS.md, App Review pass).
   SnapshotTesting:
     url: https://github.com/pointfreeco/swift-snapshot-testing
-    minorVersion: 1.19.3
+    exactVersion: 1.19.6
   SwiftFlow:
     url: https://github.com/tevelee/SwiftUI-Flow.git
-    minorVersion: 3.4.0
+    exactVersion: 3.5.1
   SwiftSoup:
     url: https://github.com/scinfu/SwiftSoup.git
-    minorVersion: 2.13.6
+    exactVersion: 2.13.9
   SwiftState:
     url: https://github.com/ReactKit/SwiftState
-    minorVersion: 6.0.1
+    exactVersion: 6.0.1
   Version:
     url: https://github.com/mxcl/Version
-    minorVersion: 2.2.1
+    exactVersion: 2.2.1
 
 aggregateTargets:
   Periphery:

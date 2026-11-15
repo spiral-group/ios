@@ -7,6 +7,7 @@
 //
 
 import Compound
+import SpiralComponents
 import SwiftUI
 
 struct RoomMembersListScreen: View {
@@ -26,7 +27,15 @@ struct RoomMembersListScreen: View {
             }
             
             if context.viewState.shouldShowEmptyState {
-                emptySearchView
+                // AGENT-PLATFORM (Brief 0083, decision 357): a room always has a member, so with no search this is the
+                // first read. It said "No results for “”".
+                if context.searchQuery.isEmpty {
+                    SpiralPreloader(label: L10n.commonLoading) {
+                        SpiralPlaceholderRows(count: 6, leading: .avatar(Avatars.Size.user(on: .roomMembersList).value))
+                    }
+                } else {
+                    emptySearchView
+                }
             } else {
                 Spacer()
                     .frame(height: 18)
@@ -187,6 +196,7 @@ struct RoomMembersListScreen_Previews: PreviewProvider, TestablePreview {
     static let bannedViewModel = makeViewModel(isAdmin: true, initialMode: .banned)
     static let emptyBannedViewModel = makeViewModel(withBanned: false, isAdmin: false, initialMode: .members)
     static let activeRoomCallViewModel = makeViewModel(hasActiveRoomCall: true, isAdmin: true)
+    static let loadingViewModel = makeViewModel(hasMembers: false) // AGENT-PLATFORM (Brief 0083, decision 357)
     
     static var previews: some View {
         ElementNavigationStack {
@@ -233,11 +243,20 @@ struct RoomMembersListScreen_Previews: PreviewProvider, TestablePreview {
             RoomMembersListScreen(context: emptyBannedViewModel.context)
                 .onAppear { emptyBannedViewModel.context.searchQuery = "Dan" }
         }
-        .snapshotPreferences(expect: emptyBannedViewModel.context.$viewState.map(\.shouldShowEmptyState))
+        .snapshotPreferences(expect: emptyBannedViewModel.context.$viewState.map(\.shouldShowEmptyState),
+                             precision: 0.999) // The search field's clear button renders inconsistently in snapshots.
         .previewDisplayName("Empty Search")
+        
+        // AGENT-PLATFORM (Brief 0083, decision 357)
+        ElementNavigationStack {
+            RoomMembersListScreen(context: loadingViewModel.context)
+                .environment(\.spiralPreloaderDelay, .zero)
+        }
+        .previewDisplayName("Loading")
     }
     
-    static func makeViewModel(withInvites: Bool = false,
+    static func makeViewModel(hasMembers: Bool = true,
+                              withInvites: Bool = false,
                               withBanned: Bool = true,
                               hasActiveRoomCall: Bool = false,
                               isAdmin: Bool = false,
@@ -262,6 +281,10 @@ struct RoomMembersListScreen_Previews: PreviewProvider, TestablePreview {
         
         if withInvites {
             members.append(.mockInvited)
+        }
+        
+        if !hasMembers {
+            members = []
         }
         
         let activeRoomCallParticipants: [String] = if hasActiveRoomCall {

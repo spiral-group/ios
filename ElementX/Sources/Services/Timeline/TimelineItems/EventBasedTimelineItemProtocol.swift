@@ -7,6 +7,7 @@
 //
 
 import Foundation
+import Synchronization
 import UIKit
 
 nonisolated protocol EventBasedTimelineItemProtocol: RoomTimelineItemProtocol, CustomStringConvertible {
@@ -28,7 +29,14 @@ nonisolated extension EventBasedTimelineItemProtocol {
     }
     
     var isForwardable: Bool {
-        isRemoteMessage && !(self is PollRoomTimelineItem)
+        isRemoteMessage
+            && !isRedacted
+            && !hasFailedDecryption
+            && !(self is StateRoomTimelineItem)
+            && !(self is UnsupportedRoomTimelineItem)
+            && !(self is PollRoomTimelineItem)
+            && !(self is LiveLocationRoomTimelineItem)
+            && !(self is StickerRoomTimelineItem) // The SDK can only forward m.room.message content and stickers are m.sticker events.
     }
     
     var isRemoteMessage: Bool {
@@ -41,10 +49,6 @@ nonisolated extension EventBasedTimelineItemProtocol {
     
     var pollIfAvailable: Poll? {
         (self as? PollRoomTimelineItem)?.poll
-    }
-    
-    var hasStatusIcon: Bool {
-        hasFailedToSend || properties.encryptionAuthenticity != nil || properties.encryptionForwarder != nil
     }
     
     var hasFailedToSend: Bool {
@@ -72,19 +76,31 @@ nonisolated extension EventBasedTimelineItemProtocol {
     var trailingReservedSize: CGSize {
         let textStyle: UIFont.TextStyle = .caption1 // matches compound.bodyXS
         let font = UIFont.preferredFont(forTextStyle: textStyle)
-        let textSize = (localizedSendInfo as NSString).size(withAttributes: [.font: font])
-        var width = textSize.width
-        var height = textSize.height
-        if hasStatusIcon {
-            // CompoundIcon at .xSmall is 16pt at the base size; scale with the same UIFontMetrics
-            // as the icon's `relativeTo: .compound.bodyXS` modifier, plus the 4pt HStack spacing.
-            let iconSize = UIFontMetrics(forTextStyle: textStyle).scaledValue(for: 16)
-            width += iconSize + 4
-            height = max(height, iconSize)
+        let hasIcon = properties.encryptionAuthenticity != nil || properties.encryptionForwarder != nil
+        // AGENT-PLATFORM (Brief 0083, question 357): the ticks' slot, the same width for one tick as for two, so a
+        // message doesn't reflow when it's read. A failed send has its mark beside the bubble instead.
+        let hasTicks = isOutgoing && !hasFailedToSend
+        
+        // AGENT-PLATFORM (Brief 0083, question 359): the same for every row of that time, and measuring text isn't cheap.
+        return TrailingReservedSizes.size(for: .init(sendInfo: localizedSendInfo, pointSize: font.pointSize, hasIcon: hasIcon, hasTicks: hasTicks)) {
+            let metrics = UIFontMetrics(forTextStyle: textStyle)
+            let textSize = (localizedSendInfo as NSString).size(withAttributes: [.font: font])
+            var width = textSize.width
+            var height = textSize.height
+            if hasIcon {
+                // CompoundIcon at .xSmall is 16pt at the base size; scale with the same UIFontMetrics
+                // as the icon's `relativeTo: .compound.bodyXS` modifier, plus the 4pt HStack spacing.
+                let iconSize = metrics.scaledValue(for: 16)
+                width += iconSize + 4
+                height = max(height, iconSize)
+            }
+            if hasTicks {
+                width += metrics.scaledValue(for: TimelineDeliveryStatusView.slotWidth) + 4
+            }
+            // Small visual gap between the text content and the overlaid timestamp.
+            width += 4
+            return CGSize(width: ceil(width), height: ceil(height))
         }
-        // Small visual gap between the text content and the overlaid timestamp.
-        width += 4
-        return CGSize(width: ceil(width), height: ceil(height))
     }
     
     /// contains the timestamp and an optional edited localised prefix
@@ -118,5 +134,37 @@ nonisolated extension EventBasedTimelineItemProtocol {
     var hasMediaCaption: Bool {
         guard let messageBasedItem = self as? EventBasedMessageTimelineItemProtocol else { return false }
         return messageBasedItem.hasMediaCaption
+    }
+}
+
+/// AGENT-PLATFORM (Brief 0083, question 359): keyed by all a reserved size hangs on, the text size included, through the font.
+nonisolated enum TrailingReservedSizes {
+    struct Key: Hashable {
+        let sendInfo: String
+        let pointSize: CGFloat
+        let hasIcon: Bool
+        let hasTicks: Bool
+    }
+    
+    private static let limit = 2000
+    private static let sizes = Mutex<[Key: CGSize]>([:])
+    
+    static func purge() {
+        sizes.withLock { $0.removeAll() }
+    }
+    
+    static func size(for key: Key, measure: () -> CGSize) -> CGSize {
+        if let size = sizes.withLock({ $0[key] }) {
+            return size
+        }
+        
+        let size = measure()
+        sizes.withLock { sizes in
+            if sizes.count >= limit {
+                sizes.removeAll()
+            }
+            sizes[key] = size
+        }
+        return size
     }
 }

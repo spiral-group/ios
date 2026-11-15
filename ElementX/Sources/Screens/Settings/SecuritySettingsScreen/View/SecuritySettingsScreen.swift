@@ -28,7 +28,7 @@ struct SecuritySettingsScreen: View {
             
             thisDeviceSection
         }
-        .compoundList()
+        .spiralGroupedList() // AGENT-PLATFORM (Brief 0083): Spiral's grouped list, was `compoundList()`.
         .navigationTitle(L10n.commonSecurity)
         .navigationBarTitleDisplayMode(.inline)
         .alert(item: $context.alertInfo)
@@ -47,7 +47,7 @@ struct SecuritySettingsScreen: View {
             if let url = context.viewState.accountProfileURL {
                 ListRow(label: .default(title: UntranslatedL10n.screenSettingsDevicesTitle,
                                         icon: \.devices),
-                        details: .icon(\.popOut),
+                        details: .icon(CompoundIcon(\.popOut).foregroundStyle(.compound.iconTertiaryAlpha)), // Grey as the chevron (Brief 0083).
                         kind: .button {
                             context.send(viewAction: .manageAccount(url: url))
                         })
@@ -72,7 +72,7 @@ struct SecuritySettingsScreen: View {
     
     private var messagesSection: some View {
         Section {
-            ListRow(label: .default(title: L10n.commonEncryption,
+            ListRow(label: .default(title: UntranslatedL10n.commonEncryptionSpiral, // AGENT-PLATFORM (Brief 0083): five locales leave upstream's key English.
                                     icon: \.key),
                     details: context.viewState.showEncryptionBadge ? .icon(BadgeView(size: 10)) : nil,
                     kind: .navigationLink {
@@ -105,7 +105,8 @@ struct SecuritySettingsScreen: View {
 
 // MARK: - Previews
 
-struct SecuritySettingsScreen_Previews: PreviewProvider, TestablePreview {
+// AGENT-PLATFORM (Brief 0083, lane settings): gated.
+struct SecuritySettingsScreen_Previews: PreviewProvider, TestablePreview, SpiralGatedPreview {
     static let viewModel = makeViewModel(recoveryState: .enabled)
     static let recoveryDisabledViewModel = makeViewModel(recoveryState: .disabled)
     

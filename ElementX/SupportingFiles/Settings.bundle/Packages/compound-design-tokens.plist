@@ -704,12 +704,11 @@ Copyright (c) 2025 Element Creations Ltd. and Copyright (c) 2023 - 2025
 New Vector Ltd., licensed under the GNU Affero General Public License v3.0
 only (LICENSE). LICENSE-COMMERCIAL is Element's notice for its own code.
 
-The Spiral authors modified it in 2026: Spiral's colours in tokens/, the
-assets regenerated from them, and the Swift package's settings and
-output (Package.swift, src/configs/getIOSConfig.ts,
-src/formats/templates/swift). The modified
-work is distributed under the same licence. The changes sit on top of the
-upstream tag v10.2.3, so `git diff v10.2.3` lists every file they changed.
+The Spiral authors modified it in 2026: Spiral's colours in tokens/, and
+the assets regenerated from them with this repository's own build. The
+modified work is distributed under the same licence. The changes sit on top
+of the upstream tag v11.3.1, so `git diff v11.3.1` lists every file they
+changed.
 </string>
 			<key>Title</key>
 			<string>NOTICE</string>

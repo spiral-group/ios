@@ -9,8 +9,8 @@
 // AGENT-PLATFORM: Agent platform feature.
 // The Spiral feature is built on Element's `TemplateScreenViewModelTests.swift`.
 
-@testable import ElementX
 import Foundation
+@testable import Spiral
 import Testing
 
 @MainActor
@@ -36,13 +36,13 @@ struct AgentActivityScreenViewModelTests {
     /// «Ждут вашего решения» with nothing waiting is calm, not a missed filter.
     @Test
     func nothingPendingSaysSoCalmly() {
-        let pending = AgentActivityScreenViewState(filter: .pendingConsent, bindings: .init())
+        let pending = AgentActivityScreenViewState(filter: .pendingConsent)
         #expect(pending.emptyTitle == UntranslatedL10n.screenAgentActivityEmptyPendingTitle)
         #expect(pending.emptySubtitle == UntranslatedL10n.screenAgentActivityEmptyPendingSubtitle)
         
-        let failed = AgentActivityScreenViewState(filter: .failed, bindings: .init())
+        let failed = AgentActivityScreenViewState(filter: .failed)
         #expect(failed.emptyTitle == UntranslatedL10n.screenAgentActivityEmptyFilteredTitle)
-        #expect(AgentActivityScreenViewState(bindings: .init()).emptyTitle == UntranslatedL10n.screenAgentActivityEmptyTitle)
+        #expect(AgentActivityScreenViewState().emptyTitle == UntranslatedL10n.screenAgentActivityEmptyTitle)
     }
 
     // MARK: - appeared / retry
@@ -55,14 +55,13 @@ struct AgentActivityScreenViewModelTests {
                                                                                       nextCursor: nil))
 
         let viewModel = AgentActivityScreenViewModel(agentID: "agent-1",
-                                                     agentPlatformService: service,
+                                                     store: AgentsStore(service: service),
                                                      clientProxy: ClientProxyMock(.init()))
 
         let deferred = deferFulfillment(viewModel.context.observe(\.viewState.listState)) {
             if case .loaded = $0 { return true }
             return false
         }
-        viewModel.context.send(viewAction: .appeared)
         try await deferred.fulfill()
 
         let items = viewModel.context.viewState.items
@@ -78,23 +77,28 @@ struct AgentActivityScreenViewModelTests {
         #expect(viewModel.context.viewState.sentinel == nil)
     }
 
+    /// `agent.activity` reads the shown list again: no pull, no appearance.
     @Test
-    func appearedAction_skipsRefetchWhenAlreadyLoaded() async throws {
+    func theStreamsChangeReadsTheShownListAgain() async throws {
         let service = AgentPlatformServiceMock()
         service.listAgentActivityAgentIDFilterCursorLimitReturnValue = .success(.init(items: [Self.executedEntry],
                                                                                       nextCursor: nil))
-
+        let store = AgentsStore(service: service)
         let viewModel = AgentActivityScreenViewModel(agentID: "agent-1",
-                                                     agentPlatformService: service,
+                                                     store: store,
                                                      clientProxy: ClientProxyMock(.init()))
-        viewModel.context.send(viewAction: .appeared)
-        try await Task.sleep(for: .milliseconds(20))
-        #expect(service.listAgentActivityAgentIDFilterCursorLimitCallsCount == 1)
+        let read = deferFulfillment(viewModel.context.observe(\.viewState.items)) { $0.count == 1 }
+        try await read.fulfill()
+        #expect(viewModel.context.viewState.items.map(\.id) == [Self.executedEntry.id])
 
-        // Second appear is a no-op once content is in hand.
-        viewModel.context.send(viewAction: .appeared)
-        try await Task.sleep(for: .milliseconds(20))
-        #expect(service.listAgentActivityAgentIDFilterCursorLimitCallsCount == 1)
+        service.listAgentActivityAgentIDFilterCursorLimitReturnValue = .success(.init(items: [Self.pendingEntry, Self.executedEntry],
+                                                                                      nextCursor: nil))
+        let updated = deferFulfillment(viewModel.context.observe(\.viewState.items)) { $0.count == 2 }
+        store.apply([.agentActivity(agentID: "agent-1")])
+        try await updated.fulfill()
+
+        #expect(service.listAgentActivityAgentIDFilterCursorLimitCallsCount == 2)
+        #expect(viewModel.context.viewState.items.first?.id == Self.pendingEntry.id)
     }
 
     @Test
@@ -104,9 +108,8 @@ struct AgentActivityScreenViewModelTests {
                                                                                       nextCursor: nil))
 
         let viewModel = AgentActivityScreenViewModel(agentID: "agent-1",
-                                                     agentPlatformService: service,
+                                                     store: AgentsStore(service: service),
                                                      clientProxy: ClientProxyMock(.init()))
-        viewModel.context.send(viewAction: .appeared)
         try await Task.sleep(for: .milliseconds(20))
         #expect(service.listAgentActivityAgentIDFilterCursorLimitCallsCount == 1)
 
@@ -116,22 +119,19 @@ struct AgentActivityScreenViewModelTests {
     }
 
     @Test
-    func failedFirstPage_setsFailedStateAndShowsAlert() async throws {
+    func failedFirstPage_setsFailedState() async throws {
         let service = AgentPlatformServiceMock()
         service.listAgentActivityAgentIDFilterCursorLimitReturnValue = .failure(.serverError(status: 500))
 
         let viewModel = AgentActivityScreenViewModel(agentID: "agent-1",
-                                                     agentPlatformService: service,
+                                                     store: AgentsStore(service: service),
                                                      clientProxy: ClientProxyMock(.init()))
 
         let deferred = deferFulfillment(viewModel.context.observe(\.viewState.listState)) {
             if case .failed = $0 { return true }
             return false
         }
-        viewModel.context.send(viewAction: .appeared)
         try await deferred.fulfill()
-
-        #expect(viewModel.context.viewState.bindings.alertInfo != nil)
     }
 
     // MARK: - Filter changes
@@ -143,9 +143,8 @@ struct AgentActivityScreenViewModelTests {
                                                                                       nextCursor: nil))
 
         let viewModel = AgentActivityScreenViewModel(agentID: "agent-1",
-                                                     agentPlatformService: service,
+                                                     store: AgentsStore(service: service),
                                                      clientProxy: ClientProxyMock(.init()))
-        viewModel.context.send(viewAction: .appeared)
         try await Task.sleep(for: .milliseconds(20))
         #expect(service.listAgentActivityAgentIDFilterCursorLimitReceivedArguments?.filter == .all)
 
@@ -165,9 +164,8 @@ struct AgentActivityScreenViewModelTests {
                                                                                       nextCursor: nil))
 
         let viewModel = AgentActivityScreenViewModel(agentID: "agent-1",
-                                                     agentPlatformService: service,
+                                                     store: AgentsStore(service: service),
                                                      clientProxy: ClientProxyMock(.init()))
-        viewModel.context.send(viewAction: .appeared)
         try await Task.sleep(for: .milliseconds(20))
         #expect(service.listAgentActivityAgentIDFilterCursorLimitCallsCount == 1)
 
@@ -196,9 +194,8 @@ struct AgentActivityScreenViewModelTests {
         }
 
         let viewModel = AgentActivityScreenViewModel(agentID: "agent-1",
-                                                     agentPlatformService: service,
+                                                     store: AgentsStore(service: service),
                                                      clientProxy: ClientProxyMock(.init()))
-        viewModel.context.send(viewAction: .appeared)
         try await Task.sleep(for: .milliseconds(20))
         #expect(viewModel.context.viewState.items.count == 2)
         if case .loaded(_, let loadMore) = viewModel.context.viewState.listState {
@@ -240,9 +237,8 @@ struct AgentActivityScreenViewModelTests {
         }
 
         let viewModel = AgentActivityScreenViewModel(agentID: "agent-1",
-                                                     agentPlatformService: service,
+                                                     store: AgentsStore(service: service),
                                                      clientProxy: ClientProxyMock(.init()))
-        viewModel.context.send(viewAction: .appeared)
         try await Task.sleep(for: .milliseconds(30))
 
         // Fire load-more twice in quick succession; the second
@@ -268,9 +264,8 @@ struct AgentActivityScreenViewModelTests {
         }
 
         let viewModel = AgentActivityScreenViewModel(agentID: "agent-1",
-                                                     agentPlatformService: service,
+                                                     store: AgentsStore(service: service),
                                                      clientProxy: ClientProxyMock(.init()))
-        viewModel.context.send(viewAction: .appeared)
         try await Task.sleep(for: .milliseconds(20))
         viewModel.context.send(viewAction: .loadMore)
         try await Task.sleep(for: .milliseconds(20))
@@ -380,7 +375,7 @@ struct AgentActivityScreenViewModelTests {
                       "first_contact_with_unknown_visitor", "escalation_rule_match", "capability_always_requires_consent",
                       "block_needs_owner", "unknown_capability", "input_validation_failed", "agent_not_in_room",
                       "owner_not_configured", "contact_not_approved", "wrong_room_kind", "sender_is_owner",
-                      "no_contact_relationship", "outside_conversation", "blocked_visitor", "strategy_no_op",
+                      "no_contact_relationship", "outside_conversation", "not_offered", "blocked_visitor", "strategy_no_op",
                       "group_room_not_woken", "notice_would_need_consent", "rate_limited", "already_asked_owner",
                       "booth_displacement_voice_master", "relationship_unavailable", "visitor_policy_reply",
                       "message_passed_to_owner_notice"])
@@ -448,14 +443,13 @@ struct AgentActivityScreenViewModelTests {
         service.listAgentActivityAgentIDFilterCursorLimitReturnValue = .success(.init(items: [], nextCursor: nil))
 
         let viewModel = AgentActivityScreenViewModel(agentID: "agent-1",
-                                                     agentPlatformService: service,
+                                                     store: AgentsStore(service: service),
                                                      clientProxy: ClientProxyMock(.init()))
 
         let deferred = deferFulfillment(viewModel.context.observe(\.viewState.listState)) {
             if case .loaded(let items, _) = $0, items.isEmpty { return true }
             return false
         }
-        viewModel.context.send(viewAction: .appeared)
         try await deferred.fulfill()
 
         #expect(viewModel.context.viewState.isEmpty)
@@ -539,10 +533,9 @@ struct AgentActivityScreenViewModelTests {
         service.listAgentActivityAgentIDFilterCursorLimitReturnValue = .success(.init(items: [withApproval, Self.executedEntry], nextCursor: nil))
         let clientProxy = ClientProxyMock(.init())
         clientProxy.roomSummaryForIdentifierClosure = { $0 == "!example:spiral.md" ? .mock(id: $0, name: "Book club") : nil }
-        let viewModel = AgentActivityScreenViewModel(agentID: "agent-1", agentPlatformService: service, clientProxy: clientProxy)
+        let viewModel = AgentActivityScreenViewModel(agentID: "agent-1", store: AgentsStore(service: service), clientProxy: clientProxy)
         
         let loaded = deferFulfillment(viewModel.context.observe(\.viewState.listState)) { if case .loaded = $0 { true } else { false } }
-        viewModel.context.send(viewAction: .appeared)
         try await loaded.fulfill()
         
         let approval = deferFulfillment(viewModel.actionsPublisher) { if case .openApproval("approval-1") = $0 { true } else { false } }

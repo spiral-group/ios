@@ -1,6 +1,4 @@
 "NSCameraUsageDescription" = "Pro videohovory a pro pořizování snímků nebo videí a jejich odesílání jako zprávy potřebuje Spiral přístup k fotoaparátu.";
 "NSFaceIDUsageDescription" = "K přístupu do aplikace se používá Face ID.";
-"NSLocationAlwaysAndWhenInUseUsageDescription" = "Aby mohla aplikace Spiral sdílet vaši aktuální polohu, potřebuje přístup k poloze, i když je aplikace spuštěna na pozadí.";
-"NSLocationWhenInUseUsageDescription" = "Udělte přístup k poloze, aby mohl Spiral sdílet vaši polohu.";
 "NSMicrophoneUsageDescription" = "Pro hovory a pro nahrávání a odesílání zpráv se zvukem potřebuje Spiral přístup k mikrofonu.";
 "NSPhotoLibraryUsageDescription" = "To vám umožní ukládat obrázky a videa do knihovny fotografií.";

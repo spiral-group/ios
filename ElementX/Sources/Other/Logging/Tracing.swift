@@ -29,21 +29,25 @@ nonisolated enum Tracing {
     
     static let fileExtension = ".log"
     
+    /// The level the logs are written at.
+    static func level(for logLevel: LogLevel) -> LogLevel {
+        // Log everything on integration tests to check whether
+        // the logs contain any sensitive data. See `integration-tests.yml`
+        ProcessInfo.isRunningIntegrationTests ? .trace : logLevel
+    }
+    
     static func buildConfiguration(logLevel: LogLevel,
                                    traceLogPacks: Set<TraceLogPack>,
                                    currentTarget: String,
                                    filePrefix: String,
                                    sentryURL: URL?) -> TracingConfiguration {
-        // Log everything on integration tests to check whether
-        // the logs contain any sensitive data. See `integration-tests.yml`
-        let level: LogLevel = ProcessInfo.isRunningIntegrationTests ? .trace : logLevel
         let sentryConfig = sentryURL.map { url in
             SentryConfig(dsn: url.absoluteString,
                          appVersion: InfoPlistReader.app.bundleShortVersionString,
                          appPlatform: ProcessInfo.processInfo.platform)
         }
         
-        return .init(logLevel: level.rustLogLevel,
+        return .init(logLevel: level(for: logLevel).rustLogLevel,
                      traceLogPacks: traceLogPacks.map(\.rustLogPack),
                      extraTargets: [currentTarget],
                      writeToStdoutOrSystem: true,

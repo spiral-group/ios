@@ -6,18 +6,22 @@
 // Please see LICENSE files in the repository root for full details.
 //
 
+import SpiralTokens // AGENT-PLATFORM (Brief 0083)
 import SwiftUI
 
+/// AGENT-PLATFORM (Brief 0083, question 359): one for all the rows, as each row making its own showed in the cost of a new row.
+private let feedbackGenerator = UIImpactFeedbackGenerator(style: .heavy)
+
 struct LongPressWithFeedback: ViewModifier {
+    let isEnabled: Bool
     let action: () -> Void
     
     @State private var triggerTask: Task<Void, Never>?
     @State private var isLongPressing = false
-    private let feedbackGenerator = UIImpactFeedbackGenerator(style: .heavy)
     
     func body(content: Content) -> some View {
         mainContent(content: content)
-            .gesture(LongPressGestureRepresentable { gesture in
+            .gesture(LongPressGestureRepresentable(isEnabled: isEnabled) { gesture in
                 switch gesture.state {
                 case .began:
                     handleLongPress(isPressing: true)
@@ -69,8 +73,10 @@ struct LongPressWithFeedback: ViewModifier {
 }
 
 extension View {
-    func longPressWithFeedback(action: @escaping () -> Void) -> some View {
-        modifier(LongPressWithFeedback(action: action))
+    /// Adds a long press gesture with scale and haptic feedback. Pass `isEnabled: false` to
+    /// disable the recogniser entirely, so that neither the feedback nor the action fire.
+    func longPressWithFeedback(isEnabled: Bool = true, action: @escaping () -> Void) -> some View {
+        modifier(LongPressWithFeedback(isEnabled: isEnabled, action: action))
     }
 }
 
@@ -118,7 +124,7 @@ struct LongPressWithFeedback_Previews: PreviewProvider, TestablePreview {
         func mockBubble(_ body: String) -> some View {
             Text(body)
                 .bubbleBackground()
-                .contentShape(.contextMenuPreview, RoundedRectangle(cornerRadius: 16)) // AGENT-PLATFORM: match 16pt bubbles (ADR-0005)
+                .contentShape(.contextMenuPreview, RoundedRectangle(cornerRadius: SpiralRadius.bubble, style: .continuous)) // AGENT-PLATFORM: match the bubbles (ADR-0005, Brief 0083)
                 .onTapGesture { /* Fix long press gesture blocking the scroll view */ }
         }
     }
@@ -127,6 +133,7 @@ struct LongPressWithFeedback_Previews: PreviewProvider, TestablePreview {
 /// Fixes the issue on iOS 18 where LongPress conflicts with the scroll view
 /// https://github.com/feedback-assistant/reports/issues/542#issuecomment-2581322968
 private struct LongPressGestureRepresentable: UIGestureRecognizerRepresentable {
+    var isEnabled: Bool
     var handle: (UILongPressGestureRecognizer) -> Void
     
     func makeCoordinator(converter: CoordinateSpaceConverter) -> Coordinator {
@@ -137,8 +144,12 @@ private struct LongPressGestureRepresentable: UIGestureRecognizerRepresentable {
         let gesture = UILongPressGestureRecognizer()
         gesture.minimumPressDuration = 0.25
         gesture.delegate = context.coordinator
-        gesture.isEnabled = true
+        gesture.isEnabled = isEnabled
         return gesture
+    }
+    
+    func updateUIGestureRecognizer(_ recognizer: UILongPressGestureRecognizer, context: Context) {
+        recognizer.isEnabled = isEnabled
     }
     
     func handleUIGestureRecognizerAction(_ recognizer: UILongPressGestureRecognizer, context: Context) {

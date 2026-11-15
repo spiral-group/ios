@@ -8,10 +8,13 @@
 
 import Combine
 import Compound
+import MatrixRustSDKMocks
+import SpiralTokens // AGENT-PLATFORM (Brief 0083)
 import SwiftUI
 
 struct HomeScreenInviteCell: View {
     @Environment(\.dynamicTypeSize) var dynamicTypeSize
+    @ScaledMetric(relativeTo: .body) private var nameLineHeight = 22.0 // AGENT-PLATFORM (Brief 0083)
     
     let room: HomeScreenRoom
     let context: HomeScreenViewModel.Context
@@ -28,16 +31,27 @@ struct HomeScreenInviteCell: View {
     }
     
     var body: some View {
-        HStack(alignment: .top, spacing: 16) {
-            if dynamicTypeSize < .accessibility3 {
+        // AGENT-PLATFORM (Brief 0083): a Chats row's columns. An unseen invite's dot leads, centred on the avatar
+        // (on the name's first line when the avatar is hidden), where it was a badge after the name.
+        HStack(alignment: .top, spacing: 0) {
+            HomeScreenRoomUnreadMarker(isShown: room.badges.isDotShown, isHighlighted: true)
+                .frame(height: isAvatarShown ? SpiralAvatarSize.medium : nameLineHeight)
+                .accessibilityHidden(true) // As upstream's badge: the invite's buttons say what's new.
+            
+            if isAvatarShown {
                 RoomAvatarImage(avatar: avatar,
-                                avatarSize: .custom(52),
+                                avatarSize: .custom(SpiralAvatarSize.medium), // AGENT-PLATFORM (Brief 0083, decision 300b)
                                 mediaProvider: context.mediaProvider)
                     .dynamicTypeSize(dynamicTypeSize < .accessibility1 ? dynamicTypeSize : .accessibility1)
                     .accessibilityHidden(true)
+                    .padding(.trailing, CompoundDesignTokens.space3X)
             }
             
             mainContent
+                // AGENT-PLATFORM (bug S6): the row takes its own height. Chats' lazy list measures it unbounded, then
+                // places it at a concrete height; offered a hair less, the buttons switched to their stacked layout and
+                // the row drew 60 pt taller than its slot: a gap above the name, the buttons under the next row.
+                .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.bottom, 16)
                 .padding(.trailing, 16)
@@ -47,7 +61,6 @@ struct HomeScreenInviteCell: View {
                 }
         }
         .padding(.top, 12)
-        .padding(.leading, 16)
         .onTapGesture {
             if let roomID = room.roomID {
                 context.send(viewAction: .selectRoom(roomIdentifier: roomID))
@@ -58,13 +71,14 @@ struct HomeScreenInviteCell: View {
     
     // MARK: - Private
     
+    private var isAvatarShown: Bool {
+        dynamicTypeSize < .accessibility3
+    }
+    
     private var mainContent: some View {
         VStack(alignment: .leading, spacing: 14) {
             VStack(alignment: .leading, spacing: 0) {
-                HStack(alignment: .firstTextBaseline, spacing: 16) {
-                    textualContent
-                    badge
-                }
+                textualContent // AGENT-PLATFORM (Brief 0083): the dot leads the row now.
                 
                 inviterView
                     .padding(.top, 6)
@@ -141,20 +155,9 @@ struct HomeScreenInviteCell: View {
     private var subtitle: String? {
         room.isDirect ? room.inviter?.id : nil
     }
-    
-    @ViewBuilder
-    private var badge: some View {
-        if room.badges.isDotShown {
-            Circle()
-                .scaledFrame(size: 12)
-                .foregroundColor(.compound.iconAccentTertiary) // The badge is always green, no need to check isHighlighted here.
-        }
-    }
 }
 
 // MARK: - Previews
-
-import MatrixRustSDKMocks
 
 struct HomeScreenInviteCell_Previews: PreviewProvider, TestablePreview {
     static var previews: some View {
@@ -200,10 +203,10 @@ struct HomeScreenInviteCell_Previews: PreviewProvider, TestablePreview {
         let userSession = UserSessionMock(.init(clientProxy: clientProxy))
         
         return HomeScreenViewModel(userSession: userSession,
+                                   availableSessionsPublisher: .init([.init(userSession: userSession)]),
                                    selectedRoomPublisher: CurrentValueSubject<String?, Never>(nil).asCurrentValuePublisher(),
-                                   appSettings: .volatile(),
                                    analyticsService: AnalyticsServiceMock(.init()),
-                                   notificationManager: NotificationManagerMock(),
+                                   bugReportService: BugReportServiceMock(.init()),
                                    userIndicatorController: UserIndicatorControllerMock())
     }
 }
@@ -217,6 +220,7 @@ private extension HomeScreenRoom {
         let summary = RoomSummary(room: RoomSDKMock(),
                                   id: "@someone:somewhere.com",
                                   joinRequestType: .invite(inviter: inviter),
+                                  isJoined: false,
                                   name: "Some Guy",
                                   isDirect: true,
                                   isSpace: false,
@@ -253,6 +257,7 @@ private extension HomeScreenRoom {
         let summary = RoomSummary(room: RoomSDKMock(),
                                   id: "@someone:somewhere.com",
                                   joinRequestType: .invite(inviter: inviter),
+                                  isJoined: false,
                                   name: name,
                                   isDirect: false,
                                   isSpace: isSpace,

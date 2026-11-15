@@ -3,6 +3,7 @@
 //
 
 import AVFoundation
+import Combine
 import Foundation
 import LiveKit
 import Synchronization
@@ -57,8 +58,19 @@ nonisolated enum NativeCallAudioRoutes {
     private static let externalInputTypes: Set<AVAudioSession.Port> = [.bluetoothHFP, .carAudio, .headsetMic, .usbAudio]
     private static let builtInOutputTypes: Set<AVAudioSession.Port> = [.builtInReceiver, .builtInSpeaker]
 
+    /// An external device carries the call's sound now.
+    static func hasExternalOutput(activeOutputs: [NativeCallAudioPort]) -> Bool {
+        activeOutputs.contains { !builtInOutputTypes.contains($0.type) }
+    }
+
+    /// An external device carries the call, or takes it once the session activates: a hands-free-only Bluetooth device
+    /// (a car kit, a mono headset) is an input under `.playAndRecord` before it is ever an output (question 407).
+    static func hasExternalRoute(activeOutputs: [NativeCallAudioPort], availableInputs: [NativeCallAudioPort]) -> Bool {
+        hasExternalOutput(activeOutputs: activeOutputs) || availableInputs.contains { externalInputTypes.contains($0.type) }
+    }
+
     static func build(activeOutputs: [NativeCallAudioPort], availableInputs: [NativeCallAudioPort]) -> [NativeCallAudioRoute] {
-        let hasExternalOutput = activeOutputs.contains { !builtInOutputTypes.contains($0.type) }
+        let hasExternalOutput = hasExternalOutput(activeOutputs: activeOutputs)
 
         var routes = availableInputs
             .filter { externalInputTypes.contains($0.type) }
@@ -82,6 +94,200 @@ nonisolated enum NativeCallAudioRoutes {
                                            isActive: activeOutputs.contains { $0.type == .builtInSpeaker }))
         return routes
     }
+}
+
+/// Where a call's sound starts, and the pocket interpreter's one move (OPEN_QUESTIONS 407). Pure, like the route list.
+enum NativeCallSpeakerPolicy {
+    /// A video call starts on the loudspeaker, and so does a call with one's own assistant: a voice assistant is
+    /// talked to with the phone away from the ear. Headphones, Bluetooth or a car keep the sound.
+    static func startsOnSpeaker(media: NativeCallMedia, scope: NativeCallScope, hasExternalRoute: Bool) -> Bool {
+        !hasExternalRoute && (media == .video || scope == .assistant)
+    }
+
+    /// Whether the speaker survives the session's activation: one that came from the default, not from the person,
+    /// gives way to an external route found there (a car kit the start couldn't see yet).
+    static func keepsSpeakerAtActivation(isSpeakerEnabled: Bool, isDefaulted: Bool, hasExternalRoute: Bool) -> Bool {
+        isSpeakerEnabled && !(isDefaulted && hasExternalRoute)
+    }
+
+    /// The interpreter's start brings the call off the earpiece, so the person beside you hears the translation;
+    /// headphones, Bluetooth or a car connected keep it.
+    static func interpreterMovesToSpeaker(isSpeakerEnabled: Bool, hasExternalRoute: Bool) -> Bool {
+        !isSpeakerEnabled && !hasExternalRoute
+    }
+
+    /// What a device coming or going does to the call's route.
+    enum DeviceChange: Equatable {
+        /// The call follows the output the system chose.
+        case follows(speaker: Bool)
+        /// The device went, and the call goes back to the loudspeaker over the earpiece the system chose.
+        case returnsToSpeaker
+    }
+
+    /// A device came or went (AirPods, a car): the system chose the output, and the call follows it. Nil for any other
+    /// route change, our own overrides included. One exception (operator, 2026-11-12): when the device goes, a call that
+    /// returns to the speaker (`NativeCallSpeakerRegister.returnsToSpeaker`) gets it back over the system's earpiece,
+    /// unless another external device carries the call. What carries it is the output, not a listed input: AirPods
+    /// taken out of the ears stay connected, and stay an available hands-free input, while the call is on the receiver.
+    static func routeAfterDeviceChange(reason: AVAudioSession.RouteChangeReason,
+                                       activeOutputs: [NativeCallAudioPort],
+                                       returnsToSpeaker: Bool) -> DeviceChange? {
+        let speakerIsOutput = activeOutputs.contains { $0.type == .builtInSpeaker }
+        switch reason {
+        case .newDeviceAvailable:
+            return .follows(speaker: speakerIsOutput)
+        case .oldDeviceUnavailable:
+            let hasExternalOutput = NativeCallAudioRoutes.hasExternalOutput(activeOutputs: activeOutputs)
+            return returnsToSpeaker && !hasExternalOutput ? .returnsToSpeaker : .follows(speaker: speakerIsOutput)
+        default:
+            return nil
+        }
+    }
+}
+
+/// Each call's own speaker (question 407). A call on hold keeps its route, the call that resumes gets its own back —
+/// never what the last call left — and the call in use is the only one a pick, a default or a device changes. Pure,
+/// like the ownership register: `AVAudioSession` can't run the decisions in a test.
+struct NativeCallSpeakerRegister {
+    struct State: Equatable {
+        var isEnabled = false
+        /// From a default (the start's, a camera's), not from the person: an external route takes it.
+        var isDefaulted = false
+    }
+
+    private var states: [NativeCallAudioOwner: State] = [:]
+    /// Calls with one's own assistant: the loudspeaker is where they go back to when a device goes.
+    private var assistantCalls: Set<NativeCallAudioOwner> = []
+    /// Calls in which the person picked the earpiece. Sticky until they pick the speaker: picking AirPods afterwards
+    /// doesn't undo it, so a call taken off the speaker on purpose never comes back to it by itself.
+    private var earpiecePicks: Set<NativeCallAudioOwner> = []
+    /// The call whose route is in use.
+    private(set) var current: NativeCallAudioOwner?
+
+    var isSpeakerEnabled: Bool {
+        state(for: current).isEnabled
+    }
+
+    func state(for owner: NativeCallAudioOwner?) -> State {
+        owner.flatMap { states[$0] } ?? State()
+    }
+
+    /// A call starts, and its route is the one in use.
+    mutating func start(_ owner: NativeCallAudioOwner, onSpeaker: Bool, isAssistantCall: Bool = false) {
+        current = owner
+        states[owner] = State(isEnabled: onSpeaker, isDefaulted: onSpeaker)
+        if isAssistantCall {
+            assistantCalls.insert(owner)
+        }
+    }
+
+    /// Whether the call in use goes back to the loudspeaker when a device goes (operator, 2026-11-12): a voice call with
+    /// one's own assistant, unless the person picked the earpiece in it. A video call keeps following the system.
+    func returnsToSpeaker(isVideo: Bool) -> Bool {
+        guard let current, !isVideo else { return false }
+        return assistantCalls.contains(current) && !earpiecePicks.contains(current)
+    }
+
+    /// A held call comes back with its own route.
+    mutating func resume(_ owner: NativeCallAudioOwner) {
+        current = owner
+    }
+
+    /// The person's pick of the speaker or the earpiece, or the interpreter's move, on the call in use.
+    mutating func choose(_ isEnabled: Bool) {
+        guard let current else { return }
+        states[current] = State(isEnabled: isEnabled, isDefaulted: false)
+        if isEnabled {
+            earpiecePicks.remove(current)
+        } else {
+            earpiecePicks.insert(current)
+        }
+    }
+
+    /// The person's pick of an external device (AirPods, a car) on the call in use. Not an earpiece pick.
+    mutating func chooseExternal() {
+        guard let current else { return }
+        states[current] = State(isEnabled: false, isDefaulted: false)
+    }
+
+    /// A camera turned on puts the call in use on the speaker, as a default.
+    mutating func applyVideoDefault() {
+        guard let current else { return }
+        states[current] = State(isEnabled: true, isDefaulted: true)
+    }
+
+    /// The session (re)activated: a default speaker gives way to an external route found there. True when it did.
+    mutating func settle(hasExternalRoute: Bool) -> Bool {
+        guard let current, let state = states[current], state.isEnabled,
+              !NativeCallSpeakerPolicy.keepsSpeakerAtActivation(isSpeakerEnabled: state.isEnabled,
+                                                                isDefaulted: state.isDefaulted,
+                                                                hasExternalRoute: hasExternalRoute) else { return false }
+        states[current] = State()
+        return true
+    }
+
+    /// A device came or went and the system chose the output. True when the call's route changed. Going back to the
+    /// speaker is a default, so a car or headphones found at the next activation still take it.
+    mutating func follow(_ change: NativeCallSpeakerPolicy.DeviceChange) -> Bool {
+        guard let current else { return false }
+        let new = switch change {
+        case .follows(let speaker):
+            State(isEnabled: speaker, isDefaulted: false)
+        case .returnsToSpeaker:
+            State(isEnabled: true, isDefaulted: true)
+        }
+        // A speaker the call already has stays as it is, the person's included: only a change of output is the device's.
+        guard state(for: current).isEnabled != new.isEnabled else { return false }
+        states[current] = new
+        return true
+    }
+
+    /// What a call had before its hold, back after it — only over a default that changed it meanwhile (a camera turned
+    /// back on), never over the person's pick or a default that gave way to an external route. True when restored.
+    mutating func restore(_ saved: State, for owner: NativeCallAudioOwner) -> Bool {
+        guard let state = states[owner], state != saved, state.isDefaulted else { return false }
+        states[owner] = saved
+        return true
+    }
+
+    mutating func release(_ owner: NativeCallAudioOwner) {
+        states[owner] = nil
+        assistantCalls.remove(owner)
+        earpiecePicks.remove(owner)
+        if current == owner {
+            current = nil
+        }
+    }
+}
+
+/// The call screen's hold on the route, behind a seam: `AVAudioSession` can't be driven from a test, and a preview
+/// must not read the Mac's headphones into its snapshot.
+struct NativeCallAudioRouting {
+    var availableRoutes: () -> [NativeCallAudioRoute]
+    /// Headphones, Bluetooth or a car connected, read under the call's category (a hands-free-only device shows there only).
+    var hasExternalRoute: () -> Bool
+    var setSpeakerEnabled: (Bool) -> Void
+    var selectRoute: (String) -> Void
+    /// A device came or went: the call's speaker follows the output the system chose.
+    var followRouteChange: (AVAudioSession.RouteChangeReason) -> Void
+    /// The speaker of the call in use, whenever anything but the screen changes it: a call's start or resume, a default
+    /// giving way at activation, a device.
+    var speakerChanges: AnyPublisher<Bool, Never>
+
+    static let system = NativeCallAudioRouting(availableRoutes: { NativeCallAudio.availableRoutes },
+                                               hasExternalRoute: { NativeCallAudio.hasExternalRouteForCall },
+                                               setSpeakerEnabled: { NativeCallAudio.setSpeakerEnabled($0) },
+                                               selectRoute: { NativeCallAudio.selectRoute(id: $0) },
+                                               followRouteChange: { NativeCallAudio.followRouteChange(reason: $0) },
+                                               speakerChanges: NativeCallAudio.speakerChanges.eraseToAnyPublisher())
+
+    /// The phone's two outputs and nothing plugged in; it routes nothing.
+    static let inert = NativeCallAudioRouting(availableRoutes: { NativeCallAudioRoutes.build(activeOutputs: [], availableInputs: []) },
+                                              hasExternalRoute: { false },
+                                              setSpeakerEnabled: { _ in },
+                                              selectRoute: { _ in },
+                                              followRouteChange: { _ in },
+                                              speakerChanges: Empty().eraseToAnyPublisher())
 }
 
 /// One holder of the call audio. Opaque on purpose: only a claim mints one, so
@@ -176,12 +382,14 @@ enum NativeCallAudio {
     /// at fulfil time and automatic configuration is off.
     private static var isVideoEnabled = false
 
-    static func setVideoEnabled(_ enabled: Bool) {
-        guard enabled != isVideoEnabled else { return }
+    /// Video live on the call in use. A call that isn't in use (one being held while another starts) changes nothing:
+    /// the mode and the speaker are the call in use's.
+    static func setVideoEnabled(_ enabled: Bool, owner: NativeCallAudioOwner?) {
+        guard owner != nil, owner == speakers.current, enabled != isVideoEnabled else { return }
         isVideoEnabled = enabled
 
         if enabled, !hasExternalOutput {
-            isSpeakerEnabled = true
+            updateSpeakers { $0.applyVideoDefault() }
         }
 
         configureAudioSession()
@@ -192,13 +400,50 @@ enum NativeCallAudio {
     /// Hand audio-session control to CallKit, park the media engine, and take
     /// a share of the audio for this call. The returned token is the only thing
     /// that can give it back — see `NativeCallAudioOwnership`.
-    static func prepareForCallKit() -> NativeCallAudioOwner {
+    ///
+    /// The video mode and the speaker go in first: CallKit activates whatever is configured at fulfil time. A video
+    /// call and a call with one's own assistant start on the speaker, unless headphones, Bluetooth or a car are
+    /// there (question 407), read under the call's category so a hands-free-only device counts.
+    static func prepareForCallKit(media: NativeCallMedia, scope: NativeCallScope) -> NativeCallAudioOwner {
         // The outgoing owner's cue belongs to a call that is over, and its own
         // release can no longer stop it: a busy cadence loops forever, and a
         // tone deferred until activation would otherwise fire on THIS call.
         stopTone()
 
-        return configureForCallKitActivation()
+        isVideoEnabled = media == .video
+        configureAudioSession()
+        let startsOnSpeaker = NativeCallSpeakerPolicy.startsOnSpeaker(media: media, scope: scope, hasExternalRoute: hasExternalRoute)
+        MXLog.info("The call starts on the \(startsOnSpeaker ? "loudspeaker" : "default route")")
+        return claimForCallKitActivation(startsOnSpeaker: startsOnSpeaker, isAssistantCall: scope == .assistant)
+    }
+
+    /// A held call comes back: its own mode and its own speaker, never what the call before it left.
+    static func resume(owner: NativeCallAudioOwner?, isVideoEnabled isVideo: Bool) {
+        guard let owner else { return }
+        updateSpeakers { $0.resume(owner) }
+        if isVideo != isVideoEnabled {
+            isVideoEnabled = isVideo
+            configureAudioSession()
+        }
+        resumeEngineIfSessionActive()
+    }
+
+    /// What a call's route was before its hold — `restoreSpeaker` puts it back after one.
+    static func speakerState(for owner: NativeCallAudioOwner?) -> NativeCallSpeakerRegister.State {
+        speakers.state(for: owner)
+    }
+
+    static func isSpeakerEnabled(for owner: NativeCallAudioOwner?) -> Bool {
+        speakers.state(for: owner).isEnabled
+    }
+
+    /// The route a call had before its hold, back over a default that changed it meanwhile (a camera turned back on).
+    static func restoreSpeaker(_ saved: NativeCallSpeakerRegister.State, owner: NativeCallAudioOwner?) {
+        guard let owner else { return }
+        var isRestored = false
+        updateSpeakers { isRestored = $0.restore(saved, for: owner) }
+        guard isRestored, owner == speakers.current, isSessionActive else { return }
+        applyActivatedRoute()
     }
 
     /// The same hand-over for a CallKit action that fulfils OUTSIDE the owning
@@ -214,7 +459,15 @@ enum NativeCallAudio {
     /// Unlike `prepareForCallKit` the tones are left alone: an outgoing call
     /// requests its `CXStartCallAction` while its own ringback is playing.
     static func configureForCallKitActivation() -> NativeCallAudioOwner {
+        claimForCallKitActivation(startsOnSpeaker: nil)
+    }
+
+    /// `startsOnSpeaker` is a starting call's route, in use from now; nil keeps the route in use (an answer's window).
+    private static func claimForCallKitActivation(startsOnSpeaker: Bool?, isAssistantCall: Bool = false) -> NativeCallAudioOwner {
         let owner = ownership.claim()
+        if let startsOnSpeaker {
+            updateSpeakers { $0.start(owner, onSpeaker: startsOnSpeaker, isAssistantCall: isAssistantCall) }
+        }
         NativeCallAudioSession.setHeldByCall(true)
 
         AudioManager.shared.audioSession.isAutomaticConfigurationEnabled = false
@@ -227,7 +480,7 @@ enum NativeCallAudio {
 
         if isSessionActive {
             setEngineAvailability(.default)
-            applyOutputRoute()
+            applyActivatedRoute()
             logAudioRoute()
         } else {
             setEngineAvailability(.none)
@@ -247,7 +500,7 @@ enum NativeCallAudio {
             // acting on them re-armed the engine a hang-up had just parked.
             guard oldValue != isRingbackActive, !isRingbackActive, isSessionActive else { return }
             setEngineAvailability(.default)
-            applyOutputRoute()
+            applyActivatedRoute()
         }
     }
 
@@ -270,22 +523,23 @@ enum NativeCallAudio {
     /// re-activation does this on a device; without CallKit (the simulator,
     /// the fail-open path) the session never deactivated, so nothing else
     /// would.
-    static func resumeEngineIfSessionActive() {
+    private static func resumeEngineIfSessionActive() {
         guard isSessionActive, !isRingbackActive else { return }
         setEngineAvailability(.default)
-        applyOutputRoute()
+        applyActivatedRoute()
     }
 
     /// Called from `CXProviderDelegate.provider(_:didActivate:)`.
     static func callKitDidActivate() {
         isSessionActive = true
         isActivatedByCallKit = true
+        allowHapticsDuringCall()
 
         if !isRingbackActive {
             setEngineAvailability(.default)
         }
 
-        applyOutputRoute()
+        applyActivatedRoute()
         logAudioRoute()
         startPendingToneIfNeeded()
     }
@@ -353,12 +607,13 @@ enum NativeCallAudio {
 
         isSessionActive = true
         isActivatedByCallKit = false
+        allowHapticsDuringCall()
 
         if !isRingbackActive {
             setEngineAvailability(.default)
         }
 
-        applyOutputRoute()
+        applyActivatedRoute()
         logAudioRoute()
         startPendingToneIfNeeded()
     }
@@ -372,6 +627,8 @@ enum NativeCallAudio {
     /// replaced it — and a call whose start failed must not do it underneath
     /// the call that is still connected.
     static func releaseAfterCallKit(owner: NativeCallAudioOwner) {
+        // This call's route goes with it, whoever else still holds the audio.
+        updateSpeakers { $0.release(owner) }
         switch ownership.release(owner) {
         case .stillHeld(let owners):
             MXLog.info("Keeping the call audio session, \(owners) other holder(s) still have it")
@@ -386,7 +643,6 @@ enum NativeCallAudio {
         isVideoEnabled = false
         stopTone()
         setEngineAvailability(.none)
-        isSpeakerEnabled = false
 
         if isSessionActive {
             isSessionActive = false
@@ -423,7 +679,7 @@ enum NativeCallAudio {
     }
 
     static func setSpeakerEnabled(_ enabled: Bool) {
-        isSpeakerEnabled = enabled
+        updateSpeakers { $0.choose(enabled) }
         applyOutputRoute()
     }
 
@@ -447,13 +703,13 @@ enum NativeCallAudio {
         case NativeCallAudioRoute.speakerID:
             setSpeakerEnabled(true)
         case NativeCallAudioRoute.receiverID:
-            isSpeakerEnabled = false
+            updateSpeakers { $0.choose(false) }
             if let builtInMicrophone = session.availableInputs?.first(where: { $0.portType == .builtInMic }) {
                 try? session.setPreferredInput(builtInMicrophone)
             }
             applyOutputRoute()
         default:
-            isSpeakerEnabled = false
+            updateSpeakers { $0.chooseExternal() }
             if let port = session.availableInputs?.first(where: { $0.uid == id }) {
                 do {
                     try session.setPreferredInput(port)
@@ -466,13 +722,64 @@ enum NativeCallAudio {
         logAudioRoute()
     }
 
-    /// The output port the call should use, remembered across activations.
-    private(set) static var isSpeakerEnabled = false
+    /// Each call's speaker, remembered across activations and holds (question 407).
+    private static var speakers = NativeCallSpeakerRegister()
+    static let speakerChanges = PassthroughSubject<Bool, Never>()
 
-    private static var hasExternalOutput: Bool {
-        AVAudioSession.sharedInstance().currentRoute.outputs.contains { output in
-            output.portType != .builtInReceiver && output.portType != .builtInSpeaker
+    /// The output port the call in use should use.
+    static var isSpeakerEnabled: Bool {
+        speakers.isSpeakerEnabled
+    }
+
+    /// The one writer of the register: the screen hears every change of the speaker in use.
+    private static func updateSpeakers(_ change: (inout NativeCallSpeakerRegister) -> Void) {
+        let wasEnabled = speakers.isSpeakerEnabled
+        change(&speakers)
+        if speakers.isSpeakerEnabled != wasEnabled {
+            speakerChanges.send(speakers.isSpeakerEnabled)
         }
+    }
+
+    /// A device came or went: the call in use follows the output the system chose for it — or, when the device went
+    /// from a call with one's own assistant, goes back to the loudspeaker (operator, 2026-11-12). The screen of a held
+    /// call doesn't ask: it waits for its resume.
+    static func followRouteChange(reason: AVAudioSession.RouteChangeReason) {
+        guard isSessionActive else { return }
+        let outputs = AVAudioSession.sharedInstance().currentRoute.outputs.map(\.nativeCallPort)
+        guard let change = NativeCallSpeakerPolicy.routeAfterDeviceChange(reason: reason,
+                                                                          activeOutputs: outputs,
+                                                                          returnsToSpeaker: speakers.returnsToSpeaker(isVideo: isVideoEnabled)) else { return }
+        var didChange = false
+        updateSpeakers { didChange = $0.follow(change) }
+        switch change {
+        case .returnsToSpeaker:
+            // The system put the call on the earpiece; the override is ours to re-assert.
+            MXLog.info("A device went from a call with one's own assistant; back to the loudspeaker")
+            applyOutputRoute()
+        case .follows(let speaker):
+            if didChange {
+                MXLog.info("A device changed the call's route; the speaker follows it: \(speaker)")
+            }
+        }
+    }
+
+    static var hasExternalOutput: Bool {
+        NativeCallAudioRoutes.hasExternalOutput(activeOutputs: AVAudioSession.sharedInstance().currentRoute.outputs.map(\.nativeCallPort))
+    }
+
+    /// The screen's read, before its call may have started: the call's category goes in first when no call holds the
+    /// session yet, so the first frame sees a hands-free-only device as the start will.
+    static var hasExternalRouteForCall: Bool {
+        if !NativeCallAudioSession.isHeldByCall {
+            configureAudioSession()
+        }
+        return hasExternalRoute
+    }
+
+    static var hasExternalRoute: Bool {
+        let session = AVAudioSession.sharedInstance()
+        return NativeCallAudioRoutes.hasExternalRoute(activeOutputs: session.currentRoute.outputs.map(\.nativeCallPort),
+                                                      availableInputs: (session.availableInputs ?? []).map(\.nativeCallPort))
     }
 
     private static func configureAudioSession() {
@@ -483,6 +790,28 @@ enum NativeCallAudio {
         } catch {
             MXLog.error("Failed configuring the call audio session category: \(error)")
         }
+        allowHapticsDuringCall()
+    }
+
+    /// iOS mutes haptics while the microphone records: the call's taps (connected, the capsule's events) need this,
+    /// set with the category and again on every activation (operator, 2026-11-12).
+    private static func allowHapticsDuringCall() {
+        do {
+            try AVAudioSession.sharedInstance().setAllowHapticsAndSystemSoundsDuringRecording(true)
+        } catch {
+            MXLog.error("Failed allowing haptics during the call: \(error)")
+        }
+    }
+
+    /// The route on a session that has just (re)activated. A default speaker gives way to an external route that only
+    /// showed up now: overriding to the speaker would pull a call in the car onto the phone.
+    private static func applyActivatedRoute() {
+        var didGiveWay = false
+        updateSpeakers { didGiveWay = $0.settle(hasExternalRoute: hasExternalRoute) }
+        if didGiveWay {
+            MXLog.info("An external route is there at activation; the default speaker gives way")
+        }
+        applyOutputRoute()
     }
 
     /// Route overrides only apply to the session that is currently active and

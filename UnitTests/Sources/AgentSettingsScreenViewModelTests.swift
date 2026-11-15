@@ -7,8 +7,8 @@
 // contract flag.
 //
 
-@testable import ElementX
 import Foundation
+@testable import Spiral
 import Synchronization
 import Testing
 
@@ -24,13 +24,11 @@ struct AgentSettingsScreenViewModelTests {
     
     private static let assistant = AgentSpaceAgentCard(agentID: "agent-1", matrixUserID: "@assistant-owner:spiral.md",
                                                        displayName: "Assistant", avatarMXC: nil, kind: "personal_assistant",
-                                                       visibility: "public", lifecycleState: "active", presence: .online,
-                                                       roomCount: 1, activeToolCount: 0)
+                                                       visibility: "public", lifecycleState: "active", roomCount: 1, activeToolCount: 0)
 
     private static let salesAgent = AgentSpaceAgentCard(agentID: "agent-2", matrixUserID: "@agent-sales:spiral.md",
                                                         displayName: "Sales", avatarMXC: nil, kind: "sales",
-                                                        visibility: "private", lifecycleState: "active", presence: .online,
-                                                        roomCount: 0, activeToolCount: 0)
+                                                        visibility: "private", lifecycleState: "active", roomCount: 0, activeToolCount: 0)
 
     private static let schema = AgentEditSchema(agentID: "agent-1",
                                                 kind: "personal_assistant",
@@ -65,13 +63,42 @@ struct AgentSettingsScreenViewModelTests {
         if service.fetchAgentReadModelAgentIDReturnValue == nil {
             service.fetchAgentReadModelAgentIDReturnValue = .success(Self.readModel(for: card))
         }
-        let viewModel = AgentSettingsScreenViewModel(agent: card,
-                                                     section: section,
-                                                     agentPlatformService: service,
-                                                     userIndicatorController: UserIndicatorControllerMock())
-        let loaded = deferFulfillment(viewModel.context.observe(\.viewState.loadState)) { $0 != .loading }
+        let viewModel = makeViewModel(section: section, card: card, service: service)
+        let needsLimits = viewModel.context.viewState.needsPersonaBounds
+        let loaded = deferFulfillment(viewModel.context.observe(\.viewState.loadState)) { state in
+            state.isAgentUnavailable || (state.readModel != nil && (!needsLimits || state.personaBounds != nil))
+        }
         try await loaded.fulfill()
         return viewModel
+    }
+
+    private func makeViewModel(section: AgentSettingsSection,
+                               card: AgentSpaceAgentCard = Self.assistant,
+                               service: AgentPlatformServiceMock,
+                               store: AgentsStore? = nil) -> AgentSettingsScreenViewModel {
+        service.fetchAgentRoomsAgentIDReturnValue = .success([])
+        service.listVerificationsForAgentAgentIDReturnValue = .success([])
+        return AgentSettingsScreenViewModel(agent: card,
+                                            section: section,
+                                            agentPlatformService: service,
+                                            store: store ?? AgentsStore(service: service, retryDelays: []),
+                                            userIndicatorController: UserIndicatorControllerMock())
+    }
+
+    /// A store that read the agent and, unless told otherwise, its limits: what opening from the agent's screen finds.
+    private func storeHoldingTheAgent(service: AgentPlatformServiceMock,
+                                      card: AgentSpaceAgentCard = Self.assistant,
+                                      limits: Bool = true) async -> AgentsStore {
+        service.fetchAgentReadModelAgentIDReturnValue = .success(Self.readModel(for: card))
+        service.fetchAgentRoomsAgentIDReturnValue = .success([])
+        service.listVerificationsForAgentAgentIDReturnValue = .success([])
+        service.fetchAgentEditSchemaAgentIDReturnValue = .success(Self.schema)
+        let store = AgentsStore(service: service, retryDelays: [])
+        await store.reread(.agent(agentID: card.agentID))
+        if limits {
+            await store.reread(.editSchema(agentID: card.agentID))
+        }
+        return store
     }
 
     private func save(_ viewModel: AgentSettingsScreenViewModel, service: AgentPlatformServiceMock) async throws {
@@ -100,16 +127,182 @@ struct AgentSettingsScreenViewModelTests {
         #expect(roleBrief.context.viewState.showsRoleBrief)
     }
 
-    /// B1: without a read there is nothing to compare against — no fields.
+    /// Brief 0083, question 359: the section and the card decide the rows, so they stand before any read.
     @Test
-    func aFailedReadShowsNoFields() async throws {
+    func theFormHasItsShapeBeforeAnyRead() {
+        let service = AgentPlatformServiceMock()
+        let read = HeldRead<AgentReadModel>(answer: .failure(.serverError(status: 500)))
+        service.fetchAgentReadModelAgentIDClosure = { _ in await read.answer() }
+        let limits = HeldRead<AgentEditSchema>(answer: .failure(.serverError(status: 500)))
+        service.fetchAgentEditSchemaAgentIDClosure = { _ in await limits.answer() }
+        defer {
+            read.release()
+            limits.release()
+        }
+
+        let character = makeViewModel(section: .character, service: service).context.viewState
+        #expect(character.personaFields == [.ownerDisplayName, .tone, .greeting])
+        #expect(character.hasText)
+        #expect(!character.isTextEditable)
+
+        let people = makeViewModel(section: .people, service: service).context.viewState
+        #expect(people.personaFields == [.visitorGreeting])
+        #expect(people.showsVisitorPolicy)
+        #expect(people.showsSearchToggle)
+
+        #expect(makeViewModel(section: .calls, service: service).context.viewState.showsVoiceLanguage)
+        #expect(makeViewModel(section: .character, card: Self.salesAgent, service: service).context.viewState.showsRoleBrief)
+    }
+
+    /// Brief 0083, question 359: opened from the agent's screen, the form is final on its first frame.
+    @Test
+    func theFormOpensFilledFromTheStore() async {
+        let service = AgentPlatformServiceMock()
+        let store = await storeHoldingTheAgent(service: service)
+
+        let viewModel = makeViewModel(section: .character, service: service, store: store)
+
+        #expect(viewModel.context.viewState.readModel != nil)
+        #expect(viewModel.context.viewState.isTextEditable)
+        #expect(viewModel.context.greeting == "Hi!")
+    }
+
+    /// Brief 0083, question 359: the values show; nothing can be typed or saved that couldn't be checked.
+    @Test
+    func theTextStaysClosedUntilTheLimitsArrive() async throws {
+        let service = AgentPlatformServiceMock()
+        let store = await storeHoldingTheAgent(service: service, limits: false)
+        let limits = HeldRead<AgentEditSchema>(answer: .success(Self.schema))
+        service.fetchAgentEditSchemaAgentIDClosure = { _ in await limits.answer() }
+
+        let viewModel = makeViewModel(section: .character, service: service, store: store)
+        #expect(viewModel.context.greeting == "Hi!")
+        #expect(!viewModel.context.viewState.isTextEditable)
+
+        viewModel.context.greeting = "Typed anyway"
+        #expect(!viewModel.context.viewState.canSave)
+        viewModel.context.send(viewAction: .selectTone(.friendly))
+        #expect(!service.editAgentAgentIDPatchCalled)
+        viewModel.context.greeting = "Hi!"
+
+        let open = deferFulfillment(viewModel.context.observe(\.viewState.loadState)) { $0.personaBounds != nil }
+        limits.release()
+        try await open.fulfill()
+        #expect(viewModel.context.viewState.isTextEditable)
+    }
+
+    /// Brief 0083, question 359: there is something to show, so the failure doesn't replace it; Retry reads the limits.
+    @Test
+    func aFailedLimitsReadKeepsTheValuesAndCanBeRetried() async throws {
+        let service = AgentPlatformServiceMock()
+        let store = await storeHoldingTheAgent(service: service, limits: false)
+        service.fetchAgentEditSchemaAgentIDReturnValue = .failure(.serverError(status: 500))
+
+        let viewModel = makeViewModel(section: .character, service: service, store: store)
+        let failed = deferFulfillment(viewModel.context.observe(\.viewState.loadState)) { $0.hasFailedLimits }
+        try await failed.fulfill()
+
+        #expect(!viewModel.context.viewState.loadState.isAgentUnavailable)
+        #expect(viewModel.context.greeting == "Hi!")
+        #expect(!viewModel.context.viewState.isTextEditable)
+
+        service.fetchAgentEditSchemaAgentIDReturnValue = .success(Self.schema)
+        let open = deferFulfillment(viewModel.context.observe(\.viewState.loadState)) { $0.personaBounds != nil && !$0.hasFailedLimits }
+        viewModel.context.send(viewAction: .retry)
+        try await open.fulfill()
+    }
+
+    /// B1: without a read there is nothing to compare against, and nothing to show.
+    @Test
+    func aFailedReadWithNothingHeldReplacesTheFormAndCanBeRetried() async throws {
         let service = AgentPlatformServiceMock()
         service.fetchAgentReadModelAgentIDReturnValue = .failure(.serverError(status: 500))
         let viewModel = try await loadedViewModel(section: .character, service: service)
 
-        #expect(viewModel.context.viewState.loadState == .failure)
-        #expect(viewModel.context.viewState.personaFields.isEmpty)
+        #expect(viewModel.context.viewState.loadState.isAgentUnavailable)
         #expect(!viewModel.context.viewState.canSave)
+
+        service.fetchAgentReadModelAgentIDReturnValue = .success(Self.readModel(for: Self.assistant))
+        let filled = deferFulfillment(viewModel.context.observe(\.viewState.loadState)) { $0.readModel != nil }
+        viewModel.context.send(viewAction: .retry)
+        #expect(!viewModel.context.viewState.loadState.isAgentUnavailable)
+        try await filled.fulfill()
+        #expect(viewModel.context.greeting == "Hi!")
+    }
+
+    /// A failed read keeps what the store holds: no failure section, and the form stays.
+    @Test
+    func aFailedRereadKeepsTheForm() async throws {
+        let service = AgentPlatformServiceMock()
+        let store = await storeHoldingTheAgent(service: service)
+        service.fetchAgentReadModelAgentIDReturnValue = .failure(.serverError(status: 500))
+
+        let viewModel = makeViewModel(section: .character, service: service, store: store)
+        await store.reread(.agent(agentID: Self.assistant.agentID))
+        try await Task.sleep(for: .milliseconds(50))
+
+        #expect(!viewModel.context.viewState.loadState.isAgentUnavailable)
+        #expect(viewModel.context.greeting == "Hi!")
+    }
+
+    /// Brief 0083, question 359: a read that lands while the person types moves the baseline and leaves the edit alone.
+    @Test
+    func aLaterReadNeverOverwritesAnEdit() async throws {
+        let service = AgentPlatformServiceMock()
+        let store = await storeHoldingTheAgent(service: service)
+        let viewModel = makeViewModel(section: .character, service: service, store: store)
+        viewModel.context.greeting = "My edit"
+
+        let newer = Self.readModel(for: Self.assistant, persona: Self.persona(tone: "formal", greeting: "From the server"))
+        service.fetchAgentReadModelAgentIDReturnValue = .success(newer)
+        let adopted = deferFulfillment(viewModel.context.observe(\.viewState.loadState)) { $0.readModel == newer }
+        await store.reread(.agent(agentID: Self.assistant.agentID))
+        try await adopted.fulfill()
+
+        #expect(viewModel.context.greeting == "My edit")
+        #expect(viewModel.context.tone == "formal")
+    }
+
+    /// A PATCH's answer is what the store holds at once (S5), and the read after it doesn't step the choice back.
+    @Test
+    func aWritesAnswerIsWhatTheStoreHolds() async throws {
+        let service = AgentPlatformServiceMock()
+        let store = await storeHoldingTheAgent(service: service)
+        let viewModel = makeViewModel(section: .people, service: service, store: store)
+        #expect(viewModel.context.showInSearch)
+
+        let answer = Self.readModel(for: Self.assistant, visibility: "private")
+        service.editAgentAgentIDPatchReturnValue = .success(answer)
+        // The server holds what it answers.
+        service.fetchAgentReadModelAgentIDReturnValue = .success(answer)
+        let applied = deferFulfillment(viewModel.actionsPublisher) { if case .changed = $0 { true } else { false } }
+        viewModel.context.send(viewAction: .setShowInSearch(false))
+        try await applied.fulfill()
+        #expect(store.value(.agent(agentID: Self.assistant.agentID))?.agent?.readModel == answer)
+
+        // The store's read after it, and anything else it reads, render the screen.
+        service.fetchAIConsentReturnValue = .success(.init(isGranted: true, currentVersion: "1", decidedVersion: "1"))
+        await store.reread(.aiConsent)
+        await store.settle()
+        try await Task.sleep(for: .milliseconds(50))
+        #expect(!viewModel.context.showInSearch)
+    }
+
+    /// Nothing was read, so a choice has nothing to differ from.
+    @Test
+    func aChoiceBeforeTheReadIsDropped() {
+        let service = AgentPlatformServiceMock()
+        let read = HeldRead<AgentReadModel>(answer: .failure(.serverError(status: 500)))
+        service.fetchAgentReadModelAgentIDClosure = { _ in await read.answer() }
+        service.fetchAgentEditSchemaAgentIDReturnValue = .success(Self.schema)
+        defer { read.release() }
+
+        let viewModel = makeViewModel(section: .people, service: service)
+        viewModel.context.send(viewAction: .setVisitorPolicy(.reply))
+        viewModel.context.send(viewAction: .setShowInSearch(true))
+
+        #expect(viewModel.context.visitorPolicy == nil)
+        #expect(!service.editAgentAgentIDPatchCalled)
     }
 
     /// Decisions 193/194: each choice shows the server's value, and no row
@@ -126,9 +319,9 @@ struct AgentSettingsScreenViewModelTests {
         #expect(calls.context.voiceLanguage == .ru)
 
         let withoutValue = try await loadedViewModel(section: .people, service: AgentPlatformServiceMock())
-        #expect(withoutValue.context.viewState.visitorPolicy == nil)
+        #expect(!withoutValue.context.viewState.showsVisitorPolicy)
         let silent = try await loadedViewModel(section: .calls, service: AgentPlatformServiceMock())
-        #expect(silent.context.viewState.voiceLanguage == nil)
+        #expect(!silent.context.viewState.showsVoiceLanguage)
     }
 
     // MARK: - Text

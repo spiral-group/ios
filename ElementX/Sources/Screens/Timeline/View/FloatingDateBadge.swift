@@ -36,7 +36,7 @@ struct FloatingDateBadge: View {
                         .padding(.horizontal, 16)
                         .padding(.vertical, 8)
                         .background(backgroundColor, in: .capsule)
-                        .shadow(color: Color(red: 0.11, green: 0.11, blue: 0.13).opacity(0.1), radius: 12, x: 0, y: 4)
+                        .modifier(ElevationModifier()) // AGENT-PLATFORM (Brief 0083, question 359)
                 }
                 .buttonStyle(.plain)
                 .disabled(onTap == nil)
@@ -44,6 +44,20 @@ struct FloatingDateBadge: View {
             }
         }
         .animation(.easeInOut(duration: 0.15).disabledDuringTests(), value: dateText)
+    }
+}
+
+/// AGENT-PLATFORM (Brief 0083, question 359): the room's one shadow on its background. On the plain canvas, under Reduce
+/// Transparency or Increase Contrast, it's upstream's: the badge is the canvas's own colour and would disappear without it.
+private struct ElevationModifier: ViewModifier {
+    @Environment(\.isChatBackgroundDrawn) private var isChatBackgroundDrawn
+    
+    func body(content: Content) -> some View {
+        if isChatBackgroundDrawn {
+            content.chatElevation()
+        } else {
+            content.shadow(color: Color(red: 0.11, green: 0.11, blue: 0.13).opacity(0.1), radius: 12, x: 0, y: 4)
+        }
     }
 }
 

@@ -25,8 +25,7 @@ struct FormattingToolbar: View {
                         CompoundIcon(item.icon, size: .small, relativeTo: .compound.headingLG)
                             .foregroundColor(item.foregroundColor)
                             .padding(8)
-                            .background(item.backgroundColor)
-                            .cornerRadius(8)
+                            .background(item.backgroundColor, in: .circle) // AGENT-PLATFORM (Brief 0083): round, as the composer's buttons are
                             .padding(.vertical, Compound.supportsGlass ? 10 : 3)
                     }
                     .disabled(item.state == .disabled)

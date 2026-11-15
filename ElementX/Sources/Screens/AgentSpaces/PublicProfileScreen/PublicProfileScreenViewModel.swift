@@ -14,49 +14,61 @@ import SwiftUI
 
 typealias PublicProfileScreenViewModelType = StateStoreViewModelV2<PublicProfileScreenViewState, PublicProfileScreenViewAction>
 
-/// Drives `PublicProfileScreen`. Fetches the target user's
-/// public profile on `.appeared`, surfaces persona previews +
-/// per-agent "Contact agent" actions, falls back to friendly
+/// Drives `PublicProfileScreen`: the target user's public profile,
+/// persona previews and per-agent "Contact agent" actions, with friendly
 /// copy for 404 / self-lookup / failure states.
 ///
 /// ### Self-lookup short-circuit
 ///
-/// When the caller navigates to their own MXID we render an
-/// explicit "this is you — open the dashboard" terminal state
-/// instead of duplicating the owner dashboard. The
-/// `currentUserMXID` parameter is injected at construction
-/// (resolved from `UserSession.clientProxy.userID` by the
-/// coordinator) so this check happens entirely in the view
-/// model — easy to unit-test, never re-tries on refresh.
+/// When the caller navigates to their own MXID we render an explicit
+/// "this is you" terminal state instead of duplicating the owner
+/// dashboard; nothing is read.
 ///
-/// ### `.appeared` skip on terminal state
-///
-/// Mirrors `VerificationDetailScreenViewModel`'s pattern: once
-/// the screen has landed on `notFound` / `selfLookup` /
-/// `failed`, refetching on re-appearance is wasted (the user
-/// is just looking before dismissing). Explicit `.refresh`
-/// pulls a fresh request through.
+/// AGENT-PLATFORM: platform sync (decision 289). The profile is the
+/// session store's; `profile.public` (any public agent's profile moved; it
+/// names the agent, not the person) reads an open profile again.
 class PublicProfileScreenViewModel: PublicProfileScreenViewModelType, PublicProfileScreenViewModelProtocol {
     private let targetMXID: String
     private let currentUserMXID: String
-    private let agentPlatformService: any AgentPlatformServiceProtocol
+    private let store: AgentsStore
 
     private let actionsSubject: PassthroughSubject<PublicProfileScreenViewModelAction, Never> = .init()
     var actionsPublisher: AnyPublisher<PublicProfileScreenViewModelAction, Never> {
         actionsSubject.eraseToAnyPublisher()
     }
 
+    private var resource: AgentsResource {
+        .publicProfile(userID: targetMXID)
+    }
+
+    private var isSelfLookup: Bool {
+        Self.isSameUser(lhs: targetMXID, rhs: currentUserMXID)
+    }
+
     init(targetMXID: String,
          currentUserMXID: String,
-         agentPlatformService: any AgentPlatformServiceProtocol,
-         initialState: PublicProfileState = .loading) {
+         store: AgentsStore) {
         self.targetMXID = targetMXID
         self.currentUserMXID = currentUserMXID
-        self.agentPlatformService = agentPlatformService
-        let bindings = PublicProfileScreenViewStateBindings()
-        var initial = PublicProfileScreenViewState(targetMXID: targetMXID, bindings: bindings)
-        initial.detailState = initialState
-        super.init(initialViewState: initial)
+        self.store = store
+        super.init(initialViewState: PublicProfileScreenViewState(targetMXID: targetMXID, bindings: PublicProfileScreenViewStateBindings()))
+
+        // Don't fire the wire for oneself: the owner already sees their dashboard.
+        guard !isSelfLookup else {
+            state.detailState = .selfLookup
+            return
+        }
+        render()
+        store.observe { [weak self] in
+            guard let self else { return false }
+            render()
+            return true
+        }
+        store.show(resource, by: self)
+    }
+
+    isolated deinit {
+        store.stopShowing(resource, by: self)
     }
 
     // MARK: - Public
@@ -65,13 +77,9 @@ class PublicProfileScreenViewModel: PublicProfileScreenViewModelType, PublicProf
         MXLog.info("PublicProfileScreenViewModel received view action: \(viewAction)")
 
         switch viewAction {
-        case .appeared:
-            if state.detailState.isTerminalForFetch {
-                return
-            }
-            Task { await loadProfile() }
-        case .refresh:
-            Task { await loadProfile() }
+        case .retry:
+            guard !isSelfLookup else { return }
+            Task { await store.reread(resource) }
         case .contactAgent(let mxid):
             actionsSubject.send(.contactAgent(matrixUserID: mxid))
         case .dismiss:
@@ -81,34 +89,18 @@ class PublicProfileScreenViewModel: PublicProfileScreenViewModelType, PublicProf
 
     // MARK: - Private
 
-    private func loadProfile() async {
-        // Self-lookup short-circuit. Don't fire the wire — the
-        // backend would happily return the profile but the UX
-        // is wrong (owner already sees their dashboard).
-        if Self.isSameUser(lhs: targetMXID, rhs: currentUserMXID) {
-            state.detailState = .selfLookup
-            return
+    private func render() {
+        let detailState: PublicProfileState = switch store.readState(resource, \.publicProfile) {
+        case .loading: .loading
+        case .loaded(let profile): .loaded(profile)
+        case .failed(.notFound): .notFound
+        case .failed(let error): .failed(reason: error.description)
         }
-
-        state.detailState = .loading
-
-        switch await agentPlatformService.fetchUserProfile(mxid: targetMXID) {
-        case .success(let profile):
-            state.detailState = .loaded(profile)
-        case .failure(let error):
-            if case .notFound = error {
-                state.detailState = .notFound
-                return
-            }
-            MXLog.error("PublicProfileScreenViewModel: fetch failed: \(error)")
-            state.detailState = .failed(reason: error.description)
-            state.bindings.alertInfo = AlertInfo(id: .fetchFailed,
-                                                 title: L10n.commonError,
-                                                 message: L10n.errorUnknown,
-                                                 primaryButton: .init(title: L10n.actionRetry) { [weak self] in
-                                                     Task { await self?.loadProfile() }
-                                                 },
-                                                 secondaryButton: .init(title: L10n.actionCancel, role: .cancel, action: nil))
+        if state.detailState != detailState {
+            state.detailState = detailState
+        }
+        if state.syncStatus != store.syncStatus {
+            state.syncStatus = store.syncStatus
         }
     }
 
@@ -123,20 +115,5 @@ class PublicProfileScreenViewModel: PublicProfileScreenViewModelType, PublicProf
     static func isSameUser(lhs: String, rhs: String) -> Bool {
         lhs.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
             == rhs.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-    }
-}
-
-private extension PublicProfileState {
-    /// True iff refetching on `.appeared` is wasted because the
-    /// state can't transition out via a no-op refetch. The user
-    /// can still pull-to-refresh which fires the explicit
-    /// `.refresh` action.
-    var isTerminalForFetch: Bool {
-        switch self {
-        case .notFound, .selfLookup, .failed:
-            return true
-        case .loaded, .loading:
-            return false
-        }
     }
 }

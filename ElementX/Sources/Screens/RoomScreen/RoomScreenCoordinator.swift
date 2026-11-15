@@ -24,8 +24,6 @@ struct RoomScreenCoordinatorParameters {
     let completionSuggestionService: CompletionSuggestionServiceProtocol
     let ongoingCallRoomIDPublisher: CurrentValuePublisher<String?, Never>
     let appMediator: AppMediatorProtocol
-    let appSettings: AppSettings
-    let appHooks: AppHooks
     let analytics: AnalyticsServiceProtocol
     let composerDraftService: ComposerDraftServiceProtocol
     let timelineControllerFactory: TimelineControllerFactoryProtocol
@@ -44,19 +42,15 @@ enum RoomScreenCoordinatorAction {
     case presentLiveLocationViewer(sender: TimelineItemSender?, initialLiveLocationShare: LiveLocationShare?)
     case presentEmojiPicker(selectedEmojis: Set<String>, continuation: EmojiPickerScreenContinuation)
     case presentRoomMemberDetails(userID: String)
-    case presentMessageForwarding(forwardingItem: MessageForwardingItem)
+    case presentMessageForwarding(forwardingPayload: MessageForwardingPayload)
     case presentCallScreen(isVoiceCall: Bool)
     case presentPinnedEventsTimeline
     case presentResolveSendFailure(failure: TimelineItemSendFailure.VerifiedUser, resolver: VerifiedUserSendFailureResolver) // AGENT-PLATFORM: § 5.87
     case presentKnockRequestsList
-    case presentThreadList
     case presentThread(threadRootEventID: String, focussedEventID: String?)
     case presentRoom(roomID: String, via: [String])
-    // AGENT-PLATFORM: open the agent-tools sheet (Brief 0036). The banner opens
-    // the EDIT surface (active-tools list); the composer "+" opens the CREATE
-    // surface (capabilities catalog).
-    case presentAgentToolsEdit
-    case presentAgentToolsCreate
+    // AGENT-PLATFORM: the composer "+" and the in-chat active-tools banner open the chat's tools.
+    case presentAgentTools
     case presentInteractivePostAgentPicker
     case presentInteractivePostEditor(eventID: String, post: SpiralAppPost, title: String)
 }
@@ -65,7 +59,7 @@ final class RoomScreenCoordinator: CoordinatorProtocol {
     private var roomViewModel: RoomScreenViewModelProtocol
     private var timelineViewModel: TimelineViewModelProtocol
     private var composerViewModel: ComposerToolbarViewModelProtocol
-    private let appSettings: AppSettings
+    private let userSettings: UserSettings
     
     private var cancellables = Set<AnyCancellable>()
     
@@ -75,7 +69,7 @@ final class RoomScreenCoordinator: CoordinatorProtocol {
     }
     
     init(parameters: RoomScreenCoordinatorParameters) {
-        appSettings = parameters.appSettings
+        userSettings = parameters.userSession.userSettings
         
         var selectedPinnedEventID: String?
         if let focussedEvent = parameters.focussedEvent {
@@ -86,8 +80,6 @@ final class RoomScreenCoordinator: CoordinatorProtocol {
                                             roomProxy: parameters.roomProxy,
                                             initialSelectedPinnedEventID: selectedPinnedEventID,
                                             ongoingCallRoomIDPublisher: parameters.ongoingCallRoomIDPublisher,
-                                            appSettings: parameters.appSettings,
-                                            appHooks: parameters.appHooks,
                                             analyticsService: parameters.analytics,
                                             userIndicatorController: parameters.userIndicatorController)
         
@@ -98,7 +90,6 @@ final class RoomScreenCoordinator: CoordinatorProtocol {
                                               mediaPlayerProvider: parameters.mediaPlayerProvider,
                                               userIndicatorController: parameters.userIndicatorController,
                                               appMediator: parameters.appMediator,
-                                              appSettings: parameters.appSettings,
                                               analyticsService: parameters.analytics,
                                               emojiProvider: parameters.emojiProvider,
                                               linkMetadataProvider: parameters.linkMetadataProvider,
@@ -114,7 +105,7 @@ final class RoomScreenCoordinator: CoordinatorProtocol {
                                                          completionSuggestionService: parameters.completionSuggestionService,
                                                          mediaProvider: parameters.userSession.mediaProvider,
                                                          mentionDisplayHelper: ComposerMentionDisplayHelper(timelineContext: timelineViewModel.context),
-                                                         appSettings: parameters.appSettings,
+                                                         userSettings: parameters.userSession.userSettings,
                                                          analyticsService: parameters.analytics,
                                                          composerDraftService: parameters.composerDraftService)
         self.composerViewModel = composerViewModel
@@ -133,13 +124,13 @@ final class RoomScreenCoordinator: CoordinatorProtocol {
                 case .displayReportContent(let itemID, let senderID):
                     actionsSubject.send(.presentReportContent(itemID: itemID, senderID: senderID))
                 case .displayCameraPicker:
-                    actionsSubject.send(.presentMediaUploadPicker(mode: .init(source: .camera, selectionType: .multiple(galleryEnabled: appSettings.galleryEnabled)),
+                    actionsSubject.send(.presentMediaUploadPicker(mode: .init(source: .camera, selectionType: .multipleItems),
                                                                   caption: composerViewModel.context.plainComposerText))
                 case .displayMediaPicker:
-                    actionsSubject.send(.presentMediaUploadPicker(mode: .init(source: .photoLibrary, selectionType: .multiple(galleryEnabled: appSettings.galleryEnabled)),
+                    actionsSubject.send(.presentMediaUploadPicker(mode: .init(source: .photoLibrary, selectionType: .multipleItems),
                                                                   caption: composerViewModel.context.plainComposerText))
                 case .displayDocumentPicker:
-                    actionsSubject.send(.presentMediaUploadPicker(mode: .init(source: .documents(), selectionType: .multiple(galleryEnabled: appSettings.galleryEnabled)),
+                    actionsSubject.send(.presentMediaUploadPicker(mode: .init(source: .documents(), selectionType: .multipleItems),
                                                                   caption: composerViewModel.context.plainComposerText))
                 case .displayMediaPreview(let mediaPreviewViewModel):
                     roomViewModel.displayMediaPreview(mediaPreviewViewModel)
@@ -154,8 +145,8 @@ final class RoomScreenCoordinator: CoordinatorProtocol {
                                                                          caption: composerViewModel.context.plainComposerText))
                 case .displaySenderDetails(userID: let userID):
                     actionsSubject.send(.presentRoomMemberDetails(userID: userID))
-                case .displayMessageForwarding(let forwardingItem):
-                    actionsSubject.send(.presentMessageForwarding(forwardingItem: forwardingItem))
+                case .displayMessageForwarding(let forwardingPayload):
+                    actionsSubject.send(.presentMessageForwarding(forwardingPayload: forwardingPayload))
                 case .displayLocation(let location):
                     actionsSubject.send(.presentLocationViewer(location))
                 case .displayLiveLocation(let sender, let initialLiveLocationShare):
@@ -205,7 +196,7 @@ final class RoomScreenCoordinator: CoordinatorProtocol {
                 case .displayRoomDetails:
                     actionsSubject.send(.presentRoomDetails)
                 case .displayAgentTools:
-                    actionsSubject.send(.presentAgentToolsEdit)
+                    actionsSubject.send(.presentAgentTools)
                 case .displayCall(let isVoiceCall):
                     actionsSubject.send(.presentCallScreen(isVoiceCall: isVoiceCall))
                 case .removeComposerFocus:
@@ -214,10 +205,8 @@ final class RoomScreenCoordinator: CoordinatorProtocol {
                     actionsSubject.send(.presentKnockRequestsList)
                 case .displayRoom(let roomID, let via):
                     actionsSubject.send(.presentRoom(roomID: roomID, via: via))
-                case .displayMessageForwarding(let forwardingItem):
-                    actionsSubject.send(.presentMessageForwarding(forwardingItem: forwardingItem))
-                case .displayThreadList:
-                    actionsSubject.send(.presentThreadList)
+                case .displayMessageForwarding(let forwardingPayload):
+                    actionsSubject.send(.presentMessageForwarding(forwardingPayload: forwardingPayload))
                 case .displayThread(let threadRootEventID, let focussedEventID):
                     actionsSubject.send(.presentThread(threadRootEventID: threadRootEventID, focussedEventID: focussedEventID))
                 case .stopLiveLocationSharing:
@@ -271,9 +260,14 @@ final class RoomScreenCoordinator: CoordinatorProtocol {
         composerViewModel.process(timelineAction: .setFocus)
     }
     
+    func clearMessageSelection() {
+        timelineViewModel.clearMessageSelection()
+    }
+    
     func stop() {
         composerViewModel.stop()
         roomViewModel.stop()
+        timelineViewModel.stop() // AGENT-PLATFORM (Brief 0083, questions 363 and 364)
     }
     
     // AGENT-PLATFORM: the "Agent" and "Interactive post" compose-menu items
@@ -281,7 +275,7 @@ final class RoomScreenCoordinator: CoordinatorProtocol {
     private func route(composerAction action: ComposerToolbarViewModelAction) {
         switch action {
         case .presentAgentTools:
-            actionsSubject.send(.presentAgentToolsCreate)
+            actionsSubject.send(.presentAgentTools)
         case .presentInteractivePostAgentPicker:
             actionsSubject.send(.presentInteractivePostAgentPicker)
         default:

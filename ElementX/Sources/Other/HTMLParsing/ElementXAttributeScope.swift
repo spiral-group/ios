@@ -6,12 +6,7 @@
 // Please see LICENSE files in the repository root for full details.
 //
 
-import Foundation
-
-enum BlockquoteAttribute: AttributedStringKey {
-    typealias Value = Bool
-    static let name = "MXBlockquoteAttribute"
-}
+import SwiftUI
 
 enum UserIDAttribute: AttributedStringKey {
     typealias Value = String
@@ -65,6 +60,17 @@ enum AllUsersMentionAttribute: AttributedStringKey {
     static let name = "MXAllUsersMentionAttribute"
 }
 
+enum BlockquoteAttribute: AttributedStringKey {
+    typealias Value = Bool
+    static let name = "MXBlockquoteAttribute"
+}
+
+/// Marks the content of a `<details>` element, carrying its `<summary>` as the value.
+enum DetailsAttribute: AttributedStringKey {
+    typealias Value = String
+    static let name = "MXDetailsAttribute"
+}
+
 enum CodeBlockAttribute: AttributedStringKey {
     typealias Value = Bool
     static let name = "MXCodeBlockAttribute"
@@ -76,8 +82,10 @@ enum InlineCodeAttribute: AttributedStringKey {
 }
 
 nonisolated extension AttributeScopes {
-    struct ElementXAttributes: AttributeScope {
+    // AGENT-PLATFORM (Brief 0083 L1b): upstream's ElementXAttributes; the type's name is in the binary.
+    struct SpiralAttributes: AttributeScope {
         let blockquote: BlockquoteAttribute
+        let details: DetailsAttribute
         
         let userID: UserIDAttribute
         // periphery:ignore - required to make NSAttributedString to AttributedString conversion even if not used directly
@@ -104,14 +112,14 @@ nonisolated extension AttributeScopes {
         let uiKit: UIKitAttributes
     }
     
-    var elementX: ElementXAttributes.Type {
-        ElementXAttributes.self
+    var elementX: SpiralAttributes.Type { // AGENT-PLATFORM (Brief 0083 L1b)
+        SpiralAttributes.self
     }
 }
 
 // periphery: ignore - required to make NSAttributedString to AttributedString conversion even if not used directly
 nonisolated extension AttributeDynamicLookup {
-    subscript<T: AttributedStringKey>(dynamicMember keyPath: KeyPath<AttributeScopes.ElementXAttributes, T>) -> T {
+    subscript<T: AttributedStringKey>(dynamicMember keyPath: KeyPath<AttributeScopes.SpiralAttributes, T>) -> T { // AGENT-PLATFORM (Brief 0083 L1b)
         self[T.self]
     }
 }

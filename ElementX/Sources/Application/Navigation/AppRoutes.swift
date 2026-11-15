@@ -12,8 +12,7 @@ import MatrixRustSDK
 // MARK: - Routes
 
 enum AppRoute: Hashable {
-    /// An account provisioning link generated externally.
-    case accountProvisioningLink(AccountProvisioningParameters)
+    // AGENT-PLATFORM (Brief 0083 L1b): no accountProvisioningLink, Element's mobile.element.io links.
     /// An external callback used to complete login with OAuth. This is only used when authentication
     /// requires an external app so cannot be handled directly by the web authentication session.
     case oAuthCallback(url: URL)
@@ -111,10 +110,16 @@ enum AppRoute: Hashable {
     // message can't open Settings.
     case aiConsentSettings
 
+    // AGENT-PLATFORM: feed (Brief 0082): one feed post, `spiral.md/feed/<id>`,
+    // opened on the Feed tab.
+    case feedPost(postID: String)
+    // AGENT-PLATFORM: feed (Brief 0082): the person's feed notices, opened by a
+    // `feed_notice` push. No URL parses into it.
+    case feedNotices
+
     /// Whether or not the route should be handled by the authentication flow.
     var isAuthenticationRoute: Bool {
         switch self {
-        case .accountProvisioningLink: true
         case .oAuthCallback: true
         case .inviteLink: true
         default: false
@@ -122,16 +127,7 @@ enum AppRoute: Hashable {
     }
 }
 
-/// The parameters parsed out of a provisioning link that can be applied to the authentication flow for a streamlined onboarding experience.
-struct AccountProvisioningParameters: Hashable {
-    let accountProvider: String
-    let loginHint: String?
-    
-    enum CodingKeys: String, CodingKey {
-        case accountProvider = "account_provider"
-        case loginHint = "login_hint"
-    }
-}
+// AGENT-PLATFORM (Brief 0083 L1b): no AccountProvisioningParameters.
 
 struct AppRouteURLParser {
     let urlParsers: [URLParser]
@@ -148,7 +144,8 @@ struct AppRouteURLParser {
             MatrixLinkParser(),
             InviteLinkParser(),
             CatalogLinkParser(), // AGENT-PLATFORM (decision 111)
-            AccountProvisioningURLParser(domain: appSettings.accountProvisioningHost),
+            FeedLinkParser(), // AGENT-PLATFORM: feed (Brief 0082)
+            // AGENT-PLATFORM (Brief 0083 L1b): no AccountProvisioningURLParser.
             OAuthCallbackURLParser(redirectURL: appSettings.oAuthRedirectURL)
         ]
     }
@@ -166,10 +163,8 @@ struct AppRouteURLParser {
 
 // MARK: - URL Parsers
 
+// AGENT-PLATFORM (Brief 0083 L1b): no note on Element's missing universal link parsers.
 /// Represents a type that can parse a `URL` into an `AppRoute`.
-///
-/// The following Universal Links are missing parsers.
-/// - mobile.element.io
 protocol URLParser {
     func route(from url: URL) -> AppRoute?
 }
@@ -246,23 +241,15 @@ private struct CatalogLinkParser: URLParser {
     }
 }
 
-/// The parser for user provisioning links.
-private struct AccountProvisioningURLParser: URLParser {
-    let domain: String
-    
+/// AGENT-PLATFORM: feed (Brief 0082): `spiral.md/feed/<id>` and
+/// `spiral:///feed/<id>` — one feed post.
+private struct FeedLinkParser: URLParser {
     func route(from url: URL) -> AppRoute? {
-        guard url.host() == domain else { return nil }
-        
-        guard let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
-              let serverName = components.queryItems?.first(where: { $0.name == AccountProvisioningParameters.CodingKeys.accountProvider.rawValue })?.value else {
-            return nil
-        }
-        
-        let loginHint = components.queryItems?.first { $0.name == AccountProvisioningParameters.CodingKeys.loginHint.rawValue }?.value
-        
-        return .accountProvisioningLink(.init(accountProvider: serverName, loginHint: loginHint))
+        SpiralFeedLink.parse(url).map { .feedPost(postID: $0.postID) }
     }
 }
+
+// AGENT-PLATFORM (Brief 0083 L1b): no AccountProvisioningURLParser, Element's mobile.element.io links.
 
 /// The parser for the OAuth callback URL. This always returns an `.oAuthCallback`.
 struct OAuthCallbackURLParser: URLParser {

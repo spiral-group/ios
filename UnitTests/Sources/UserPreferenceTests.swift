@@ -7,9 +7,9 @@
 //
 
 import Combine
-@testable import ElementX
 import Foundation
 import Macros
+@testable import Spiral
 import Testing
 
 struct UserPreferenceTests {

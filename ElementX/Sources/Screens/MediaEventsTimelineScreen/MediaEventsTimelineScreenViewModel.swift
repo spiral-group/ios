@@ -173,8 +173,8 @@ class MediaEventsTimelineScreenViewModel: MediaEventsTimelineScreenViewModelType
         sheetModel.actions.sink { [weak self] action in
             guard let self else { return }
             switch action {
-            case .displayMessageForwarding(let forwardingItem):
-                displayMessageForwarding(forwardingItem: forwardingItem)
+            case .displayMessageForwarding(let forwardingPayload):
+                displayMessageForwarding(forwardingPayload: forwardingPayload)
             case .viewInRoomTimeline(let itemID):
                 actionsSubject.send(.viewInRoomTimeline(itemID))
             case .dismiss:
@@ -183,8 +183,7 @@ class MediaEventsTimelineScreenViewModel: MediaEventsTimelineScreenViewModelType
         }
         .store(in: &cancellables)
         
-        // Triggers a download of the item so that can be shared/saved
-        sheetModel.context.send(viewAction: .updateCurrentItem(sheetModel.state.currentItem))
+        // The view model downloads the item by itself so that it can be shared/saved.
         state.bindings.mediaPreviewSheetViewModel = sheetModel
     }
     
@@ -250,8 +249,8 @@ class MediaEventsTimelineScreenViewModel: MediaEventsTimelineScreenViewModelType
         viewModel.actions.sink { [weak self] action in
             guard let self else { return }
             switch action {
-            case .displayMessageForwarding(let forwardingItem):
-                displayMessageForwarding(forwardingItem: forwardingItem)
+            case .displayMessageForwarding(let forwardingPayload):
+                displayMessageForwarding(forwardingPayload: forwardingPayload)
             case .viewInRoomTimeline(let itemID):
                 state.bindings.mediaPreviewViewModel = nil
                 actionsSubject.send(.viewInRoomTimeline(itemID))
@@ -272,12 +271,12 @@ class MediaEventsTimelineScreenViewModel: MediaEventsTimelineScreenViewModelType
         }
     }
     
-    private func displayMessageForwarding(forwardingItem: MessageForwardingItem) {
+    private func displayMessageForwarding(forwardingPayload: MessageForwardingPayload) {
         state.bindings.mediaPreviewViewModel = nil
         state.bindings.mediaPreviewSheetViewModel = nil
         // We need a small delay because we need to wait for the presented sheet to be fully dismissed.
         DispatchQueue.main.asyncAfter(deadline: .now() + TimelineMediaPreviewViewModel.displayMessageForwardingDelay) {
-            self.actionsSubject.send(.displayMessageForwarding(forwardingItem))
+            self.actionsSubject.send(.displayMessageForwarding(forwardingPayload))
         }
     }
 }

@@ -7,66 +7,90 @@
 //
 // AGENT-PLATFORM: Agent Platform feature (Brief 0035/0036 / ADR-0048).
 // The Spiral feature is built on Element's `TemplateScreenModels.swift`.
-// The agent bottom-sheet reached from the composer "+"
-// "Agents" item — the root of the room → agent → tool flow. Lists the
-// caller's own agents present in the room (avatar + name + a one-line tool
-// summary) and an "Add agent" affordance. Tapping an agent opens its
-// capabilities; "Add agent" opens the picker of the caller's other agents to
-// invite. Reads `GET /rooms/:room_id/tools` for the joined agents + their
-// active tools.
+// A chat's tools (question 359, item 12, board A): the one screen behind the
+// chat's "+". Each of the person's agents as a group with its tools, other
+// people's agents with theirs, read-only, then "Add agent". It renders
+// `GET /rooms/:room_id/tools` from the session store.
 //
 
-import Foundation
+import Compound
+import SwiftUI
 
 // MARK: - ViewModel → Coordinator actions
 
-enum AgentSheetScreenViewModelAction {
-    /// User picked an agent already in the room — open its capabilities.
-    case selectAgent(AgentSummary)
-    /// User tapped "Add agent" — open the picker of agents to invite.
+enum AgentSheetScreenViewModelAction: Equatable {
+    /// "Add a tool" or "All tools": the kinds this agent can take here.
+    case addTool(AgentSummary)
+    /// A quick row: the form of one kind, straight away.
+    case addToolOfKind(AgentToolKind, AgentSummary)
+    /// One of the person's own tools.
+    case editTool(ActiveToolDetail, AgentSummary)
+    /// Someone else's tool, read-only.
+    case viewTool(ToolDetail)
     case addAgent
-    /// User dismissed the sheet.
+    /// The "…" menu's profile.
+    case viewProfile(userID: String)
     case dismiss
 }
 
 // MARK: - View ↔ ViewModel state
 
+/// One tool's row.
+struct AgentSheetTool: Equatable, Identifiable {
+    let id: String
+    let title: String
+    let subtitle: String?
+    let icon: KeyPath<CompoundIcons, Image>
+    /// On, but the catalogue says it can't fire here: the row offers only turning it off.
+    var isUnavailable = false
+}
+
+/// What stands in an own agent's group with no tools yet (board 4).
+enum AgentSheetQuickAdd: Equatable {
+    /// It has tools, so "Add a tool" stands there.
+    case none
+    /// The catalogue is on its way: the rows hold their place.
+    case loading
+    /// Rows straight to the form; `hasMore` adds "All tools".
+    case kinds([AgentToolKind], hasMore: Bool)
+    /// The catalogue couldn't be read, so nothing says what fires here.
+    case failed
+}
+
+/// An agent and its tools.
+struct AgentSheetGroup: Equatable, Identifiable {
+    let agent: AgentSummary
+    /// "Bohdan's agent", under someone else's agent.
+    var ownerLine: String?
+    let tools: [AgentSheetTool]
+    var quickAdd = AgentSheetQuickAdd.none
+    /// The owner's own chat with the agent is theirs with it: the agent stays.
+    var canRemoveFromChat = false
+    
+    var id: String {
+        agent.id
+    }
+}
+
 enum AgentSheetListState: Equatable {
     /// `GET /rooms/:room_id/tools` in flight.
     case loading
-    /// Resolved lists: the caller's own agents (editable) and other
-    /// participants' agents that have tools armed (read-only). Brief
-    /// 0043 P4 — everyone sees the room's full tool picture, each edits
-    /// only their own.
-    case loaded(mine: [AgentSummary], others: [AgentSummary])
-    /// The fetch failed. Inline retry.
+    /// The person's own agents (editable) and other participants' agents with tools (read-only). Brief 0043 P4:
+    /// everyone sees the room's full tool picture, each edits only their own.
+    case loaded(mine: [AgentSheetGroup], others: [AgentSheetGroup])
+    /// The read failed: Retry, never "no tools".
     case failed
 }
 
 struct AgentSheetScreenViewState: BindableState {
+    /// The chat's name, under the title.
+    let roomName: String?
     var listState: AgentSheetListState = .loading
-    /// The agent whose screen is being opened; other taps wait for it.
-    var openingAgentID: String?
+    /// The agent on its way out of the chat.
+    var removingAgentID: String?
+    /// The sync's state at the top while the stream is not live (decision 289).
+    var syncStatus: PlatformSyncStatus?
     var bindings = AgentSheetScreenViewStateBindings()
-
-    /// The caller's own (editable) agents.
-    var agents: [AgentSummary] {
-        if case .loaded(let mine, _) = listState { return mine }
-        return []
-    }
-
-    /// Other participants' agents with armed tools (read-only).
-    var otherAgents: [AgentSummary] {
-        if case .loaded(_, let others) = listState { return others }
-        return []
-    }
-
-    /// True when the caller has no agent of their own in this room —
-    /// the sheet shows a "add your agent" CTA rather than an empty row.
-    var hasNoOwnAgent: Bool {
-        if case .loaded(let mine, _) = listState { return mine.isEmpty }
-        return false
-    }
 }
 
 struct AgentSheetScreenViewStateBindings {
@@ -74,20 +98,27 @@ struct AgentSheetScreenViewStateBindings {
 }
 
 enum AgentSheetScreenAlertType: Hashable {
-    case loadFailed
+    case confirmRemove
+    case removeFailed
+    case turnOffFailed
+    /// A tool whose kind, trigger or scope this build does not know.
+    case needsUpdate
+    /// A listed tool that can't fire for this agent here.
+    case unavailable
 }
 
 // MARK: - View → ViewModel actions
 
 enum AgentSheetScreenViewAction {
-    /// `.onAppear` — fetch the room's agents.
-    case appeared
-    /// Retry after a failed fetch.
+    /// Retry after a failed read of the room's tools.
     case retry
-    /// User tapped an agent row.
-    case selectAgent(id: String)
-    /// User tapped "Add agent".
+    /// Retry after a failed read of an agent's catalogue.
+    case retryCatalog(agentID: String)
+    case selectTool(agentID: String, toolID: String)
+    case addTool(agentID: String)
+    case addToolOfKind(AgentToolKind, agentID: String)
+    case viewProfile(agentID: String)
+    case removeAgent(agentID: String)
     case addAgent
-    /// User tapped Done / dismissed.
     case done
 }

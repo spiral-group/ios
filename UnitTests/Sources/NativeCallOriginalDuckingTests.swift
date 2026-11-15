@@ -2,8 +2,8 @@
 // Copyright 2026 the Spiral authors. AGPL-3.0-or-later.
 //
 
-@testable import ElementX
 import Foundation
+@testable import Spiral
 import Testing
 
 // AGENT-PLATFORM (Brief 0066 rev. 2): the plan says WHO is ducked; the
@@ -17,7 +17,7 @@ struct NativeCallOriginalDuckingTests {
     private let carol = "@carol:h"
     private let carolPhone = "@carol:h:PHONE"
 
-    private func plan(channel: NativeCallListeningChannel = .everything,
+    private func plan(channel: NativeCallListeningChannel = .translation(language: "en"),
                       ducked: Set<String> = []) -> NativeCallSubscriptionPlan {
         NativeCallSubscriptionPlan(authorizedIdentities: [bobPhone, bobPad, carolPhone],
                                    publications: [],
@@ -25,6 +25,7 @@ struct NativeCallOriginalDuckingTests {
                                    staleTranslationTracks: [],
                                    duckedSpeakers: ducked,
                                    visibleVideoIdentities: [],
+                                   stagedVideoIdentities: [],
                                    userIDByIdentity: [bobPhone: bob, bobPad: bob, carolPhone: carol],
                                    ownUserID: "@me:h")
     }

@@ -81,7 +81,7 @@ private struct KeypadButtonStyle: ButtonStyle {
     
     func makeBody(configuration: Configuration) -> some View {
         Circle()
-            .fill(isSolid ? .compound.bgSubtlePrimary : .clear)
+            .fill(isSolid ? .compound.bgSubtleSecondary : .clear) // AGENT-PLATFORM: Spiral's bgSubtlePrimary is the canvas white
             .frame(width: 80, height: 80)
             .overlay {
                 configuration.label

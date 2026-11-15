@@ -23,7 +23,7 @@ import Foundation
 
 enum AddAgentPickerScreenViewModelAction {
     /// An agent was invited (and, for an own agent, auto-joins). Carries the
-    /// full item so the flow can open the new agent's capabilities directly
+    /// full item so the flow can open the new agent's tool kinds directly
     /// (name + ids in hand — no need to wait for the room read to catch up).
     case invited(AddAgentItem)
     /// User dismissed without inviting.
@@ -73,6 +73,8 @@ struct AddAgentPickerScreenViewState: BindableState {
     var listState: AddAgentPickerListState = .loading
     /// The agentID currently being invited (row shows a spinner + disabled).
     var invitingAgentID: String?
+    /// The room's members and agents have answered: until then the list shows, but takes no invite.
+    var isRoomRead = false
     var bindings = AddAgentPickerScreenViewStateBindings()
 
     var sections: [AddAgentSection] {
@@ -96,7 +98,6 @@ enum AddAgentPickerScreenAlertType: Hashable {
 // MARK: - View → ViewModel actions
 
 enum AddAgentPickerScreenViewAction {
-    case appeared
     case retry
     /// User tapped an addable agent row.
     case invite(id: String)

@@ -32,6 +32,8 @@ enum RoomDetailsScreenCoordinatorAction {
     case presentCall(isVoiceCall: Bool)
     case presentPinnedEventsTimeline
     case presentMediaEventsTimeline
+    case presentThreadList // AGENT-PLATFORM (Brief 0083, decision 344)
+    case presentAgentRow(AgentPageRow, card: AgentSpaceAgentCard) // AGENT-PLATFORM (Brief 0083, question 359)
     case presentKnockingRequestsListScreen
     case presentSecurityAndPrivacyScreen
     case presentReportRoomScreen
@@ -91,6 +93,10 @@ final class RoomDetailsScreenCoordinator: CoordinatorProtocol {
                     actionsSubject.send(.presentPinnedEventsTimeline)
                 case .displayMediaEventsTimeline:
                     actionsSubject.send(.presentMediaEventsTimeline)
+                case .displayThreadList: // AGENT-PLATFORM (Brief 0083, decision 344)
+                    actionsSubject.send(.presentThreadList)
+                case .openAgentRow(let row, let card): // AGENT-PLATFORM (Brief 0083, question 359)
+                    actionsSubject.send(.presentAgentRow(row, card: card))
                 case .displayKnockingRequests:
                     actionsSubject.send(.presentKnockingRequestsListScreen)
                 case .displaySecurityAndPrivacy:

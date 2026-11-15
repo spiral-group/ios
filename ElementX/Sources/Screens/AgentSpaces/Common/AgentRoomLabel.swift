@@ -29,6 +29,13 @@ enum AgentRoomLabel {
 }
 
 extension AgentRoomLabel {
+    /// The names this device has for the agent's chats, by room id; a chat it isn't in has none.
+    static func deviceRoomNames(of rooms: [AgentRoomEntry], clientProxy: any ClientProxyProtocol) -> [String: String] {
+        rooms.reduce(into: [String: String]()) { names, room in
+            names[room.roomID] = name(for: room.roomID, clientProxy: clientProxy)
+        }
+    }
+    
     /// The owner's own DM with the agent, as this device knows it.
     static func ownerDMRoomID(agentMatrixUserID: String, clientProxy: any ClientProxyProtocol) -> String? {
         guard case .success(let roomID?) = clientProxy.directRoomForUserID(agentMatrixUserID) else { return nil }
@@ -38,11 +45,16 @@ extension AgentRoomLabel {
 
 extension AgentRoomEntry {
     /// The owner's DM with the agent is titled after the agent; it reads
-    /// as the owner's chat with it instead. Someone else's DM with the agent
-    /// is titled by that person.
-    func title(ownerDMRoomID: String?, agentName: String) -> String {
+    /// as the owner's chat with it instead. Any other chat on this device
+    /// reads as it does there (`deviceName`): the server, which counts the
+    /// agent as a member, names a DM the agent was added to «X and Y».
+    /// Someone else's DM with the agent is titled by that person.
+    func title(ownerDMRoomID: String?, agentName: String, deviceName: String?) -> String {
         if roomID == ownerDMRoomID {
             return UntranslatedL10n.screenAgentRoomOwnerDm
+        }
+        if let deviceName {
+            return deviceName
         }
         // Never surface a raw room ID as a title.
         guard let displayName else { return L10n.commonNoRoomName }

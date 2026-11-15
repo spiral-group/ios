@@ -101,7 +101,7 @@ final class TimelineProxy: TimelineProxyProtocol {
         }
         
         do {
-            return try contentWithoutRelationFromMessage(message: messageContent)
+            return try contentWithoutRelationFromMessage(message: messageContent.forwardable)
         } catch {
             MXLog.error("Failed retrieving message event content for timelineItemID=\(timelineItemID)")
             return nil
@@ -209,6 +209,36 @@ final class TimelineProxy: TimelineProxyProtocol {
             return .success(())
         } catch {
             MXLog.error("Failed redacting timeline item: \(eventOrTransactionID) with error: \(error)")
+            return .failure(.sdkError(error))
+        }
+    }
+    
+    func retrySend(_ eventOrTransactionID: TimelineItemIdentifier.EventOrTransactionID, target: SendTarget) async -> Result<Bool, TimelineProxyError> {
+        MXLog.info("Retrying \(target) send on timeline item: \(eventOrTransactionID)")
+        
+        do {
+            let hadPendingSend = try await timeline.retrySend(itemId: eventOrTransactionID.rustValue, target: target)
+            
+            MXLog.info("Retried \(target) send on timeline item: \(eventOrTransactionID), had one pending: \(hadPendingSend)")
+            
+            return .success(hadPendingSend)
+        } catch {
+            MXLog.error("Failed retrying \(target) send on timeline item: \(eventOrTransactionID) with error: \(error)")
+            return .failure(.sdkError(error))
+        }
+    }
+    
+    func abortSend(_ eventOrTransactionID: TimelineItemIdentifier.EventOrTransactionID, target: SendTarget) async -> Result<Bool, TimelineProxyError> {
+        MXLog.info("Aborting \(target) send on timeline item: \(eventOrTransactionID)")
+        
+        do {
+            let hadPendingSend = try await timeline.abortSend(itemId: eventOrTransactionID.rustValue, target: target)
+            
+            MXLog.info("Aborted \(target) send on timeline item: \(eventOrTransactionID), had one pending: \(hadPendingSend)")
+            
+            return .success(hadPendingSend)
+        } catch {
+            MXLog.error("Failed aborting \(target) send on timeline item: \(eventOrTransactionID) with error: \(error)")
             return .failure(.sdkError(error))
         }
     }
@@ -441,7 +471,7 @@ final class TimelineProxy: TimelineProxyProtocol {
         
         do {
             if let inReplyToEventID {
-                try await timeline.sendReply(msg: messageContent, eventId: inReplyToEventID)
+                _ = try await timeline.sendReply(msg: messageContent, eventId: inReplyToEventID)
                 MXLog.info("Finished sending reply to eventID: \(inReplyToEventID)")
             } else {
                 _ = try await timeline.send(msg: messageContent)
@@ -677,5 +707,14 @@ extension Array where Element == TimelineItemProxy {
         }
         
         return eventTimelineItems.first { $0.id.eventOrTransactionID == eventOrTransactionID }?.item
+    }
+}
+
+extension MessageContent {
+    /// AGENT-PLATFORM (decision 371): what a forward sends. A summary travels as the text it says: the facts of its card
+    /// and the call they name stay on the agent's event, and an agent can read it where it lands.
+    var forwardable: MessageContent {
+        guard case .other(let msgtype, let body, _) = msgType, msgtype == SpiralNotice.msgtype else { return self }
+        return MessageContent(msgType: .text(content: .init(body: body, formatted: nil)), body: body, isEdited: false, mentions: nil)
     }
 }

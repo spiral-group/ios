@@ -5,7 +5,7 @@
 // not go through the send queue, and that its queue behaviour did not move.
 //
 
-@testable import ElementX
+@testable import Spiral
 import Testing
 
 @MainActor

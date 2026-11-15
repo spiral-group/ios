@@ -7,6 +7,7 @@
 //
 
 import Compound
+import SpiralComponents // AGENT-PLATFORM (Brief 0083)
 import SwiftUI
 
 struct RoomSelectionScreen: View {
@@ -58,21 +59,11 @@ struct RoomSelectionScreen: View {
         .disableAutocorrection(true)
     }
     
+    // AGENT-PLATFORM (Brief 0083): Spiral's empty state.
     private func emptySection(_ emptyState: RoomSelectionScreenEmptyState) -> some View {
         Section {
-            VStack(spacing: 8) {
-                Text(emptyState.title)
-                    .font(.compound.headingSMSemibold)
-                    .foregroundStyle(.compound.textPrimary)
-                Text(emptyState.message)
-                    .font(.compound.bodyMD)
-                    .foregroundStyle(.compound.textSecondary)
-            }
-            .multilineTextAlignment(.center)
-            .padding(.vertical, 40)
-            .padding(.horizontal, 24)
-            .frame(maxWidth: .infinity)
-            .listRowBackground(Color.clear)
+            SpiralEmptyState(symbol: .bubbleLeftAndBubbleRight, title: emptyState.title, message: emptyState.message)
+                .listRowBackground(Color.clear)
         }
     }
     

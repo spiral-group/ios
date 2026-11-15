@@ -12,6 +12,7 @@ import SwiftUI
 struct AgentEditScreenCoordinatorParameters {
     let agent: AgentSpaceAgentCard
     let agentPlatformService: AgentPlatformServiceProtocol
+    let store: AgentsStore
     let userSession: UserSessionProtocol
     /// The stack the coordinator presents the media pickers on
     /// (RoomDetailsEdit canon — the coordinator self-encapsulates the
@@ -19,7 +20,6 @@ struct AgentEditScreenCoordinatorParameters {
     weak var navigationStackCoordinator: NavigationStackCoordinator?
     let userIndicatorController: UserIndicatorControllerProtocol
     let orientationManager: OrientationManagerProtocol
-    let appSettings: AppSettings
 }
 
 enum AgentEditScreenCoordinatorAction {
@@ -41,9 +41,9 @@ final class AgentEditScreenCoordinator: CoordinatorProtocol {
         self.parameters = parameters
         viewModel = AgentEditScreenViewModel(agent: parameters.agent,
                                              agentPlatformService: parameters.agentPlatformService,
+                                             store: parameters.store,
                                              userSession: parameters.userSession,
-                                             userIndicatorController: parameters.userIndicatorController,
-                                             appSettings: parameters.appSettings)
+                                             userIndicatorController: parameters.userIndicatorController)
     }
     
     func start() {

@@ -5,9 +5,9 @@
 // the packer wrote?
 //
 // Handwritten fixtures would only prove this file agrees with itself. The
-// tests that matter here read the REAL packed artifacts out of the shell
-// bundle — bytes produced by the TypeScript packer, in the build that ships —
-// and check that the digest beside them is the digest of those bytes.
+// tests that matter here read the REAL packed artifacts out of the shell's
+// test-artifacts bundle — bytes produced by the TypeScript packer — and check
+// that the digest beside them is the digest of those bytes.
 //
 // That is the only assertion in the project where two independent
 // implementations of one format are compared, and the format exists precisely
@@ -15,9 +15,9 @@
 //
 
 import CryptoKit
-@testable import ElementX
 import Foundation
-import SpiralAppShell
+@testable import Spiral
+import SpiralAppTestArtifacts
 import Testing
 
 struct SpiralAppContainerTests {
@@ -26,10 +26,10 @@ struct SpiralAppContainerTests {
     #if DEBUG
     @Test
     func everyShippedArtifactUnpacks() throws {
-        let shipped: [(String, SpiralAppShell.PackedArtifact?)] = [
-            ("counter", SpiralAppShell.sliceCounterArtifact),
-            ("conformance", SpiralAppShell.conformanceArtifact),
-            ("probe", SpiralAppShell.spikeProbeArtifact)
+        let shipped: [(String, SpiralAppTestArtifacts.PackedArtifact?)] = [
+            ("counter", SpiralAppTestArtifacts.counter),
+            ("conformance", SpiralAppTestArtifacts.conformance),
+            ("probe", SpiralAppTestArtifacts.probe)
         ]
 
         for (name, artifact) in shipped {
@@ -48,7 +48,7 @@ struct SpiralAppContainerTests {
         // The packer writes the digest; this recomputes it. If they ever
         // disagree the mount refuses, which is right — but silently, so the
         // disagreement is worth catching here instead.
-        let artifact = try #require(SpiralAppShell.conformanceArtifact)
+        let artifact = try #require(SpiralAppTestArtifacts.conformance)
         let actual = SHA256.hash(data: artifact.bytes).map { String(format: "%02x", $0) }.joined()
 
         #expect(actual == artifact.digest)
@@ -56,7 +56,7 @@ struct SpiralAppContainerTests {
 
     @Test
     func aShippedArtifactVerifiesAndCarriesItsManifest() throws {
-        let packed = try #require(SpiralAppShell.sliceCounterArtifact)
+        let packed = try #require(SpiralAppTestArtifacts.counter)
         let artifact = try #require(SpiralAppArtifact.verified(packed: packed.bytes,
                                                                claimedDigest: packed.digest))
 
@@ -156,7 +156,7 @@ struct SpiralAppContainerTests {
     #if DEBUG
     @Test
     func theProbesSpikeChannelIsRefusedByProductionAndGrantedByTheHarness() throws {
-        let probe = try #require(SpiralAppShell.spikeProbeArtifact)
+        let probe = try #require(SpiralAppTestArtifacts.probe)
         let container = try #require(SpiralAppContainer.unpack(probe.bytes))
 
         #expect(SpiralAppCapability.granted(requestedBy: container.manifest,
@@ -214,8 +214,8 @@ struct SpiralAppContainerTests {
     /// TypeScript packer; the Rust one reproduces them too.
     @Test
     func packingAShippedArtifactsContentsReproducesItsBytesAndDigest() throws {
-        for (name, packed) in [("counter", SpiralAppShell.sliceCounterArtifact),
-                               ("conformance", SpiralAppShell.conformanceArtifact)] {
+        for (name, packed) in [("counter", SpiralAppTestArtifacts.counter),
+                               ("conformance", SpiralAppTestArtifacts.conformance)] {
             let packed = try #require(packed, "\(name) is not in the bundle")
             let container = try #require(SpiralAppContainer.unpack(packed.bytes))
             let manifestJSON = try #require(Self.manifestText(in: packed.bytes))

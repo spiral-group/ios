@@ -13,14 +13,15 @@ struct UserProfileScreenCoordinatorParameters {
     let userID: String
     let isPresentedModally: Bool
     let userSession: UserSessionProtocol
-    let userIndicatorController: UserIndicatorControllerProtocol
     let analytics: AnalyticsServiceProtocol
+    let userIndicatorController: UserIndicatorControllerProtocol
 }
 
 enum UserProfileScreenCoordinatorAction {
     case openDirectChat(roomID: String)
     case startCall(roomProxy: JoinedRoomProxyProtocol, isVoiceCall: Bool)
     case dismiss
+    case openAgentRow(AgentPageRow, card: AgentSpaceAgentCard) // AGENT-PLATFORM (Brief 0083, question 359)
 }
 
 final class UserProfileScreenCoordinator: CoordinatorProtocol {
@@ -37,8 +38,8 @@ final class UserProfileScreenCoordinator: CoordinatorProtocol {
         viewModel = UserProfileScreenViewModel(userID: parameters.userID,
                                                isPresentedModally: parameters.isPresentedModally,
                                                userSession: parameters.userSession,
-                                               userIndicatorController: parameters.userIndicatorController,
-                                               analytics: parameters.analytics)
+                                               analytics: parameters.analytics,
+                                               userIndicatorController: parameters.userIndicatorController)
     }
     
     func start() {
@@ -52,6 +53,8 @@ final class UserProfileScreenCoordinator: CoordinatorProtocol {
                 actionsSubject.send(.startCall(roomProxy: roomProxy, isVoiceCall: isVoiceCall))
             case .dismiss:
                 actionsSubject.send(.dismiss)
+            case .openAgentRow(let row, let card): // AGENT-PLATFORM (Brief 0083, question 359)
+                actionsSubject.send(.openAgentRow(row, card: card))
             }
         }
         .store(in: &cancellables)

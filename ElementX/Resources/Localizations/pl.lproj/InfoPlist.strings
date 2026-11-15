@@ -1,6 +1,4 @@
 "NSCameraUsageDescription" = "Aby prowadzić rozmowy wideo, a także robić zdjęcia lub nagrywać wideo i wysyłać je jako wiadomość, Spiral wymaga dostępu do aparatu.";
 "NSFaceIDUsageDescription" = "Face ID jest wykorzystywany w celu ochrony Twojego konta.";
-"NSLocationAlwaysAndWhenInUseUsageDescription" = "Aby udostępnić swoją lokalizację na żywo, aplikacja potrzebuje dostępu do lokalizacji, gdy aplikacja działa w tle.";
-"NSLocationWhenInUseUsageDescription" = "Pozwoli to na wysyłanie swojej aktualnej lokalizacji lub pobliskich miejsc na czacie.";
 "NSMicrophoneUsageDescription" = "Aby prowadzić rozmowy, a także nagrywać i wysyłać wiadomości audio, Spiral potrzebuje dostępu do mikrofonu.";
 "NSPhotoLibraryUsageDescription" = "Dzięki temu możesz zapisywać obrazy i filmy w bibliotece zdjęć.";

@@ -6,8 +6,8 @@
 // Please see LICENSE files in the repository root for full details.
 //
 
-@testable import ElementX
 import MatrixRustSDK
+@testable import Spiral
 import Testing
 
 struct RoomEventStringBuilderTests {
@@ -84,7 +84,6 @@ struct RoomEventStringBuilderTests {
                                                                                                                      body: message,
                                                                                                                      isEdited: false,
                                                                                                                      mentions: nil)),
-                                                                                       reactions: [],
                                                                                        inReplyTo: nil,
                                                                                        threadRoot: nil,
                                                                                        threadSummary: nil)))),
@@ -118,7 +117,6 @@ struct RoomEventStringBuilderTests {
                                                                                             votes: [:],
                                                                                             endTime: nil,
                                                                                             hasBeenEdited: false),
-                                                                                reactions: [],
                                                                                 inReplyTo: nil,
                                                                                 threadRoot: nil,
                                                                                 threadSummary: nil)))),

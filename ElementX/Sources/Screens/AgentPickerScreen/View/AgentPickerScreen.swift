@@ -18,20 +18,23 @@ struct AgentPickerScreen: View {
     var body: some View {
         Form {
             Section {
+                // Brief 0083 (P4-D): each agent as Spiral's agent card, not a person glyph. Its initial only: a picker item
+                // carries no avatar.
                 ForEach(context.viewState.agents) { agent in
-                    ListRow(label: .default(title: agent.displayName,
-                                            description: subtitle(for: agent),
-                                            icon: \.userProfile),
-                            kind: .navigationLink {
-                                context.send(viewAction: .selectAgent(id: agent.id))
-                            })
+                    AgentRow(title: agent.displayName,
+                             description: subtitle(for: agent),
+                             avatarContentID: agent.matrixUserID,
+                             mediaProvider: nil,
+                             kind: .navigate) {
+                        context.send(viewAction: .selectAgent(id: agent.id))
+                    }
                 }
             } header: {
                 Text(UntranslatedL10n.screenAgentPickerSectionTitle)
                     .compoundListSectionHeader()
             }
         }
-        .compoundList()
+        .spiralGroupedList() // Brief 0083 (P4-D): iOS's grouped cards and plain grey glyphs (decision 337).
         .navigationTitle(UntranslatedL10n.screenAgentPickerTitle)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar { toolbar }
@@ -53,7 +56,7 @@ struct AgentPickerScreen: View {
 
 // MARK: - Previews
 
-struct AgentPickerScreen_Previews: PreviewProvider, TestablePreview {
+struct AgentPickerScreen_Previews: PreviewProvider, TestablePreview, SpiralGatedPreview {
     static let viewModel = AgentPickerScreenViewModel(agents: [
         AgentPickerItem(agentID: "a1", matrixUserID: "@assistant:example.com", displayName: "Aria", activeToolCount: 2),
         AgentPickerItem(agentID: "a2", matrixUserID: "@scribe:example.com", displayName: "Scribe", activeToolCount: 0)

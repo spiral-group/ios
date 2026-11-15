@@ -7,13 +7,15 @@
 //
 
 import Foundation
+import SpiralTokens // AGENT-PLATFORM (Brief 0083)
 import SwiftUI
 
 enum Avatars {
     enum Size {
         case user(on: UserAvatarSizeOnScreen)
         case room(on: RoomAvatarSizeOnScreen)
-        ///  custom
+        // AGENT-PLATFORM (Brief 0083, decision 300b): custom sizes are on the scale too.
+        /// A step of `SpiralAvatarSize`, for a place without a case of its own.
         case custom(CGFloat)
         
         /// Value in UIKit points
@@ -61,13 +63,14 @@ enum Avatars {
 
 enum UserAvatarSizeOnScreen {
     case chats
+    case chatsCompact
     case spaces
+    case spacesCompact
     case timeline
     case settings
     case roomDetails
     case roomMembersList
     case roomChangeRoles
-    case dmDetails
     case startChat
     case memberDetails
     case inviteUsers
@@ -86,38 +89,46 @@ enum UserAvatarSizeOnScreen {
     case threadList
     case threadSummary
     case map
-    case classicAppAccount
+    // AGENT-PLATFORM (Brief 0083 L1b): no classicAppAccount size.
     case search
+    /// The native call's large avatar: a one-to-one call, the spotlight and the ringing screen.
+    case call
     
+    // AGENT-PLATFORM (Brief 0083, decision 300b): every place takes the step of Spiral's avatar scale nearest
+    // to Element's size for it, a tie rounding up; Element's size is noted where it differs.
     var value: CGFloat {
         switch self {
         case .readReceipt:
-            16
+            SpiralAvatarSize.xxSmall
         case .spaceHeader:
-            20
+            SpiralAvatarSize.xSmall // 20
         case .threadSummary:
-            24
+            SpiralAvatarSize.xSmall
         case .knockingUsersBannerStack:
-            28
-        case .chats, .spaces, .map,
+            SpiralAvatarSize.small // 28
+        case .chatsCompact, .spacesCompact, .map,
              .timeline, .readReceiptSheet, .completionSuggestions,
              .blockedUsers, .roomMembersList, .knockingUserBanner:
-            32
+            SpiralAvatarSize.small
         case .startChat:
-            36
+            SpiralAvatarSize.small // 36
+        case .chats, .spaces:
+            SpiralAvatarSize.small // 40
         case .roomDetails:
-            44
+            SpiralAvatarSize.medium // 44
         case .inviteUsers, .knockingUserList, .sessionVerification,
-             .settings, .threadList, .mediaPreviewDetails, .search:
-            52
+             .threadList, .mediaPreviewDetails, .search:
+            SpiralAvatarSize.medium
         case .roomChangeRoles:
-            56
+            SpiralAvatarSize.medium // 56
         case .sendInviteConfirmation:
-            64
-        case .dmDetails:
-            75
-        case .memberDetails, .editUserDetails, .classicAppAccount:
-            96
+            SpiralAvatarSize.medium // 64
+        case .memberDetails, .editUserDetails: // AGENT-PLATFORM (Brief 0083 L1b): no .classicAppAccount
+            SpiralAvatarSize.large
+        case .settings: // AGENT-PLATFORM (Brief 0083, lane settings): the root's profile card; was medium (52).
+            SpiralAvatarSize.large
+        case .call:
+            SpiralAvatarSize.xLarge // 140
         }
     }
 }
@@ -132,6 +143,7 @@ enum RoomAvatarSizeOnScreen {
     case leaveSpace
     case messageForwarding
     case search
+    case searchHistory
     case roomSelection
     case details
     case editRoomDetails
@@ -145,22 +157,23 @@ enum RoomAvatarSizeOnScreen {
     case completionSuggestions
     case createRoomSelectSpace
     
+    // AGENT-PLATFORM (Brief 0083, decision 300b): as `UserAvatarSizeOnScreen.value`, the nearest step of the scale.
     var value: CGFloat {
         switch self {
         case .timeline, .leaveSpace, .notificationSettings, .roomDirectorySearch,
              .completionSuggestions, .authorizedSpaces, .createRoomSelectSpace,
-             .spaceFilters:
-            32
+             .spaceFilters, .searchHistory:
+            SpiralAvatarSize.small
         case .messageForwarding, .roomSelection,
              .spaceAddRooms:
-            36
+            SpiralAvatarSize.small // 36
         case .chats, .spaces, .spaceSettings,
              .spaceAddRoomsSelected, .search:
-            52
+            SpiralAvatarSize.medium
         case .joinRoom, .spaceHeader, .editSpaceDetails:
-            64
+            SpiralAvatarSize.medium // 64
         case .details, .editRoomDetails:
-            96
+            SpiralAvatarSize.large
         }
     }
 }

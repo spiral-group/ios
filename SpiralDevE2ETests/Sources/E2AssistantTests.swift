@@ -36,7 +36,7 @@ final class E2AssistantTests: DevE2ETestCase {
         let peerAssistant = try XCTUnwrap(peerAssistantLine.first?["mxid"] as? String, "the peer's assistant")
         let token = "g06-\(fixture.runID)"
 
-        try openRoom(named: "\(owner.displayName)'s Assistant") // accepts the invite when it is still one
+        try openRoom(named: "\(owner.displayName) · assistant") // accepts the invite when it is still one
         let ownDMLine = try await helper.peer("dm", owner.localpart, ownAssistant.mxid)
         let ownDM = try XCTUnwrap(ownDMLine.first?["room_id"] as? String, "the owner's DM with the assistant")
         try returnToChats()
@@ -53,7 +53,7 @@ final class E2AssistantTests: DevE2ETestCase {
 
     private func withoutConsent(ownAssistant: DevE2EAssistant, ownDM: String, peerAssistant: String, token: String) async throws {
         // The owner writes to their own assistant: no notice, no reply.
-        try openRoom(named: "\(owner.displayName)'s Assistant")
+        try openRoom(named: "\(owner.displayName) · assistant")
         try send("Are you there? own \(token)")
         try require(timelineText(containing: "own \(token)"), timeout: 20, "the message in the owner's DM")
         try returnToChats()
@@ -62,7 +62,7 @@ final class E2AssistantTests: DevE2ETestCase {
         let visit = try await helper.peer("dm", owner.localpart, peerAssistant, "--wait-joined")
         let visitRoom = try XCTUnwrap(visit.first?["room_id"] as? String)
         let notice = element(A11yIdentifiers.roomScreen.spiralNotice("ai_consent_needed"))
-        try openRoom(named: "\(peer.displayName)'s Assistant")
+        try openRoom(named: "\(peer.displayName) · assistant")
         try send("Hello there, first \(token)")
         try require(notice, timeout: 60, "the AI consent notice")
         try send("Hello again, second \(token)")
@@ -99,10 +99,10 @@ final class E2AssistantTests: DevE2ETestCase {
 
         // When the card shows again it says AI is allowed, and offers nothing.
         try await launchApp()
-        try openRoom(named: "\(owner.displayName)'s Assistant")
+        try openRoom(named: "\(owner.displayName) · assistant")
         XCTAssertFalse(notice.exists, "no consent card in the owner's own DM")
         try returnToChats()
-        try openRoom(named: "\(peer.displayName)'s Assistant")
+        try openRoom(named: "\(peer.displayName) · assistant")
         try require(notice, timeout: 30, "the AI consent notice again")
         let allowed = try await eventually("the notice reading that AI is allowed", timeout: 20) {
             notice.label.contains("You allowed AI") ? notice.label : nil
@@ -114,39 +114,20 @@ final class E2AssistantTests: DevE2ETestCase {
 
     // MARK: G17 (decision 153)
 
-    /// The personal assistant's screen has no '···' menu (so no Archive);
-    /// a company agent's screen, the control, has one with Archive.
+    /// The personal assistant's screen has no '···' menu (so no Archive). Companies, whose agents had one, are
+    /// hidden in 1.0.2 (question 396): the tab has no «+» to make them.
     func testG17PersonalAssistantHasNoArchive() async throws {
         try await ensureSignedIn(owner)
         let assistant = try await ownerAssistant()
-        let company = "E2E Co \(fixture.runID)"
-        let space = try await helper.peer("api", owner.localpart, "POST", "/api/v1/agent-spaces", #"{"name":"\#(company)"}"#)
-        let orgID = try XCTUnwrap((space.first?["body"] as? [String: Any])?["org_id"] as? String, "the new company's id")
-        let agent = try await helper.peer("api", owner.localpart, "POST", "/api/v1/agent-spaces/\(orgID)/agents", #"{"role":"sales"}"#)
-        let salesAgent = try XCTUnwrap((agent.first?["body"] as? [String: Any])?["matrix_user_id"] as? String, "the sales agent's MXID")
 
         try tap(app.tabBars.buttons["Agents"].firstMatch, "the Agents tab")
-        // Step B: the agents sit straight in the list, a section per space.
         try tap(element(A11yIdentifiers.agentSpacesScreen.agent(assistant.mxid)), timeout: 30, "the assistant's row")
         try require(element(A11yIdentifiers.agentDetailScreen.usage), timeout: 30, "the assistant's screen")
         XCTAssertFalse(element(A11yIdentifiers.agentDetailScreen.archive).exists, "the personal assistant has no Archive (decision 153)")
 
         try tap(app.navigationBars.buttons.element(boundBy: 0), "back to the list")
-        // The list was read before the company existed in it: pull to read it again.
-        let salesRow = element(A11yIdentifiers.agentSpacesScreen.agent(salesAgent))
-        for _ in 0..<3 where !salesRow.waitForExistence(timeout: 3) {
-            // A real pull: from the top third down past the refresh threshold.
-            app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.3))
-                .press(forDuration: 0.1, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.8)))
-        }
-        try require(element(A11yIdentifiers.agentSpacesScreen.space(orgID)), timeout: 30, "the company's section")
-        try tap(salesRow, timeout: 30, "the sales agent's row")
-        let archive = element(A11yIdentifiers.agentDetailScreen.archive)
-        for _ in 0..<3 where !archive.waitForExistence(timeout: 3) {
-            app.swipeUp()
-        }
-        try require(archive, timeout: 10, "Archive at the bottom of the company agent's screen")
-        record("company \(orgID), sales agent \(salesAgent): Archive; personal assistant \(assistant.mxid): none")
+        XCTAssertFalse(element(A11yIdentifiers.agentSpacesScreen.addMenu).exists, "no «+»: companies are hidden (396)")
+        record("personal assistant \(assistant.mxid): no Archive; Agents tab: no «+»")
     }
 
     // MARK: - Helpers
@@ -158,8 +139,7 @@ final class E2AssistantTests: DevE2ETestCase {
         try scrollAndTap(element(A11yIdentifiers.settingsScreen.privacy), "Settings › Privacy")
         try await flipAIConsentToggle(to: granted)
         try tap(app.navigationBars.buttons.element(boundBy: 0), "back to Settings")
-        try tap(element(A11yIdentifiers.settingsScreen.done), "Settings › Done")
-        try require(homeAvatar, "the Chats list")
+        try closeSettings()
     }
 
     /// On Privacy: the toggle to `granted`, then the backend's

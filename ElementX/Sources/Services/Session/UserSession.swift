@@ -15,10 +15,12 @@ class UserSession: UserSessionProtocol {
     private var authErrorCancellable: AnyCancellable?
     
     let clientProxy: ClientProxyProtocol
-    let mediaProvider: MediaProviderProtocol
+    let userSettings: UserSettings
+    let userHooks: UserHooks
     
+    let mediaProvider: MediaProviderProtocol
     let voiceMessageMediaManager: VoiceMessageMediaManagerProtocol
-    let liveLocationManager: LiveLocationManagerProtocol
+    let liveLocationService: LiveLocationServiceProtocol
 
     // AGENT-PLATFORM: typed REST client for our `/api/v1/*` surface.
     // Built in `UserSessionStore::buildUserSessionWithClient`;
@@ -26,13 +28,14 @@ class UserSession: UserSessionProtocol {
     // degrades gracefully rather than blocking login.
     let agentPlatformService: AgentPlatformServiceProtocol?
 
-    // AGENT-PLATFORM: live approvals SSE service (S151). Same
-    // optionality contract as `agentPlatformService`. Connects
-    // automatically when AppCoordinator detects foreground; the
-    // initial connect happens after the AgentSpacesScreen
-    // first appears so we don't burn a socket for users who
-    // never tap the Agents tab.
-    let approvalsStreamService: ApprovalsStreamServiceProtocol?
+    // AGENT-PLATFORM: platform sync (decision 289): the Agents tab's one store,
+    // fed by the session's sync stream. There with `agentPlatformService` only.
+    let agentsStore: AgentsStore?
+    // AGENT-PLATFORM: platform sync (decision 289): the feed's one store and the
+    // session's one stream, which feeds both stores. The session flow starts it
+    // and stops it on sign-out; no tab owns it.
+    let feedStore: FeedStore?
+    let platformSync: PlatformSync?
     
     // AGENT-PLATFORM (Brief 0072, ADR-0083)
     let presenceObserverService: PresenceObserverServiceProtocol?
@@ -45,6 +48,7 @@ class UserSession: UserSessionProtocol {
 
     /// Scans media content, `nil` when no content scanner is configured for the server.
     let contentScannerService: ContentScannerServiceProtocol?
+    let notificationService: NotificationServiceProtocol
     
     let callbacks = PassthroughSubject<UserSessionCallback, Never>()
     
@@ -54,20 +58,35 @@ class UserSession: UserSessionProtocol {
     }
     
     init(clientProxy: ClientProxyProtocol,
+         userSettings: UserSettings,
+         userHooks: UserHooks,
          mediaProvider: MediaProviderProtocol,
          voiceMessageMediaManager: VoiceMessageMediaManagerProtocol,
-         liveLocationManager: LiveLocationManagerProtocol,
-         agentPlatformService: AgentPlatformServiceProtocol? = nil,
-         approvalsStreamService: ApprovalsStreamServiceProtocol? = nil,
+         liveLocationService: LiveLocationServiceProtocol,
+         notificationService: NotificationServiceProtocol,
+         agentPlatformService: AgentPlatformServiceProtocol? = nil, // AGENT-PLATFORM
          presenceObserverService: PresenceObserverServiceProtocol? = nil,
          sharePresenceSettingSync: SharePresenceSettingSync? = nil,
          ownerBlocksSync: OwnerBlocksSync? = nil) {
         self.clientProxy = clientProxy
+        self.userSettings = userSettings
+        self.userHooks = userHooks
+        
         self.mediaProvider = mediaProvider
         self.voiceMessageMediaManager = voiceMessageMediaManager
-        self.liveLocationManager = liveLocationManager
+        self.liveLocationService = liveLocationService
+        self.notificationService = notificationService
         self.agentPlatformService = agentPlatformService
-        self.approvalsStreamService = approvalsStreamService
+        // AGENT-PLATFORM: platform sync (decision 289)
+        let agentsStore = agentPlatformService.map { AgentsStore(service: $0) }
+        self.agentsStore = agentsStore
+        let feedStore = agentPlatformService.map { FeedStore(feedService: $0.feed, currentUserID: clientProxy.userID) }
+        self.feedStore = feedStore
+        platformSync = if let agentPlatformService, let feedStore {
+            PlatformSync(service: agentPlatformService.sync, feedStore: feedStore, agentsStore: agentsStore)
+        } else {
+            nil
+        }
         self.presenceObserverService = presenceObserverService
         self.sharePresenceSettingSync = sharePresenceSettingSync
         self.ownerBlocksSync = ownerBlocksSync

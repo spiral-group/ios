@@ -20,7 +20,7 @@ class NetworkMonitor: NetworkMonitorProtocol {
     }
     
     init() {
-        queue = DispatchQueue(label: "io.element.elementx.network_monitor", qos: .background)
+        queue = DispatchQueue(label: "com.spiral.network_monitor", qos: .background) // AGENT-PLATFORM (Brief 0083 L1b)
         pathMonitor = NWPathMonitor()
         reachabilitySubject = CurrentValueSubject<NetworkMonitorReachability, Never>(.reachable)
         

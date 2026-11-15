@@ -6,8 +6,8 @@
 //
 
 import Combine
-@testable import ElementX
 import Foundation
+@testable import Spiral
 import Testing
 
 /// The account data as this device sees it: the synced copy, and the writes
@@ -77,7 +77,7 @@ private final class AccountDataServer: @unchecked Sendable {
 @MainActor
 struct SharePresenceSettingSyncTests {
     let clientProxy: ClientProxyMock
-    let appSettings = AppSettings.volatile()
+    let accountSettings = AppSettings.volatile().userSettings(for: "@alice:example.com").account
     let syncActions = PassthroughSubject<ClientProxyAction, Never>()
     private let server = AccountDataServer()
     
@@ -96,7 +96,7 @@ struct SharePresenceSettingSyncTests {
     }
     
     private func makeSync(echoSyncs: Int = 3) -> SharePresenceSettingSync {
-        SharePresenceSettingSync(clientProxy: clientProxy, appSettings: appSettings, syncThrottle: .milliseconds(10), echoSyncs: echoSyncs)
+        SharePresenceSettingSync(clientProxy: clientProxy, accountSettings: accountSettings, syncThrottle: .milliseconds(10), echoSyncs: echoSyncs)
     }
     
     /// The next write's content, once the writer has also recorded how it went.
@@ -110,14 +110,14 @@ struct SharePresenceSettingSyncTests {
     
     @Test
     func aToggleHereIsWrittenToTheAccount() async throws {
-        appSettings.sharePresence = true
+        accountSettings.sharePresence = true
         let sync = makeSync()
         
-        appSettings.sharePresence = false
+        accountSettings.sharePresence = false
         #expect(try await nextWrite() == Self.hide)
         #expect(clientProxy.setAccountDataEventTypeContentReceivedArguments?.eventType == "com.spiral.presence")
         
-        appSettings.sharePresence = true
+        accountSettings.sharePresence = true
         #expect(try await nextWrite() == Self.share)
         #expect(server.recordedWrites == [Self.hide, Self.share])
         _ = sync
@@ -125,13 +125,13 @@ struct SharePresenceSettingSyncTests {
     
     @Test
     func aValueSetOnAnotherDeviceWinsAndIsNotWrittenBack() async throws {
-        appSettings.sharePresence = true
+        accountSettings.sharePresence = true
         server.sync(share: false)
         let sync = makeSync()
         
         await sync.reconcile()
         
-        #expect(appSettings.sharePresence == false)
+        #expect(accountSettings.sharePresence == false)
         try await Task.sleep(for: .milliseconds(100))
         #expect(server.recordedWrites.isEmpty, "applying the server's value is not a toggle")
         _ = sync
@@ -139,11 +139,11 @@ struct SharePresenceSettingSyncTests {
     
     @Test
     func aSyncTriggersTheReconcile() async throws {
-        appSettings.sharePresence = true
+        accountSettings.sharePresence = true
         server.sync(share: false)
         let sync = makeSync()
         
-        let deferred = deferFulfillment(appSettings.sharePresencePublisher) { $0 == false }
+        let deferred = deferFulfillment(accountSettings.sharePresencePublisher) { $0 == false }
         syncActions.send(.receivedSyncUpdate)
         try await deferred.fulfill()
         _ = sync
@@ -151,86 +151,86 @@ struct SharePresenceSettingSyncTests {
     
     @Test
     func aFreshInstallNeverOverwritesTheAccount() async throws {
-        appSettings.sharePresence = true
+        accountSettings.sharePresence = true
         server.sync(share: nil)
         let sync = makeSync()
         
         await sync.reconcile()
         try await Task.sleep(for: .milliseconds(100))
         
-        #expect(appSettings.sharePresence == true)
+        #expect(accountSettings.sharePresence == true)
         #expect(server.recordedWrites.isEmpty)
         _ = sync
     }
     
     @Test
     func neverWrittenAndNotSharingIsWrittenAsHidden() async {
-        appSettings.sharePresence = false
+        accountSettings.sharePresence = false
         server.sync(share: nil)
         let sync = makeSync()
         
         await sync.reconcile()
         
         #expect(server.recordedWrites == [Self.hide])
-        #expect(appSettings.sharePresence == false)
+        #expect(accountSettings.sharePresence == false)
         _ = sync
     }
     
     @Test
     func theStaleSyncedValueIsNotTakenWhileTheWriteComesBack() async throws {
-        appSettings.sharePresence = true
+        accountSettings.sharePresence = true
         server.sync(share: true)
         let sync = makeSync()
         
-        appSettings.sharePresence = false
+        accountSettings.sharePresence = false
         _ = try await nextWrite()
         
         await sync.reconcile()
         await sync.reconcile()
-        #expect(appSettings.sharePresence == false, "the sync has not brought our write back yet")
+        #expect(accountSettings.sharePresence == false, "the sync has not brought our write back yet")
         
         server.sync(share: false)
         await sync.reconcile()
-        #expect(appSettings.sharePresence == false)
+        #expect(accountSettings.sharePresence == false)
         
         server.sync(share: true)
         await sync.reconcile()
-        #expect(appSettings.sharePresence == true, "once our write came back, a later change elsewhere wins again")
+        #expect(accountSettings.sharePresence == true, "once our write came back, a later change elsewhere wins again")
         #expect(server.recordedWrites == [Self.hide])
         _ = sync
     }
     
     @Test
     func withoutTheEchoTheServerWinsAfterAFewSyncs() async throws {
-        appSettings.sharePresence = true
+        accountSettings.sharePresence = true
         server.sync(share: true)
         let sync = makeSync(echoSyncs: 3)
         
-        appSettings.sharePresence = false
+        accountSettings.sharePresence = false
         _ = try await nextWrite()
         
         // Another device turned it back on before our write reached this one.
         await sync.reconcile()
         await sync.reconcile()
-        #expect(appSettings.sharePresence == false)
+        #expect(accountSettings.sharePresence == false)
         await sync.reconcile()
-        #expect(appSettings.sharePresence == true)
+        #expect(accountSettings.sharePresence == true)
         _ = sync
     }
     
     @Test
     func aFailedWriteIsRetriedOnTheNextSync() async throws {
-        appSettings.sharePresence = true
+        accountSettings.sharePresence = true
         server.sync(share: true)
         server.setFailWrites(true)
         let sync = makeSync()
         
-        appSettings.sharePresence = false
+        accountSettings.sharePresence = false
         _ = try await nextWrite()
         #expect(server.recordedWrites.isEmpty)
         
         await sync.reconcile()
-        #expect(appSettings.sharePresence == false, "a pending toggle is not undone by the stale synced value")
+        #expect(accountSettings.sharePresence == false, "a pending toggle is not undone by the stale synced value")
         #expect(server.recordedWrites.isEmpty)
         
         server.setFailWrites(false)
@@ -241,15 +241,15 @@ struct SharePresenceSettingSyncTests {
     
     @Test
     func writesNeverOverlapAndTheLatestLandsLast() async throws {
-        appSettings.sharePresence = true
+        accountSettings.sharePresence = true
         server.sync(share: true)
         server.setWriteDelay(.milliseconds(300))
         let sync = makeSync()
         
         let started = deferFulfillment(server.writeStartedSubject) { _ in true }
-        appSettings.sharePresence = false
+        accountSettings.sharePresence = false
         _ = try await started.fulfill()
-        appSettings.sharePresence = true
+        accountSettings.sharePresence = true
         
         let deferred = deferFulfillment(server.writesSubject.collect(2).first()) { _ in true }
         #expect(try await deferred.fulfill() == [Self.hide, Self.share])

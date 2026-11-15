@@ -16,11 +16,8 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 struct MediaUploadPreviewScreen: View {
-    @Environment(\.colorScheme) private var colorScheme
-    
     @Bindable var context: MediaUploadPreviewScreenViewModel.Context
     
-    @State private var captionWarningFrame: CGRect = .zero
     @State private var currentIndex = 0
     @FocusState private var isComposerFocussed
     
@@ -28,8 +25,10 @@ struct MediaUploadPreviewScreen: View {
         ProcessInfo.processInfo.isiOSAppOnMac ? context.viewState.title ?? "" : ""
     }
     
-    private var colorSchemeOverride: ColorScheme {
-        ProcessInfo.processInfo.isiOSAppOnMac ? colorScheme : .dark
+    /// Matches the dark chrome of the QLPreviewController. Scoped to the sheet rather than
+    /// using `preferredColorScheme` which leaks into the whole app if the sheet fails to present.
+    private var colorSchemeOverride: ColorScheme? {
+        ProcessInfo.processInfo.isiOSAppOnMac ? nil : .dark
     }
     
     var body: some View {
@@ -48,8 +47,7 @@ struct MediaUploadPreviewScreen: View {
             .toolbar { toolbar }
             .disabled(context.viewState.shouldDisableInteraction)
             .interactiveDismissDisabled()
-            .presentationBackground(.background) // Fix a bug introduced by the caption warning.
-            .preferredColorScheme(colorSchemeOverride)
+            .presentationColorScheme(colorSchemeOverride)
             .onAppear(perform: focusComposerIfHardwareKeyboardConnected)
             .alert(item: $context.alertInfo)
             .sheet(isPresented: $context.isPresentingMediaEditor) {
@@ -60,6 +58,7 @@ struct MediaUploadPreviewScreen: View {
                     context.isPresentingMediaEditor = false
                 }
                 .ignoresSafeArea()
+                .presentationColorScheme(colorSchemeOverride)
                 // Make sure out of bound error alerts are shown even if the sheet is presented
                 .alert(item: $context.alertInfo)
             }
@@ -73,7 +72,7 @@ struct MediaUploadPreviewScreen: View {
                 .foregroundStyle(.compound.textPrimary)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 6)
-                .background(.compound.bgCanvasDefault.opacity(0.85), in: .capsule)
+                .spiralGlass(in: Capsule(), snapshotBackground: .compound.bgCanvasDefault.opacity(0.85)) // AGENT-PLATFORM (Brief 0083, decision 346)
                 .padding(.top, 12)
         }
     }
@@ -94,69 +93,18 @@ struct MediaUploadPreviewScreen: View {
     }
     
     private var composer: some View {
-        HStack(spacing: 12) {
-            HStack(spacing: 6) {
-                MessageComposerTextField(placeholder: L10n.richTextEditorComposerCaptionPlaceholder,
-                                         text: $context.caption,
-                                         presendCallback: $context.presendCallback,
-                                         selectedRange: $context.selectedRange,
-                                         maxHeight: ComposerConstant.maxHeight,
-                                         keyHandler: handleKeyPress) { _ in }
-                    .focused($isComposerFocussed)
-                
-                if context.viewState.shouldShowCaptionWarning {
-                    captionWarningButton
-                }
-            }
-            .messageComposerStyle()
-            
-            SendButton {
+        MessageComposerTextField(placeholder: L10n.richTextEditorComposerCaptionPlaceholder,
+                                 text: $context.caption,
+                                 presendCallback: $context.presendCallback,
+                                 selectedRange: $context.selectedRange,
+                                 maxHeight: ComposerConstant.maxHeight,
+                                 keyHandler: handleKeyPress) { _ in }
+            .focused($isComposerFocussed)
+            // AGENT-PLATFORM (Brief 0083): send inside the field, as in the room's composer.
+            .messageComposerStyle(trailing: SendButton {
                 context.send(viewAction: .send)
             }
-            .accessibilityLabel(L10n.actionSend)
-        }
-    }
-    
-    private var captionWarningButton: some View {
-        Button {
-            context.isPresentingMediaCaptionWarning = true
-        } label: {
-            CompoundIcon(\.infoSolid, size: .xSmall, relativeTo: .compound.bodyLG)
-        }
-        .accessibilityLabel(L10n.a11yInfo)
-        .tint(.compound.iconCriticalPrimary)
-        .popover(isPresented: $context.isPresentingMediaCaptionWarning, arrowEdge: .bottom) {
-            captionWarningContent
-                .presentationDetents([.height(captionWarningFrame.height)])
-                .presentationDragIndicator(.visible)
-                .padding(.top, 19) // For the drag indicator
-                .presentationBackground(.compound.bgCanvasDefault)
-                .preferredColorScheme(colorSchemeOverride)
-        }
-    }
-    
-    var captionWarningContent: some View {
-        VStack(spacing: 0) {
-            VStack(spacing: 16) {
-                BigIcon(icon: \.infoSolid, style: .alertSolid)
-                
-                Text(L10n.screenMediaUploadPreviewCaptionWarning)
-                    .font(.compound.bodyMD)
-                    .foregroundStyle(.compound.textPrimary)
-                    .multilineTextAlignment(.center)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            .padding(24)
-            .padding(.bottom, 8)
-            
-            Button(L10n.actionOk) {
-                context.isPresentingMediaCaptionWarning = false
-            }
-            .buttonStyle(.compound(.secondary))
-            .padding(.horizontal, 16)
-            .padding(.bottom, 16)
-        }
-        .readFrame($captionWarningFrame)
+            .accessibilityLabel(L10n.actionSend))
     }
     
     @ToolbarContentBuilder
@@ -165,9 +113,6 @@ struct MediaUploadPreviewScreen: View {
             Button { context.send(viewAction: .cancel) } label: {
                 Text(L10n.actionCancel)
             }
-            // Fix a bug with the preferredColorScheme on iOS 18 where the button doesn't
-            // follow the dark colour scheme on devices running with dark mode disabled.
-            .tint(.compound.textActionPrimary)
         }
         
         if isCurrentMediaImage {
@@ -175,9 +120,6 @@ struct MediaUploadPreviewScreen: View {
                 Button { context.isPresentingMediaEditor = true } label: {
                     CompoundIcon(\.crop)
                 }
-                // Fix a bug with the preferredColorScheme on iOS 18 where the button doesn't
-                // follow the dark colour scheme on devices running with dark mode disabled.
-                .tint(.compound.textActionPrimary)
             }
         }
     }
@@ -396,9 +338,7 @@ struct MediaUploadPreviewScreen_Previews: PreviewProvider, TestablePreview {
     static let viewModel = MediaUploadPreviewScreenViewModel(mediaURLs: [snapshotURL],
                                                              caption: nil,
                                                              title: "App Icon.png",
-                                                             shouldShowCaptionWarning: true,
-                                                             galleryEnabled: true,
-                                                             mediaUploadingPreprocessor: MediaUploadingPreprocessor(appSettings: .volatile()),
+                                                             mediaUploadingPreprocessor: MediaUploadingPreprocessor(userSettings: .mock()),
                                                              timelineController: TimelineControllerMock(.init()),
                                                              clientProxy: ClientProxyMock(.init()),
                                                              userIndicatorController: UserIndicatorControllerMock())
@@ -406,9 +346,5 @@ struct MediaUploadPreviewScreen_Previews: PreviewProvider, TestablePreview {
         ElementNavigationStack {
             MediaUploadPreviewScreen(context: viewModel.context)
         }
-        
-        MediaUploadPreviewScreen(context: viewModel.context)
-            .captionWarningContent
-            .previewDisplayName("Caption warning")
     }
 }

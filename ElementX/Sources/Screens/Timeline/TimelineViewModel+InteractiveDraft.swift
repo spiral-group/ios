@@ -69,9 +69,14 @@ extension TimelineViewModel {
         // one. The target is resolved here rather than remembered: a room
         // the owner has since left is a failure, not a post somewhere else.
         // A thread with a LIVE post updates that post instead (§ 5.55).
+        //
+        // The draft's own `target_room_id` is an agent's word only — one of
+        // this server's: a draft card is built for those alone, and this says
+        // so again, so nobody else can aim the owner's one tap elsewhere.
         let live = asNew ? nil : state.spiralUpdatableLivePost
         let destination: JoinedRoomProxyProtocol
-        let destinationID = live?.roomID ?? state.spiralPublishRoom?.id ?? draft.targetRoomID ?? roomProxy.id
+        let draftTarget = SpiralAgentRoomGrants.isLocalAgent(item.sender.id, ownUserID: roomProxy.ownUserID) ? draft.targetRoomID : nil
+        let destinationID = live?.roomID ?? state.spiralPublishRoom?.id ?? draftTarget ?? roomProxy.id
         if destinationID == roomProxy.id {
             destination = roomProxy
         } else {

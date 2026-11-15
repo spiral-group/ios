@@ -13,11 +13,11 @@ import SwiftUI
 
 enum ChatsTabFlowCoordinatorAction {
     case switchToChatsTab
-    case showSettings
     case showChatBackupSettings
     case sessionVerification(SessionVerificationScreenFlow)
     case showCallScreen(roomProxy: JoinedRoomProxyProtocol, isVoiceCall: Bool)
     case showAIConsentSettings // AGENT-PLATFORM (decision 150)
+    case showAgentsTab // AGENT-PLATFORM (question 412)
     case hideCallScreenOverlay
     case logout
 }
@@ -35,6 +35,8 @@ class ChatsTabFlowCoordinator: FlowCoordinatorProtocol {
     private var roomFlowCoordinator: RoomFlowCoordinator?
     // periphery:ignore - retaining purpose
     private var spaceFlowCoordinator: SpaceFlowCoordinator?
+    // AGENT-PLATFORM (Brief 0083, question 359): one of the owner's rows, from an agent's profile in a sheet.
+    private(set) var agentRowFlowCoordinator: AgentRowFlowCoordinator? // AGENT-PLATFORM: read by the tests
     
     private var bugReportFlowCoordinator: BugReportFlowCoordinator?
     // periphery:ignore - retaining purpose
@@ -47,6 +49,7 @@ class ChatsTabFlowCoordinator: FlowCoordinatorProtocol {
     private let sidebarNavigationStackCoordinator: NavigationStackCoordinator
     
     private let selectedRoomSubject = CurrentValueSubject<String?, Never>(nil)
+    private let searchContext: SearchScreenViewModelType.Context? // AGENT-PLATFORM (Brief 0083, question 343)
     
     private let actionsSubject: PassthroughSubject<ChatsTabFlowCoordinatorAction, Never> = .init()
     var actionsPublisher: AnyPublisher<ChatsTabFlowCoordinatorAction, Never> {
@@ -54,7 +57,9 @@ class ChatsTabFlowCoordinator: FlowCoordinatorProtocol {
     }
     
     init(navigationSplitCoordinator: NavigationSplitCoordinator,
+         searchContext: SearchScreenViewModelType.Context? = nil, // AGENT-PLATFORM (Brief 0083, question 343)
          flowParameters: CommonFlowParameters) {
+        self.searchContext = searchContext
         stateMachine = flowParameters.stateMachineFactory.makeChatsTabFlowStateMachine()
         self.navigationSplitCoordinator = navigationSplitCoordinator
         self.flowParameters = flowParameters
@@ -68,6 +73,13 @@ class ChatsTabFlowCoordinator: FlowCoordinatorProtocol {
     
     func start(animated: Bool) {
         stateMachine.processEvent(.start)
+        // AGENT-PLATFORM (412): a catalogue template's post is titled in the reader's language from the titles the
+        // last catalogue read kept (`SpiralAppTemplateTitles`); read it once per session, so a reader who never
+        // opens the catalogue has them too.
+        if !ProcessInfo.isRunningTests {
+            let catalogURL = flowParameters.userSession.userSettings.app.interactiveCatalogURL
+            Task.detached(priority: .utility) { _ = await SpiralAppCatalog.fetch(from: catalogURL) }
+        }
     }
     
     func stop() { }
@@ -174,10 +186,12 @@ class ChatsTabFlowCoordinator: FlowCoordinatorProtocol {
                                       userInfo: .init(animated: animated))
         case .catalogTemplate(let templateID, nil):
             await handleCatalogLink(templateID: templateID, animated: animated)
-        case .accountProvisioningLink, .oAuthCallback, .inviteLink, .settings, .call, .search, .aiConsentSettings: // AGENT-PLATFORM: .inviteLink (Brief 0073), .aiConsentSettings (decision 150)
+        case .oAuthCallback, .inviteLink, .settings, .call, .search, .aiConsentSettings: // AGENT-PLATFORM: .inviteLink (Brief 0073), .aiConsentSettings (decision 150), no .accountProvisioningLink (Brief 0083 L1b)
             break // These routes cannot be handled.
         case .approvalDetail, .verificationDetail, .publicProfile:
             break // AGENT-PLATFORM: handled by AgentsTabFlowCoordinator.
+        case .feedPost, .feedNotices:
+            break // AGENT-PLATFORM: feed (Brief 0082): handled by FeedTabFlowCoordinator.
         }
     }
     
@@ -248,7 +262,7 @@ class ChatsTabFlowCoordinator: FlowCoordinatorProtocol {
             case (.roomList, .showRoomDirectorySearchScreen, .roomDirectorySearchScreen):
                 presentRoomDirectorySearch()
             case (.roomDirectorySearchScreen, .dismissedRoomDirectorySearchScreen, .roomList):
-                dismissRoomDirectorySearch()
+                break // AGENT-PLATFORM (1.0.2): sent by the cover's dismissal
                 
             case (_, .showUserProfileScreen(let userID), .userProfileScreen):
                 presentUserProfileScreen(userID: userID, animated: animated)
@@ -352,15 +366,6 @@ class ChatsTabFlowCoordinator: FlowCoordinatorProtocol {
                 switch action {
                 case .receivedDecryptionError(let info):
                     processDecryptionError(info)
-                case .receivedSyncUpdate:
-                    Task {
-                        let roomSummaries = self.userSession.clientProxy.staticRoomSummaryProvider.roomListPublisher.value
-                        await self.flowParameters.notificationManager.removeDeliveredNotificationsForFullyReadRooms(roomSummaries)
-                        // AGENT-PLATFORM: the badge follows the same truth as
-                        // the dots, so reading a room clears it here rather
-                        // than waiting for a push that may never come.
-                        await self.flowParameters.notificationManager.updateBadgeCount(with: roomSummaries)
-                    }
                 default:
                     break
                 }
@@ -399,12 +404,12 @@ class ChatsTabFlowCoordinator: FlowCoordinatorProtocol {
     
     private func presentHomeScreen() {
         let parameters = HomeScreenCoordinatorParameters(userSession: userSession,
+                                                         availableSessionsPublisher: flowParameters.availableSessionsPublisher,
                                                          bugReportService: flowParameters.bugReportService,
                                                          selectedRoomPublisher: selectedRoomSubject.asCurrentValuePublisher(),
-                                                         appSettings: flowParameters.appSettings,
                                                          analyticsService: flowParameters.analytics,
-                                                         notificationManager: flowParameters.notificationManager,
-                                                         userIndicatorController: flowParameters.userIndicatorController)
+                                                         userIndicatorController: flowParameters.userIndicatorController,
+                                                         searchContext: searchContext) // AGENT-PLATFORM (Brief 0083, question 343)
         let coordinator = HomeScreenCoordinator(parameters: parameters)
         
         coordinator.actions
@@ -427,8 +432,6 @@ class ChatsTabFlowCoordinator: FlowCoordinatorProtocol {
                        detailStateRoomID == roomID {
                         clearRoute(animated: true)
                     }
-                case .presentSettingsScreen:
-                    actionsSubject.send(.showSettings)
                 case .presentFeedbackScreen:
                     stateMachine.processEvent(.feedbackScreen)
                 case .presentSecureBackupSettings:
@@ -554,6 +557,8 @@ class ChatsTabFlowCoordinator: FlowCoordinatorProtocol {
                 actionsSubject.send(.showCallScreen(roomProxy: roomProxy, isVoiceCall: isVoiceCall))
             case .presentAIConsentSettings: // AGENT-PLATFORM (decision 150)
                 actionsSubject.send(.showAIConsentSettings)
+            case .presentAgentsTab: // AGENT-PLATFORM (question 412)
+                actionsSubject.send(.showAgentsTab)
             case .verifyUser(let userID):
                 actionsSubject.send(.sessionVerification(.userInitiator(userID: userID)))
             case .continueWithSpaceFlow(let spaceRoomListProxy):
@@ -593,7 +598,7 @@ class ChatsTabFlowCoordinator: FlowCoordinatorProtocol {
         Task {
             let _ = await userSession.clientProxy.trackRecentlyVisitedRoom(roomID)
             
-            await flowParameters.notificationManager.removeDeliveredMessageNotifications(for: roomID)
+            userSession.notificationService.removeDeliveredMessageNotifications(for: roomID)
         }
     }
     
@@ -620,6 +625,8 @@ class ChatsTabFlowCoordinator: FlowCoordinatorProtocol {
                     actionsSubject.send(.showCallScreen(roomProxy: roomProxy, isVoiceCall: isVoiceCall))
                 case .presentAIConsentSettings: // AGENT-PLATFORM (decision 150)
                     actionsSubject.send(.showAIConsentSettings)
+                case .presentAgentsTab: // AGENT-PLATFORM (question 412)
+                    actionsSubject.send(.showAgentsTab)
                 case .verifyUser(let userID):
                     actionsSubject.send(.sessionVerification(.userInitiator(userID: userID)))
                 case .finished:
@@ -692,8 +699,7 @@ class ChatsTabFlowCoordinator: FlowCoordinatorProtocol {
                                                                             userIndicatorController: flowParameters.userIndicatorController,
                                                                             isModallyPresented: true)
         
-        let coordinator = flowParameters.appHooks.recoveryKeyScreenHook.makeCoordinator(parameters: parameters,
-                                                                                        homeserver: userSession.clientProxy.homeserver)
+        let coordinator = userSession.userHooks.recoveryKeyScreenHook.makeCoordinator(parameters: parameters)
         coordinator.actions.sink { [weak self] action in
             guard let self else { return }
             switch action {
@@ -714,8 +720,6 @@ class ChatsTabFlowCoordinator: FlowCoordinatorProtocol {
         let sheetNavigationStackCoordinator = NavigationStackCoordinator()
         let parameters = EncryptionResetFlowCoordinatorParameters(userSession: userSession,
                                                                   appMediator: flowParameters.appMediator,
-                                                                  appSettings: flowParameters.appSettings,
-                                                                  appHooks: flowParameters.appHooks,
                                                                   userIndicatorController: flowParameters.userIndicatorController,
                                                                   navigationStackCoordinator: sheetNavigationStackCoordinator,
                                                                   windowManger: flowParameters.windowManager)
@@ -751,22 +755,22 @@ class ChatsTabFlowCoordinator: FlowCoordinatorProtocol {
             
             switch action {
             case .selectAlias(let alias):
-                stateMachine.processEvent(.dismissedRoomDirectorySearchScreen)
+                navigationSplitCoordinator.setFullScreenCoverCoordinator(nil)
                 handleAppRoute(.roomAlias(alias), animated: true)
             case .selectRoomID(let roomID):
-                stateMachine.processEvent(.dismissedRoomDirectorySearchScreen)
+                navigationSplitCoordinator.setFullScreenCoverCoordinator(nil)
                 handleAppRoute(.room(roomID: roomID, via: []), animated: true)
             case .dismiss:
-                stateMachine.processEvent(.dismissedRoomDirectorySearchScreen)
+                navigationSplitCoordinator.setFullScreenCoverCoordinator(nil)
             }
         }
         .store(in: &cancellables)
         
-        navigationSplitCoordinator.setFullScreenCoverCoordinator(coordinator)
-    }
-    
-    private func dismissRoomDirectorySearch() {
-        navigationSplitCoordinator.setFullScreenCoverCoordinator(nil)
+        // AGENT-PLATFORM (1.0.2, Fable review of 93d0663ef): the state follows the cover however it goes. A call
+        // screen coming up closes it too, and the state used to stay on the directory, so no chat opened again.
+        navigationSplitCoordinator.setFullScreenCoverCoordinator(coordinator) { [weak self] in
+            self?.stateMachine.processEvent(.dismissedRoomDirectorySearchScreen)
+        }
     }
     
     // MARK: User Profile
@@ -778,8 +782,8 @@ class ChatsTabFlowCoordinator: FlowCoordinatorProtocol {
         let parameters = UserProfileScreenCoordinatorParameters(userID: userID,
                                                                 isPresentedModally: true,
                                                                 userSession: userSession,
-                                                                userIndicatorController: flowParameters.userIndicatorController,
-                                                                analytics: flowParameters.analytics)
+                                                                analytics: flowParameters.analytics,
+                                                                userIndicatorController: flowParameters.userIndicatorController)
         let coordinator = UserProfileScreenCoordinator(parameters: parameters)
         coordinator.actionsPublisher.sink { [weak self] action in
             guard let self else { return }
@@ -789,17 +793,70 @@ class ChatsTabFlowCoordinator: FlowCoordinatorProtocol {
                 navigationSplitCoordinator.setSheetCoordinator(nil)
                 stateMachine.processEvent(.selectRoom(roomID: roomID, via: [], entryPoint: .room))
             case .startCall(let roomProxy, let isVoiceCall):
+                // A sheet stays above the call screen: without this it covers the call until Done.
+                navigationSplitCoordinator.setSheetCoordinator(nil)
                 actionsSubject.send(.showCallScreen(roomProxy: roomProxy, isVoiceCall: isVoiceCall))
             case .dismiss:
                 navigationSplitCoordinator.setSheetCoordinator(nil)
+            case .openAgentRow(let row, let card): // AGENT-PLATFORM (Brief 0083, question 359)
+                startAgentRowFlow(row: row, card: card, on: navigationStackCoordinator)
             }
         }
         .store(in: &cancellables)
         
         navigationStackCoordinator.setRootCoordinator(coordinator, animated: false)
         navigationSplitCoordinator.setSheetCoordinator(navigationStackCoordinator, animated: animated) { [weak self] in
+            self?.agentRowFlowCoordinator = nil // AGENT-PLATFORM (Brief 0083, question 359)
             self?.stateMachine.processEvent(.dismissedUserProfileScreen)
         }
+    }
+    
+    /// AGENT-PLATFORM (Brief 0083, question 359): one of the owner's rows of an agent's page, inside the profile's sheet.
+    func startAgentRowFlow(row: AgentPageRow, card: AgentSpaceAgentCard, on navigationStackCoordinator: NavigationStackCoordinator) {
+        guard let coordinator = AgentRowFlowCoordinator(row: row,
+                                                        card: card,
+                                                        navigationStackCoordinator: navigationStackCoordinator,
+                                                        flowParameters: flowParameters,
+                                                        showOriginRoom: { [weak self] in self?.showRoomFromProfile(roomID: $0) ?? false }) else {
+            MXLog.warning("ChatsTabFlowCoordinator: no agent platform: cannot open an agent's row")
+            flowParameters.userIndicatorController.submitIndicator(.init(title: L10n.errorUnknown))
+            return
+        }
+        
+        coordinator.actionsPublisher.sink { [weak self] action in
+            guard let self else { return }
+            
+            switch action {
+            case .finished:
+                agentRowFlowCoordinator = nil
+            case .presentCallScreen(let roomProxy, let isVoiceCall):
+                // A sheet stays above the call screen, as for the profile's own Call.
+                navigationSplitCoordinator.setSheetCoordinator(nil)
+                actionsSubject.send(.showCallScreen(roomProxy: roomProxy, isVoiceCall: isVoiceCall))
+            case .presentAIConsentSettings:
+                navigationSplitCoordinator.setSheetCoordinator(nil)
+                actionsSubject.send(.showAIConsentSettings)
+            case .presentAgentsTab: // AGENT-PLATFORM (question 412)
+                navigationSplitCoordinator.setSheetCoordinator(nil)
+                actionsSubject.send(.showAgentsTab)
+            case .verifyUser(let userID):
+                navigationSplitCoordinator.setSheetCoordinator(nil)
+                actionsSubject.send(.sessionVerification(.userInitiator(userID: userID)))
+            }
+        }
+        .store(in: &cancellables)
+        
+        agentRowFlowCoordinator = coordinator
+        coordinator.start(animated: true)
+    }
+    
+    /// AGENT-PLATFORM (end-stage review, 2026-11-14): a chat asked for on an agent's page in the profile's sheet, by its
+    /// Message or an activity row, opens in Chats as the profile's own Message does: the sheet closes, taking the page's
+    /// flow with it, and the room is selected. Pushed on the sheet's stack, the chat stayed inside the sheet.
+    func showRoomFromProfile(roomID: String) -> Bool {
+        navigationSplitCoordinator.setSheetCoordinator(nil)
+        stateMachine.processEvent(.selectRoom(roomID: roomID, via: [], entryPoint: .room))
+        return true
     }
     
     // MARK: Sharing
@@ -852,7 +909,7 @@ class ChatsTabFlowCoordinator: FlowCoordinatorProtocol {
     /// A template the catalogue has asks which chat it goes to; one it
     /// doesn't have, or that this build can't run, says so and asks nothing.
     private func handleCatalogLink(templateID: String, animated: Bool) async {
-        switch await SpiralAppCatalog.resolve(templateID, from: flowParameters.appSettings.interactiveCatalogURL) {
+        switch await SpiralAppCatalog.resolve(templateID, from: flowParameters.userSession.userSettings.app.interactiveCatalogURL) {
         case .template:
             stateMachine.processEvent(.showCatalogRoomList(templateID: templateID), userInfo: .init(animated: animated))
         case .needsNewerApp:

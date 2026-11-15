@@ -34,11 +34,13 @@ enum SpiralAppCompleteness {
         /// Trusted for want of anything better, but reported separately so a
         /// caller can tell a verdict from a shrug.
         case undeterminable
-        /// Sequence numbers missing below the highest seen, ascending.
+        /// Sequence numbers missing below the highest seen, ascending — the
+        /// first `maxListedGaps` of them.
         case gaps([Int])
     }
 
-    /// Check `1...max` against the sequence numbers the actions carry.
+    /// Look for holes in the sequence numbers the actions carry, below the
+    /// highest.
     ///
     /// Duplicates are deliberately neither gaps nor errors: two clients
     /// computing from the same base legitimately emit the same `seq`, and the
@@ -54,18 +56,38 @@ enum SpiralAppCompleteness {
     static func evaluate(_ actions: [SpiralAppAction], redacted: Int = 0) -> Completeness {
         guard !actions.isEmpty else { return .complete }
 
-        let numbers = Set(actions.compactMap(\.seq))
-        guard let highest = numbers.max() else { return .undeterminable }
-        // A sender that wrote a non-positive `seq` is malformed, and building
-        // `1...highest` from it would trap. Nothing is required below 1.
-        guard highest >= 1 else { return .complete }
+        // Nothing is required below 1, and parsing already refuses a `seq`
+        // outside `1...SpiralAppActionLimits.maxSeq`.
+        let numbers = Set(actions.compactMap(\.seq)).filter { $0 >= 1 }.sorted()
+        guard !numbers.isEmpty else { return .undeterminable }
 
-        let missing = (1...highest).filter { !numbers.contains($0) }
+        // Walked from the numbers we HOLD, never from `1...highest`: a single
+        // forged `seq` used to make every reader count up to it.
+        var missingCount = 0
+        var listed: [Int] = []
+        var previous = 0
+        for number in numbers {
+            let hole = number - previous - 1
+            if hole > 0 {
+                missingCount += hole
+                let room = maxListedGaps - listed.count
+                if room > 0 {
+                    listed.append(contentsOf: (previous + 1)..<(previous + 1 + min(hole, room)))
+                }
+            }
+            previous = number
+        }
+
         // Conservative on purpose: two holes and one redaction still reads as
         // incomplete, because only one of them is explained.
-        guard missing.count > redacted else { return .complete }
-        return .gaps(missing)
+        guard missingCount > redacted else { return .complete }
+        return .gaps(listed)
     }
+
+    /// How many missing numbers a verdict names. The count behind it is
+    /// exact; the list is what a person reads, and a hole a hundred thousand
+    /// wide is not a hundred thousand facts.
+    static let maxListedGaps = 64
 }
 
 /// One Interactive Post's state: read from the post's relations, folded, and
@@ -83,6 +105,17 @@ final class SpiralAppStateReader {
         /// Folded from a set known to be short. `missing` is what the post
         /// should admit it could not read.
         case partial(missing: [Int])
+        /// The read failed and nothing is known. Not an empty post: "no actions
+        /// yet" and "could not read" must never look the same.
+        case failed
+
+        /// Whether this state may be shown to an app, or written on top of.
+        var isVouched: Bool {
+            switch self {
+            case .ready, .partial: true
+            case .loading, .failed: false
+            }
+        }
     }
 
     struct Snapshot: Equatable {
@@ -96,6 +129,12 @@ final class SpiralAppStateReader {
 
         static let loading = Snapshot(state: .object([:]), seq: 0, readiness: .loading, summary: nil)
     }
+
+    /// The most actions one post keeps (M4). Each may be 32 KB, and every
+    /// one is folded again on every change, so the count is bounded too.
+    /// Ten times a long game of chess; a post past it shows the first ones
+    /// in room order — the same ones on every phone — and says it is partial.
+    static let maxKnownActions = 2000
 
     /// Attempts one `refresh()` may spend. Bounds the pathological case where
     /// every attempt reads one more action and a gap survives all of them.
@@ -118,6 +157,18 @@ final class SpiralAppStateReader {
     /// delivered more than once and counting it twice would forgive a gap
     /// that nothing explains.
     private var redacted: Set<String> = []
+
+    /// Whether `known` was cut to `maxKnownActions`.
+    private var isTruncated = false
+
+    /// Who is waiting for the first verdict on this post.
+    private var verdictWaiters: [CheckedContinuation<Void, Never>] = []
+
+    /// Nobody is looking: actions are kept but not folded. A fold replays
+    /// every action on the main actor, which a post off screen has no use for.
+    private var isDormant = false
+    /// Whether `known` has moved on from the last snapshot.
+    private var hasUnpublishedActions = false
 
     #if DEBUG
     /// Step 6.14. Stamps from actions absorbed but not yet folded into a
@@ -151,10 +202,15 @@ final class SpiralAppStateReader {
 
     /// Re-read the post's actions and republish its state.
     ///
-    /// Returns once the snapshot has settled, so a caller that awaits it has
-    /// the verdict rather than a promise of one.
+    /// Every attempt publishes what it found, so nothing has to wait for the
+    /// retries: a hole costs a post `.partial` from the first attempt, and the
+    /// later ones improve on it. Returns once they are over.
     func refresh() async {
         var previousCount = known.count
+
+        if snapshot.readiness == .failed {
+            publish(readiness: .loading)
+        }
 
         for attempt in 1...Self.maxAttempts {
             guard await readRelations() else {
@@ -162,8 +218,8 @@ final class SpiralAppStateReader {
                 // standing. Only an EMPTY set changes verdict: "no actions
                 // yet" and "could not read" look identical, and calling that
                 // `.ready` is exactly the silent partial this type exists to
-                // catch, so the loader stays up instead.
-                publish(readiness: known.isEmpty ? .loading : verdict())
+                // catch.
+                publish(readiness: known.isEmpty ? .failed : verdict())
                 return
             }
 
@@ -179,14 +235,48 @@ final class SpiralAppStateReader {
             let madeProgress = known.count > previousCount
             previousCount = known.count
 
-            guard madeProgress, attempt < Self.maxAttempts else {
-                publish(readiness: .partial(missing: missing))
-                return
-            }
+            publish(readiness: .partial(missing: missing))
 
-            publish(readiness: .loading)
+            guard madeProgress, attempt < Self.maxAttempts else { return }
+
             await retryDelay()
         }
+    }
+
+    /// Wait for a verdict on the state, and say whether it may be shown.
+    /// Bounded: a read that never answers is a read that failed.
+    func verdict(within deadline: Duration) async -> Bool {
+        if snapshot.readiness == .loading {
+            await withCheckedContinuation { continuation in
+                verdictWaiters.append(continuation)
+                Task { [weak self] in
+                    try? await Task.sleep(for: deadline)
+                    self?.releaseVerdictWaiters()
+                }
+            }
+        }
+        return snapshot.readiness.isVouched
+    }
+
+    private func releaseVerdictWaiters() {
+        let waiting = verdictWaiters
+        verdictWaiters.removeAll()
+        for continuation in waiting {
+            continuation.resume()
+        }
+    }
+
+    /// Keep what arrives without folding it, until `wake`.
+    func sleep() {
+        isDormant = true
+    }
+
+    /// Publish whatever arrived while nobody was looking.
+    func wake() async {
+        isDormant = false
+        guard hasUnpublishedActions else { return }
+        hasUnpublishedActions = false
+        await settle()
     }
 
     /// Take actions delivered by the live subscription.
@@ -202,11 +292,31 @@ final class SpiralAppStateReader {
     func ingest(rawEventJSONs: [String]) async {
         guard absorb(rawEventJSONs) else { return }
 
+        guard !isDormant else {
+            hasUnpublishedActions = true
+            return
+        }
+        await settle()
+    }
+
+    private func settle() async {
         if case .gaps = completeness() {
             await refresh()
         } else {
             publish(readiness: .ready)
         }
+    }
+
+    /// Other people's actions newer, in room order, than `userID`'s own
+    /// newest one in this post — what a write from `userID` now answers.
+    func actions(after userID: String) -> [SpiralAppAction] {
+        let ordered = known.values.sorted { lhs, rhs in
+            lhs.originServerTimestamp != rhs.originServerTimestamp
+                ? lhs.originServerTimestamp < rhs.originServerTimestamp
+                : lhs.eventID < rhs.eventID
+        }
+        let start = ordered.lastIndex { $0.sender == userID }.map { $0 + 1 } ?? 0
+        return ordered[start...].filter { $0.sender != userID }
     }
 
     /// The `seq` the next locally-originated action should carry.
@@ -269,6 +379,16 @@ final class SpiralAppStateReader {
             }
         }
 
+        if known.count > Self.maxKnownActions {
+            let kept = known.values.sorted { lhs, rhs in
+                lhs.originServerTimestamp != rhs.originServerTimestamp
+                    ? lhs.originServerTimestamp < rhs.originServerTimestamp
+                    : lhs.eventID < rhs.eventID
+            }.prefix(Self.maxKnownActions)
+            known = Dictionary(uniqueKeysWithValues: kept.map { ($0.eventID, $0) })
+            isTruncated = true
+        }
+
         return changed
     }
 
@@ -291,11 +411,16 @@ final class SpiralAppStateReader {
     private func publish(readiness: Readiness) {
         let actions = Array(known.values)
         let outcome = SpiralAppStateFold.fold(actions)
+        // Everything was read, but not everything could be shown.
+        let readiness = readiness == .ready && (isTruncated || outcome.isOverBudget) ? .partial(missing: []) : readiness
         snapshotSubject.send(Snapshot(state: outcome.state,
                                       seq: actions.compactMap(\.seq).max() ?? 0,
                                       readiness: readiness,
                                       summary: outcome.summary,
                                       awaitingReply: outcome.awaitingReply))
+        if readiness != .loading {
+            releaseVerdictWaiters()
+        }
 
         #if DEBUG
         // The snapshot is out. Everything past this line — the push into the

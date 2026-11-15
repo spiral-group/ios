@@ -56,17 +56,7 @@ nonisolated enum SpiralLink: Equatable {
     
     /// The homeserver domain implied by every link (ADR-0060:
     /// server_name == main_domain, single-tenant deployment).
-    static let serverName = isLocalDevStack ? "localhost" : "spiral.md"
-    
-    /// A Debug build launched with `SPIRAL_DEV_STACK=1` talks to the local dev
-    /// stack, whose server name is `localhost` (docs/project/DEV_STACK_SIMULATOR.md).
-    static let isLocalDevStack: Bool = {
-        #if DEBUG
-        ProcessInfo.processInfo.environment["SPIRAL_DEV_STACK"] == "1"
-        #else
-        false
-        #endif
-    }()
+    static let serverName = SpiralEnvironment.current.serverName // AGENT-PLATFORM (Brief 0084)
     
     // MARK: - Building
     

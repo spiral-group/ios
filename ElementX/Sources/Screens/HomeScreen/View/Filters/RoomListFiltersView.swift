@@ -9,77 +9,102 @@
 import Compound
 import SwiftUI
 
+// AGENT-PLATFORM (Brief 0083, decision 333): Spiral's filters replace the row of chips, Element's signature on
+// Chats: a filter menu in the navigation bar, and while filtering a removable token for each active filter at
+// the top of the list. Every filter keeps its behaviour: the same `RoomListFiltersState` calls, which filters
+// combine and which hide. Each token's ✕ turns off its filter and keeps the others; each target is 44 pt tall.
 struct RoomListFiltersView: View {
-    let leadingID = "leading"
     @Binding var state: RoomListFiltersState
-    @Namespace private var namespace
-    
-    /// When you connect a mouse on macOS the scrollbars aren't hidden. This is some extra padding
-    /// applied to the scroll view content to make sure the bars don't overlap the filters.
-    private var macScrollBarPadding: CGFloat {
-        ProcessInfo.processInfo.isiOSAppOnMac ? 16 : 0
-    }
     
     var body: some View {
-        ScrollViewReader { proxy in
-            ScrollView(.horizontal) {
-                HStack(spacing: 0) {
-                    // Using an empty view makes the scroll a bit clunky, better a 0 frame spacer
-                    Spacer()
-                        .frame(width: 0, height: 0)
-                        .id(leadingID)
-                    
-                    HStack(spacing: 8) {
-                        if state.isFiltering {
-                            clearButton(scrollViewProxy: proxy)
-                        }
-                        
-                        ForEach(state.activeFilters) { filter in
-                            RoomListFilterView(filter: filter,
-                                               isActive: getBinding(for: filter, scrollViewProxy: proxy))
-                                .matchedGeometryEffect(id: filter.id, in: namespace)
-                                // This will make the animation always render the enabled ones on top
-                                .zIndex(1)
-                        }
-                        ForEach(state.availableFilters) { filter in
-                            RoomListFilterView(filter: filter,
-                                               isActive: getBinding(for: filter, scrollViewProxy: proxy))
-                                .matchedGeometryEffect(id: filter.id, in: namespace)
-                        }
-                    }
-                    .padding(.horizontal, 16)
-                    .padding(.bottom, macScrollBarPadding)
+        ScrollView(.horizontal) {
+            HStack(spacing: CompoundDesignTokens.space2X) {
+                ForEach(state.activeFilters) { filter in
+                    token(for: filter)
                 }
             }
-            .scrollIndicators(.hidden)
-            .padding(.vertical, 12)
-            .padding(.bottom, -macScrollBarPadding)
+            .padding(.horizontal, CompoundDesignTokens.space4X)
         }
+        .scrollIndicators(.hidden)
+        .padding(.vertical, CompoundDesignTokens.space0_5X)
     }
     
-    private func clearButton(scrollViewProxy: ScrollViewProxy) -> some View {
+    private func token(for filter: RoomListFilter) -> some View {
         Button {
             withAnimation(.easeInOut(duration: 0.2).disabledDuringTests()) {
-                state.clearFilters()
-                scrollViewProxy.scrollTo(leadingID, anchor: .leading)
+                state.deactivateFilter(filter)
             }
         } label: {
-            CompoundIcon(\.close, size: .xSmall, relativeTo: .compound.bodyLG)
-                .foregroundStyle(.compound.iconOnSolidPrimary)
-                .padding(4)
-                .background(.compound.bgActionPrimaryRest, in: .circle)
+            HStack(spacing: CompoundDesignTokens.space1_5X) {
+                Text(filter.localizedName)
+                    .lineLimit(1)
+                
+                CompoundIcon(\.close, size: .xSmall, relativeTo: .compound.bodyMDSemibold)
+            }
+            .font(.compound.bodyMDSemibold)
+            .foregroundStyle(.compound.textBadgeAccent)
+            .padding(.horizontal, CompoundDesignTokens.space3X)
+            .padding(.vertical, CompoundDesignTokens.space1_5X)
+            .background(.compound.bgBadgeAccent, in: .capsule)
+            .frame(minHeight: CompoundDesignTokens.space11X)
+            .contentShape(Rectangle())
         }
-        .accessibilityLabel(L10n.screenRoomlistClearFilters)
+        .buttonStyle(.plain)
+        .accessibilityLabel(filter.localizedName)
+        .accessibilityAddTraits(.isSelected)
+    }
+}
+
+// AGENT-PLATFORM (Brief 0083): the filter menu's button in Chats' navigation bar. While a filter is on its glyph
+// fills its circle, as Mail's filter button does, in the accent; a bar's button style doesn't reach a menu.
+struct RoomListFiltersMenuButton: View {
+    @Binding var state: RoomListFiltersState
+    
+    var body: some View {
+        Menu {
+            RoomListFiltersMenuContent(state: $state)
+        } label: {
+            CompoundIcon(\.filter)
+                .symbolVariant(state.isFiltering ? .circle.fill : .none)
+        }
+        .tint(state.isFiltering ? .compound.iconAccentPrimary : nil)
+        .accessibilityLabel(UntranslatedL10n.screenRoomlistFilterMenuTitle)
+        .accessibilityValue(state.activeFiltersDescription)
+        .accessibilityAddTraits(state.isFiltering ? .isSelected : [])
+    }
+}
+
+// AGENT-PLATFORM (Brief 0083): the menu. Each filter the user can turn on now is a
+// toggle, in a fixed order, as the chips offered them: one that can't combine with an active filter isn't listed.
+// Clear filters closes it while filtering.
+struct RoomListFiltersMenuContent: View {
+    @Binding var state: RoomListFiltersState
+    
+    var body: some View {
+        Section {
+            ForEach(RoomListFilter.allCases.filter { state.isFilterActive($0) || state.availableFilters.contains($0) }) { filter in
+                Toggle(filter.localizedName, isOn: binding(for: filter))
+            }
+        }
+        
+        if state.isFiltering {
+            Section {
+                Button(L10n.screenRoomlistClearFilters) {
+                    withAnimation(.easeInOut(duration: 0.2).disabledDuringTests()) {
+                        state.clearFilters()
+                    }
+                }
+            }
+        }
     }
     
-    private func getBinding(for filter: RoomListFilter, scrollViewProxy: ScrollViewProxy) -> Binding<Bool> {
+    private func binding(for filter: RoomListFilter) -> Binding<Bool> {
         Binding<Bool>(get: {
             state.isFilterActive(filter)
         }, set: { isEnabled, _ in
             withAnimation(.easeInOut(duration: 0.2).disabledDuringTests()) {
                 if isEnabled {
                     state.activateFilter(filter)
-                    scrollViewProxy.scrollTo(leadingID, anchor: .leading)
                 } else {
                     state.deactivateFilter(filter)
                 }
@@ -88,14 +113,22 @@ struct RoomListFiltersView: View {
     }
 }
 
+private extension RoomListFiltersState {
+    /// The active filters as a localised list, in the order they were turned on: "Unread and People".
+    var activeFiltersDescription: String {
+        activeFilters.map(\.localizedName).formatted(.list(type: .and))
+    }
+}
+
 // MARK: - Previews
 
 struct RoomListFiltersView_Previews: PreviewProvider, TestablePreview {
     static var previews: some View {
-        RoomListFiltersView(state: .constant(.init(appSettings: .volatile())))
+        // AGENT-PLATFORM (Brief 0083): the tokens show only while filtering.
+        RoomListFiltersView(state: .constant(.init(activeFilters: [.unreads], userSettings: .mock())))
         RoomListFiltersView(state: .constant(.init(activeFilters: [.rooms, .favourites],
-                                                   appSettings: .volatile())))
+                                                   userSettings: .mock())))
         RoomListFiltersView(state: .constant(.init(activeFilters: [.lowPriority],
-                                                   appSettings: .volatile())))
+                                                   userSettings: .mock())))
     }
 }

@@ -38,6 +38,8 @@ public struct CompoundIcon: View {
     }
     
     private var image: Image
+    /// AGENT-PLATFORM (Brief 0083, decision 320): a key draws Spiral's SF Symbol where `SpiralSymbols` maps one.
+    let drawing: SpiralSymbols.Drawing
     private var size: Size
     private var font: Font
     
@@ -52,6 +54,7 @@ public struct CompoundIcon: View {
     ///   - icon: The icon to show.
     public init(_ icon: KeyPath<CompoundIcons, Image>) {
         image = .compound[keyPath: icon]
+        drawing = SpiralSymbols.drawing(for: icon) // AGENT-PLATFORM (Brief 0083)
         size = .medium
         font = .compound.bodyLG
     }
@@ -64,6 +67,7 @@ public struct CompoundIcon: View {
     ///   - font: The font that should be used for scaling with Dynamic Type.
     public init(_ icon: KeyPath<CompoundIcons, Image>, size: Size, relativeTo font: Font) {
         image = .compound[keyPath: icon]
+        drawing = SpiralSymbols.drawing(for: icon) // AGENT-PLATFORM (Brief 0083)
         self.size = size
         self.font = font
     }
@@ -78,6 +82,7 @@ public struct CompoundIcon: View {
     /// ** Note:** The image should have a square frame or it may end up distorted.
     public init(customImage: Image) {
         image = customImage
+        drawing = .asset // AGENT-PLATFORM (Brief 0083)
         size = .medium
         font = .compound.bodyLG
     }
@@ -93,14 +98,15 @@ public struct CompoundIcon: View {
     /// ** Note:** The image should have a square frame or it may end up distorted.
     public init(customImage: Image, size: Size, relativeTo font: Font) {
         image = customImage
+        drawing = .asset // AGENT-PLATFORM (Brief 0083)
         self.size = size
         self.font = font
     }
     
     public var body: some View {
-        image
-            .resizable()
+        SpiralSymbols.image(for: drawing, asset: image) // AGENT-PLATFORM (Brief 0083, decision 320): was `image.resizable()`
             .modifier(CompoundIconFrame(fontSize: size.value, textStyle: fontSize.style))
+            .modifier(SpiralSymbolStyle(drawing: drawing, size: size.value, textStyle: fontSize.style)) // AGENT-PLATFORM (Brief 0083)
     }
 }
 

@@ -27,10 +27,13 @@ struct RoomMembersListScreenMemberCell: View {
                                     avatarSize: .user(on: .roomMembersList),
                                     mediaProvider: context.mediaProvider)
                     // AGENT-PLATFORM (Brief 0072, ADR-0083): the status line says it to VoiceOver.
-                    .presenceBadge(isOnline: presence?.isOnline ?? false,
-                                   avatarSize: Avatars.Size.user(on: .roomMembersList).value,
-                                   ringColor: .compound.bgCanvasDefaultLevel1,
-                                   announced: false)
+                    // AGENT-PLATFORM (Brief 0083, decision 357): an agent's badge; the row reads its Matrix ID.
+                    .avatarBadges(userID: listEntry.member.id,
+                                  avatarURL: avatarURL,
+                                  isOnline: presence?.isOnline ?? false,
+                                  avatarSize: Avatars.Size.user(on: .roomMembersList).value,
+                                  surfaceColor: .compound.bgCanvasDefaultLevel1,
+                                  announced: false)
                     .accessibilityHidden(true)
                 
                 HStack(alignment: .center, spacing: 4) {
@@ -76,6 +79,7 @@ struct RoomMembersListScreenMemberCell: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .accessibilityElement(children: .combine)
         }
+        .accessibilityIdentifier(A11yIdentifiers.roomMembersListScreen.member(listEntry.member.id))
     }
     
     // AGENT-PLATFORM (Brief 0072, ADR-0083): as Telegram has it, the line

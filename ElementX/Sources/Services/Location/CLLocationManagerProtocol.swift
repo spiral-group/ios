@@ -26,4 +26,7 @@ protocol CLLocationManagerProtocol: AnyObject {
 // sourcery: AutoMockable
 extension CLLocationManagerProtocol { }
 
-extension CLLocationManager: CLLocationManagerProtocol { }
+// AGENT-PLATFORM: App Review F1 (decision 252): no `CLLocationManager` conformance.
+// Spiral ships without location sharing and declares no location purpose string,
+// so the binary must not reference CoreLocation's request APIs; the session's
+// manager is `SpiralNoLocationManager`. Restore this with the feature.

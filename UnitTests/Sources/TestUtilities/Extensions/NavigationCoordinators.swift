@@ -5,8 +5,8 @@
 // Please see LICENSE files in the repository root for full details.
 //
 
-@testable import ElementX
 import Foundation
+@testable import Spiral
 
 // Sendable projections of the navigation coordinators' non-Sendable coordinator references,
 // allowing the tests to `observe` them and wait for navigation with `deferFulfillment`.

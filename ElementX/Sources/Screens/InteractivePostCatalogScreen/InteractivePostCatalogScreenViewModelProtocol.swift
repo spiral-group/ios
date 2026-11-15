@@ -15,4 +15,6 @@ import Combine
 protocol InteractivePostCatalogScreenViewModelProtocol {
     var actionsPublisher: AnyPublisher<InteractivePostCatalogScreenViewModelAction, Never> { get }
     var context: InteractivePostCatalogScreenViewModelType.Context { get }
+
+    func stop()
 }

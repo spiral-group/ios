@@ -6,9 +6,9 @@
 // Please see LICENSE files in the repository root for full details.
 //
 
-@testable import ElementX
 import MatrixRustSDK
 import MatrixRustSDKMocks
+@testable import Spiral
 import Testing
 
 struct RoomTests {

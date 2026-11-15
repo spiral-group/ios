@@ -5,8 +5,8 @@
 # demote* alert-button lookups, UTType descriptions…) assume an ENGLISH
 # simulator. Fresh simulators inherit the host macOS language (ru on the
 # operator's Mac), so this script finds-or-creates a dedicated en-locale
-# simulator named "Spiral-UnitTests-en" and runs the whole UnitTests scheme
-# on it. BUILDING.md § Tests says what the tests need.
+# simulator named "Spiral-UnitTests-en-27" (iOS 27.0) and runs the whole
+# UnitTests scheme on it. BUILDING.md § Tests says what the tests need.
 #
 # Usage: Tools/Scripts/run-unit-tests.sh [extra xcodebuild args…]
 #   e.g. Tools/Scripts/run-unit-tests.sh -only-testing:UnitTests/DateTests
@@ -14,21 +14,15 @@
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 
-SIM_NAME="Spiral-UnitTests-en"
+# iOS 27.0 since the Element X 1.0.2 sync: upstream's expected sizes in
+# MediaUploadingPreprocessorTests are iOS 27's transcoder output. Branches
+# still on 26.5 keep their own "Spiral-UnitTests-en".
+SIM_NAME="Spiral-UnitTests-en-27"
 DEVICE_TYPE="iPhone 17 Pro"
-RUNTIME="com.apple.CoreSimulator.SimRuntime.iOS-26-5"
+RUNTIME="com.apple.CoreSimulator.SimRuntime.iOS-27-0"
 
-UDID=$(xcrun simctl list devices | grep "$SIM_NAME (" | grep -oE '[0-9A-F-]{36}' | head -1 || true)
-
-if [ -z "$UDID" ]; then
-    echo "Creating $SIM_NAME ($DEVICE_TYPE, $RUNTIME)…"
-    UDID=$(xcrun simctl create "$SIM_NAME" "$DEVICE_TYPE" "$RUNTIME")
-    xcrun simctl boot "$UDID"
-    # Force English regardless of the host macOS language.
-    xcrun simctl spawn "$UDID" defaults write .GlobalPreferences AppleLanguages -array en-US
-    xcrun simctl spawn "$UDID" defaults write .GlobalPreferences AppleLocale -string en_US
-    xcrun simctl shutdown "$UDID"
-fi
+source Tools/Scripts/test-simulator.sh
+prepare_test_simulator "$SIM_NAME" "$DEVICE_TYPE" "$RUNTIME"
 
 echo "Running UnitTests on $SIM_NAME ($UDID)…"
 LOG=$(mktemp -t spiral-unittests)

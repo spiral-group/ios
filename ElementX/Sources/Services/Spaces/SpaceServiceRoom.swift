@@ -42,13 +42,7 @@ struct SpaceServiceRoom {
     var via: [String]
     
     var avatar: RoomAvatar {
-        if isSpace {
-            .space(id: id, name: name, avatarURL: avatarURL)
-        } else if isDirect == true, avatarURL == nil, heroes.count == 1 {
-            .heroes(heroes)
-        } else {
-            .room(id: id, name: name, avatarURL: avatarURL)
-        }
+        .make(id: id, name: name, avatarURL: avatarURL, isDirect: isDirect == true, isSpace: isSpace, heroes: heroes)
     }
     
     var visibility: SpaceServiceRoomVisibility? {

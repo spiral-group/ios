@@ -8,36 +8,19 @@
 
 import Combine
 import Compound
+import SpiralComponents // AGENT-PLATFORM (Brief 0083)
 import SwiftUI
 
 /// The view shown when the user isn't part of any rooms.
 struct HomeScreenEmptyStateView: View {
     let context: HomeScreenViewModel.Context
     
+    // AGENT-PLATFORM (Brief 0083): Spiral's empty state, with Start chat as its action.
     var body: some View {
-        VStack(spacing: 6) {
-            Text(L10n.screenRoomlistEmptyTitle)
-                .font(.compound.bodyLG)
-                .foregroundColor(.compound.textSecondary)
-                .multilineTextAlignment(.center)
-            
-            Text(L10n.screenRoomlistEmptyMessage)
-                .font(.compound.bodyLG)
-                .foregroundColor(.compound.textSecondary)
-                .multilineTextAlignment(.center)
-                .padding(.bottom, 12)
-            
-            Button { context.send(viewAction: .startChat) } label: {
-                Label(L10n.actionStartChat, icon: \.compose)
-                    .font(.compound.bodyLGSemibold)
-                    .foregroundColor(.compound.textOnSolidPrimary)
-                    .padding(.vertical, 6)
-                    .padding(.horizontal, 22)
-            }
-            .buttonStyle(.borderedProminent)
-            .buttonBorderShape(.capsule)
-        }
-        .padding(16)
+        SpiralEmptyState(symbol: .bubbleLeftAndBubbleRight,
+                         title: L10n.screenRoomlistEmptyTitle,
+                         message: L10n.screenRoomlistEmptyMessage,
+                         action: .init(L10n.actionStartChat) { context.send(viewAction: .startChat) })
     }
 }
 
@@ -134,6 +117,7 @@ struct HomeScreenEmptyStateView_Previews: PreviewProvider, TestablePreview {
             .frame(maxWidth: .infinity)
             .padding()
             .background {
+                // swiftlint:disable:next spiral_raw_corner_radius - predates the rule; AGENT-PLATFORM (Brief 0083): the folder joined the lint
                 RoundedRectangle(cornerRadius: 20)
                     .fill(Color.compound.bgSubtleSecondary)
             }
@@ -144,10 +128,10 @@ struct HomeScreenEmptyStateView_Previews: PreviewProvider, TestablePreview {
         let userSession = UserSessionMock(.init(clientProxy: ClientProxyMock(.init(userID: "@user:example.com",
                                                                                    roomSummaryProvider: RoomSummaryProviderMock(.init(state: .loaded([])))))))
         return HomeScreenViewModel(userSession: userSession,
+                                   availableSessionsPublisher: .init([.init(userSession: userSession)]),
                                    selectedRoomPublisher: CurrentValueSubject<String?, Never>(nil).asCurrentValuePublisher(),
-                                   appSettings: .volatile(),
                                    analyticsService: AnalyticsServiceMock(.init()),
-                                   notificationManager: NotificationManagerMock(),
+                                   bugReportService: BugReportServiceMock(.init()),
                                    userIndicatorController: UserIndicatorControllerMock())
     }()
 }

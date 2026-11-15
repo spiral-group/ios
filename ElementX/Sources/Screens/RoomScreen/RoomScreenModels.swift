@@ -11,7 +11,6 @@ import OrderedCollections
 
 enum RoomScreenViewModelAction: Equatable {
     case focusEvent(eventID: String)
-    case displayThreadList
     case displayThread(threadRootEventID: String, focussedEventID: String)
     case displayPinnedEventsTimeline
     case displayRoomDetails
@@ -19,10 +18,10 @@ enum RoomScreenViewModelAction: Equatable {
     case removeComposerFocus
     case displayKnockRequests
     case displayRoom(roomID: String, via: [String])
-    case displayMessageForwarding(MessageForwardingItem)
+    case displayMessageForwarding(MessageForwardingPayload)
     case stopLiveLocationSharing
     case displayLiveLocation
-    // AGENT-PLATFORM: open the agent-tools capabilities sheet (Brief 0036).
+    // AGENT-PLATFORM: open the chat's tools (Brief 0036).
     case displayAgentTools
 }
 
@@ -39,7 +38,6 @@ enum RoomScreenViewAction {
     case dismissKnockRequests
     case viewKnockRequests
     case displaySuccessorRoom
-    case displayThreadList
     case tappedOpenLiveLocation
     case tappedStopLiveLocation
 }
@@ -48,7 +46,14 @@ struct RoomScreenViewState: BindableState {
     var roomTitle = ""
     var roomAvatar: RoomAvatar
     var dmRecipientDetails = RoomHeaderView.DMRecipientDetails()
-    
+    // AGENT-PLATFORM (Brief 0083, question 392): a group's joined members, agents too, as on the room's page.
+    // Nil in a DM, where the line is the person's status, and while the room doesn't know yet.
+    var memberCount: Int?
+    /// The header's line under a group's name, which typing takes over the way it does a DM's status.
+    var headerSubtitle: String? {
+        memberCount.map(L10n.commonMemberCount)
+    }
+
     var lastScrollDirection: ScrollDirection?
     // This is used to control the banner
     var pinnedEventsBannerState: PinnedEventsBannerState = .loading(numbersOfEvents: 0)
@@ -73,6 +78,8 @@ struct RoomScreenViewState: BindableState {
     
     /// Whether or not starting a call is supported.
     var isCallingEnabled = true
+    /// Whether or not calls are using the experimental native implementation.
+    var isNativeCallingEnabled = false
     /// Whether or not the user is allowed to join calls in this room.
     var canJoinCall = false
     /// Whether or not this room currently has a call in progress.
@@ -91,7 +98,6 @@ struct RoomScreenViewState: BindableState {
     /// Voice is exposed in every non-DM room (ADR-0079 D3).
     var canStartGroupVoiceCall = false
     
-    var roomThreadListEnabled = false
     var isKnockableRoom = false
     var canAcceptKnocks = false
     var canDeclineKnocks = false

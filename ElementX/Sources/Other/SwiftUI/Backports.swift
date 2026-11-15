@@ -48,15 +48,21 @@ extension View {
         }
     }
     
-    @ViewBuilder func backportButtonStyleGlassProminent() -> some View {
+    // AGENT-PLATFORM (decision 306): `tint` colours only the prominent fill. Tests draw a
+    // plain button, and a tint set outside would recolour its label in every snapshot.
+    @ViewBuilder func backportButtonStyleGlassProminent(tint: Color? = nil) -> some View {
         if #available(iOS 26, *) {
             // `.glassProminent` breaks our preview tests so we need to disable it when running tests.
             // https://github.com/pointfreeco/swift-snapshot-testing/issues/1029#issuecomment-3366942138
             if ProcessInfo.isRunningUnitTests {
                 self
+            } else if let tint {
+                buttonStyle(.glassProminent).tint(tint)
             } else {
                 buttonStyle(.glassProminent)
             }
+        } else if let tint {
+            buttonStyle(.borderedProminent).tint(tint)
         } else {
             buttonStyle(.borderedProminent)
         }

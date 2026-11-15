@@ -223,7 +223,15 @@ nonisolated struct RoomTimelineItemFactory: RoomTimelineItemFactoryProtocol {
         // message type of its own, the way a photo is `m.image`.
         case .interactivePost(let postContent):
             return buildInteractivePostTimelineItem(eventItemProxy, messageLikeContent, messageContent, postContent, isOutgoing)
+        // A draft's card publishes its code as the reader with one tap, so
+        // only the platform's agents get one — of THIS server: an
+        // `@assistant-…` elsewhere is anybody's name (N6). From anyone else
+        // it is the plain text it says it is.
         case .interactiveDraft(let draftContent):
+            guard SpiralAgentRoomGrants.isLocalAgent(eventItemProxy.sender.id, ownUserID: userID) else {
+                return buildNoticeTimelineItem(for: eventItemProxy, messageLikeContent, messageContent,
+                                               notice: nil, fallbackBody: messageContent.body, isOutgoing)
+            }
             return buildInteractiveDraftTimelineItem(eventItemProxy, messageLikeContent, messageContent, draftContent, isOutgoing)
         // The agent's «generating» marker (§ 5.71) — a msgtype of its own the
         // SDK passes through as `.other`; every other unknown msgtype stays hidden.
@@ -235,7 +243,12 @@ nonisolated struct RoomTimelineItemFactory: RoomTimelineItemFactoryProtocol {
         // same msgtype is plain text — a person cannot forge a «sign-in
         // phrase changed» or «joined through your invitation» card.
         case .other(let msgtype, let body, let data) where msgtype == SpiralNotice.msgtype:
-            let notice = SpiralAppPostSession.isAgent(eventItemProxy.sender.id) ? SpiralNotice(msgtype: msgtype, data: data) : nil
+            let isFromAgent = SpiralAppPostSession.isAgent(eventItemProxy.sender.id)
+            // AGENT-PLATFORM (decision 371): the one kind that stays a message.
+            if isFromAgent, let summary = SpiralCallSummary(msgtype: msgtype, data: data) {
+                return buildCallSummaryTimelineItem(eventItemProxy, messageLikeContent, messageContent, summary, body: body, isOutgoing)
+            }
+            let notice = isFromAgent ? SpiralNotice(msgtype: msgtype, data: data) : nil
             return buildNoticeTimelineItem(for: eventItemProxy, messageLikeContent, messageContent,
                                            notice: notice, fallbackBody: body, isOutgoing)
         case .other(let msgtype, let body, _) where msgtype == InteractiveGeneratingRoomTimelineItem.msgtype:
@@ -272,7 +285,9 @@ nonisolated struct RoomTimelineItemFactory: RoomTimelineItemFactoryProtocol {
         let post = SpiralAppPost(postContent)
 
         return InteractivePostRoomTimelineItem(id: eventItemProxy.id,
-                                               body: post.title,
+                                               // A catalogue template's post reads in the reader's language,
+                                               // not the publisher's it was stored in.
+                                               body: SpiralAppTemplateTitles.standard.title(forAppID: post.appID) ?? post.title,
                                                timestamp: eventItemProxy.timestamp,
                                                isOutgoing: isOutgoing,
                                                isEditable: eventItemProxy.isEditable,
@@ -283,9 +298,8 @@ nonisolated struct RoomTimelineItemFactory: RoomTimelineItemFactoryProtocol {
                                                                  isThreaded: messageLikeContent.threadRoot != nil,
                                                                  threadSummary: buildTimelineItemThreadSummary(messageLikeContent.threadSummary),
                                                                  isEdited: messageContent.isEdited,
-                                                                 reactions: buildAggregatedReactions(messageLikeContent.reactions),
+                                                                 reactions: buildAggregatedReactions(eventItemProxy.reactions),
                                                                  deliveryStatus: eventItemProxy.deliveryStatus,
-                                                                 orderedReadReceipts: buildOrderedReadReceipts(eventItemProxy.readReceipts),
                                                                  encryptionAuthenticity: buildEncryptionAuthenticity(eventItemProxy.shieldState),
                                                                  encryptionForwarder: eventItemProxy.forwarder))
     }
@@ -309,9 +323,8 @@ nonisolated struct RoomTimelineItemFactory: RoomTimelineItemFactoryProtocol {
                                                                   isThreaded: messageLikeContent.threadRoot != nil,
                                                                   threadSummary: buildTimelineItemThreadSummary(messageLikeContent.threadSummary),
                                                                   isEdited: messageContent.isEdited,
-                                                                  reactions: buildAggregatedReactions(messageLikeContent.reactions),
+                                                                  reactions: buildAggregatedReactions(eventItemProxy.reactions),
                                                                   deliveryStatus: eventItemProxy.deliveryStatus,
-                                                                  orderedReadReceipts: buildOrderedReadReceipts(eventItemProxy.readReceipts),
                                                                   encryptionAuthenticity: buildEncryptionAuthenticity(eventItemProxy.shieldState),
                                                                   encryptionForwarder: eventItemProxy.forwarder))
     }
@@ -333,11 +346,35 @@ nonisolated struct RoomTimelineItemFactory: RoomTimelineItemFactoryProtocol {
                                                isThreaded: messageLikeContent.threadRoot != nil,
                                                threadSummary: buildTimelineItemThreadSummary(messageLikeContent.threadSummary),
                                                isEdited: messageContent.isEdited,
-                                               reactions: buildAggregatedReactions(messageLikeContent.reactions),
+                                               reactions: buildAggregatedReactions(eventItemProxy.reactions),
                                                deliveryStatus: eventItemProxy.deliveryStatus,
-                                               orderedReadReceipts: buildOrderedReadReceipts(eventItemProxy.readReceipts),
                                                encryptionAuthenticity: buildEncryptionAuthenticity(eventItemProxy.shieldState),
                                                encryptionForwarder: eventItemProxy.forwarder))
+    }
+    
+    // AGENT-PLATFORM (decision 371)
+    private func buildCallSummaryTimelineItem(_ eventItemProxy: EventTimelineItemProxy,
+                                              _ messageLikeContent: MsgLikeContent,
+                                              _ messageContent: MessageContent,
+                                              _ summary: SpiralCallSummary,
+                                              body: String,
+                                              _ isOutgoing: Bool) -> RoomTimelineItemProtocol {
+        CallSummaryRoomTimelineItem(id: eventItemProxy.id,
+                                    timestamp: eventItemProxy.timestamp,
+                                    isOutgoing: isOutgoing,
+                                    isEditable: false,
+                                    canBeRepliedTo: eventItemProxy.canBeRepliedTo,
+                                    sender: eventItemProxy.sender,
+                                    content: TextRoomTimelineItemContent(body: body),
+                                    summary: summary,
+                                    properties: .init(replyDetails: buildTimelineItemReplyDetails(messageLikeContent.inReplyTo),
+                                                      isThreaded: messageLikeContent.threadRoot != nil,
+                                                      threadSummary: buildTimelineItemThreadSummary(messageLikeContent.threadSummary),
+                                                      isEdited: messageContent.isEdited,
+                                                      reactions: buildAggregatedReactions(eventItemProxy.reactions),
+                                                      deliveryStatus: eventItemProxy.deliveryStatus,
+                                                      encryptionAuthenticity: buildEncryptionAuthenticity(eventItemProxy.shieldState),
+                                                      encryptionForwarder: eventItemProxy.forwarder))
     }
     
     // AGENT-PLATFORM (Brief 0073): a notice this client knows is a card of
@@ -369,9 +406,8 @@ nonisolated struct RoomTimelineItemFactory: RoomTimelineItemFactoryProtocol {
                                                       isThreaded: messageLikeContent.threadRoot != nil,
                                                       threadSummary: buildTimelineItemThreadSummary(messageLikeContent.threadSummary),
                                                       isEdited: messageContent.isEdited,
-                                                      reactions: buildAggregatedReactions(messageLikeContent.reactions),
+                                                      reactions: buildAggregatedReactions(eventItemProxy.reactions),
                                                       deliveryStatus: eventItemProxy.deliveryStatus,
-                                                      orderedReadReceipts: buildOrderedReadReceipts(eventItemProxy.readReceipts),
                                                       encryptionAuthenticity: buildEncryptionAuthenticity(eventItemProxy.shieldState),
                                                       encryptionForwarder: eventItemProxy.forwarder))
     }
@@ -393,9 +429,8 @@ nonisolated struct RoomTimelineItemFactory: RoomTimelineItemFactoryProtocol {
                                                 isThreaded: messageLikeContent.threadRoot != nil,
                                                 threadSummary: buildTimelineItemThreadSummary(messageLikeContent.threadSummary),
                                                 isEdited: messageContent.isEdited,
-                                                reactions: buildAggregatedReactions(messageLikeContent.reactions),
+                                                reactions: buildAggregatedReactions(eventItemProxy.reactions),
                                                 deliveryStatus: eventItemProxy.deliveryStatus,
-                                                orderedReadReceipts: buildOrderedReadReceipts(eventItemProxy.readReceipts),
                                                 encryptionAuthenticity: buildEncryptionAuthenticity(eventItemProxy.shieldState),
                                                 encryptionForwarder: eventItemProxy.forwarder))
     }
@@ -417,9 +452,8 @@ nonisolated struct RoomTimelineItemFactory: RoomTimelineItemFactoryProtocol {
                                                 isThreaded: messageLikeContent.threadRoot != nil,
                                                 threadSummary: buildTimelineItemThreadSummary(messageLikeContent.threadSummary),
                                                 isEdited: messageContent.isEdited,
-                                                reactions: buildAggregatedReactions(messageLikeContent.reactions),
+                                                reactions: buildAggregatedReactions(eventItemProxy.reactions),
                                                 deliveryStatus: eventItemProxy.deliveryStatus,
-                                                orderedReadReceipts: buildOrderedReadReceipts(eventItemProxy.readReceipts),
                                                 encryptionAuthenticity: buildEncryptionAuthenticity(eventItemProxy.shieldState),
                                                 encryptionForwarder: eventItemProxy.forwarder))
     }
@@ -441,9 +475,8 @@ nonisolated struct RoomTimelineItemFactory: RoomTimelineItemFactoryProtocol {
                                                 isThreaded: messageLikeContent.threadRoot != nil,
                                                 threadSummary: buildTimelineItemThreadSummary(messageLikeContent.threadSummary),
                                                 isEdited: messageContent.isEdited,
-                                                reactions: buildAggregatedReactions(messageLikeContent.reactions),
+                                                reactions: buildAggregatedReactions(eventItemProxy.reactions),
                                                 deliveryStatus: eventItemProxy.deliveryStatus,
-                                                orderedReadReceipts: buildOrderedReadReceipts(eventItemProxy.readReceipts),
                                                 encryptionAuthenticity: buildEncryptionAuthenticity(eventItemProxy.shieldState),
                                                 encryptionForwarder: eventItemProxy.forwarder))
     }
@@ -464,9 +497,8 @@ nonisolated struct RoomTimelineItemFactory: RoomTimelineItemFactoryProtocol {
                                                        isThreaded: messageLikeContent.threadRoot != nil,
                                                        threadSummary: buildTimelineItemThreadSummary(messageLikeContent.threadSummary),
                                                        isEdited: messageContent.isEdited,
-                                                       reactions: buildAggregatedReactions(messageLikeContent.reactions),
+                                                       reactions: buildAggregatedReactions(eventItemProxy.reactions),
                                                        deliveryStatus: eventItemProxy.deliveryStatus,
-                                                       orderedReadReceipts: buildOrderedReadReceipts(eventItemProxy.readReceipts),
                                                        encryptionAuthenticity: buildEncryptionAuthenticity(eventItemProxy.shieldState),
                                                        encryptionForwarder: eventItemProxy.forwarder))
     }
@@ -488,9 +520,8 @@ nonisolated struct RoomTimelineItemFactory: RoomTimelineItemFactoryProtocol {
                                                isThreaded: messageLikeContent.threadRoot != nil,
                                                threadSummary: buildTimelineItemThreadSummary(messageLikeContent.threadSummary),
                                                isEdited: messageContent.isEdited,
-                                               reactions: buildAggregatedReactions(messageLikeContent.reactions),
+                                               reactions: buildAggregatedReactions(eventItemProxy.reactions),
                                                deliveryStatus: eventItemProxy.deliveryStatus,
-                                               orderedReadReceipts: buildOrderedReadReceipts(eventItemProxy.readReceipts),
                                                encryptionAuthenticity: buildEncryptionAuthenticity(eventItemProxy.shieldState),
                                                encryptionForwarder: eventItemProxy.forwarder))
     }
@@ -511,9 +542,8 @@ nonisolated struct RoomTimelineItemFactory: RoomTimelineItemFactoryProtocol {
                                                  isThreaded: messageLikeContent.threadRoot != nil,
                                                  threadSummary: buildTimelineItemThreadSummary(messageLikeContent.threadSummary),
                                                  isEdited: messageContent.isEdited,
-                                                 reactions: buildAggregatedReactions(messageLikeContent.reactions),
+                                                 reactions: buildAggregatedReactions(eventItemProxy.reactions),
                                                  deliveryStatus: eventItemProxy.deliveryStatus,
-                                                 orderedReadReceipts: buildOrderedReadReceipts(eventItemProxy.readReceipts),
                                                  encryptionAuthenticity: buildEncryptionAuthenticity(eventItemProxy.shieldState),
                                                  encryptionForwarder: eventItemProxy.forwarder))
     }
@@ -534,9 +564,8 @@ nonisolated struct RoomTimelineItemFactory: RoomTimelineItemFactoryProtocol {
                                                 isThreaded: messageLikeContent.threadRoot != nil,
                                                 threadSummary: buildTimelineItemThreadSummary(messageLikeContent.threadSummary),
                                                 isEdited: messageContent.isEdited,
-                                                reactions: buildAggregatedReactions(messageLikeContent.reactions),
+                                                reactions: buildAggregatedReactions(eventItemProxy.reactions),
                                                 deliveryStatus: eventItemProxy.deliveryStatus,
-                                                orderedReadReceipts: buildOrderedReadReceipts(eventItemProxy.readReceipts),
                                                 encryptionAuthenticity: buildEncryptionAuthenticity(eventItemProxy.shieldState),
                                                 encryptionForwarder: eventItemProxy.forwarder))
     }
@@ -557,9 +586,8 @@ nonisolated struct RoomTimelineItemFactory: RoomTimelineItemFactoryProtocol {
                                                    isThreaded: messageLikeContent.threadRoot != nil,
                                                    threadSummary: buildTimelineItemThreadSummary(messageLikeContent.threadSummary),
                                                    isEdited: messageContent.isEdited,
-                                                   reactions: buildAggregatedReactions(messageLikeContent.reactions),
+                                                   reactions: buildAggregatedReactions(eventItemProxy.reactions),
                                                    deliveryStatus: eventItemProxy.deliveryStatus,
-                                                   orderedReadReceipts: buildOrderedReadReceipts(eventItemProxy.readReceipts),
                                                    encryptionAuthenticity: buildEncryptionAuthenticity(eventItemProxy.shieldState),
                                                    encryptionForwarder: eventItemProxy.forwarder))
     }
@@ -581,9 +609,8 @@ nonisolated struct RoomTimelineItemFactory: RoomTimelineItemFactoryProtocol {
                                                   isThreaded: messageLikeContent.threadRoot != nil,
                                                   threadSummary: buildTimelineItemThreadSummary(messageLikeContent.threadSummary),
                                                   isEdited: messageContent.isEdited,
-                                                  reactions: buildAggregatedReactions(messageLikeContent.reactions),
+                                                  reactions: buildAggregatedReactions(eventItemProxy.reactions),
                                                   deliveryStatus: eventItemProxy.deliveryStatus,
-                                                  orderedReadReceipts: buildOrderedReadReceipts(eventItemProxy.readReceipts),
                                                   encryptionAuthenticity: buildEncryptionAuthenticity(eventItemProxy.shieldState),
                                                   encryptionForwarder: eventItemProxy.forwarder))
     }
@@ -639,9 +666,8 @@ nonisolated struct RoomTimelineItemFactory: RoomTimelineItemFactoryProtocol {
                                        properties: .init(replyDetails: buildTimelineItemReplyDetails(messageLikeContent.inReplyTo),
                                                          isThreaded: messageLikeContent.threadRoot != nil,
                                                          threadSummary: buildTimelineItemThreadSummary(messageLikeContent.threadSummary),
-                                                         reactions: buildAggregatedReactions(messageLikeContent.reactions),
+                                                         reactions: buildAggregatedReactions(eventItemProxy.reactions),
                                                          deliveryStatus: eventItemProxy.deliveryStatus,
-                                                         orderedReadReceipts: buildOrderedReadReceipts(eventItemProxy.readReceipts),
                                                          encryptionAuthenticity: buildEncryptionAuthenticity(eventItemProxy.shieldState),
                                                          encryptionForwarder: eventItemProxy.forwarder))
     }
@@ -700,9 +726,8 @@ nonisolated struct RoomTimelineItemFactory: RoomTimelineItemFactoryProtocol {
                                                       isThreaded: messageLikeContent.threadRoot != nil,
                                                       threadSummary: buildTimelineItemThreadSummary(messageLikeContent.threadSummary),
                                                       isEdited: edited,
-                                                      reactions: buildAggregatedReactions(messageLikeContent.reactions),
+                                                      reactions: buildAggregatedReactions(eventItemProxy.reactions),
                                                       deliveryStatus: eventItemProxy.deliveryStatus,
-                                                      orderedReadReceipts: buildOrderedReadReceipts(eventItemProxy.readReceipts),
                                                       encryptionAuthenticity: buildEncryptionAuthenticity(eventItemProxy.shieldState),
                                                       encryptionForwarder: eventItemProxy.forwarder))
     }
@@ -721,9 +746,8 @@ nonisolated struct RoomTimelineItemFactory: RoomTimelineItemFactoryProtocol {
                                      properties: .init(replyDetails: buildTimelineItemReplyDetails(messageLikeContent.inReplyTo),
                                                        isThreaded: messageLikeContent.threadRoot != nil,
                                                        threadSummary: buildTimelineItemThreadSummary(messageLikeContent.threadSummary),
-                                                       reactions: buildAggregatedReactions(messageLikeContent.reactions),
+                                                       reactions: buildAggregatedReactions(eventItemProxy.reactions),
                                                        deliveryStatus: eventItemProxy.deliveryStatus,
-                                                       orderedReadReceipts: buildOrderedReadReceipts(eventItemProxy.readReceipts),
                                                        encryptionAuthenticity: buildEncryptionAuthenticity(eventItemProxy.shieldState),
                                                        encryptionForwarder: eventItemProxy.forwarder))
     }
@@ -968,25 +992,15 @@ nonisolated struct RoomTimelineItemFactory: RoomTimelineItemFactoryProtocol {
         }
     }
     
-    private func buildOrderedReadReceipts(_ receipts: [String: Receipt]) -> [ReadReceipt] {
-        receipts
-            .sorted { firstElement, secondElement in
-                // If there is no timestamp we order them as last
-                let firstTimestamp = firstElement.value.dateTimestamp ?? Date(timeIntervalSince1970: 0)
-                let secondTimestamp = secondElement.value.dateTimestamp ?? Date(timeIntervalSince1970: 0)
-                return firstTimestamp > secondTimestamp
-            }
-            .map { key, receipt in
-                ReadReceipt(userID: key, formattedTimestamp: receipt.dateTimestamp?.formattedMinimal())
-            }
-    }
-    
     private func buildEncryptionAuthenticity(_ shieldState: ShieldState?) -> EncryptionAuthenticity? {
         shieldState.flatMap(EncryptionAuthenticity.init)
     }
     
     private func buildTimelineItemThreadSummary(_ threadSummary: MatrixRustSDK.ThreadSummary?) -> TimelineItemThreadSummary? {
         guard let threadSummary else { return nil }
+        // AGENT-PLATFORM (S4): opening a thread makes the SDK store an empty summary for its root, which
+        // rendered as a loading placeholder forever. A thread with no replies has nothing to summarise.
+        guard threadSummary.numReplies() > 0 else { return nil }
         
         switch threadSummary.latestEvent() {
         case .unavailable:
@@ -1099,7 +1113,16 @@ nonisolated struct RoomTimelineItemFactory: RoomTimelineItemFactoryProtocol {
                                                              sender: eventItemProxy.sender,
                                                              isOutgoing: isOutgoing,
                                                              rawEventJSON: eventItemProxy.debugInfo.originalJSON) else { return nil }
-        return buildStateTimelineItem(for: eventItemProxy, text: text, isOutgoing: isOutgoing)
+        // AGENT-PLATFORM: a fold names a run of tool changes.
+        var isAgentToolChange = false
+        if case .custom(let eventType) = state {
+            isAgentToolChange = eventType == SpiralToolsStateReader.eventType
+        }
+        return buildStateTimelineItem(for: eventItemProxy,
+                                      text: text,
+                                      isOutgoing: isOutgoing,
+                                      isAgentToolChange: isAgentToolChange,
+                                      isAgentToolChangeByYou: isAgentToolChange && isAgentToolChangeByYou(eventItemProxy))
     }
     
     private func buildStateMembershipChangeTimelineItem(for eventItemProxy: EventTimelineItemProxy,
@@ -1130,29 +1153,26 @@ nonisolated struct RoomTimelineItemFactory: RoomTimelineItemFactoryProtocol {
                                                                           previousDisplayName: previousDisplayName,
                                                                           avatarURLString: avatarURLString,
                                                                           previousAvatarURLString: previousAvatarURLString,
-                                                                          member: eventItemProxy.sender.id,
+                                                                          memberID: eventItemProxy.sender.id,
+                                                                          memberDisplayName: eventItemProxy.sender.disambiguatedDisplayName ?? eventItemProxy.sender.id,
                                                                           memberIsYou: isOutgoing) else { return nil }
         return buildStateTimelineItem(for: eventItemProxy, text: text, isOutgoing: isOutgoing)
     }
     
-    // AGENT-PLATFORM (Brief 0066 § 5.89)
-    private func buildSpiralToolsFallbackTimelineItem(for eventItemProxy: EventTimelineItemProxy, isOutgoing: Bool) -> RoomTimelineItemProtocol? {
-        guard let rawEventJSON = eventItemProxy.debugInfo.originalJSON,
-              let text = stateEventStringBuilder.buildSpiralToolsFallbackString(rawEventJSON: rawEventJSON,
-                                                                                sender: eventItemProxy.sender) else {
-            return nil
-        }
-        return buildStateTimelineItem(for: eventItemProxy, text: text, isOutgoing: isOutgoing)
-    }
-
-    private func buildStateTimelineItem(for eventItemProxy: EventTimelineItemProxy, text: String, isOutgoing: Bool) -> RoomTimelineItemProtocol {
+    private func buildStateTimelineItem(for eventItemProxy: EventTimelineItemProxy,
+                                        text: String,
+                                        isOutgoing: Bool,
+                                        isAgentToolChange: Bool = false,
+                                        isAgentToolChangeByYou: Bool = false) -> RoomTimelineItemProtocol {
         StateRoomTimelineItem(id: eventItemProxy.id,
                               body: text,
                               timestamp: eventItemProxy.timestamp,
                               isOutgoing: isOutgoing,
                               isEditable: false,
                               canBeRepliedTo: eventItemProxy.canBeRepliedTo,
-                              sender: eventItemProxy.sender)
+                              sender: eventItemProxy.sender,
+                              isAgentToolChange: isAgentToolChange,
+                              isAgentToolChangeByYou: isAgentToolChangeByYou)
     }
     
     // MARK: - Reply details
@@ -1174,6 +1194,22 @@ private nonisolated extension EmbeddedEventDetails {
         default:
             return false
         }
+    }
+}
+
+nonisolated extension ReadReceipt {
+    /// An event's receipts, ordered from newest to oldest.
+    static func ordered(_ receipts: [String: Receipt]) -> [ReadReceipt] {
+        receipts
+            .sorted { firstElement, secondElement in
+                // If there is no timestamp we order them as last
+                let firstTimestamp = firstElement.value.dateTimestamp ?? Date(timeIntervalSince1970: 0)
+                let secondTimestamp = secondElement.value.dateTimestamp ?? Date(timeIntervalSince1970: 0)
+                return firstTimestamp > secondTimestamp
+            }
+            .map { key, receipt in
+                ReadReceipt(userID: key, formattedTimestamp: receipt.dateTimestamp?.formattedMinimal())
+            }
     }
 }
 
@@ -1245,5 +1281,26 @@ nonisolated extension RoomTimelineItemFactory {
     private static func callLength(from startMillis: UInt64?, to endMillis: UInt64?) -> TimeInterval? {
         guard let startMillis, let endMillis else { return nil }
         return TimeInterval(endMillis > startMillis ? endMillis - startMillis : 0) / 1000
+    }
+}
+
+// AGENT-PLATFORM: the agent-tools rows, kept apart from upstream's body.
+private extension RoomTimelineItemFactory {
+    // AGENT-PLATFORM (Brief 0066 § 5.89)
+    func buildSpiralToolsFallbackTimelineItem(for eventItemProxy: EventTimelineItemProxy, isOutgoing: Bool) -> RoomTimelineItemProtocol? {
+        guard let rawEventJSON = eventItemProxy.debugInfo.originalJSON,
+              let text = stateEventStringBuilder.buildSpiralToolsFallbackString(rawEventJSON: rawEventJSON,
+                                                                                sender: eventItemProxy.sender) else {
+            return nil
+        }
+        return buildStateTimelineItem(for: eventItemProxy,
+                                      text: text,
+                                      isOutgoing: isOutgoing,
+                                      isAgentToolChangeByYou: isAgentToolChangeByYou(eventItemProxy))
+    }
+
+    func isAgentToolChangeByYou(_ eventItemProxy: EventTimelineItemProxy) -> Bool {
+        guard let rawEventJSON = eventItemProxy.debugInfo.originalJSON else { return false }
+        return stateEventStringBuilder.isSpiralToolsEventByYou(rawEventJSON: rawEventJSON, sender: eventItemProxy.sender)
     }
 }

@@ -23,6 +23,15 @@ nonisolated enum AgentToolTrigger {
         }
     }
 
+    /// When a tool on this trigger runs; `nil` for a trigger this build doesn't know.
+    static func when(firing: AgentToolFiring?) -> String? {
+        switch firing {
+        case .onMessage: UntranslatedL10n.screenAgentRoomToolTriggerMessages
+        case .onVoiceCall: UntranslatedL10n.screenAgentRoomToolTriggerCalls
+        case nil: nil
+        }
+    }
+
     /// The whole line; the audience only when it is known and says something.
     static func line(forKind kind: String, audience: AudienceScope?) -> String? {
         join(when(forKind: kind), audience.flatMap(AgentToolAudience.text(for:)))
@@ -31,12 +40,7 @@ nonisolated enum AgentToolTrigger {
     /// The line from the trigger the server reports. A trigger or audience
     /// this build doesn't know leaves its half out (decision 96).
     static func line(firing: AgentToolFiring?, audience: AudienceScope?, memberNames: [String: String]) -> String? {
-        let when: String? = switch firing {
-        case .onMessage: UntranslatedL10n.screenAgentRoomToolTriggerMessages
-        case .onVoiceCall: UntranslatedL10n.screenAgentRoomToolTriggerCalls
-        case nil: nil
-        }
-        return join(when, audience.flatMap { AgentToolAudience.text(for: $0, memberNames: memberNames) })
+        join(when(firing: firing), audience.flatMap { AgentToolAudience.text(for: $0, memberNames: memberNames) })
     }
 
     private static func join(_ parts: String?...) -> String? {
@@ -75,7 +79,7 @@ nonisolated enum AgentToolAudience {
     }
 }
 
-extension ToolDisplayName {
+nonisolated extension ToolDisplayName {
     /// Each tool kind's own icon; a newer kind gets a generic one.
     static func icon(forKind kind: String) -> KeyPath<CompoundIcons, Image> {
         switch kind {

@@ -10,6 +10,7 @@
 //
 
 import Compound
+import SpiralComponents
 import SwiftUI
 
 struct ToolMemberPickerScreen: View {
@@ -38,27 +39,26 @@ struct ToolMemberPickerScreen: View {
 
     // MARK: - Sections
 
+    // Decision 330: the members' rows as placeholders, after a short delay.
     private var skeletonSection: some View {
         Section {
-            ForEach(0..<4, id: \.self) { _ in
-                ListRow(label: .default(title: "@placeholder:example.com", icon: \.userProfile),
-                        kind: .label)
-            }
+            ListRow(kind: .custom {
+                SpiralPreloader(label: L10n.commonLoading) {
+                    SpiralPlaceholderRows(count: 4, leading: .icon, hasSubtitle: false)
+                }
+            })
         }
-        .redacted(reason: .placeholder)
-        .shimmer()
-        .disabled(true)
-        .accessibilityRepresentation { Text(L10n.commonLoading) }
     }
 
     private var emptySection: some View {
         Section {
-            Text(UntranslatedL10n.screenToolMemberPickerEmpty)
-                .font(.compound.bodyMD)
-                .foregroundStyle(.compound.textSecondary)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 40)
-                .listRowBackground(Color.clear)
+            if context.searchQuery.isEmpty {
+                SpiralEmptyState(symbol: .person2, title: UntranslatedL10n.screenToolMemberPickerEmpty)
+                    .listRowBackground(Color.clear)
+            } else {
+                SpiralEmptyState(symbol: .magnifyingglass, title: L10n.commonNoResults, message: UntranslatedL10n.screenToolMemberPickerEmpty)
+                    .listRowBackground(Color.clear)
+            }
         }
     }
 
@@ -103,17 +103,31 @@ struct ToolMemberPickerScreen: View {
 struct ToolMemberPickerScreen_Previews: PreviewProvider, TestablePreview {
     static let loadedViewModel = makeViewModel(members: .allMembers, selected: ["@alice:example.com"])
     static let loadingViewModel = makeViewModel(members: [], selected: [])
+    static let noResultsViewModel = {
+        let viewModel = makeViewModel(members: .allMembers, selected: [])
+        viewModel.context.searchQuery = "Zed"
+        return viewModel
+    }()
 
     static var previews: some View {
+        // Decision 330: without the wait, the snapshot caught the first load's blank 250 ms.
         ElementNavigationStack {
             ToolMemberPickerScreen(context: loadedViewModel.context, mediaProvider: MediaProviderMock(.init()))
         }
+        .snapshotPreferences(expect: loadedViewModel.context.observe(\.viewState.isLoading).map { !$0 })
         .previewDisplayName("Loaded")
 
         ElementNavigationStack {
             ToolMemberPickerScreen(context: loadingViewModel.context, mediaProvider: MediaProviderMock(.init()))
         }
+        .environment(\.spiralPreloaderDelay, .zero)
         .previewDisplayName("Loading")
+
+        ElementNavigationStack {
+            ToolMemberPickerScreen(context: noResultsViewModel.context, mediaProvider: MediaProviderMock(.init()))
+        }
+        .snapshotPreferences(expect: noResultsViewModel.context.observe(\.viewState.isLoading).map { !$0 })
+        .previewDisplayName("No results")
     }
 
     private static func makeViewModel(members: [RoomMemberProxyMock], selected: [String]) -> ToolMemberPickerScreenViewModel {

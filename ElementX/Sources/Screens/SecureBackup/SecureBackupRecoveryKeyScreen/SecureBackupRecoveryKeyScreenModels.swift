@@ -24,7 +24,7 @@ struct SecureBackupRecoveryKeyScreenViewState: BindableState {
     /// Whether the screen is presented modally or within a navigation stack.
     var isModallyPresented: Bool
     
-    let mode: SecureBackupRecoveryKeyScreenViewMode
+    var mode: SecureBackupRecoveryKeyScreenViewMode
     
     var recoveryKey: String?
     var isGeneratingKey = false
@@ -32,40 +32,41 @@ struct SecureBackupRecoveryKeyScreenViewState: BindableState {
     
     var bindings: SecureBackupRecoveryKeyScreenViewBindings
     
+    // AGENT-PLATFORM (Brief 0083, decision 314): Spiral's copy, through `Untranslated.strings`' `*_spiral` keys.
     var title: String {
         switch mode {
         case .setupRecovery:
-            return recoveryKey == nil ? L10n.screenRecoveryKeySetupTitle : L10n.screenRecoveryKeySaveTitle
+            return recoveryKey == nil ? UntranslatedL10n.screenRecoveryKeySetupTitleSpiral : UntranslatedL10n.screenRecoveryKeySaveTitleSpiral
         case .changeRecovery:
-            return recoveryKey == nil ? L10n.screenRecoveryKeyChangeTitle : L10n.screenRecoveryKeySaveTitle
+            return recoveryKey == nil ? UntranslatedL10n.screenRecoveryKeyChangeTitleSpiral : UntranslatedL10n.screenRecoveryKeySaveTitleSpiral
         case .fixRecovery:
-            return L10n.screenRecoveryKeyConfirmTitle
-        default:
-            return L10n.errorUnknown
+            return UntranslatedL10n.screenRecoveryKeyConfirmTitleSpiral
+        case .unknown:
+            return UntranslatedL10n.screenRecoveryKeyUnknownTitleSpiral
         }
     }
     
     var subtitle: String? {
         switch mode {
         case .setupRecovery:
-            return recoveryKey == nil ? L10n.screenRecoveryKeySetupDescription : L10n.screenRecoveryKeySaveDescription
+            return recoveryKey == nil ? UntranslatedL10n.screenRecoveryKeySetupDescriptionSpiral : UntranslatedL10n.screenRecoveryKeySaveDescriptionSpiral
         case .changeRecovery:
-            return recoveryKey == nil ? L10n.screenRecoveryKeyChangeDescription : L10n.screenRecoveryKeySaveDescription
+            return recoveryKey == nil ? UntranslatedL10n.screenRecoveryKeyChangeDescriptionSpiral : UntranslatedL10n.screenRecoveryKeySaveDescriptionSpiral
         case .fixRecovery:
-            return L10n.screenRecoveryKeyConfirmDescription
-        default:
-            return nil
+            return UntranslatedL10n.screenRecoveryKeyConfirmDescriptionSpiral
+        case .unknown:
+            return UntranslatedL10n.screenRecoveryKeyUnknownDescriptionSpiral
         }
     }
     
     var recoveryKeySubtitle: String? {
         switch mode {
         case .setupRecovery:
-            return recoveryKey == nil ? L10n.screenRecoveryKeySetupGenerateKeyDescription : L10n.screenRecoveryKeySaveKeyDescription
+            return recoveryKey == nil ? UntranslatedL10n.screenRecoveryKeySetupGenerateKeyDescriptionSpiral : UntranslatedL10n.screenRecoveryKeySaveKeyDescriptionSpiral
         case .changeRecovery:
-            return recoveryKey == nil ? L10n.screenRecoveryKeyChangeGenerateKeyDescription : L10n.screenRecoveryKeySaveKeyDescription
+            return recoveryKey == nil ? UntranslatedL10n.screenRecoveryKeyChangeGenerateKeyDescriptionSpiral : UntranslatedL10n.screenRecoveryKeySaveKeyDescriptionSpiral
         case .fixRecovery:
-            return L10n.screenRecoveryKeyConfirmKeyDescription
+            return UntranslatedL10n.screenRecoveryKeyConfirmKeyDescriptionSpiral
         default:
             return nil
         }
@@ -84,4 +85,6 @@ enum SecureBackupRecoveryKeyScreenViewAction {
     case confirmKey
     case done
     case cancel
+    /// The recovery state wasn't known when the screen opened: read it again.
+    case retry
 }

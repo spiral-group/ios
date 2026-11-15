@@ -6,12 +6,45 @@
 //
 
 import Compound
+import SpiralComponents
 import SwiftUI
 
 struct RoomThreadListScreen: View {
     @Bindable var context: RoomThreadListScreenViewModel.Context
     
     var body: some View {
+        content
+            .background(Color.compound.bgCanvasDefault.ignoresSafeArea())
+            .navigationTitle(L10n.commonThreads)
+            .navigationBarTitleDisplayMode(.inline)
+    }
+    
+    // AGENT-PLATFORM (Brief 0083, decision 357): the page was blank until it had a thread, whatever had happened.
+    @ViewBuilder
+    private var content: some View {
+        switch context.viewState.content {
+        case .loading:
+            SpiralPreloader(label: L10n.commonLoading) {
+                SpiralPlaceholderRows(count: 6, leading: .avatar(Avatars.Size.user(on: .threadList).value))
+            }
+            .frame(maxHeight: .infinity, alignment: .top)
+        case .empty:
+            SpiralEmptyState(symbol: .textBubble,
+                             title: UntranslatedL10n.screenRoomThreadListEmptyTitle,
+                             message: UntranslatedL10n.screenRoomThreadListEmptyMessage)
+                .centredInScrollView()
+        case .failed:
+            SpiralEmptyState(symbol: .exclamationmarkCircle,
+                             title: UntranslatedL10n.screenRoomThreadListLoadFailed,
+                             message: UntranslatedL10n.screenFeedLoadFailedMessage,
+                             action: .init(L10n.actionRetry) { context.send(viewAction: .retry) })
+                .centredInScrollView()
+        case .list:
+            list
+        }
+    }
+    
+    private var list: some View {
         ScrollView {
             LazyVStack(spacing: 0) {
                 ForEach(context.viewState.items) { item in
@@ -28,17 +61,23 @@ struct RoomThreadListScreen: View {
                 footer
             }
         }
-        .background(Color.compound.bgCanvasDefault.ignoresSafeArea())
-        .navigationTitle(L10n.commonThreads)
-        .navigationBarTitleDisplayMode(.inline)
     }
     
     private var footer: some View {
         // Needs to be wrapped in a LazyStack otherwise appearance calls don't trigger
         LazyVStack(spacing: 0) {
-            ProgressView()
-                .padding()
-                .opacity(context.viewState.isPaginating ? 1 : 0)
+            // AGENT-PLATFORM (Brief 0083, decision 357): older threads that failed to load aren't the list's end.
+            if context.viewState.hasFailedToLoad {
+                SpiralEmptyState(symbol: .exclamationmarkCircle,
+                                 title: UntranslatedL10n.screenRoomThreadListLoadFailed,
+                                 action: .init(L10n.actionRetry) { context.send(viewAction: .retry) },
+                                 size: .compact)
+                    .padding()
+            } else {
+                ProgressView()
+                    .padding()
+                    .opacity(context.viewState.isPaginating ? 1 : 0)
+            }
             
             Rectangle()
                 .frame(height: 1)
@@ -154,13 +193,37 @@ private struct ThreadCellButtonStyle: ButtonStyle {
 
 struct RoomThreadListScreen_Previews: PreviewProvider, TestablePreview {
     static let viewModel = makeViewModel()
+    // AGENT-PLATFORM (Brief 0083, decision 357)
+    static let loadingViewModel = makeViewModel(.init(items: [], paginationState: .loading))
+    static let emptyViewModel = makeViewModel(.init(items: []))
+    static let failedViewModel = makeFailedViewModel(items: [])
+    static let failedOlderViewModel = makeFailedViewModel(items: .mocks)
     
     static var previews: some View {
         RoomThreadListScreen(context: viewModel.context)
+        
+        RoomThreadListScreen(context: loadingViewModel.context)
+            .environment(\.spiralPreloaderDelay, .zero)
+            .previewDisplayName("Loading")
+        
+        RoomThreadListScreen(context: emptyViewModel.context)
+            .previewDisplayName("Empty")
+        
+        RoomThreadListScreen(context: failedViewModel.context)
+            .previewDisplayName("Failed")
+        
+        RoomThreadListScreen(context: failedOlderViewModel.context)
+            .previewDisplayName("Older threads failed")
     }
     
-    static func makeViewModel() -> RoomThreadListScreenViewModel {
-        RoomThreadListScreenViewModel(threadListServiceProxy: RoomThreadListServiceProxyMock(.init()),
+    static func makeFailedViewModel(items: [RoomThreadListItem]) -> RoomThreadListScreenViewModel {
+        let viewModel = makeViewModel(.init(items: items, paginationState: .idle(endReached: false)))
+        viewModel.state.hasFailedToLoad = true
+        return viewModel
+    }
+    
+    static func makeViewModel(_ configuration: RoomThreadListProxyMockConfiguration = .init()) -> RoomThreadListScreenViewModel {
+        RoomThreadListScreenViewModel(threadListServiceProxy: RoomThreadListServiceProxyMock(configuration),
                                       mediaProvider: MediaProviderMock(.init()))
     }
 }

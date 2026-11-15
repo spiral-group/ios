@@ -7,27 +7,15 @@
 //
 
 import Compound
-import Flow
 import SwiftUI
 
 struct AvatarHeaderView<Footer: View>: View {
-    private enum AvatarInfo {
-        case room(RoomAvatar)
-        case user(UserProfile)
-    }
-    
-    private enum Badge: Hashable {
-        case encrypted(Bool)
-        case historySharingState(RoomHistorySharingState)
-        case `public`
-        case verified
-    }
-    
-    private let avatarInfo: AvatarInfo
+    // AGENT-PLATFORM (Brief 0083, decision 344): only a person now; a room's details are `SpiralProfilePage`.
+    private let user: UserProfile
     private let title: String
     private let status: UserStatus?
     private let subtitle: String?
-    private let badges: [Badge]
+    private let isVerified: Bool
     
     private let avatarSize: Avatars.Size
     private let mediaProvider: MediaProviderProtocol?
@@ -35,60 +23,6 @@ struct AvatarHeaderView<Footer: View>: View {
     @ViewBuilder private var footer: () -> Footer
     // AGENT-PLATFORM (Brief 0072, ADR-0083): see `presence(_:)`.
     private var presence: UserPresence?
-    
-    init(room: RoomDetails,
-         avatarSize: Avatars.Size,
-         mediaProvider: MediaProviderProtocol? = nil,
-         onAvatarTap: ((URL) -> Void)? = nil,
-         @ViewBuilder footer: @escaping () -> Footer) {
-        avatarInfo = .room(room.avatar)
-        title = room.name ?? room.id
-        
-        if let roomAlias = room.canonicalAlias {
-            subtitle = roomAlias
-            status = nil
-        } else if room.isDirect, case let .heroes(heroes) = room.avatar, heroes.count == 1 {
-            subtitle = heroes[0].id
-            status = heroes[0].status
-        } else {
-            subtitle = nil
-            status = nil
-        }
-        
-        self.avatarSize = avatarSize
-        self.mediaProvider = mediaProvider
-        self.onAvatarTap = onAvatarTap
-        self.footer = footer
-        
-        var badges = [Badge]()
-        badges.append(.encrypted(room.isEncrypted))
-        if room.isPublic {
-            badges.append(.public)
-        }
-        if let state = room.historySharingState {
-            badges.append(.historySharingState(state))
-        }
-        self.badges = badges
-    }
-    
-    init(accountOwner: RoomMemberDetails,
-         dmRecipient: RoomMemberDetails,
-         mediaProvider: MediaProviderProtocol? = nil,
-         onAvatarTap: ((URL) -> Void)? = nil,
-         @ViewBuilder footer: @escaping () -> Footer) {
-        let dmRecipientProfile = UserProfile(member: dmRecipient)
-        avatarInfo = .room(.heroes([dmRecipientProfile, UserProfile(member: accountOwner)]))
-        title = dmRecipientProfile.displayName ?? dmRecipientProfile.id
-        subtitle = dmRecipientProfile.displayName == nil ? nil : dmRecipientProfile.id
-        status = dmRecipientProfile.status
-        
-        avatarSize = .user(on: .dmDetails)
-        self.mediaProvider = mediaProvider
-        self.onAvatarTap = onAvatarTap
-        self.footer = footer
-        // In EL-X a DM is by definition always encrypted
-        badges = [.encrypted(true)]
-    }
     
     init(member: RoomMemberDetails,
          isVerified: Bool = false,
@@ -112,7 +46,7 @@ struct AvatarHeaderView<Footer: View>: View {
          mediaProvider: MediaProviderProtocol? = nil,
          onAvatarTap: ((URL) -> Void)? = nil,
          @ViewBuilder footer: @escaping () -> Footer) {
-        avatarInfo = .user(user)
+        self.user = user
         title = user.displayName ?? user.id
         status = user.status
         subtitle = user.displayName == nil ? nil : user.id
@@ -121,7 +55,7 @@ struct AvatarHeaderView<Footer: View>: View {
         self.mediaProvider = mediaProvider
         self.onAvatarTap = onAvatarTap
         self.footer = footer
-        badges = isVerified ? [.verified] : []
+        self.isVerified = isVerified
     }
     
     /// Initialises the view by using the sender,
@@ -194,8 +128,10 @@ struct AvatarHeaderView<Footer: View>: View {
                         .textSelection(.enabled)
                 }
                 
-                if !badges.isEmpty {
-                    badgesStack
+                if isVerified {
+                    BadgeLabel(title: L10n.commonVerified,
+                               icon: \.verified,
+                               style: .accent)
                 }
             }
             
@@ -209,118 +145,19 @@ struct AvatarHeaderView<Footer: View>: View {
                                   trailing: 0))
     }
     
-    @ViewBuilder
     private var avatar: some View {
-        switch avatarInfo {
-        case .room(let roomAvatar):
-            RoomAvatarImage(avatar: roomAvatar,
+        LoadableAvatarImage(url: user.avatarURL,
+                            name: user.displayName,
+                            contentID: user.id,
                             avatarSize: avatarSize,
                             mediaProvider: mediaProvider,
-                            onAvatarTap: onAvatarTap)
-                .accessibilityLabel(avatarAccessibilityLabel)
-            
-        case .user(let userProfile):
-            LoadableAvatarImage(url: userProfile.avatarURL,
-                                name: userProfile.displayName,
-                                contentID: userProfile.id,
-                                avatarSize: avatarSize,
-                                mediaProvider: mediaProvider,
-                                onTap: onAvatarTap)
-                .accessibilityLabel(avatarAccessibilityLabel)
-        }
-    }
-    
-    private var avatarAccessibilityLabel: String {
-        guard onAvatarTap != nil else {
-            return L10n.a11yAvatar
-        }
-        switch avatarInfo {
-        case .room(let roomAvatar):
-            return roomAvatar.hasURL ? L10n.a11yViewAvatar : L10n.a11yAvatar
-        case .user(let userProfile):
-            return userProfile.avatarURL != nil ? L10n.a11yViewAvatar : L10n.a11yAvatar
-        }
-    }
-    
-    private var badgesStack: some View {
-        HFlow(horizontalAlignment: .center,
-              verticalAlignment: .top,
-              horizontalSpacing: 8.0,
-              verticalSpacing: 8.0) {
-            ForEach(badges, id: \.self) { badge in
-                switch badge {
-                case .encrypted(true):
-                    BadgeLabel(title: L10n.screenRoomDetailsBadgeEncrypted,
-                               icon: \.lockSolid,
-                               style: .accent)
-                case .encrypted(false):
-                    BadgeLabel(title: L10n.screenRoomDetailsBadgeNotEncrypted,
-                               icon: \.lockOff,
-                               style: .info)
-                case .public:
-                    BadgeLabel(title: L10n.screenRoomDetailsBadgePublic,
-                               icon: \.public,
-                               style: .info)
-                case .verified:
-                    BadgeLabel(title: L10n.commonVerified,
-                               icon: \.verified,
-                               style: .accent)
-                case .historySharingState(.hidden):
-                    BadgeLabel(title: L10n.cryptoHistorySharingRoomInfoHiddenBadgeContent,
-                               icon: \.visibilityOff,
-                               style: .info)
-                case .historySharingState(.shared):
-                    BadgeLabel(title: L10n.cryptoHistorySharingRoomInfoSharedBadgeContent,
-                               icon: \.history,
-                               style: .info)
-                case .historySharingState(.worldReadable):
-                    BadgeLabel(title: L10n.cryptoHistorySharingRoomInfoWorldReadableBadgeContent,
-                               icon: \.userProfileSolid,
-                               style: .info)
-                }
-            }
-        }
+                            onTap: onAvatarTap)
+            .accessibilityLabel(onAvatarTap != nil && user.avatarURL != nil ? L10n.a11yViewAvatar : L10n.a11yAvatar)
     }
 }
 
 struct AvatarHeaderView_Previews: PreviewProvider, TestablePreview {
     static var previews: some View {
-        Form {
-            AvatarHeaderView(room: .init(id: "@test:matrix.org",
-                                         name: "Test Room",
-                                         avatar: .room(id: "@test:matrix.org",
-                                                       name: "Test Room",
-                                                       avatarURL: .mockMXCAvatar),
-                                         canonicalAlias: "#test:matrix.org",
-                                         isEncrypted: true,
-                                         isPublic: true,
-                                         isDirect: false,
-                                         historySharingState: nil),
-                             avatarSize: .room(on: .details),
-                             mediaProvider: MediaProviderMock(.init())) {
-                HStack(spacing: 32) {
-                    ShareLink(item: "test") {
-                        CompoundIcon(\.shareIos)
-                    }
-                    .buttonStyle(FormActionButtonStyle(title: "Test"))
-                }
-            }
-        }
-        .previewDisplayName("Room")
-        
-        Form {
-            AvatarHeaderView(accountOwner: RoomMemberDetails(withProxy: RoomMemberProxyMock.mockMe), dmRecipient: RoomMemberDetails(withProxy: RoomMemberProxyMock.mockAlice),
-                             mediaProvider: MediaProviderMock(.init())) {
-                HStack(spacing: 32) {
-                    ShareLink(item: "test") {
-                        CompoundIcon(\.shareIos)
-                    }
-                    .buttonStyle(FormActionButtonStyle(title: "Test"))
-                }
-            }
-        }
-        .previewDisplayName("DM")
-        
         VStack(spacing: 16) {
             AvatarHeaderView(member: RoomMemberDetails(withProxy: RoomMemberProxyMock.mockAlice),
                              avatarSize: .room(on: .details),
@@ -353,33 +190,5 @@ struct AvatarHeaderView_Previews: PreviewProvider, TestablePreview {
         .background(Color.compound.bgSubtleSecondaryLevel0)
         .previewLayout(.sizeThatFits)
         .previewDisplayName("Members")
-        
-        makeHistorySharingPreview(state: .hidden).previewDisplayName("History Sharing - Hidden")
-        makeHistorySharingPreview(state: .shared).previewDisplayName("History Sharing - Shared")
-        makeHistorySharingPreview(state: .worldReadable).previewDisplayName("History Sharing - World Readable")
-    }
-    
-    private static func makeHistorySharingPreview(state: RoomHistorySharingState) -> some View {
-        Form {
-            AvatarHeaderView(room: .init(id: "@test:matrix.org",
-                                         name: "Test Room",
-                                         avatar: .room(id: "@test:matrix.org",
-                                                       name: "Test Room",
-                                                       avatarURL: .mockMXCAvatar),
-                                         canonicalAlias: "#test:matrix.org",
-                                         isEncrypted: true,
-                                         isPublic: true,
-                                         isDirect: false,
-                                         historySharingState: state),
-                             avatarSize: .room(on: .details),
-                             mediaProvider: MediaProviderMock(.init())) {
-                HStack(spacing: 32) {
-                    ShareLink(item: "test") {
-                        CompoundIcon(\.shareIos)
-                    }
-                    .buttonStyle(FormActionButtonStyle(title: "Test"))
-                }
-            }
-        }
     }
 }

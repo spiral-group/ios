@@ -6,8 +6,9 @@
 // Please see LICENSE files in the repository root for full details.
 //
 
-@testable import ElementX
 import Foundation
+@testable import Spiral
+import Synchronization
 import Testing
 
 @MainActor
@@ -34,6 +35,23 @@ struct NavigationTabCoordinatorTests {
             .init(coordinator: spacesCoordinator, details: .init(tag: .spaces, title: "Spaces", icon: \.space, selectedIcon: \.spaceSolid))
         ])
         assertCoordinatorsEqual(navigationTabCoordinator.tabCoordinators, [chatsCoordinator, spacesCoordinator])
+    }
+    
+    // AGENT-PLATFORM (Brief 0083): a pass served from the cache must still depend on the avatar, or a new photo never redraws.
+    @Test
+    func aCachedAvatarStillRedrawsOnAChange() {
+        let details = NavigationTabCoordinator<TestTab>.TabDetails(tag: .tab, title: "Settings", icon: \.userProfile, selectedIcon: \.userProfileSolid)
+        details.avatar = SpiralTabAvatar(name: "Alice", contentID: "@alice:example.com")
+        let render = { _ = details.iconView(isSelected: false, colorScheme: .light, displayScale: 2) }
+        render()
+        
+        let didInvalidate = Mutex(false)
+        withObservationTracking(render) {
+            didInvalidate.withLock { $0 = true }
+        }
+        details.avatar = SpiralTabAvatar(name: "Bob", contentID: "@bob:example.com")
+        
+        #expect(didInvalidate.withLock { $0 })
     }
     
     // AGENT-PLATFORM (coverage walk F3): VoiceOver and UI tests read the badge from the tab's value.

@@ -10,8 +10,8 @@
 // The Spiral feature is built on Element's `TemplateScreenViewModelTests.swift`.
 
 import Combine
-@testable import ElementX
 import Foundation
+@testable import Spiral
 import Testing
 
 @MainActor
@@ -58,6 +58,46 @@ struct ApprovalDetailScreenViewModelTests {
         try await deferred.fulfill()
         
         #expect(viewModel.context.viewState.targetRoomName == "Book club")
+    }
+    
+    /// Brief 0083, question 359: the decision bar holds its place during the read, and a tap there decides nothing.
+    @Test
+    func aDecisionWaitsForTheCard() async throws {
+        let service = AgentPlatformServiceMock()
+        let (gate, continuation) = AsyncStream<Void>.makeStream()
+        service.fetchApprovalIdClosure = { _ in
+            for await _ in gate { }
+            return .success(Self.genericFixture)
+        }
+        service.decideApprovalIdDecisionReturnValue = .success(ApprovalDecisionResult(approval: Self.genericFixture, delivery: .sent(eventID: "$event-1")))
+        let viewModel = ApprovalDetailScreenViewModel(approvalID: "appr-1", agentPlatformService: service, clientProxy: ClientProxyMock(.init()))
+        viewModel.context.send(viewAction: .appeared)
+        
+        viewModel.context.send(viewAction: .approve)
+        viewModel.context.send(viewAction: .reject)
+        try await Task.sleep(for: .milliseconds(20))
+        #expect(viewModel.context.viewState.loadState == .loading)
+        #expect(viewModel.context.viewState.decideState == .idle)
+        
+        let loaded = deferFulfillment(viewModel.context.observe(\.viewState.loadState)) { $0 == .loaded(Self.genericFixture) }
+        continuation.finish()
+        try await loaded.fulfill()
+        #expect(!service.decideApprovalIdDecisionCalled)
+    }
+    
+    @Test
+    func aFailedReadDecidesNothing() async throws {
+        let service = AgentPlatformServiceMock()
+        service.fetchApprovalIdReturnValue = .failure(.serverError(status: 503))
+        service.decideApprovalIdDecisionReturnValue = .success(ApprovalDecisionResult(approval: Self.genericFixture, delivery: .sent(eventID: "$event-1")))
+        let viewModel = ApprovalDetailScreenViewModel(approvalID: "appr-1", agentPlatformService: service, clientProxy: ClientProxyMock(.init()))
+        let failed = deferFulfillment(viewModel.context.observe(\.viewState.loadState)) { if case .failed = $0 { true } else { false } }
+        viewModel.context.send(viewAction: .appeared)
+        try await failed.fulfill()
+        
+        viewModel.context.send(viewAction: .approve)
+        try await Task.sleep(for: .milliseconds(20))
+        #expect(!service.decideApprovalIdDecisionCalled)
     }
     
     @Test

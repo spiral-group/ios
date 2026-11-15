@@ -12,13 +12,21 @@ import SFSafeSymbols
 import SwiftUI
 
 struct SettingsScreen: View {
+    // AGENT-PLATFORM (Brief 0083, decision 349)
+    private static let maxContentWidth: CGFloat = 640
+    
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass // AGENT-PLATFORM (Brief 0083, decision 349)
+    
     @Bindable var context: SettingsScreenViewModel.Context
     
+    @State private var width: CGFloat = 0 // AGENT-PLATFORM (Brief 0083, decision 349)
+    
     var body: some View {
-        Form {
+        // AGENT-PLATFORM (Brief 0083, decision 357): the person's field, as on a profile. The title stays in the bar.
+        SpiralProfilePage(picture: .user(context.viewState.userProfile), mediaProvider: context.mediaProvider) {
             userSection
             
-            if context.viewState.showUserStatus {
+            if context.viewState.showUserStatusInput {
                 userStatusSection
             }
             
@@ -36,52 +44,77 @@ struct SettingsScreen: View {
             appSection
             
             signOutSection
+            
+            if context.viewState.showAccountDeactivation {
+                deleteAccountSection
+            }
         }
-        .compoundList()
         .navigationTitle(L10n.commonSettings)
-        .navigationBarTitleDisplayMode(.inline)
         .toolbarVisibility(context.viewState.navigationBarVisibility, for: .navigationBar)
-        .toolbar { toolbar }
+        // AGENT-PLATFORM (Brief 0083, decision 349): a tab's root, so there is nothing to close, and full width on iPad.
+        .contentMargins(.horizontal, sideMargin, for: .scrollContent)
+        .onGeometryChange(for: CGFloat.self, of: \.size.width) { width = $0 }
     }
     
+    // AGENT-PLATFORM (Brief 0083, decision 349): iPad's cards stay a readable width; `nil` keeps the system's margins on iPhone.
+    private var sideMargin: CGFloat? {
+        horizontalSizeClass == .regular ? max((width - Self.maxContentWidth) / 2, CompoundDesignTokens.space4X) : nil
+    }
+    
+    // AGENT-PLATFORM (Brief 0083, decision 357): the avatar centred over the name, the Matrix ID and Edit, on the page's
+    // field. It was a white card, and before that Element's row of a 52 pt avatar, the name and a chevron. Only the ink
+    // stands on the field (340): the grey and the accent drop under 4.5:1 there.
     private var userSection: some View {
         Section {
-            ListRow(kind: .custom {
-                Button {
-                    context.send(viewAction: .userDetails)
-                } label: {
-                    HStack(spacing: 12) {
-                        LoadableAvatarImage(url: context.viewState.userProfile.avatarURL,
-                                            name: context.viewState.userProfile.displayName,
-                                            contentID: context.viewState.userProfile.id,
-                                            avatarSize: .user(on: .settings),
-                                            mediaProvider: context.mediaProvider)
-                            .accessibilityHidden(true)
+            Button {
+                context.send(viewAction: .userDetails)
+            } label: {
+                VStack(spacing: CompoundDesignTokens.space1X) {
+                    LoadableAvatarImage(url: context.viewState.userProfile.avatarURL,
+                                        name: context.viewState.userProfile.displayName,
+                                        contentID: context.viewState.userProfile.id,
+                                        avatarSize: .user(on: .settings),
+                                        mediaProvider: context.mediaProvider)
+                        .accessibilityHidden(true)
+                        .dynamicTypeSize(...DynamicTypeSize.accessibility1) // At AX3 it filled the screen.
+                        .padding(.bottom, CompoundDesignTokens.space2X)
+                    
+                    HStack(spacing: CompoundDesignTokens.space1_5X) {
+                        Text(context.viewState.userProfile.displayName ?? "")
                         
-                        VStack(alignment: .leading, spacing: 2) {
-                            HStack(spacing: 6) {
-                                Text(context.viewState.userProfile.displayName ?? "")
-                                
-                                if let statusEmoji = context.viewState.userProfile.status.displayed?.emoji {
-                                    Text(String(statusEmoji))
-                                }
-                            }
-                            .font(.compound.headingMD)
-                            .foregroundColor(.compound.textPrimary)
-                            
-                            Text(context.viewState.userProfile.id)
-                                .font(.compound.bodySM)
-                                .foregroundColor(.compound.textSecondary)
+                        if let statusEmoji = context.viewState.userProfile.status.displayed?.emoji {
+                            Text(String(statusEmoji))
                         }
-                        
-                        Spacer()
-                        
-                        ListRowAccessory.navigationLink
                     }
-                    .padding(.horizontal, ListRowPadding.horizontal)
-                    .padding(.vertical, 8)
+                    .font(.compound.headingMDBold)
+                    .foregroundColor(.compound.textPrimary)
+                    
+                    Text(Self.lineBreakable(context.viewState.userProfile.id))
+                        .font(.compound.bodyMD)
+                        .foregroundColor(.compound.textPrimary)
+                        .accessibilityLabel(context.viewState.userProfile.id) // The raw ID, without U+200B.
+                    
+                    Text(L10n.actionEdit)
+                        .font(.compound.bodyMDSemibold)
+                        .foregroundColor(.compound.textPrimary)
+                        .padding(.horizontal, CompoundDesignTokens.space4X)
+                        .padding(.vertical, CompoundDesignTokens.space1_5X)
+                        .spiralGlass(in: Capsule(), snapshotBackground: .compound.bgCanvasDefault.opacity(0.72)) // Decision 346
+                        .padding(.top, CompoundDesignTokens.space2X)
                 }
-            })
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: .infinity)
+                .padding(.horizontal, ListRowPadding.horizontal)
+                .padding(.top, CompoundDesignTokens.space4X)
+                .padding(.bottom, CompoundDesignTokens.space3X)
+                .contentShape(Rectangle())
+                .spiralProfileFieldEdge()
+            }
+            .buttonStyle(.spiralProfileAction)
+            .accessibilityIdentifier(A11yIdentifiers.settingsScreen.account)
+            .listRowBackground(Color.clear)
+            .listRowSeparator(.hidden)
+            .listRowInsets(EdgeInsets())
         }
     }
     
@@ -96,6 +129,7 @@ struct SettingsScreen: View {
                 }
                 .presentationDetents([.medium]) // Stop using a List and calculate the exact height?
                 .presentationBackground(.compound.bgCanvasDefault)
+                .compoundListRowStyle() // AGENT-PLATFORM (Brief 0083): the picker keeps upstream's rows.
             }
         }
     }
@@ -198,23 +232,32 @@ struct SettingsScreen: View {
     private var signOutSection: some View {
         Section {
             // AGENT-PLATFORM (decision 187): «Sign out», not upstream's «Remove this device».
-            ListRow(label: .action(title: UntranslatedL10n.screenSignoutPreferenceItemSpiral,
-                                   icon: \.signOut,
-                                   role: .destructive),
+            // AGENT-PLATFORM (Brief 0083, lane settings): red titles centred without a glyph, as iOS's account
+            // page signs out. Both confirmations are unchanged.
+            ListRow(label: .centeredAction(title: UntranslatedL10n.screenSignoutPreferenceItemSpiral,
+                                           icon: EmptyView(),
+                                           role: .destructive),
                     kind: .button {
                         context.send(viewAction: .logout)
                     })
                     .accessibilityIdentifier(A11yIdentifiers.settingsScreen.logout)
-            
-            if context.viewState.showAccountDeactivation {
-                ListRow(label: .action(title: L10n.actionDeleteAccount,
-                                       icon: \.delete,
-                                       role: .destructive),
-                        kind: .navigationLink {
-                            context.send(viewAction: .deactivateAccount)
-                        })
-                        .accessibilityIdentifier(A11yIdentifiers.settingsScreen.deleteAccount) // AGENT-PLATFORM (decision 146)
+        } footer: {
+            if !context.viewState.showAccountDeactivation {
+                versionSection
             }
+        }
+    }
+    
+    // AGENT-PLATFORM (Brief 0083, lane settings): its own card under Sign out, with the version under it.
+    private var deleteAccountSection: some View {
+        Section {
+            ListRow(label: .centeredAction(title: L10n.actionDeleteAccount,
+                                           icon: EmptyView(),
+                                           role: .destructive),
+                    kind: .button {
+                        context.send(viewAction: .deactivateAccount)
+                    })
+                    .accessibilityIdentifier(A11yIdentifiers.settingsScreen.deleteAccount) // AGENT-PLATFORM (decision 146)
         } footer: {
             versionSection
         }
@@ -238,14 +281,8 @@ struct SettingsScreen: View {
     }
     
     private var versionText: Text {
-        Text(L10n.settingsVersionNumber(InfoPlistReader.main.bundleShortVersionString, InfoPlistReader.main.bundleVersion))
-    }
-    
-    private var toolbar: some ToolbarContent {
-        ToolbarItem(placement: .primaryAction) {
-            ToolbarButton(role: .close) { context.send(viewAction: .close) }
-                .accessibilityIdentifier(A11yIdentifiers.settingsScreen.done)
-        }
+        // AGENT-PLATFORM (Brief 0084): a Staging build says so here.
+        Text(SpiralEnvironment.current.markedVersionLine(L10n.settingsVersionNumber(InfoPlistReader.main.bundleShortVersionString, InfoPlistReader.main.bundleVersion)))
     }
     
     @ViewBuilder
@@ -254,20 +291,34 @@ struct SettingsScreen: View {
             BadgeView(size: 10)
         }
     }
+    
+    /// AGENT-PLATFORM (Brief 0083, lane settings): a Matrix ID breaks only after ":" and ".", never with a hyphen
+    /// inside a word (at AX3 it read "example.-com").
+    private static func lineBreakable(_ id: String) -> String {
+        id.replacingOccurrences(of: ":", with: ":\u{200B}")
+            .replacingOccurrences(of: ".", with: ".\u{200B}")
+    }
 }
 
 // MARK: - Previews
 
-@available(iOS 26.0, *)
-struct SettingsScreen_Previews: PreviewProvider, TestablePreview {
+// AGENT-PLATFORM (Brief 0083, lane settings): gated, and built for iOS 18's lane too.
+struct SettingsScreen_Previews: PreviewProvider, TestablePreview, SpiralGatedPreview {
     static let viewModel = makeViewModel()
     static let recoveryDisabledViewModel = makeViewModel(recoveryState: .disabled)
+    static let photoViewModel = makeViewModel(avatarURL: .mockMXCUserAvatar)
     
     static var previews: some View {
         ElementNavigationStack {
             SettingsScreen(context: viewModel.context)
         }
         .previewDisplayName("Default")
+        
+        // AGENT-PLATFORM (Brief 0083, decision 357): the field from a photo; "Default" has the monogram's.
+        ElementNavigationStack {
+            SettingsScreen(context: photoViewModel.context)
+        }
+        .previewDisplayName("With a photo")
         
         // AGENT-PLATFORM (decision 187): Element's recovery nudge, on the Security row.
         ElementNavigationStack {
@@ -277,16 +328,16 @@ struct SettingsScreen_Previews: PreviewProvider, TestablePreview {
         .previewDisplayName("Recovery not set up")
     }
     
-    static func makeViewModel(recoveryState: SecureBackupRecoveryState = .enabled) -> SettingsScreenViewModel {
+    static func makeViewModel(recoveryState: SecureBackupRecoveryState = .enabled, avatarURL: URL? = nil) -> SettingsScreenViewModel {
         let userSession = UserSessionMock(.init(clientProxy: ClientProxyMock(.init(userID: "@alice:example.com",
                                                                                    deviceID: "AAAAAAAAAAA",
                                                                                    displayName: "Alice Liddell",
+                                                                                   avatarURL: avatarURL,
                                                                                    status: .mockFocussing))))
         // AGENT-PLATFORM (decision 187): a Spiral account, which shows Your data and Delete account.
         userSession.agentPlatformService = AgentPlatformServiceMock()
         userSession.sessionSecurityStatePublisher = CurrentValueSubject(.init(verificationState: .verified, recoveryState: recoveryState)).asCurrentValuePublisher()
         return SettingsScreenViewModel(userSession: userSession,
-                                       appSettings: .volatile(),
                                        isBugReportServiceEnabled: false,
                                        isInSecondaryWindow: false,
                                        userIndicatorController: UserIndicatorControllerMock())

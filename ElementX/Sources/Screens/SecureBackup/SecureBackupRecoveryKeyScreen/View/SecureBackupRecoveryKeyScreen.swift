@@ -8,6 +8,7 @@
 
 import Combine
 import Compound
+import SpiralComponents // AGENT-PLATFORM (Brief 0083)
 import SwiftUI
 
 struct SecureBackupRecoveryKeyScreen: View {
@@ -16,7 +17,8 @@ struct SecureBackupRecoveryKeyScreen: View {
     private let textFieldIdentifier = "textFieldIdentifier"
     
     var body: some View {
-        FullscreenDialog {
+        // AGENT-PLATFORM (Brief 0083, decision 313): the identity path's margins, for the content and the buttons alike.
+        FullscreenDialog(horizontalPadding: CompoundDesignTokens.space6X, bottomHorizontalPadding: CompoundDesignTokens.space6X) {
             ScrollViewReader { reader in
                 mainContent
                     .onChange(of: focused) { _, newValue in
@@ -36,7 +38,7 @@ struct SecureBackupRecoveryKeyScreen: View {
     }
     
     private var mainContent: some View {
-        VStack(spacing: 48) {
+        VStack(alignment: .leading, spacing: CompoundDesignTokens.space8X) { // AGENT-PLATFORM (Brief 0083, decision 313)
             switch context.viewState.mode {
             case .setupRecovery, .changeRecovery:
                 header
@@ -50,22 +52,9 @@ struct SecureBackupRecoveryKeyScreen: View {
         }
     }
     
+    // AGENT-PLATFORM (Brief 0083, decision 313): the identity path's leading header in place of Element's centred icon tile.
     private var header: some View {
-        VStack(spacing: 16) {
-            BigIcon(icon: \.keySolid)
-            
-            Text(context.viewState.title)
-                .foregroundColor(.compound.textPrimary)
-                .font(.compound.headingMDBold)
-                .multilineTextAlignment(.center)
-            
-            if let subtitle = context.viewState.subtitle {
-                Text(subtitle)
-                    .foregroundColor(.compound.textSecondary)
-                    .font(.compound.bodyMD)
-                    .multilineTextAlignment(.center)
-            }
-        }
+        SpiralDialogHeader(icon: \.keySolid, title: context.viewState.title, message: context.viewState.subtitle)
     }
     
     @ViewBuilder
@@ -76,7 +65,11 @@ struct SecureBackupRecoveryKeyScreen: View {
         case .fixRecovery:
             incompleteVerificationActionButtons
         case .unknown:
-            EmptyView()
+            // AGENT-PLATFORM (1.0.2): the state is read again rather than left unknown.
+            Button(L10n.actionRetry) {
+                context.send(viewAction: .retry)
+            }
+            .buttonStyle(.compound(.primary))
         }
     }
     
@@ -85,7 +78,7 @@ struct SecureBackupRecoveryKeyScreen: View {
             Button {
                 context.send(viewAction: .confirmKey)
             } label: {
-                Text(L10n.actionConfirm)
+                Text(UntranslatedL10n.screenRecoveryKeyConfirmSubmitSpiral) // AGENT-PLATFORM (Brief 0083, decision 314)
             }
             .buttonStyle(.compound(.primary))
             .disabled(context.confirmationRecoveryKey.isEmpty)
@@ -97,7 +90,7 @@ struct SecureBackupRecoveryKeyScreen: View {
         VStack(spacing: 16) {
             if let recoveryKey = context.viewState.recoveryKey {
                 ShareLink(item: recoveryKey) {
-                    Label(L10n.screenRecoveryKeySaveAction, icon: \.download)
+                    Label(UntranslatedL10n.screenRecoveryKeySaveActionSpiral, icon: \.download) // AGENT-PLATFORM (Brief 0083, decision 314)
                 }
                 .buttonStyle(.compound(.secondary))
                 .simultaneousGesture(TapGesture().onEnded { _ in
@@ -105,14 +98,18 @@ struct SecureBackupRecoveryKeyScreen: View {
                 })
             }
             
-            Button {
-                context.send(viewAction: .done)
-            } label: {
-                Text(L10n.actionDone)
+            // AGENT-PLATFORM (Brief 0083, decision 323): Done appears with the key, the only time it can turn on, so a
+            // disabled button isn't the heaviest shape while the key is being created.
+            if context.viewState.recoveryKey != nil {
+                Button {
+                    context.send(viewAction: .done)
+                } label: {
+                    Text(L10n.actionDone)
+                }
+                .buttonStyle(.compound(.primary))
+                .disabled(context.viewState.doneButtonEnabled == false)
+                .accessibilityIdentifier(A11yIdentifiers.secureBackupRecoveryKeyScreen.done)
             }
-            .buttonStyle(.compound(.primary))
-            .disabled(context.viewState.recoveryKey == nil || context.viewState.doneButtonEnabled == false)
-            .accessibilityIdentifier(A11yIdentifiers.secureBackupRecoveryKeyScreen.done)
         }
     }
     
@@ -127,82 +124,79 @@ struct SecureBackupRecoveryKeyScreen: View {
         }
     }
     
+    // AGENT-PLATFORM (Brief 0083, decision 313): the key in the identity path's card, labelled like a field. Until there
+    // is a key, the card holds "Create" as a row with an accent icon (accent text on the card's grey is 3.82:1 in dark);
+    // the hidden key keeps the card one height in every state.
     private var generateRecoveryKeySection: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: CompoundDesignTokens.space2X) {
             Text(L10n.commonRecoveryKey)
-                .foregroundColor(.compound.textPrimary)
-                .font(.compound.bodySMSemibold)
-                .padding(.leading, 16)
+                .foregroundColor(Compound.supportsGlass ? .compound.textSecondary : .compound.textPrimary)
+                .font(Compound.supportsGlass ? .compound.bodyMDSemibold : .compound.bodySMSemibold)
+                .padding(.horizontal, CompoundDesignTokens.space4X)
             
-            ZStack {
+            SpiralCard {
                 RecoveryKeyView(recoveryKey: "", isInvisibleForLayout: true) { }
-                
-                if context.viewState.recoveryKey == nil {
-                    if !context.viewState.isGeneratingKey {
-                        Button(generateButtonTitle) {
-                            context.send(viewAction: .generateKey)
+                    .overlay {
+                        if context.viewState.recoveryKey == nil {
+                            if !context.viewState.isGeneratingKey {
+                                Button {
+                                    context.send(viewAction: .generateKey)
+                                } label: {
+                                    SpiralCardRow(icon: \.key) {
+                                        Text(generateButtonTitle)
+                                            .font(.compound.bodyLG)
+                                            .foregroundStyle(.compound.textPrimary)
+                                    }
+                                    .frame(maxHeight: .infinity)
+                                }
+                                .buttonStyle(.spiralCardRow)
+                                .accessibilityIdentifier(A11yIdentifiers.secureBackupRecoveryKeyScreen.generateRecoveryKey)
+                            } else {
+                                HStack(spacing: ListRowPadding.labelIconSpacing) {
+                                    ProgressView()
+                                    Text(UntranslatedL10n.screenRecoveryKeyGeneratingKeySpiral)
+                                }
+                                .font(.compound.bodyLG)
+                                .foregroundStyle(.compound.textSecondary)
+                                .padding(.horizontal, CompoundDesignTokens.space4X)
+                                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+                            }
+                        } else {
+                            RecoveryKeyView(recoveryKey: context.viewState.recoveryKey ?? "") {
+                                context.send(viewAction: .copyKey)
+                            }
                         }
-                        .font(.compound.bodyLGSemibold)
-                        .accessibilityIdentifier(A11yIdentifiers.secureBackupRecoveryKeyScreen.generateRecoveryKey)
-                    } else {
-                        HStack(spacing: 8) {
-                            ProgressView()
-                            Text(L10n.screenRecoveryKeyGeneratingKey)
-                        }
-                        .font(.compound.bodyLGSemibold)
-                        .foregroundStyle(.compound.textPrimary)
                     }
-                } else {
-                    RecoveryKeyView(recoveryKey: context.viewState.recoveryKey ?? "") {
-                        context.send(viewAction: .copyKey)
-                    }
-                }
             }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 14)
-            .padding(.horizontal, 16)
-            .background(Color.compound.bgSubtleSecondaryLevel0)
-            .clipShape(RoundedRectangle(cornerRadius: 14))
             
             if let subtitle = context.viewState.recoveryKeySubtitle {
                 Text(subtitle)
                     .foregroundColor(.compound.textSecondary)
                     .font(.compound.bodySM)
-                    .padding(.leading, 16)
+                    .padding(.horizontal, CompoundDesignTokens.space4X)
             }
         }
     }
     
     private var generateButtonTitle: String {
-        context.viewState.mode == .setupRecovery ? L10n.screenRecoveryKeySetupGenerateKey : L10n.screenRecoveryKeyChangeGenerateKey
+        // AGENT-PLATFORM (Brief 0083, decision 314)
+        context.viewState.mode == .setupRecovery ? UntranslatedL10n.screenRecoveryKeySetupGenerateKeySpiral : UntranslatedL10n.screenRecoveryKeyChangeGenerateKeySpiral
     }
     
     private var confirmRecoveryKeySection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(L10n.commonRecoveryKey)
-                .foregroundColor(.compound.textPrimary)
-                .font(.compound.bodySMSemibold)
-            
-            SecureField(L10n.screenRecoveryKeyConfirmKeyPlaceholder, text: $context.confirmationRecoveryKey)
-                .tint(.compound.iconAccentTertiary)
-                .frame(maxWidth: .infinity)
-                .padding()
-                .background(Color.compound.bgSubtleSecondaryLevel0)
-                .clipShape(RoundedRectangle(cornerRadius: 8))
-                .id(textFieldIdentifier)
-                .focused($focused)
-                .submitLabel(.done)
-                .onSubmit {
-                    context.send(viewAction: .confirmKey)
-                }
-                .accessibilityIdentifier(A11yIdentifiers.secureBackupRecoveryKeyScreen.recoveryKeyField)
-            
-            if let subtitle = context.viewState.recoveryKeySubtitle {
-                Text(subtitle)
-                    .foregroundColor(.compound.textSecondary)
-                    .font(.compound.bodySM)
+        SecureField(UntranslatedL10n.screenRecoveryKeyConfirmKeyPlaceholderSpiral, text: $context.confirmationRecoveryKey) // AGENT-PLATFORM (Brief 0083, decision 314)
+            .focused($focused)
+            .textFieldStyle(.compound(.plain(.secure(hideLabel: L10n.a11yHidePassword, showLabel: L10n.a11yShowPassword)),
+                                      labelText: L10n.commonRecoveryKey,
+                                      footerText: context.viewState.recoveryKeySubtitle,
+                                      accessibilityIdentifier: A11yIdentifiers.secureBackupRecoveryKeyScreen.recoveryKeyField))
+            .textInputAutocapitalization(.never)
+            .autocorrectionDisabled()
+            .submitLabel(.done)
+            .onSubmit {
+                context.send(viewAction: .confirmKey)
             }
-        }
+            .id(textFieldIdentifier)
     }
 }
 
@@ -217,19 +211,26 @@ private struct RecoveryKeyView: View {
     private let placeholderRecoveryKey = Array(repeating: "XXXX", count: 12).joined(separator: " ")
     
     var body: some View {
-        HStack(spacing: 8) {
+        // AGENT-PLATFORM (Brief 0083, decision 313): the key in the primary colour at a card row's padding; the copy
+        // button in the accent, with a 44 pt target.
+        HStack(spacing: CompoundDesignTokens.space2X) {
             Text(isInvisibleForLayout ? placeholderRecoveryKey : recoveryKey)
-                .foregroundColor(.compound.textSecondary)
+                .foregroundColor(.compound.textPrimary)
                 .font(.compound.bodyLG.monospaced())
                 .frame(maxWidth: .infinity, alignment: .leading)
             
             Button(action: copyAction) {
                 CompoundIcon(\.copy)
+                    .frame(minWidth: CompoundDesignTokens.space11X, minHeight: CompoundDesignTokens.space11X)
+                    .contentShape(Rectangle())
             }
-            .tint(.compound.iconSecondary)
+            .tint(.compound.iconAccentPrimary)
             .accessibilityLabel(L10n.actionCopy)
             .accessibilityIdentifier(A11yIdentifiers.secureBackupRecoveryKeyScreen.copyRecoveryKey)
         }
+        .padding(.leading, CompoundDesignTokens.space4X)
+        .padding(.trailing, CompoundDesignTokens.space1X)
+        .padding(.vertical, CompoundDesignTokens.space3X)
         .opacity(isInvisibleForLayout ? 0 : 1)
         .accessibilityHidden(isInvisibleForLayout)
     }
@@ -237,14 +238,16 @@ private struct RecoveryKeyView: View {
 
 // MARK: - Previews
 
-@available(iOS 26.0, *)
-struct SecureBackupRecoveryKeyScreen_Previews: PreviewProvider, TestablePreview {
+// AGENT-PLATFORM (Brief 0083): opted in to Spiral's gates. Without `@available(iOS 26.0, *)` it builds for the
+// iOS 18 lane, and `observe(_:)` resolves to its AsyncStream fallback.
+struct SecureBackupRecoveryKeyScreen_Previews: PreviewProvider, TestablePreview, SpiralGatedPreview {
     static let key = "EsTM njec uHYA yHmh dQdW Nj4o bNRU 9jMN XGMc KUNM UFr5 R8GY"
     static let notSetUpViewModel = viewModel(recoveryState: .disabled)
     static let generatingViewModel = viewModel(recoveryState: .disabled, generateKey: true, key: key)
     static let setupViewModel = viewModel(recoveryState: .enabled, generateKey: true, key: key)
     static let incompleteViewModel = viewModel(recoveryState: .incomplete)
     static let unknownViewModel = viewModel(recoveryState: .unknown)
+    static let changeViewModel = viewModel(recoveryState: .enabled) // AGENT-PLATFORM (Brief 0083): a state without a preview
     
     static var previews: some View {
         ElementNavigationStack {
@@ -272,6 +275,12 @@ struct SecureBackupRecoveryKeyScreen_Previews: PreviewProvider, TestablePreview 
             SecureBackupRecoveryKeyScreen(context: unknownViewModel.context)
         }
         .previewDisplayName("Unknown")
+        
+        // AGENT-PLATFORM (Brief 0083): a new key for someone who has one.
+        ElementNavigationStack {
+            SecureBackupRecoveryKeyScreen(context: changeViewModel.context)
+        }
+        .previewDisplayName("Change")
     }
     
     static func viewModel(recoveryState: SecureBackupRecoveryState, generateKey: Bool = false, key: String? = nil) -> SecureBackupRecoveryKeyScreenViewModelType {

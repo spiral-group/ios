@@ -10,9 +10,9 @@
 
 import AgentPlatformClient
 import Combine
-@testable import ElementX
 import Foundation
 import MatrixRustSDKMocks
+@testable import Spiral
 import Testing
 
 @MainActor
@@ -24,7 +24,6 @@ struct AgentDetailScreenViewModelTests {
                                                   kind: "personal_assistant",
                                                   visibility: "public",
                                                   lifecycleState: "active",
-                                                  presence: .online,
                                                   roomCount: 2,
                                                   activeToolCount: 1)
     
@@ -55,24 +54,26 @@ struct AgentDetailScreenViewModelTests {
                                                        kind: "sales",
                                                        visibility: "public",
                                                        lifecycleState: "active",
-                                                       presence: .online,
                                                        roomCount: 0,
                                                        activeToolCount: 0)
     
     private func makeViewModel(service: AgentPlatformServiceMock,
+                               store: AgentsStore? = nil,
                                card: AgentSpaceAgentCard = Self.card,
                                companyName: String? = nil,
-                               clientProxy: ClientProxyMock = ClientProxyMock(.init()),
-                               approvalsStreamService: ApprovalsStreamServiceProtocol? = nil) -> AgentDetailScreenViewModel {
+                               clientProxy: ClientProxyMock = ClientProxyMock(.init())) -> AgentDetailScreenViewModel {
         if service.listBlockedContactsAgentIDCursorLimitReturnValue == nil, service.listBlockedContactsAgentIDCursorLimitClosure == nil {
             service.listBlockedContactsAgentIDCursorLimitReturnValue = .success(.init(blocks: [], nextCursor: nil))
         }
+        if service.fetchNotificationsActivityCursorLimitReturnValue == nil, service.fetchNotificationsActivityCursorLimitClosure == nil {
+            service.fetchNotificationsActivityCursorLimitReturnValue = .success(Self.snapshot(needsAction: []))
+        }
         return AgentDetailScreenViewModel(selection: .init(card: card, companyName: companyName),
-                                   agentPlatformService: service,
-                                   clientProxy: clientProxy,
-                                   mediaProvider: MediaProviderMock(.init()),
-                                   userIndicatorController: UserIndicatorControllerMock(),
-                                   approvalsStreamService: approvalsStreamService)
+                                          agentPlatformService: service,
+                                          clientProxy: clientProxy,
+                                          mediaProvider: MediaProviderMock(.init()),
+                                          userIndicatorController: UserIndicatorControllerMock(),
+                                          store: store ?? AgentsStore(service: service))
     }
     
     @Test
@@ -107,26 +108,48 @@ struct AgentDetailScreenViewModelTests {
         #expect(viewModel.context.viewState.displayName == "Personal Assistant")
     }
     
+    /// Review I7 L4: an agent deleted elsewhere closes its screen instead of a
+    /// failure under its stale header.
     @Test
-    func refreshFailure_keepsStaleDetail() async throws {
+    func anAgentDeletedElsewhereClosesTheScreen() async throws {
         let service = AgentPlatformServiceMock()
         service.listVerificationsForAgentAgentIDReturnValue = .success([])
         service.fetchAgentReadModelAgentIDReturnValue = .success(Self.readModel)
         service.fetchAgentRoomsAgentIDReturnValue = .success(Self.rooms)
+        let store = AgentsStore(service: service)
+        let viewModel = makeViewModel(service: service, store: store)
+        let loaded = deferFulfillment(viewModel.context.observe(\.viewState.detailState)) { $0 == .loaded(Self.readModel, Self.rooms) }
+        try await loaded.fulfill()
+
+        let gone = deferFulfillment(viewModel.actionsPublisher) { action in
+            if case .gone = action { true } else { false }
+        }
+        service.fetchAgentReadModelAgentIDReturnValue = .failure(.notFound)
+        store.apply([.agentUpdated(agentID: Self.card.agentID, spaceID: nil)])
+        try await gone.fulfill()
+    }
+
+    /// The stream's change reads the agent again; a read that fails keeps what is shown.
+    @Test
+    func aFailedRereadKeepsTheShownDetail() async throws {
+        let service = AgentPlatformServiceMock()
+        service.listVerificationsForAgentAgentIDReturnValue = .success([])
+        service.fetchAgentReadModelAgentIDReturnValue = .success(Self.readModel)
+        service.fetchAgentRoomsAgentIDReturnValue = .success(Self.rooms)
+        let store = AgentsStore(service: service)
         
-        let viewModel = makeViewModel(service: service)
+        let viewModel = makeViewModel(service: service, store: store)
         let loaded = deferFulfillment(viewModel.context.observe(\.viewState.detailState)) {
             $0 == .loaded(Self.readModel, Self.rooms)
         }
         try await loaded.fulfill()
         
         service.fetchAgentReadModelAgentIDReturnValue = .failure(.transport(underlying: URLError(.timedOut)))
-        viewModel.context.send(viewAction: .refresh)
+        store.apply([.agentUpdated(agentID: Self.card.agentID, spaceID: nil)])
+        await store.settle()
         
-        let stillLoaded = deferFulfillment(viewModel.context.observe(\.viewState.detailState)) {
-            $0 == .loaded(Self.readModel, Self.rooms)
-        }
-        try await stillLoaded.fulfill()
+        #expect(service.fetchAgentReadModelAgentIDCallsCount == 2)
+        #expect(viewModel.context.viewState.detailState == .loaded(Self.readModel, Self.rooms))
     }
     
     @Test
@@ -255,7 +278,7 @@ struct AgentDetailScreenViewModelTests {
         
         #expect(viewModel.context.viewState.ownerDMRoomID == nil)
         #expect(viewModel.context.viewState.title(for: Self.rooms[0]) == "Alice")
-        #expect(AgentRoomEntry(roomID: "!x:host", displayName: nil, kind: "group", activeTools: []).title(ownerDMRoomID: nil, agentName: "A")
+        #expect(AgentRoomEntry(roomID: "!x:host", displayName: nil, kind: "group", activeTools: []).title(ownerDMRoomID: nil, agentName: "A", deviceName: nil)
             == L10n.commonNoRoomName)
     }
     
@@ -265,11 +288,20 @@ struct AgentDetailScreenViewModelTests {
     func aVisitorsDMIsTitledByTheVisitor() {
         let agent = "Анна Ковальчук's Assistant"
         let dm = { (name: String) in AgentRoomEntry(roomID: "!v:host", displayName: name, kind: "dm", activeTools: []) }
-        #expect(dm("\(agent) and Максим Петров").title(ownerDMRoomID: nil, agentName: agent) == "Максим Петров")
-        #expect(dm("Bob and \(agent)").title(ownerDMRoomID: nil, agentName: agent) == "Bob")
+        #expect(dm("\(agent) and Максим Петров").title(ownerDMRoomID: nil, agentName: agent, deviceName: nil) == "Максим Петров")
+        #expect(dm("Bob and \(agent)").title(ownerDMRoomID: nil, agentName: agent, deviceName: nil) == "Bob")
         // A group keeps the name it was given, «and» or not.
         let group = AgentRoomEntry(roomID: "!g:host", displayName: "\(agent) and Bob", kind: "group", activeTools: [])
-        #expect(group.title(ownerDMRoomID: nil, agentName: agent) == "\(agent) and Bob")
+        #expect(group.title(ownerDMRoomID: nil, agentName: agent, deviceName: nil) == "\(agent) and Bob")
+    }
+    
+    /// A chat on this device reads as it does there; the backend's name is for a chat this device isn't in (357 item 5).
+    @Test
+    func aChatOnThisDeviceReadsAsItDoesThere() {
+        let room = AgentRoomEntry(roomID: "!dm:host", displayName: "Anna's Assistant and Stage A", kind: "unknown", activeTools: [])
+        #expect(room.title(ownerDMRoomID: nil, agentName: "Anna's Assistant", deviceName: "Stage A") == "Stage A")
+        #expect(room.title(ownerDMRoomID: nil, agentName: "Anna's Assistant", deviceName: nil) == "Anna's Assistant and Stage A")
+        #expect(room.title(ownerDMRoomID: "!dm:host", agentName: "Anna's Assistant", deviceName: "Anna's Assistant") == UntranslatedL10n.screenAgentRoomOwnerDm)
     }
     
     // MARK: - Step B
@@ -362,7 +394,7 @@ struct AgentDetailScreenViewModelTests {
                                 heroes: [UserProfile] = [],
                                 activeMembersCount: UInt = 5,
                                 isTombstoned: Bool = false) -> RoomSummary {
-        RoomSummary(room: RoomSDKMock(), id: id, joinRequestType: joinRequestType, name: id, isDirect: isDirect, isSpace: isSpace,
+        RoomSummary(room: RoomSDKMock(), id: id, joinRequestType: joinRequestType, isJoined: true, name: id, isDirect: isDirect, isSpace: isSpace,
                     avatarURL: nil, heroes: heroes, activeMembersCount: activeMembersCount, lastMessage: nil, lastMessageDate: nil,
                     lastMessageState: nil, unreadMessagesCount: 0, unreadMentionsCount: 0, unreadNotificationsCount: 0,
                     notificationMode: nil, canonicalAlias: nil, alternativeAliases: [], hasOngoingCall: false, activeCallIntent: nil,
@@ -392,7 +424,7 @@ struct AgentDetailScreenViewModelTests {
     /// An invite that fails (already invited or in) still lets the accept
     /// decide; a failed accept says so instead of claiming success.
     @Test
-    func aFailedAcceptSaysSo() async throws {
+    func aFailedAcceptSaysSo() async {
         let service = Self.loadedService()
         service.joinRoomAgentIDRoomIDReturnValue = .failure(.forbidden)
         let roomProxy = JoinedRoomProxyMock(.init(id: "!team:host"))
@@ -412,7 +444,7 @@ struct AgentDetailScreenViewModelTests {
     /// A failed accept after a sent invite takes the invite back, so the
     /// chat isn't left inviting an agent that never comes.
     @Test
-    func aFailedAcceptWithdrawsTheInvite() async throws {
+    func aFailedAcceptWithdrawsTheInvite() async {
         let service = Self.loadedService()
         service.joinRoomAgentIDRoomIDReturnValue = .failure(.forbidden)
         let roomProxy = JoinedRoomProxyMock(.init(id: "!team:host"))
@@ -429,7 +461,7 @@ struct AgentDetailScreenViewModelTests {
 
     /// A chat the agent is already in says so; nothing is sent.
     @Test
-    func aChatTheAgentIsInSaysSo() async throws {
+    func aChatTheAgentIsInSaysSo() async {
         let service = Self.loadedService()
         let agent = RoomMemberProxyMock(with: .init(userID: Self.card.matrixUserID, membership: .join))
         let roomProxy = JoinedRoomProxyMock(.init(id: "!team:host", members: [agent]))
@@ -449,13 +481,123 @@ struct AgentDetailScreenViewModelTests {
     @Test
     func thePauseFollowsTheReadModel() async throws {
         let viewModel = makeViewModel(service: Self.loadedService(paused: true))
-        #expect(viewModel.context.viewState.paused == nil)
+        #expect(viewModel.context.viewState.paused == false)
         #expect(!viewModel.context.viewState.isPaused)
         
         let loaded = deferFulfillment(viewModel.context.observe(\.viewState.detailState)) { $0 != .loading }
         try await loaded.fulfill()
         #expect(viewModel.context.viewState.paused == true)
         #expect(viewModel.context.viewState.isPaused)
+    }
+    
+    // MARK: - The shape comes from the card (Brief 0083, question 359)
+    
+    /// The rows stand before the read, so nothing under them moves when it lands.
+    @Test
+    func theAssistantsRowsComeFromTheCard() {
+        let (service, _) = Self.heldService()
+        let state = makeViewModel(service: service).context.viewState
+        #expect(state.detailState == .loading)
+        #expect(state.showsPeopleSettings)
+        #expect(state.showsCallsSettings)
+        #expect(state.showInSearch == nil)
+        #expect(!state.canArchive)
+        #expect(!state.showsQueue)
+    }
+    
+    @Test
+    func aRoleAgentsRowsComeFromTheCard() {
+        let (service, _) = Self.heldService()
+        let state = makeViewModel(service: service, card: Self.salesCard).context.viewState
+        #expect(state.detailState == .loading)
+        #expect(!state.showsPeopleSettings)
+        #expect(!state.showsCallsSettings)
+        #expect(state.showInSearch == true)
+        #expect(state.canArchive)
+    }
+    
+    /// Question 396: the outreach queue is a company role's, hidden with the companies.
+    @Test
+    func anOutreachAgentHasNoQueueWhileCompaniesAreHidden() {
+        let (service, _) = Self.heldService()
+        let outreachCard = AgentSpaceAgentCard(agentID: "agent-3", matrixUserID: "@agent-outreach:spiral.md", displayName: "Outreach",
+                                               avatarMXC: nil, kind: "outreach", visibility: "public", lifecycleState: "active",
+                                               roomCount: 0, activeToolCount: 0)
+        let state = makeViewModel(service: service, card: outreachCard).context.viewState
+        #expect(!state.showsQueue)
+    }
+    
+    /// A switch shows the card's value at once, and a tap before the read writes nothing.
+    @Test
+    func aSwitchWritesOnlyOverARead() async throws {
+        let (service, release) = Self.heldService()
+        service.editAgentAgentIDPatchReturnValue = .success(Self.readModel)
+        var pausedCard = Self.salesCard
+        pausedCard.isPaused = true
+        let viewModel = makeViewModel(service: service, card: pausedCard)
+        #expect(viewModel.context.viewState.paused)
+        #expect(viewModel.context.viewState.showInSearch == true)
+        #expect(!viewModel.context.viewState.canWriteSwitches)
+        
+        viewModel.context.send(viewAction: .setPaused(false))
+        viewModel.context.send(viewAction: .setShowInSearch(false))
+        try await Task.sleep(for: .milliseconds(20))
+        
+        let loaded = deferFulfillment(viewModel.context.observe(\.viewState.detailState)) { $0 != .loading }
+        release()
+        try await loaded.fulfill()
+        #expect(viewModel.context.viewState.canWriteSwitches)
+        #expect(!service.editAgentAgentIDPatchCalled)
+    }
+    
+    /// A failed read is not «no calls» and not a value to write over: the rows stay, the switches stay shut.
+    @Test
+    func aFailedReadKeepsTheRowsAndWritesNothing() async throws {
+        let service = Self.loadedService()
+        service.fetchAgentRoomsAgentIDReturnValue = .failure(.serverError(status: 503))
+        service.editAgentAgentIDPatchReturnValue = .success(Self.readModel)
+        let viewModel = makeViewModel(service: service, store: AgentsStore(service: service, retryDelays: []))
+        let failed = deferFulfillment(viewModel.context.observe(\.viewState.detailState)) { $0 == .failure }
+        try await failed.fulfill()
+        #expect(viewModel.context.viewState.showsCallsSettings)
+        #expect(!viewModel.context.viewState.canWriteSwitches)
+        
+        viewModel.context.send(viewAction: .setPaused(true))
+        try await Task.sleep(for: .milliseconds(20))
+        #expect(!service.editAgentAgentIDPatchCalled)
+    }
+    
+    /// A count's slot holds a placeholder while its read is on its way, and then its number.
+    @Test
+    func theCountsSlotsWaitForTheirReads() async throws {
+        let viewModel = makeViewModel(service: Self.loadedService())
+        #expect(viewModel.context.viewState.isReadingBlocked)
+        #expect(viewModel.context.viewState.isReadingPendingApprovals)
+        
+        let blocked = deferFulfillment(viewModel.context.observe(\.viewState.isReadingBlocked)) { !$0 }
+        try await blocked.fulfill()
+        #expect(viewModel.context.viewState.blockedCount == .exactly(0))
+        
+        let pending = deferFulfillment(viewModel.context.observe(\.viewState.isReadingPendingApprovals)) { !$0 }
+        try await pending.fulfill()
+        #expect(viewModel.context.viewState.pendingApprovalsCount == 0)
+    }
+    
+    /// A failed read of a count stops the placeholder and shows no number, never a made-up `0`.
+    @Test
+    func aFailedCountReadLeavesItsSlotEmpty() async throws {
+        let service = Self.loadedService()
+        service.listBlockedContactsAgentIDCursorLimitReturnValue = .failure(.serverError(status: 500))
+        service.fetchNotificationsActivityCursorLimitReturnValue = .failure(.serverError(status: 500))
+        let viewModel = makeViewModel(service: service, store: AgentsStore(service: service, retryDelays: []))
+        
+        let blocked = deferFulfillment(viewModel.context.observe(\.viewState.isReadingBlocked)) { !$0 }
+        try await blocked.fulfill()
+        #expect(viewModel.context.viewState.blockedCount == nil)
+        
+        let pending = deferFulfillment(viewModel.context.observe(\.viewState.isReadingPendingApprovals)) { !$0 }
+        try await pending.fulfill()
+        #expect(viewModel.context.viewState.pendingApprovalsCount == nil)
     }
     
     /// «Звонки» shows only for an assistant whose read-model has a call language.
@@ -551,10 +693,9 @@ struct AgentDetailScreenViewModelTests {
     }
     
     @Test
-    func aPausedAgentIsShownAsPaused() async throws {
+    func aPausedAgentIsShownAsPaused() {
         let paused = AgentSpaceAgentCard(agentID: "agent-2", matrixUserID: "@agent-sales:spiral.md", displayName: "Sales", avatarMXC: nil,
-                                         kind: "sales", visibility: "public", lifecycleState: "suspended", presence: .online,
-                                         roomCount: 0, activeToolCount: 0, isPaused: true)
+                                         kind: "sales", visibility: "public", lifecycleState: "suspended", roomCount: 0, activeToolCount: 0, isPaused: true)
         let service = Self.loadedService()
         service.fetchAgentReadModelAgentIDReturnValue = .failure(.serverError(status: 500))
         #expect(makeViewModel(service: service, card: paused).context.viewState.isPaused)
@@ -594,12 +735,12 @@ struct AgentDetailScreenViewModelTests {
     
     @Test
     func thePendingCountIsThisAgentsApprovals() async throws {
-        let stream = ApprovalsStreamServiceMock()
-        stream.needsAction = [.approval(.init(id: "a1", agentID: Self.card.agentID, draftBody: "x", targetRoomID: "!r:host", createdAt: .now)),
-                                        .approval(.init(id: "a2", agentID: "someone-else", draftBody: "y", targetRoomID: "!r:host", createdAt: .now))]
-        stream.underlyingConnectionState = .connected
-        stream.underlyingIsSeeded = true
-        let viewModel = makeViewModel(service: Self.loadedService(), approvalsStreamService: stream)
+        let service = Self.loadedService()
+        service.fetchNotificationsActivityCursorLimitReturnValue = .success(Self.snapshot(needsAction: [
+            .approval(.init(id: "a1", agentID: Self.card.agentID, draftBody: "x", targetRoomID: "!r:host", createdAt: .now)),
+            .approval(.init(id: "a2", agentID: "someone-else", draftBody: "y", targetRoomID: "!r:host", createdAt: .now))
+        ]))
+        let viewModel = makeViewModel(service: service)
         let counted = deferFulfillment(viewModel.context.observe(\.viewState.pendingApprovalsCount)) { $0 == 1 }
         try await counted.fulfill()
     }
@@ -607,72 +748,82 @@ struct AgentDetailScreenViewModelTests {
     /// «Контроль» shows both counts, «0» included, once they are known.
     @Test
     func theControlCountsShowZero() async throws {
-        let stream = ApprovalsStreamServiceMock()
-        stream.needsAction = []
-        stream.underlyingConnectionState = .connected
-        stream.underlyingIsSeeded = true
         let service = Self.loadedService()
         service.listBlockedContactsAgentIDCursorLimitReturnValue = .success(.init(blocks: [], nextCursor: nil))
-        let viewModel = makeViewModel(service: service, approvalsStreamService: stream)
-        let loaded = deferFulfillment(viewModel.context.observe(\.viewState.detailState)) { $0 != .loading }
-        try await loaded.fulfill()
+        let store = AgentsStore(service: service)
+        let viewModel = makeViewModel(service: service, store: store)
+        // The screen renders the store's answers on its next turn: wait for the screen, not the store.
+        let counted = deferFulfillment(viewModel.context.observe(\.viewState.blockedCount)) { $0 != nil }
+        try await counted.fulfill()
+        let pending = deferFulfillment(viewModel.context.observe(\.viewState.pendingApprovalsCount)) { $0 != nil }
+        try await pending.fulfill()
         #expect(viewModel.context.viewState.pendingApprovalsCount == 0)
         #expect(viewModel.context.viewState.blockedCount?.text == "0")
     }
     
-    /// A stream that hasn't connected has read nothing: no count, not «0».
+    /// What waits could not be read: no count, not «0».
     @Test
-    func aStreamNotConnectedGivesNoPendingCount() async throws {
-        let stream = ApprovalsStreamServiceMock()
-        stream.needsAction = []
-        stream.underlyingConnectionState = .reconnecting(attempt: 1)
-        stream.underlyingIsSeeded = false
-        let viewModel = makeViewModel(service: Self.loadedService(), approvalsStreamService: stream)
+    func aFailedReadOfWhatWaitsGivesNoPendingCount() async throws {
+        let service = Self.loadedService()
+        service.fetchNotificationsActivityCursorLimitReturnValue = .failure(.serverError(status: 500))
+        let store = AgentsStore(service: service)
+        let viewModel = makeViewModel(service: service, store: store)
+        // The store's reads end before the screen renders them (its next turn): wait for the screen.
         let loaded = deferFulfillment(viewModel.context.observe(\.viewState.detailState)) { $0 != .loading }
         try await loaded.fulfill()
+        await store.settle()
+        #expect(store.needsAction == nil)
         #expect(viewModel.context.viewState.pendingApprovalsCount == nil)
     }
     
-    /// Connected but not yet (or not successfully) seeded: still nothing, not «0».
+    /// The count follows `approval.changed` while the screen is shown.
     @Test
-    func aConnectedStreamNotSeededGivesNoPendingCount() async throws {
-        let stream = ApprovalsStreamServiceMock()
-        stream.needsAction = []
-        stream.underlyingConnectionState = .connected
-        stream.underlyingIsSeeded = false
-        let viewModel = makeViewModel(service: Self.loadedService(), approvalsStreamService: stream)
-        let loaded = deferFulfillment(viewModel.context.observe(\.viewState.detailState)) { $0 != .loading }
-        try await loaded.fulfill()
-        #expect(viewModel.context.viewState.pendingApprovalsCount == nil)
-    }
-    
-    /// The count follows the stream while the screen is shown: a seed brings it,
-    /// a failed one takes it away again.
-    @Test
-    func thePendingCountFollowsTheStreamsSeeds() async throws {
-        let platformService = AgentPlatformServiceMock()
-        let stream = ApprovalsStreamService(agentPlatformService: platformService,
-                                            authProvider: StaticAuthTokenProvider(token: "mat_test"),
-                                            baseURL: "https://platform.test")
-        let viewModel = makeViewModel(service: Self.loadedService(), approvalsStreamService: stream)
-        let loaded = deferFulfillment(viewModel.context.observe(\.viewState.detailState)) { $0 != .loading }
-        try await loaded.fulfill()
-        #expect(viewModel.context.viewState.pendingApprovalsCount == nil)
+    func thePendingCountFollowsApprovalChanged() async throws {
+        let service = Self.loadedService()
+        let store = AgentsStore(service: service)
+        let viewModel = makeViewModel(service: service, store: store)
+        await store.settle()
         
-        platformService.fetchNotificationsActivityCursorLimitReturnValue = .success(.init(needsAction: [.approval(.init(id: "a1", agentID: Self.card.agentID, draftBody: "x",
-                                                                                                                         targetRoomID: "!r:host", createdAt: .now))],
-                                                                                          activity: [],
-                                                                                          nextActivityCursor: nil,
-                                                                                          lastSeenAt: nil,
-                                                                                          unseenCount: 0))
+        service.fetchNotificationsActivityCursorLimitReturnValue = .success(Self.snapshot(needsAction: [
+            .approval(.init(id: "a1", agentID: Self.card.agentID, draftBody: "x", targetRoomID: "!r:host", createdAt: .now))
+        ]))
         let counted = deferFulfillment(viewModel.context.observe(\.viewState.pendingApprovalsCount)) { $0 == 1 }
-        await stream.reseed()
+        store.apply([.approvalChanged(approvalID: "a1")])
         try await counted.fulfill()
+    }
+    
+    /// The header follows the list's card: the agent paused on another device shows here too.
+    @Test
+    func theHeaderFollowsTheSpacesCard() async throws {
+        let service = Self.loadedService()
+        let space = AgentSpaceSummary(orgID: "org-personal", name: "Personal", kind: .solo, avatarMXC: nil, agentCount: 1)
+        var pausedCard = Self.card
+        pausedCard.isPaused = true
+        service.listMyAgentSpacesReturnValue = .success(.init(spaces: [space], provisioningStatus: .ready))
+        service.fetchAgentSpaceOrgIDReturnValue = .success(.init(orgID: space.orgID, name: space.name, kind: .solo, avatarMXC: nil,
+                                                                 industry: nil, website: nil, agents: [pausedCard]))
+        let store = AgentsStore(service: service)
+        let viewModel = makeViewModel(service: service, store: store)
+        #expect(!viewModel.context.viewState.card.isPaused)
         
-        platformService.fetchNotificationsActivityCursorLimitReturnValue = .failure(.serverError(status: 500))
-        let cleared = deferFulfillment(viewModel.context.observe(\.viewState.pendingApprovalsCount)) { $0 == nil }
-        await stream.reseed()
-        try await cleared.fulfill()
+        let paused = deferFulfillment(viewModel.context.observe(\.viewState.card.isPaused)) { $0 }
+        store.show(.spaces, by: service)
+        try await paused.fulfill()
+    }
+    
+    private static func snapshot(needsAction: [NeedsActionItem]) -> NotificationsSnapshot {
+        NotificationsSnapshot(needsAction: needsAction, activity: [], nextActivityCursor: nil, lastSeenAt: nil, unseenCount: 0)
+    }
+    
+    /// A service whose read of the agent stays on its way until `release` is called.
+    private static func heldService() -> (service: AgentPlatformServiceMock, release: () -> Void) {
+        let service = loadedService()
+        let (gate, continuation) = AsyncStream<Void>.makeStream()
+        service.fetchAgentRoomsAgentIDClosure = { _ in
+            for await _ in gate { }
+            return .success(Self.rooms)
+        }
+        return (service, { continuation.finish() })
     }
     
     private static func loadedService(paused: Bool = false) -> AgentPlatformServiceMock {

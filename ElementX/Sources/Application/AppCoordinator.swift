@@ -20,7 +20,7 @@ import Version
 class AppCoordinator: AppCoordinatorProtocol, AuthenticationFlowCoordinatorDelegate, NotificationManagerDelegate, SecureWindowManagerDelegate {
     private let stateMachine: AppCoordinatorStateMachine
     private let navigationRootCoordinator: NavigationRootCoordinator
-    private let userSessionStore: UserSessionStoreProtocol
+    private let userSessionManager: UserSessionManagerProtocol
     // periphery:ignore - retaining purpose
     private let targetConfiguration: Target.ConfigurationResult
     private let appMediator: AppMediator
@@ -36,20 +36,15 @@ class AppCoordinator: AppCoordinatorProtocol, AuthenticationFlowCoordinatorDeleg
     /// Common background task to continue long-running tasks in the background.
     private var backgroundTask: UIBackgroundTaskIdentifier?
     
+    private var backgroundRefreshSyncObserver: AnyCancellable?
+    
     private var userSessionMigrationsOldVersion: Version?
+    /// The accounts migrated since launch, so restoring one again (e.g. after clearing the cache) never migrates it twice.
+    private var migratedUserIDs: Set<String> = []
+    /// Restores the signed in accounts. Cancelled when signing out or clearing the cache.
+    private var restorationTask: Task<Void, Never>?
     private var userSession: UserSessionProtocol? {
-        didSet {
-            userSessionObserver?.cancel()
-            if let userSession {
-                configureCallKitService()
-                configureNotificationManager()
-                observeUserSessionChanges()
-                Task {
-                    await resumeClientServices()
-                    await appHooks.configure(with: userSession)
-                }
-            }
-        }
+        userSessionManager.activeSession
     }
     
     private var authenticationFlowCoordinator: AuthenticationFlowCoordinator?
@@ -59,7 +54,8 @@ class AppCoordinator: AppCoordinatorProtocol, AuthenticationFlowCoordinatorDeleg
     private var userSessionFlowCoordinator: UserSessionFlowCoordinator?
     private var softLogoutCoordinator: SoftLogoutScreenCoordinator?
     private var appDelegateObserver: AnyCancellable?
-    private var userSessionObserver: AnyCancellable?
+    /// Becomes `true` once the app is no longer waiting on a session restore, whatever the outcome.
+    private let isSessionRestoredSubject = CurrentValueSubject<Bool, Never>(false)
     private var clientProxyObserver: AnyCancellable?
     private var cancellables = Set<AnyCancellable>()
     
@@ -86,7 +82,10 @@ class AppCoordinator: AppCoordinatorProtocol, AuthenticationFlowCoordinatorDeleg
     private let appRouteURLParser: AppRouteURLParser
     
     private var storedAppRoute: AppRoute?
-    @Consumable private var storedInlineReply: (roomID: String, message: String)?
+    /// The account of a notification tapped while restoring, its route only opens once that account is the active one.
+    @Consumable private var storedAppRouteReceiverID: String?
+    /// A reply made from a notification before its account was live.
+    private var storedInlineReply: PendingInlineReplyDetails?
     @Consumable private var storedRoomsToAwait: Set<String>?
     
     init(appDelegate: AppDelegate) {
@@ -104,7 +103,6 @@ class AppCoordinator: AppCoordinatorProtocol, AuthenticationFlowCoordinatorDeleg
             fatalError("Catastrophic error retrieving user defaults for \(AppSettings.suiteName)")
         }
         let appSettings = appHooks.appSettingsHook.configure(AppSettings(store: userDefaults))
-        appSettings.useLocalDevStackIfRequested() // AGENT-PLATFORM
         self.appSettings = appSettings
         
         targetConfiguration = Target.mainApp.configure(logLevel: appSettings.logLevel,
@@ -132,6 +130,7 @@ class AppCoordinator: AppCoordinatorProtocol, AuthenticationFlowCoordinatorDeleg
         
         userIndicatorController = UserIndicatorController()
         
+        // AGENT-PLATFORM (Brief 0067): CallKit + native MatrixRTC replace ElementCallService (ADR-0079).
         callKitService = CallKitService()
         
         navigationRootCoordinator = NavigationRootCoordinator()
@@ -142,11 +141,13 @@ class AppCoordinator: AppCoordinatorProtocol, AuthenticationFlowCoordinatorDeleg
         
         let keychainController = KeychainController(service: .sessions,
                                                     accessGroup: InfoPlistReader.main.keychainAccessGroupIdentifier)
-        userSessionStore = UserSessionStore(keychainController: keychainController,
-                                            appSettings: appSettings,
-                                            analyticsService: analyticsService,
-                                            appHooks: appHooks,
-                                            networkMonitor: networkMonitor)
+        let userSessionStore = UserSessionStore(keychainController: keychainController,
+                                                appSettings: appSettings,
+                                                analyticsService: analyticsService,
+                                                appHooks: appHooks,
+                                                networkMonitor: networkMonitor)
+        notificationManager = NotificationManager(notificationCenter: UNUserNotificationCenter.current(), appSettings: appSettings)
+        userSessionManager = UserSessionManager(userSessionStore: userSessionStore, appSettings: appSettings, notificationManager: notificationManager, liveLocationManager: LiveLocationManager(appSettings: appSettings))
         
         let appLockService = AppLockService(keychainController: keychainController, appSettings: appSettings)
         let appLockNavigationCoordinator = NavigationRootCoordinator()
@@ -154,9 +155,6 @@ class AppCoordinator: AppCoordinatorProtocol, AuthenticationFlowCoordinatorDeleg
                                                         navigationCoordinator: appLockNavigationCoordinator,
                                                         appSettings: appSettings)
         
-        notificationManager = NotificationManager(notificationCenter: UNUserNotificationCenter.current(),
-                                                  appSettings: appSettings)
-
         // AGENT-PLATFORM: pending-approval-actions queue. Lives in
         // App Group UserDefaults so the queue survives process
         // restarts and is reconciled on the next foreground.
@@ -172,8 +170,7 @@ class AppCoordinator: AppCoordinatorProtocol, AuthenticationFlowCoordinatorDeleg
         
         windowManager.delegate = self
         
-        notificationManager.delegate = self
-        notificationManager.start()
+        configureNotificationManager()
         
         guard let currentVersion = Version(InfoPlistReader(bundle: .main).bundleShortVersionString) else {
             fatalError("The app's version number **must** use semver for migration purposes.")
@@ -190,9 +187,11 @@ class AppCoordinator: AppCoordinatorProtocol, AuthenticationFlowCoordinatorDeleg
         setupStateMachine()
         
         observeApplicationState()
+        observeUserSessionChanges()
         observeAppLockChanges()
         
         registerBackgroundAppRefresh()
+        registerSearchBackfill()
         
         callKitService.actions
             .receive(on: DispatchQueue.main)
@@ -223,11 +222,11 @@ class AppCoordinator: AppCoordinatorProtocol, AuthenticationFlowCoordinatorDeleg
     
     func start() {
         guard stateMachine.state == .initial else {
-            MXLog.error("Received a start request when already started")
+            MXLog.info("Received a start request when already started")
             return
         }
         
-        guard userSessionStore.hasSessions else {
+        guard !userSessionManager.userIDs.isEmpty else {
             stateMachine.processEvent(.startWithAuthentication)
             return
         }
@@ -262,12 +261,14 @@ class AppCoordinator: AppCoordinatorProtocol, AuthenticationFlowCoordinatorDeleg
     }
     
     func handleAppRoute(_ appRoute: AppRoute, windowType: SecondaryWindowType?) {
+        // Read before resuming the services, by which time a push tap or deep link will have made the app active.
+        let animated = appMediator.appState == .active
         Task {
-            await asyncHandleAppRoute(appRoute, windowType: windowType)
+            await asyncHandleAppRoute(appRoute, windowType: windowType, animated: animated)
         }
     }
     
-    private func asyncHandleAppRoute(_ appRoute: AppRoute, windowType: SecondaryWindowType?) async {
+    private func asyncHandleAppRoute(_ appRoute: AppRoute, windowType: SecondaryWindowType?, animated: Bool) async {
         MXLog.info("Handling app route:  \(appRoute)")
         
         await resumeClientServices()
@@ -280,14 +281,14 @@ class AppCoordinator: AppCoordinatorProtocol, AuthenticationFlowCoordinatorDeleg
         var handled = false
         
         switch appRoute {
-        case .accountProvisioningLink, .inviteLink:
+        case .inviteLink: // AGENT-PLATFORM (Brief 0083 L1b): no .accountProvisioningLink
             if let authenticationFlowCoordinator {
-                authenticationFlowCoordinator.handleAppRoute(appRoute, animated: appMediator.appState == .active)
+                authenticationFlowCoordinator.handleAppRoute(appRoute, animated: animated)
                 handled = true
             }
         default:
             if let userSessionFlowCoordinator {
-                userSessionFlowCoordinator.handleAppRoute(appRoute, animated: appMediator.appState == .active)
+                userSessionFlowCoordinator.handleAppRoute(appRoute, animated: animated)
                 handled = true
             }
         }
@@ -302,9 +303,7 @@ class AppCoordinator: AppCoordinatorProtocol, AuthenticationFlowCoordinatorDeleg
         
         if let route = appRouteURLParser.route(from: url) {
             switch route {
-            case .accountProvisioningLink:
-                handleAppRoute(route,
-                               windowType: windowType)
+            // AGENT-PLATFORM (Brief 0083 L1b): no .accountProvisioningLink.
             case .inviteLink(let link):
                 // AGENT-PLATFORM (Brief 0073 / ADR-0008).
                 handleInviteLink(link, windowType: windowType)
@@ -366,7 +365,7 @@ class AppCoordinator: AppCoordinatorProtocol, AuthenticationFlowCoordinatorDeleg
                 } catch {
                     MXLog.error("Failed moving payload out of the app group container: \(error)")
                 }
-            case .catalogTemplate:
+            case .catalogTemplate, .feedPost: // AGENT-PLATFORM: .feedPost (Brief 0082)
                 // AGENT-PLATFORM (decision 111): without this case `default`
                 // swallows the link. Signed out it is stored and replayed.
                 handleAppRoute(route, windowType: windowType)
@@ -429,7 +428,10 @@ class AppCoordinator: AppCoordinatorProtocol, AuthenticationFlowCoordinatorDeleg
     // MARK: - AuthenticationFlowCoordinatorDelegate
     
     func authenticationFlowCoordinator(didLoginWithSession userSession: UserSessionProtocol) {
-        self.userSession = userSession
+        // A new login has nothing to migrate.
+        migratedUserIDs.insert(userSession.clientProxy.userID)
+        userSessionManager.add(userSession)
+        configureActiveSession()
         authenticationFlowCoordinator = nil
         stateMachine.processEvent(.createdUserSession)
     }
@@ -459,6 +461,10 @@ class AppCoordinator: AppCoordinatorProtocol, AuthenticationFlowCoordinatorDeleg
             // there is not a user session yet
             return false
         }
+        // Only the active account's rooms can be on screen.
+        if let receiverID = content.receiverID, receiverID != userSession?.clientProxy.userID {
+            return true
+        }
         return !userSessionFlowCoordinator.isDisplayingRoomScreen(withRoomID: roomID)
     }
     
@@ -473,8 +479,18 @@ class AppCoordinator: AppCoordinatorProtocol, AuthenticationFlowCoordinatorDeleg
         }
 
         guard let roomID = content.roomID,
-              content.receiverID != nil else {
+              let receiverID = content.receiverID else {
             return
+        }
+        
+        if let userSession {
+            guard receiverID == userSession.clientProxy.userID else {
+                // TODO: Switch to the receiver's account and open the room (element-hq/element-meta#3328).
+                MXLog.info("Ignoring a notification tap for \(receiverID), it isn't the active account.")
+                return
+            }
+        } else {
+            storedAppRouteReceiverID = receiverID
         }
         
         // AGENT-PLATFORM (Brief 0066, § 5.82): a game's ping opens the room on
@@ -507,17 +523,18 @@ class AppCoordinator: AppCoordinatorProtocol, AuthenticationFlowCoordinatorDeleg
     func handleInlineReply(_ service: NotificationManagerProtocol, content: UNNotificationContent, replyText: String) async {
         MXLog.info("Handle notification reply")
         
-        guard let roomID = content.roomID else {
+        guard let roomID = content.roomID,
+              let receiverID = content.receiverID else {
             return
         }
         
-        if userSession == nil {
-            // Store the data so it can be used after the session is established
-            storedInlineReply = (roomID, replyText)
+        guard let userSession = userSessionManager.session(for: receiverID) else {
+            // Store the data so it can be sent once the receiver's session is live.
+            storedInlineReply = PendingInlineReplyDetails(userID: receiverID, roomID: roomID, message: replyText)
             return
         }
         
-        await processInlineReply(roomID: roomID, replyText: replyText)
+        await processInlineReply(replyText, roomID: roomID, userSession: userSession)
     }
 
     // AGENT-PLATFORM: thin wrapper that forwards to
@@ -549,14 +566,6 @@ class AppCoordinator: AppCoordinatorProtocol, AuthenticationFlowCoordinatorDeleg
         
         MXLog.info("The app was upgraded from \(oldVersion) to \(newVersion)")
         
-        if oldVersion < Version(1, 6, 0) {
-            MXLog.info("Migrating to v1.6.0, marking identity confirmation onboarding as ran.")
-            if !userSessionStore.userIDs.isEmpty {
-                appSettings.hasRunIdentityConfirmationOnboarding = true
-                appSettings.hasRunNotificationPermissionsOnboarding = true
-            }
-        }
-        
         if oldVersion < Version(1, 6, 7) {
             Tracing.deleteLogFiles(in: Tracing.legacyLogsDirectory)
             MXLog.info("Migrating to v1.6.7, log files have been wiped")
@@ -567,18 +576,48 @@ class AppCoordinator: AppCoordinatorProtocol, AuthenticationFlowCoordinatorDeleg
             MXLog.info("Migrating to version 25.07.4, log files have been moved.")
         }
         
+        if oldVersion < Version(26, 10, 2) {
+            MXLog.info("Migrating to version 26.10.2, moving notification sounds.")
+            let soundsDirectory = URL.libraryDirectory.appending(component: "Sounds", directoryHint: .isDirectory)
+            
+            // Sounds are now referenced directly, the duplicate file can go.
+            try? FileManager.default.removeItem(at: soundsDirectory.appending(component: "currentAlert.caf"))
+            
+            let oldCustomTonesLocation = soundsDirectory.appending(component: "AvailableSounds", directoryHint: .isDirectory)
+            if FileManager.default.fileExists(atPath: oldCustomTonesLocation.path(percentEncoded: false)) {
+                do {
+                    try FileManager.default.moveItem(at: oldCustomTonesLocation, to: URL.customTonesDirectory)
+                } catch {
+                    MXLog.error("Failed moving custom notification sounds: \(error)")
+                }
+            }
+        }
+        
         // Store the old version to run additional migrations on the user session once it has been set up.
         userSessionMigrationsOldVersion = oldVersion
     }
     
+    // swiftlint:disable:next cyclomatic_complexity
     private func performUserSessionMigrations(_ userSession: UserSessionProtocol) async {
-        guard let oldVersion = userSessionMigrationsOldVersion else { return }
+        guard let oldVersion = userSessionMigrationsOldVersion,
+              migratedUserIDs.insert(userSession.clientProxy.userID).inserted else {
+            return
+        }
         
         MXLog.info("Migrating user session from \(oldVersion)")
         
-        MXLog.info("Performing client store optimizations.")
-        await userSession.clientProxy.optimizeStores()
-        MXLog.info("Finished optimizing client stores.")
+        // Vacuuming can outlast a background task, getting the app killed before the migrations below run.
+        if appMediator.appState != .background {
+            MXLog.info("Performing client store optimizations.")
+            await userSession.clientProxy.optimizeStores()
+            MXLog.info("Finished optimizing client stores.")
+        }
+        
+        if oldVersion < Version(1, 6, 0) {
+            MXLog.info("Migrating to v1.6.0, marking identity confirmation onboarding as ran.")
+            userSession.userSettings.account.hasRunIdentityConfirmationOnboarding = true
+            userSession.userSettings.app.hasRunNotificationPermissionsOnboarding = true
+        }
         
         if oldVersion < Version(25, 6, 0) {
             MXLog.info("Migrating to version 25.06.0, migrating timeline media settings to account data.")
@@ -595,12 +634,41 @@ class AppCoordinator: AppCoordinatorProtocol, AuthenticationFlowCoordinatorDeleg
             appSettings.hasSeenNewSoundBanner = false
         }
         
-        if oldVersion < Version(26, 07, 3) {
-            MXLog.info("Migrating to version 26.07.3, marking the app as previously signed in.")
-            appSettings.hasSignedInBefore = true
+        // AGENT-PLATFORM (Brief 0083 L1b): no 26.07.3 migration, hasSignedInBefore only gated Element Classic's import.
+        
+        if oldVersion < Version(26, 10, 1) {
+            MXLog.info("Migrating to version 26.10.1, moving initial 'session specific' settings.")
+            userSession.userSettings.account.migrateAppSettingsValue(\.hasRunIdentityConfirmationOnboardingKey)
+            userSession.userSettings.account.migrateAppSettingsValue(\.searchBreadcrumbsKey)
         }
         
-        userSessionMigrationsOldVersion = nil
+        if oldVersion < Version(26, 10, 2) {
+            MXLog.info("Migrating to version 26.10.2, moving visible account settings.")
+            userSession.userSettings.account.migrateAppSettingsValue(\.showAllRoomListActivityKey)
+            userSession.userSettings.account.migrateRoomListActivityVisibility() // AGENT-PLATFORM: Spiral 1.0.1's enum
+            userSession.userSettings.account.migrateAppSettingsValue(\.selectedNotificationToneKey)
+            userSession.userSettings.account.migrateAppSettingsValue(\.sharePresenceKey)
+            
+            // Make sure system notification sounds are available in the new directory.
+            if let selectedNotificationTone = userSession.userSettings.account.selectedNotificationTone {
+                do {
+                    MXLog.info("Copying the selected system notification sound.")
+                    try NotificationToneManager.copySystemToneIfNeeded(selectedNotificationTone)
+                } catch {
+                    MXLog.error("Failed migrating the selected notification sound: \(error)")
+                }
+            }
+        }
+        
+        if oldVersion < Version(26, 10, 3) {
+            MXLog.info("Migrating to version 26.10.3, moving the notifications switch into the account.")
+            userSession.userSettings.account.migrateAppSettingsValue(\.enableNotificationsKey)
+        }
+        
+        if oldVersion < Version(26, 10, 4) {
+            MXLog.info("Migrating to version 26.10.4, moving the seen invites into the account.")
+            userSession.userSettings.account.migrateAppSettingsValue(\.seenInvitesKey)
+        }
     }
     
     /// This could be removed once the adoption of 25.06.x is widespread.
@@ -656,7 +724,7 @@ class AppCoordinator: AppCoordinatorProtocol, AuthenticationFlowCoordinatorDeleg
             appSettings.resetAllSettings()
             appLockFlowCoordinator.appLockService.disable()
         }
-        userSessionStore.reset()
+        userSessionManager.reset()
     }
     
     /// Manually cleans up any files in the app group's `tmp` directory.
@@ -702,18 +770,26 @@ class AppCoordinator: AppCoordinatorProtocol, AuthenticationFlowCoordinatorDeleg
         stateMachine.addTransitionHandler { [weak self] context in
             guard let self else { return }
             
+            if context.toState != .restoringSession {
+                isSessionRestoredSubject.send(true)
+            }
+            
             switch (context.fromState, context.event, context.toState) {
             case (.initial, .startWithAuthentication, .signedOut):
                 startAuthentication()
             case (.signedOut, .createdUserSession, .signedIn):
                 setupUserSession(isNewLogin: true)
+                restoreUserSessions()
             case (.initial, .startWithExistingSession, .restoringSession):
-                restoreUserSession()
+                restoreUserSessions()
             case (.restoringSession, .failedRestoringSession, .signedOut):
                 showLoginErrorToast()
                 presentSplashScreen()
             case (.restoringSession, .createdUserSession, .signedIn):
                 setupUserSession(isNewLogin: false)
+            case (.softLogout, .createdUserSession, .signedIn):
+                setupUserSession(isNewLogin: false)
+                restoreUserSessions()
                 
             case (.signingOut, .signOut, .signingOut):
                 // We can ignore signOut when already in the process of signing out,
@@ -741,29 +817,55 @@ class AppCoordinator: AppCoordinatorProtocol, AuthenticationFlowCoordinatorDeleg
         }
     }
     
-    private func restoreUserSession() {
-        Task {
-            switch await userSessionStore.restoreUserSession() {
-            case .success(let userSession):
-                await self.performUserSessionMigrations(userSession)
-                self.userSession = userSession
-                stateMachine.processEvent(.createdUserSession)
-            case .failure:
+    private func restoreUserSessions() {
+        let previousRestorationTask = restorationTask
+        restorationTask = Task {
+            // A cancelled restoration may still be building a client, which mustn't share a store with a new one.
+            await previousRestorationTask?.value
+            
+            await userSessionManager.restoreSessions { [weak self] userSession in
+                await self?.performUserSessionMigrations(userSession)
+            } didAdd: { [weak self] userSession in
+                self?.showActiveSessionIfRestoring()
+                self?.sendStoredInlineReply(from: userSession)
+            }
+            
+            guard !Task.isCancelled else { return }
+            // An account that was already live becomes the active one when those before it fail (e.g. after clearing the cache).
+            showActiveSessionIfRestoring()
+            
+            if stateMachine.state == .restoringSession {
                 MXLog.error("Failed to restore an existing session.")
                 stateMachine.processEvent(.failedRestoringSession)
             }
         }
     }
     
+    /// Shows the active session as soon as it's live, while the app is waiting for one.
+    private func showActiveSessionIfRestoring() {
+        guard stateMachine.state == .restoringSession, userSession != nil else { return }
+        
+        configureActiveSession()
+        stateMachine.processEvent(.createdUserSession)
+    }
+    
+    /// Sends a reply made from a notification before its account was live.
+    private func sendStoredInlineReply(from userSession: UserSessionProtocol) {
+        guard let storedInlineReply, storedInlineReply.userID == userSession.clientProxy.userID else { return }
+        self.storedInlineReply = nil
+        
+        Task {
+            await processInlineReply(storedInlineReply.message, roomID: storedInlineReply.roomID, userSession: userSession)
+        }
+    }
+    
     private func startAuthentication() {
         let encryptionKeyProvider = EncryptionKeyProvider()
-        let classicAppManager = ClassicAppManager()
-        let authenticationService = AuthenticationService(userSessionStore: userSessionStore,
+        // AGENT-PLATFORM (Brief 0083 L1b): no Element Classic app manager or account check.
+        let authenticationService = AuthenticationService(userSessionManager: userSessionManager,
                                                           encryptionKeyProvider: encryptionKeyProvider,
-                                                          classicAppManager: classicAppManager,
                                                           appSettings: appSettings,
                                                           appHooks: appHooks)
-        Task { await authenticationService.setupClassicAppAccountState() }
         
         let coordinator = AuthenticationFlowCoordinator(authenticationService: authenticationService,
                                                         bugReportService: bugReportService,
@@ -848,6 +950,13 @@ class AppCoordinator: AppCoordinatorProtocol, AuthenticationFlowCoordinatorDeleg
             fatalError("User session not setup")
         }
         
+        if let storedAppRouteReceiverID, storedAppRouteReceiverID != userSession.clientProxy.userID {
+            // TODO: Switch to the receiver's account and open the room (element-hq/element-meta#3328).
+            MXLog.info("Dropping a notification tap for \(storedAppRouteReceiverID), it isn't the active account.")
+            storedAppRoute = nil
+            storedRoomsToAwait = nil
+        }
+        
         if let storedRoomsToAwait {
             userSession.clientProxy.roomsToAwait = storedRoomsToAwait
         }
@@ -860,10 +969,6 @@ class AppCoordinator: AppCoordinatorProtocol, AuthenticationFlowCoordinatorDeleg
         } else {
             offerInviterAfterLogin()
         }
-        
-        if let storedInlineReply {
-            await processInlineReply(roomID: storedInlineReply.roomID, replyText: storedInlineReply.message)
-        }
     }
     
     private func startAuthenticationSoftLogout() {
@@ -871,17 +976,16 @@ class AppCoordinator: AppCoordinatorProtocol, AuthenticationFlowCoordinatorDeleg
             fatalError("User session not setup")
         }
         
-        Task {
+        Task { [self] in
             let credentials = SoftLogoutScreenCredentials(userID: userSession.clientProxy.userID,
                                                           homeserverName: userSession.clientProxy.homeserver,
                                                           userDisplayName: userSession.clientProxy.userProfilePublisher.value.displayName ?? "",
                                                           deviceID: userSession.clientProxy.deviceID)
             
-            let authenticationService = AuthenticationService(userSessionStore: userSessionStore,
+            let authenticationService = AuthenticationService(userSessionManager: userSessionManager,
                                                               encryptionKeyProvider: EncryptionKeyProvider(),
-                                                              classicAppManager: ClassicAppManager(),
                                                               appSettings: appSettings,
-                                                              appHooks: appHooks)
+                                                              appHooks: appHooks) // AGENT-PLATFORM (Brief 0083 L1b): no Classic app manager
             _ = await authenticationService.configure(for: userSession.clientProxy.homeserver, flow: .login)
             
             let parameters = SoftLogoutScreenCoordinatorParameters(authenticationService: authenticationService,
@@ -892,14 +996,16 @@ class AppCoordinator: AppCoordinatorProtocol, AuthenticationFlowCoordinatorDeleg
                                                                    appHooks: appHooks,
                                                                    userIndicatorController: userIndicatorController)
             let coordinator = SoftLogoutScreenCoordinator(parameters: parameters)
-            self.softLogoutCoordinator = coordinator
+            softLogoutCoordinator = coordinator
             coordinator.actions
                 .sink { [weak self] action in
                     guard let self else { return }
                     
                     switch action {
                     case .signedIn(let session):
-                        self.userSession = session
+                        self.migratedUserIDs.insert(session.clientProxy.userID)
+                        self.userSessionManager.add(session)
+                        self.configureActiveSession()
                         self.softLogoutCoordinator = nil
                         stateMachine.processEvent(.createdUserSession)
                     case .clearAllData:
@@ -924,17 +1030,15 @@ class AppCoordinator: AppCoordinatorProtocol, AuthenticationFlowCoordinatorDeleg
         }
         
         let flowParameters = CommonFlowParameters(userSession: userSession,
+                                                  availableSessionsPublisher: userSessionManager.sessionsPublisher.map { $0.map(UserSessionDetails.init) },
                                                   bugReportService: bugReportService,
                                                   callKitService: callKitService,
-                                                  timelineControllerFactory: TimelineControllerFactory(appSettings: appSettings),
-                                                  emojiProvider: EmojiProvider(appSettings: appSettings),
+                                                  timelineControllerFactory: TimelineControllerFactory(userSettings: userSession.userSettings),
+                                                  emojiProvider: EmojiProvider(userSettings: userSession.userSettings),
                                                   linkMetadataProvider: LinkMetadataProvider(),
                                                   appMediator: appMediator,
-                                                  appSettings: appSettings,
-                                                  appHooks: appHooks,
                                                   analytics: analyticsService,
                                                   userIndicatorController: userIndicatorController,
-                                                  notificationManager: notificationManager,
                                                   stateMachineFactory: StateMachineFactory())
         
         let userSessionFlowCoordinator = UserSessionFlowCoordinator(isNewLogin: isNewLogin,
@@ -971,6 +1075,8 @@ class AppCoordinator: AppCoordinatorProtocol, AuthenticationFlowCoordinatorDeleg
             fatalError("User session not setup")
         }
         
+        // TODO: With other accounts signed in, switch to the most recently used one instead (element-hq/element-meta#3325).
+        restorationTask?.cancel()
         windowManager.closeAllSecondaryWindows()
         // AGENT-PLATFORM (Brief 0073): an invitation never outlives the
         // session it was accepted into.
@@ -980,6 +1086,8 @@ class AppCoordinator: AppCoordinatorProtocol, AuthenticationFlowCoordinatorDeleg
         
         Task { await pauseClientServices(isBackgroundTask: false) }
         userSessionFlowCoordinator?.stop()
+        // AGENT-PLATFORM (Brief 0067): upstream leaves its ElementCallService call here; Spiral's
+        // calls are CallKit + native MatrixRTC, whose logout teardown is tracked in DEBT.md.
         
         guard !isSoft else {
             stateMachine.processEvent(.showSoftLogout)
@@ -987,24 +1095,25 @@ class AppCoordinator: AppCoordinatorProtocol, AuthenticationFlowCoordinatorDeleg
             return
         }
         
-        // The user will log out, clear any existing notifications and unregister from receving new ones
-        UNUserNotificationCenter.current().removeAllPendingNotificationRequests()
-        UNUserNotificationCenter.current().removeAllDeliveredNotifications()
-        UNUserNotificationCenter.current().setBadgeCount(0)
-        
-        unregisterForRemoteNotifications()
-        
         Task {
+            // Delete the pusher and stop the live location shares while the session can still reach the server.
+            await userSession.notificationService.tearDown()
+            await userSession.liveLocationService.stopAllLiveLocations()
+            
             // First log out from the server
             await userSession.clientProxy.logout()
             
             // Regardless of the result, clear user data
-            userSessionStore.logout(userSession: userSession)
+            userSessionManager.remove(userID: userSession.clientProxy.userID)
             tearDownUserSession()
             
-            appSettings.resetSessionSpecificSettings()
-            appSettings.mapTilerSettings.reset()
-            appHooks.remoteSettingsHook.reset(appSettings)
+            // Signed in accounts that aren't live yet still count.
+            if userSessionManager.userIDs.isEmpty {
+                notificationManager.reset()
+            }
+            
+            userSession.userSettings.account.reset()
+            // AGENT-PLATFORM (Brief 0083 L1b): no remoteSettingsHook to reset.
             // The CallKit Recents routing table belongs to the account that
             // built it (audit W6-5-6).
             CallKitRoomRouting.clearAll()
@@ -1022,11 +1131,7 @@ class AppCoordinator: AppCoordinatorProtocol, AuthenticationFlowCoordinatorDeleg
     private func tearDownUserSession() {
         userIndicatorController.retractAllIndicators()
         
-        userSession = nil
-        
         userSessionFlowCoordinator = nil
-        
-        notificationManager.setUserSession(nil)
     }
     
     private func presentSplashScreen(isSoftLogout: Bool = false, disableAppLock: Bool = false) {
@@ -1048,16 +1153,21 @@ class AppCoordinator: AppCoordinatorProtocol, AuthenticationFlowCoordinatorDeleg
         }
     }
     
-    private func configureCallKitService() {
+    /// Points the app-wide services at the active account's session.
+    private func configureActiveSession() {
         guard let userSession else {
             fatalError("User session not setup")
         }
         
-        callKitService.setClientProxy(userSession.clientProxy)
+        callKitService.setClientProxy(userSession.clientProxy) // AGENT-PLATFORM (Brief 0067)
+        Task {
+            await resumeClientServices()
+        }
     }
     
     private func configureNotificationManager() {
-        notificationManager.setUserSession(userSession)
+        notificationManager.delegate = self
+        notificationManager.start()
         
         appDelegateObserver = appDelegate.callbacks
             .receive(on: DispatchQueue.main)
@@ -1072,19 +1182,21 @@ class AppCoordinator: AppCoordinatorProtocol, AuthenticationFlowCoordinatorDeleg
     }
     
     private func observeUserSessionChanges() {
-        guard let userSession else {
-            fatalError("User session not setup")
-        }
-        
-        userSessionObserver = userSession.callbacks
+        userSessionManager.callbacksPublisher
             .receive(on: DispatchQueue.main)
             .sink { [weak self] callback in
                 guard let self else { return }
                 switch callback {
-                case .didReceiveAuthError(let isSoftLogout):
+                case .didReceiveAuthError(let userID, let isSoftLogout):
+                    // Only the active account can be signed out for now.
+                    guard userID == userSessionManager.activeSession?.clientProxy.userID else {
+                        MXLog.error("Ignoring an auth error for \(userID), it isn't the active account.")
+                        return
+                    }
                     stateMachine.processEvent(.signOut(isSoft: isSoftLogout, disableAppLock: false))
                 }
             }
+            .store(in: &cancellables)
     }
     
     private func observeAppLockChanges() {
@@ -1107,6 +1219,7 @@ class AppCoordinator: AppCoordinatorProtocol, AuthenticationFlowCoordinatorDeleg
             fatalError("User session not setup")
         }
         
+        restorationTask?.cancel()
         showLoadingIndicator()
         
         navigationRootCoordinator.setRootCoordinator(PlaceholderScreenCoordinator(hideBrandChrome: appSettings.hideBrandChrome))
@@ -1116,17 +1229,13 @@ class AppCoordinator: AppCoordinatorProtocol, AuthenticationFlowCoordinatorDeleg
         
         // Allow for everything to deallocate properly
         Task {
-            await userSession.clientProxy.clearCaches()
+            await userSessionManager.clearCaches(userID: userSession.clientProxy.userID)
             stateMachine.processEvent(.startWithExistingSession)
             hideLoadingIndicator()
         }
     }
     
-    private func processInlineReply(roomID: String, replyText: String) async {
-        guard let userSession else {
-            fatalError("User session not setup")
-        }
-        
+    private func processInlineReply(_ replyText: String, roomID: String, userSession: UserSessionProtocol) async {
         guard case let .joined(roomProxy) = await userSession.clientProxy.roomForIdentifier(roomID) else {
             MXLog.error("Tried to reply in an unjoined room: \(roomID)")
             return
@@ -1171,7 +1280,7 @@ class AppCoordinator: AppCoordinatorProtocol, AuthenticationFlowCoordinatorDeleg
             return
         }
         
-        await userSession?.clientProxy.pauseServices()
+        await userSessionManager.pauseServices()
         clientProxyObserver = nil
     }
     
@@ -1180,7 +1289,7 @@ class AppCoordinator: AppCoordinatorProtocol, AuthenticationFlowCoordinatorDeleg
         
         analyticsService.signpost.startTransaction(.upToDateRoomList)
         
-        await userSession.clientProxy.resumeServices()
+        await userSessionManager.resumeServices()
         
         guard clientProxyObserver == nil else {
             return
@@ -1236,6 +1345,16 @@ class AppCoordinator: AppCoordinatorProtocol, AuthenticationFlowCoordinatorDeleg
                                                selector: #selector(didChangeContentSizeCategory),
                                                name: UIContentSizeCategory.didChangeNotification,
                                                object: nil)
+        // AGENT-PLATFORM (Brief 0083, question 359)
+        NotificationCenter.default.addObserver(self,
+                                               selector: #selector(didReceiveMemoryWarning),
+                                               name: UIApplication.didReceiveMemoryWarningNotification,
+                                               object: nil)
+    }
+    
+    @objc
+    private func didReceiveMemoryWarning() {
+        TimelineCaches.purge()
     }
     
     @objc
@@ -1255,6 +1374,7 @@ class AppCoordinator: AppCoordinatorProtocol, AuthenticationFlowCoordinatorDeleg
         
         scheduleDelayedPauseServices()
         scheduleBackgroundAppRefresh()
+        scheduleSearchBackfill()
     }
     
     @objc
@@ -1305,11 +1425,8 @@ class AppCoordinator: AppCoordinatorProtocol, AuthenticationFlowCoordinatorDeleg
         // happens to carry a different number. Recompute from the room list
         // the moment the user looks at the phone, which is when a wrong
         // number is actually visible.
-        guard let userSession else { return }
-        Task {
-            let roomSummaries = userSession.clientProxy.staticRoomSummaryProvider.roomListPublisher.value
-            await notificationManager.updateBadgeCount(with: roomSummaries)
-        }
+        // The accounts' counts come from their room lists (`NotificationService.attentionCount`).
+        notificationManager.updateAppBadgeCount()
     }
     
     private func endActiveBackgroundTask() {
@@ -1321,10 +1438,12 @@ class AppCoordinator: AppCoordinatorProtocol, AuthenticationFlowCoordinatorDeleg
         appMediator.endBackgroundTask(backgroundTask)
         self.backgroundTask = nil
     }
-    
-    // MARK: Background app refresh
-    
-    private func registerBackgroundAppRefresh() {
+}
+
+// MARK: Background app refresh
+
+private extension AppCoordinator {
+    func registerBackgroundAppRefresh() {
         let result = BGTaskScheduler.shared.register(forTaskWithIdentifier: appSettings.backgroundAppRefreshTaskIdentifier, using: .main) { [weak self] task in
             guard let task = task as? BGAppRefreshTask else {
                 MXLog.error("Invalid background app refresh configuration")
@@ -1339,7 +1458,7 @@ class AppCoordinator: AppCoordinatorProtocol, AuthenticationFlowCoordinatorDeleg
         MXLog.info("Register background app refresh with result: \(result)")
     }
     
-    private func scheduleBackgroundAppRefresh() {
+    func scheduleBackgroundAppRefresh() {
         let request = BGAppRefreshTaskRequest(identifier: appSettings.backgroundAppRefreshTaskIdentifier)
         
         // We have other background tasks that keep the app alive
@@ -1353,8 +1472,7 @@ class AppCoordinator: AppCoordinatorProtocol, AuthenticationFlowCoordinatorDeleg
         }
     }
     
-    private var backgroundRefreshSyncObserver: AnyCancellable?
-    private func handleBackgroundAppRefresh(_ task: BGAppRefreshTask) async {
+    func handleBackgroundAppRefresh(_ task: BGAppRefreshTask) async {
         MXLog.info("Started background app refresh")
         
         // This is important for the app to keep refreshing in the background
@@ -1378,13 +1496,17 @@ class AppCoordinator: AppCoordinatorProtocol, AuthenticationFlowCoordinatorDeleg
             }
         }
         
+        await waitForSessionRestore()
+        
         guard let userSession else {
+            MXLog.info("Background app refresh: no user session, giving up.")
+            task.setTaskCompleted(success: false)
             return
         }
         
         // Configure the background-refresh sync to carry set_presence=offline so it doesn't mark the
         // user online or idle. Note: If already online/idle then setting offline shouldn't override that.
-        _ = await userSession.clientProxy.configurePresence(.offline, sendImmediately: false)
+        await userSessionManager.configurePresence(.offline, sendImmediately: false)
         
         await resumeClientServices()
         
@@ -1408,4 +1530,79 @@ class AppCoordinator: AppCoordinatorProtocol, AuthenticationFlowCoordinatorDeleg
                 }
             }
     }
+    
+    /// When iOS relaunches a terminated app for a background task, the session needs restoring before the task can run.
+    private func waitForSessionRestore() async {
+        // A background launch doesn't necessarily connect a scene, which is what normally calls `start()`.
+        if stateMachine.state == .initial, !userSessionManager.userIDs.isEmpty {
+            start()
+        }
+        
+        for await isSessionRestored in isSessionRestoredSubject.timeout(.seconds(5), scheduler: DispatchQueue.main).values where isSessionRestored {
+            return
+        }
+    }
+}
+
+// MARK: Search backfill
+
+private extension AppCoordinator {
+    func registerSearchBackfill() {
+        let result = BGTaskScheduler.shared.register(forTaskWithIdentifier: appSettings.searchBackfillTaskIdentifier, using: .main) { [weak self] task in
+            guard let task = task as? BGProcessingTask else {
+                MXLog.error("Invalid search backfill configuration")
+                return
+            }
+            
+            Task {
+                await self?.handleSearchBackfill(task)
+            }
+        }
+        
+        MXLog.info("Register search backfill with result: \(result)")
+    }
+    
+    func scheduleSearchBackfill() {
+        guard let userSession, userSession.userSettings.app.globalSearchEnabled else {
+            return
+        }
+        
+        let request = BGProcessingTaskRequest(identifier: appSettings.searchBackfillTaskIdentifier)
+        request.requiresExternalPower = true
+        request.requiresNetworkConnectivity = true
+        
+        do {
+            try BGTaskScheduler.shared.submit(request)
+            MXLog.info("Successfully scheduled search backfill task")
+        } catch {
+            MXLog.error("Failed scheduling search backfill with error: \(error)")
+        }
+    }
+    
+    func handleSearchBackfill(_ task: BGProcessingTask) async {
+        MXLog.info("Started search backfill task")
+        
+        await waitForSessionRestore()
+        
+        task.expirationHandler = { @Sendable [weak self] in
+            MXLog.info("Search backfill task is about to expire.")
+            Task { @MainActor in self?.userSessionManager.stopSearchBackfill() }
+        }
+        
+        userSessionManager.startSearchBackfill(strategy: .background)
+        
+        // TaskHandle can't be awaited, so poll until every sweep finishes or is stopped on expiry.
+        while userSessionManager.isSearchBackfillRunning {
+            try? await Task.sleep(for: .seconds(1))
+        }
+        
+        MXLog.info("Marking search backfill task as complete.")
+        task.setTaskCompleted(success: true)
+    }
+}
+
+private struct PendingInlineReplyDetails {
+    let userID: String
+    let roomID: String
+    let message: String
 }

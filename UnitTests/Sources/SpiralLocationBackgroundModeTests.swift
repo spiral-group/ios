@@ -8,7 +8,7 @@
 
 import Combine
 import CoreLocation
-@testable import ElementX
+@testable import Spiral
 import Testing
 
 @MainActor
@@ -35,11 +35,8 @@ struct SpiralLocationBackgroundModeTests {
     // MARK: - Helpers
 
     private func makeManager(backgroundModes: [String]) -> CLLocationManagerMock {
-        let clientProxy = ClientProxyMock(.init())
-        clientProxy.liveLocationOwnInfoUpdatesPublisher = PassthroughSubject<LiveLocationOwnInfoUpdate, Never>().eraseToAnyPublisher()
         let locationManager = CLLocationManagerMock(.init())
-        _ = LiveLocationManager(clientProxy: clientProxy,
-                                appSettings: AppSettings.volatile(),
+        _ = LiveLocationManager(appSettings: AppSettings.volatile(),
                                 locationManager: locationManager,
                                 backgroundModes: backgroundModes)
         return locationManager

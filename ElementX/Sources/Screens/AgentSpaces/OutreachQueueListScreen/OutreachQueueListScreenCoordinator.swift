@@ -14,7 +14,7 @@ import SwiftUI
 
 struct OutreachQueueListScreenCoordinatorParameters {
     let agentID: String
-    let agentPlatformService: any AgentPlatformServiceProtocol
+    let store: AgentsStore
 }
 
 enum OutreachQueueListScreenCoordinatorAction {
@@ -36,7 +36,7 @@ final class OutreachQueueListScreenCoordinator: CoordinatorProtocol {
     init(parameters: OutreachQueueListScreenCoordinatorParameters) {
         self.parameters = parameters
         viewModel = OutreachQueueListScreenViewModel(agentID: parameters.agentID,
-                                                     agentPlatformService: parameters.agentPlatformService)
+                                                     store: parameters.store)
     }
 
     func start() {

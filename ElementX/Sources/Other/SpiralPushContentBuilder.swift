@@ -24,6 +24,10 @@ nonisolated enum SpiralPushContentBuilder {
     static let idKey = "id"
     /// An approval's escalation tag (Brief 0078) — metadata, never display text.
     static let reasonKey = "reason"
+    /// AGENT-PLATFORM: feed (Brief 0082): a `feed_comment`'s or `feed_reply`'s post, the thread it groups under.
+    static let postKey = "post"
+    /// AGENT-PLATFORM: feed (Brief 0082): a `feed_like`'s UTC day, naming its activity entry `like:<post>:<group>`.
+    static let groupKey = "group"
 
     /// What a Spiral push points at.
     struct Subject {
@@ -31,6 +35,19 @@ nonisolated enum SpiralPushContentBuilder {
         let id: String
         /// Absent for verifications and for approvals the platform escalated without a tag.
         let reason: String?
+        /// A `feed_comment`'s or `feed_reply`'s post (Brief 0082); absent for every other kind.
+        var post: String?
+        /// A `feed_like`'s day (Brief 0082); absent for every other kind.
+        var group: String?
+
+        /// The post a feed engagement push is about: a like names it as its id.
+        var feedPostID: String? {
+            switch kind {
+            case "feed_like": id
+            case "feed_comment", "feed_reply": post?.isEmpty == false ? post : nil
+            default: nil
+            }
+        }
     }
 
     /// Extract the subject from an APNs payload, or nil when this
@@ -42,7 +59,7 @@ nonisolated enum SpiralPushContentBuilder {
               !id.isEmpty else {
             return nil
         }
-        return Subject(kind: kind, id: id, reason: spiral[reasonKey] as? String)
+        return Subject(kind: kind, id: id, reason: spiral[reasonKey] as? String, post: spiral[postKey] as? String, group: spiral[groupKey] as? String)
     }
 
     /// Build the localized notification for a Spiral push. Sets the
@@ -56,10 +73,12 @@ nonisolated enum SpiralPushContentBuilder {
     static func build(kind: String,
                       subjectID: String,
                       baseContent: UNNotificationContent,
-                      reason: String? = nil) -> UNNotificationContent? {
+                      reason: String? = nil,
+                      post: String? = nil) -> UNNotificationContent? {
         guard let content = baseContent.mutableCopy() as? UNMutableNotificationContent else {
             return nil
         }
+        let feedPostID = Subject(kind: kind, id: subjectID, reason: nil, post: post).feedPostID
         switch kind {
         case "approval":
             let escalation = ApprovalEscalation(reason: reason, contextKind: nil, hasVisitor: false)
@@ -71,8 +90,25 @@ nonisolated enum SpiralPushContentBuilder {
             content.body = UntranslatedL10n.notificationVerificationBody
             content.categoryIdentifier = NotificationConstants.Category.verification
             content.userInfo[NotificationConstants.UserInfoKey.agentVerificationIdentifier] = subjectID
+        // AGENT-PLATFORM: feed (Brief 0082, decision 266): ids only on the wire; the text is the device's.
+        case "feed_notice":
+            content.body = UntranslatedL10n.notificationFeedNoticeBody
+            content.categoryIdentifier = NotificationConstants.Category.feedNotice
+            content.threadIdentifier = "feed:notices"
+            content.userInfo[NotificationConstants.UserInfoKey.feedNoticeIdentifier] = subjectID
+        // The generic words; the NSE puts the name and the text in when it can read them (`FeedPushActivityReader`).
+        case "feed_like" where feedPostID != nil, "feed_comment" where feedPostID != nil, "feed_reply" where feedPostID != nil:
+            let postID = feedPostID ?? subjectID
+            content.body = switch kind {
+            case "feed_like": UntranslatedL10n.notificationFeedLikeBody
+            case "feed_reply": UntranslatedL10n.notificationFeedReplyBody
+            default: UntranslatedL10n.notificationFeedCommentBody
+            }
+            content.categoryIdentifier = NotificationConstants.Category.feedPost
+            content.threadIdentifier = "feed:\(postID)"
+            content.userInfo[NotificationConstants.UserInfoKey.feedPostIdentifier] = postID
         default:
-            // A newer platform's kind: nothing to act on or open here.
+            // A newer platform's kind (or a comment push without its post): nothing to act on or open here.
             content.body = UntranslatedL10n.notificationSpiralNeedsUpdateBody
         }
         content.title = InfoPlistReader.main.bundleDisplayName

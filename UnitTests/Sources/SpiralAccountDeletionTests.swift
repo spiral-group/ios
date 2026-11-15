@@ -6,8 +6,8 @@
 // typed handle), then `DELETE /me`.
 //
 
-@testable import ElementX
 import Foundation
+@testable import Spiral
 import Testing
 
 @MainActor

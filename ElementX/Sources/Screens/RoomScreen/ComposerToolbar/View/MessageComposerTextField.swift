@@ -18,6 +18,7 @@ struct MessageComposerTextField: View {
     let maxHeight: CGFloat
     let keyHandler: GenericKeyHandler
     let pasteHandler: PasteHandler
+    var placeholderColor = SpiralComposerMetrics.placeholder // AGENT-PLATFORM (Brief 0083, question 359): a chat passes its own
     
     var body: some View {
         UITextViewWrapper(text: $text,
@@ -36,7 +37,7 @@ struct MessageComposerTextField: View {
         if text.string.isEmpty {
             Text(placeholder)
                 .font(Font(UIFont.preferredFont(forTextStyle: .body)))
-                .foregroundColor(.compound.textSecondary)
+                .foregroundColor(placeholderColor) // AGENT-PLATFORM (Brief 0083): the field's grey says disabled
                 .accessibilityHidden(true)
         }
     }
@@ -66,11 +67,11 @@ private struct UITextViewWrapper: UIViewRepresentable {
     
     func makeUIView(context: UIViewRepresentableContext<UITextViewWrapper>) -> UITextView {
         // Need to use TextKit 1 for mentions
-        let textView = ElementTextView(timelineContext: timelineContext,
-                                       presendCallback: $presendCallback)
+        let textView = ComposerTextView(timelineContext: timelineContext,
+                                        presendCallback: $presendCallback)
         
         textView.delegate = context.coordinator
-        textView.elementDelegate = context.coordinator
+        textView.composerDelegate = context.coordinator
         textView.textColor = .compound.textPrimary
         textView.isEditable = true
         textView.font = font
@@ -155,7 +156,7 @@ private struct UITextViewWrapper: UIViewRepresentable {
                     pasteHandler: pasteHandler)
     }
     
-    final class Coordinator: NSObject, UITextViewDelegate, ElementTextViewDelegate {
+    final class Coordinator: NSObject, UITextViewDelegate, ComposerTextViewDelegate {
         private var text: Binding<NSAttributedString>
         private var selectedRange: Binding<NSRange>
         
@@ -198,17 +199,18 @@ private struct UITextViewWrapper: UIViewRepresentable {
     }
 }
 
-private protocol ElementTextViewDelegate: AnyObject {
+private protocol ComposerTextViewDelegate: AnyObject {
     func textViewDidReceiveShiftEnterKeyPress(_ textView: UITextView)
     func textViewDidReceiveKeyPress(_ textView: UITextView, key: UIKeyboardHIDUsage)
     func textView(_ textView: UITextView, didReceivePasteWith providers: [NSItemProvider])
 }
 
-private class ElementTextView: UITextView, PillAttachmentViewProviderDelegate {
+// AGENT-PLATFORM (Brief 0083 L1b): ElementTextView, its delegate and elementDelegate renamed.
+private class ComposerTextView: UITextView, PillAttachmentViewProviderDelegate {
     private(set) var timelineContext: TimelineViewModel.Context?
     private var pillViews = NSHashTable<UIView>.weakObjects()
     
-    weak var elementDelegate: ElementTextViewDelegate?
+    weak var composerDelegate: ComposerTextViewDelegate?
     
     init(timelineContext: TimelineViewModel.Context?,
          presendCallback: Binding<(() -> Void)?>) {
@@ -217,7 +219,7 @@ private class ElementTextView: UITextView, PillAttachmentViewProviderDelegate {
         super.init(frame: .zero, textContainer: nil)
         
         // Avoid `Publishing changes from within view update` warnings
-        DispatchQueue.main.async {
+        DispatchQueue.main.async { [self] in
             presendCallback.wrappedValue = { [weak self] in
                 self?.acceptCurrentSuggestion()
             }
@@ -236,12 +238,12 @@ private class ElementTextView: UITextView, PillAttachmentViewProviderDelegate {
     
     // periphery:ignore:parameters sender - required for objc selector
     @objc func shiftEnterKeyPressed(sender: UIKeyCommand) {
-        elementDelegate?.textViewDidReceiveShiftEnterKeyPress(self)
+        composerDelegate?.textViewDidReceiveShiftEnterKeyPress(self)
     }
     
     // periphery:ignore:parameters sender - required for objc selector
     @objc func enterKeyPressed(sender: UIKeyCommand) {
-        elementDelegate?.textViewDidReceiveKeyPress(self, key: .keyboardReturnOrEnter)
+        composerDelegate?.textViewDidReceiveKeyPress(self, key: .keyboardReturnOrEnter)
     }
     
     override func pressesBegan(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
@@ -251,12 +253,12 @@ private class ElementTextView: UITextView, PillAttachmentViewProviderDelegate {
         }
         
         if key.keyCode == .keyboardUpArrow, selectedRange.location == 0 {
-            elementDelegate?.textViewDidReceiveKeyPress(self, key: key.keyCode)
+            composerDelegate?.textViewDidReceiveKeyPress(self, key: key.keyCode)
             return
         }
         
         if key.keyCode == .keyboardEscape {
-            elementDelegate?.textViewDidReceiveKeyPress(self, key: key.keyCode)
+            composerDelegate?.textViewDidReceiveKeyPress(self, key: key.keyCode)
             return
         }
         
@@ -293,7 +295,7 @@ private class ElementTextView: UITextView, PillAttachmentViewProviderDelegate {
             return
         }
         
-        elementDelegate?.textView(self, didReceivePasteWith: providers)
+        composerDelegate?.textView(self, didReceivePasteWith: providers)
     }
     
     // MARK: PillAttachmentViewProviderDelegate

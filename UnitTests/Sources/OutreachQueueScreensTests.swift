@@ -5,8 +5,8 @@
 // AGENT-PLATFORM: Agent platform feature, not present upstream.
 
 import Combine
-@testable import ElementX
 import Foundation
+@testable import Spiral
 import Testing
 
 @MainActor
@@ -19,13 +19,12 @@ struct OutreachQueueListScreenViewModelTests {
         service.listOutreachQueueAgentIDStatusLimitReturnValue = .success([Self.entry(id: "row-1", status: .queued)])
 
         let viewModel = OutreachQueueListScreenViewModel(agentID: "agent-1",
-                                                         agentPlatformService: service)
+                                                         store: AgentsStore(service: service))
 
         let deferred = deferFulfillment(viewModel.context.observe(\.viewState.listState)) {
             if case .loaded = $0 { return true }
             return false
         }
-        viewModel.context.send(viewAction: .appeared)
         try await deferred.fulfill()
 
         #expect(viewModel.context.viewState.listState.items.count == 1)
@@ -37,13 +36,12 @@ struct OutreachQueueListScreenViewModelTests {
         service.listOutreachQueueAgentIDStatusLimitReturnValue = .success([])
 
         let viewModel = OutreachQueueListScreenViewModel(agentID: "agent-1",
-                                                         agentPlatformService: service)
+                                                         store: AgentsStore(service: service))
 
         let deferred = deferFulfillment(viewModel.context.observe(\.viewState.listState)) {
             if case .loaded = $0 { return true }
             return false
         }
-        viewModel.context.send(viewAction: .appeared)
         try await deferred.fulfill()
 
         #expect(viewModel.context.viewState.listState.items.isEmpty)
@@ -55,13 +53,12 @@ struct OutreachQueueListScreenViewModelTests {
         service.listOutreachQueueAgentIDStatusLimitReturnValue = .failure(.conflict(detail: "not Outreach"))
 
         let viewModel = OutreachQueueListScreenViewModel(agentID: "agent-1",
-                                                         agentPlatformService: service)
+                                                         store: AgentsStore(service: service))
 
         let deferred = deferFulfillment(viewModel.context.observe(\.viewState.listState)) {
             if case .unavailable = $0 { return true }
             return false
         }
-        viewModel.context.send(viewAction: .appeared)
         try await deferred.fulfill()
     }
 
@@ -71,70 +68,68 @@ struct OutreachQueueListScreenViewModelTests {
         service.listOutreachQueueAgentIDStatusLimitReturnValue = .failure(.notFound)
 
         let viewModel = OutreachQueueListScreenViewModel(agentID: "agent-1",
-                                                         agentPlatformService: service)
+                                                         store: AgentsStore(service: service))
 
         let deferred = deferFulfillment(viewModel.context.observe(\.viewState.listState)) {
             if case .unavailable = $0 { return true }
             return false
         }
-        viewModel.context.send(viewAction: .appeared)
         try await deferred.fulfill()
     }
 
     @Test
-    func appearedAction_transportFailureSurfacesFailedStateAndAlert() async throws {
+    func appearedAction_transportFailureSurfacesFailedState() async throws {
         let service = AgentPlatformServiceMock()
         service.listOutreachQueueAgentIDStatusLimitReturnValue = .failure(.serverError(status: 500))
 
         let viewModel = OutreachQueueListScreenViewModel(agentID: "agent-1",
-                                                         agentPlatformService: service)
+                                                         store: AgentsStore(service: service))
 
         let deferred = deferFulfillment(viewModel.context.observe(\.viewState.listState)) {
             if case .failed = $0 { return true }
             return false
         }
-        viewModel.context.send(viewAction: .appeared)
         try await deferred.fulfill()
-
-        #expect(viewModel.context.viewState.bindings.alertInfo != nil)
     }
 
-    /// Walk F4: back from Add targets the list read «Queue is empty» until
-    /// pulled. A reappearing list reads again, and keeps its rows meanwhile.
+    /// Walk F4, now by the stream: an add (here or elsewhere) is
+    /// `agent.outreach`, which reads the queue again and keeps its rows meanwhile.
     @Test
-    func appearingAgainReadsTheQueueAgainWithoutBlankingIt() async throws {
+    func theStreamsChangeReadsTheQueueAgainWithoutBlankingIt() async throws {
         let service = AgentPlatformServiceMock()
+        service.listOutreachQueueAgentIDStatusLimitReturnValue = .success([])
+        let store = AgentsStore(service: service)
+        let viewModel = OutreachQueueListScreenViewModel(agentID: "agent-1", store: store)
+        await store.settle()
+
         let added = Self.entry(id: "row-2", status: .queued)
         service.listOutreachQueueAgentIDStatusLimitReturnValue = .success([added])
-
-        let viewModel = OutreachQueueListScreenViewModel(agentID: "agent-1",
-                                                         agentPlatformService: service,
-                                                         initialState: .loaded([]))
         var states: [OutreachQueueListState] = []
         let reloaded = deferFulfillment(viewModel.context.observe(\.viewState.listState)) { state in
             states.append(state)
             return state == .loaded([added])
         }
-        viewModel.context.send(viewAction: .appeared)
+        store.apply([.agentOutreach(agentID: "agent-1")])
         try await reloaded.fulfill()
 
-        #expect(service.listOutreachQueueAgentIDStatusLimitCallsCount == 1)
+        #expect(service.listOutreachQueueAgentIDStatusLimitCallsCount == 2)
         #expect(!states.contains(.loading))
     }
 
     @Test
-    func aFailedReadOnReappearingKeepsTheRowsAndSaysSo() async throws {
+    func aFailedRereadKeepsTheRows() async throws {
         let service = AgentPlatformServiceMock()
-        service.listOutreachQueueAgentIDStatusLimitReturnValue = .failure(.serverError(status: 500))
         let shown = Self.entry(id: "row-1", status: .queued)
+        service.listOutreachQueueAgentIDStatusLimitReturnValue = .success([shown])
+        let store = AgentsStore(service: service)
+        let viewModel = OutreachQueueListScreenViewModel(agentID: "agent-1", store: store)
+        await store.settle()
 
-        let viewModel = OutreachQueueListScreenViewModel(agentID: "agent-1",
-                                                         agentPlatformService: service,
-                                                         initialState: .loaded([shown]))
-        let alert = deferFulfillment(viewModel.context.observe(\.viewState.bindings.alertInfo)) { $0?.id == .fetchFailed }
-        viewModel.context.send(viewAction: .appeared)
-        try await alert.fulfill()
+        service.listOutreachQueueAgentIDStatusLimitReturnValue = .failure(.serverError(status: 500))
+        store.apply([.agentOutreach(agentID: "agent-1")])
+        await store.settle()
 
+        #expect(service.listOutreachQueueAgentIDStatusLimitCallsCount == 2)
         #expect(viewModel.context.viewState.listState == .loaded([shown]))
     }
 
@@ -146,8 +141,7 @@ struct OutreachQueueListScreenViewModelTests {
         service.listOutreachQueueAgentIDStatusLimitReturnValue = .success([])
 
         let viewModel = OutreachQueueListScreenViewModel(agentID: "agent-1",
-                                                         agentPlatformService: service,
-                                                         initialState: .loaded([Self.entry(id: "row-1", status: .queued)]))
+                                                         store: AgentsStore(service: service))
 
         let deferred = deferFulfillment(viewModel.context.observe(\.viewState.listState)) {
             if case .loaded(let items) = $0 { return items.isEmpty }
@@ -166,8 +160,7 @@ struct OutreachQueueListScreenViewModelTests {
         service.listOutreachQueueAgentIDStatusLimitReturnValue = .success([])
 
         let viewModel = OutreachQueueListScreenViewModel(agentID: "agent-1",
-                                                         agentPlatformService: service,
-                                                         initialState: .loaded([]),
+                                                         store: AgentsStore(service: service),
                                                          initialFilter: .sent)
 
         let deferred = deferFulfillment(viewModel.context.observe(\.viewState.statusFilter)) { $0 == nil }
@@ -181,8 +174,10 @@ struct OutreachQueueListScreenViewModelTests {
 
     @Test
     func openAddTargetsAction_emitsCoordinatorAction() async throws {
+        let service = AgentPlatformServiceMock()
+        service.listOutreachQueueAgentIDStatusLimitReturnValue = .success([])
         let viewModel = OutreachQueueListScreenViewModel(agentID: "agent-1",
-                                                         agentPlatformService: AgentPlatformServiceMock())
+                                                         store: AgentsStore(service: service))
 
         let deferred = deferFulfillment(viewModel.actionsPublisher) { action in
             if case .openAddTargets = action { return true }
@@ -194,8 +189,10 @@ struct OutreachQueueListScreenViewModelTests {
 
     @Test
     func dismissAction_emitsDismissedCoordinatorAction() async throws {
+        let service = AgentPlatformServiceMock()
+        service.listOutreachQueueAgentIDStatusLimitReturnValue = .success([])
         let viewModel = OutreachQueueListScreenViewModel(agentID: "agent-1",
-                                                         agentPlatformService: AgentPlatformServiceMock())
+                                                         store: AgentsStore(service: service))
 
         let deferred = deferFulfillment(viewModel.actionsPublisher) { action in
             if case .dismissed = action { return true }

@@ -5,8 +5,8 @@
 // until anything from its sender follows it.
 //
 
-@testable import ElementX
 import Foundation
+@testable import Spiral
 import Testing
 
 struct InteractiveGeneratingRoomTimelineItemTests {

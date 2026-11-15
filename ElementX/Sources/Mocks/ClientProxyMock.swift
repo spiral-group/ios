@@ -16,6 +16,7 @@ struct ClientProxyMockConfiguration {
     var userID: String = RoomMemberProxyMock.mockMe.userID
     var deviceID: String?
     var displayName: String? = "User display name"
+    var avatarURL: URL?
     var status: UserStatus = .init()
     var roomSummaryProvider: RoomSummaryProviderProtocol = RoomSummaryProviderMock(.init())
     var spaceServiceConfiguration: SpaceServiceProxyMock.Configuration = .init()
@@ -33,8 +34,13 @@ struct ClientProxyMockConfiguration {
     
     var canChangeAvatar = true
     var canChangeDisplayName = true
+    // AGENT-PLATFORM: feed (Brief 0082): the bio field is offered only when the server allows it.
+    var canSetBio = false
+    var bio: String?
     
     var maxMediaUploadSize: UInt = 100 * 1024 * 1024
+    
+    var totalUnreadNotifications: UInt64 = 0
     
     class Overrides {
         var joinedRoomIDs: Set<String> = []
@@ -56,9 +62,16 @@ extension ClientProxyMock {
         homeserver = configuration.homeserver
         userIDServerName = configuration.userIDServerName
         
+        totalUnreadNotifications = configuration.totalUnreadNotifications
+        
         roomSummaryProvider = configuration.roomSummaryProvider
         alternateRoomSummaryProvider = RoomSummaryProviderMock(.init())
         staticRoomSummaryProvider = RoomSummaryProviderMock(.init())
+        
+        let searchService = SearchServiceProxyMock()
+        searchService.resultsPublisher = .init([])
+        searchService.paginationStatePublisher = .init(.idle(endReached: true))
+        self.searchService = searchService
         
         roomDirectorySearchProxyReturnValue = configuration.roomDirectorySearchProxy
         
@@ -69,6 +82,7 @@ extension ClientProxyMock {
         
         userProfilePublisher = .init(UserProfile(userID: configuration.userID,
                                                  displayName: configuration.displayName,
+                                                 avatarURL: configuration.avatarURL,
                                                  status: configuration.status))
         
         ignoredUsersPublisher = .init([RoomMemberProxyMock].allMembers.map(\.userID))
@@ -96,9 +110,14 @@ extension ClientProxyMock {
         loadUserProfileIfNeededReturnValue = .success(())
         setUserDisplayNameReturnValue = .failure(.sdkError(ClientProxyMockError.generic))
         setUserAvatarMediaReturnValue = .success(())
-        isUserStatusSupportedReturnValue = .success(false)
+        isUserStatusSupportedReturnValue = .success(true)
         setUserStatusReturnValue = .failure(.sdkError(ClientProxyMockError.generic))
         removeUserAvatarReturnValue = .success(())
+        // AGENT-PLATFORM: feed (Brief 0082)
+        canSetUserBioReturnValue = configuration.canSetBio
+        userBioReturnValue = .success(configuration.bio)
+        setUserBioReturnValue = .success(())
+        removeUserBioReturnValue = .success(())
         isAliasAvailableReturnValue = .success(true)
         searchUsersSearchTermLimitReturnValue = .success(.init(results: [], limited: false))
         profileForReturnValue = .success(.init(userID: "@a:b.com", displayName: "Some user"))
@@ -106,6 +125,7 @@ extension ClientProxyMock {
         unignoreUserReturnValue = .success(())
         
         trackRecentlyVisitedRoomReturnValue = .success(())
+        recentlyVisitedRoomIDsReturnValue = .success([])
         recentlyVisitedRoomsFilterReturnValue = []
         recentConversationCounterpartsReturnValue = []
         
@@ -173,7 +193,7 @@ extension ClientProxyMock {
         
         underlyingMaxMediaUploadSize = .success(configuration.maxMediaUploadSize)
         
-        storeSizesReturnValue = .success(.init(cryptoStore: 1, stateStore: 9, eventCacheStore: 8, mediaStore: 6))
+        storeSizesReturnValue = .success(.init(cryptoStore: 1, stateStore: 9, eventCacheStore: 8, mediaStore: 6, searchIndex: 5))
         
         configurePresenceSendImmediatelyReturnValue = .success(())
     }

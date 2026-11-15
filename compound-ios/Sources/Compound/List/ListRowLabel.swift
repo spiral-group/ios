@@ -10,6 +10,12 @@ import CompoundDesignTokens
 import SFSafeSymbols
 import SwiftUI
 
+// AGENT-PLATFORM (Brief 0083): a screen can set its rows' description font; Compound's stays bodySM.
+public extension EnvironmentValues {
+    /// The font of a `ListRowLabel`'s description.
+    @Entry var listRowDescriptionFont: Font = .compound.bodySM
+}
+
 /// The main label style used in the leading section of `ListRow`.
 struct ListRowLabelStyle: LabelStyle {
     let iconAlignment: VerticalAlignment
@@ -51,6 +57,8 @@ struct ListRowAvatarLabelStyle: LabelStyle {
 public struct ListRowLabel<Icon: View>: View {
     @Environment(\.isEnabled) private var isEnabled
     @Environment(\.lineLimit) private var lineLimit
+    @Environment(\.listRowDescriptionFont) private var descriptionFont // AGENT-PLATFORM (Brief 0083)
+    @Environment(\.listRowPlainIcons) private var plainIcons // AGENT-PLATFORM (Brief 0083, decision 337)
     @ScaledMetric private var iconSize = Compound.supportsGlass ? CompoundIcon.Size.medium.value : 30 // Pre-iOS 26 includes space for a background.
     
     var title: String?
@@ -66,6 +74,8 @@ public struct ListRowLabel<Icon: View>: View {
         ///
         /// The label should contain a description when using this role.
         case error
+        /// AGENT-PLATFORM (Brief 0083, lane settings): an action drawn in the accent colour, as iOS draws one.
+        case accent
     }
     
     var iconAlignment: VerticalAlignment = .top
@@ -76,6 +86,7 @@ public struct ListRowLabel<Icon: View>: View {
     
     var titleColor: Color {
         guard isEnabled else { return .compound.textDisabled }
+        if role == .accent { return .compound.textActionAccent } // AGENT-PLATFORM (Brief 0083)
         return role == .destructive ? .compound.textCriticalPrimary : .compound.textPrimary
     }
     
@@ -101,8 +112,13 @@ public struct ListRowLabel<Icon: View>: View {
         if role == .destructive {
             return .compound.iconCriticalPrimary
         }
+        if role == .accent { // AGENT-PLATFORM (Brief 0083)
+            return .compound.iconAccentPrimary
+        }
         if hideIconBackground {
             return .compound.iconTertiaryAlpha
+        } else if plainIcons { // AGENT-PLATFORM (Brief 0083, decision 337): the glass look on every iOS version.
+            return .compound.iconSecondary
         } else {
             if #available(iOS 26, *) {
                 return .compound.iconSecondary
@@ -113,7 +129,7 @@ public struct ListRowLabel<Icon: View>: View {
     }
     
     var iconBackgroundColor: Color {
-        if hideIconBackground {
+        if hideIconBackground || plainIcons { // AGENT-PLATFORM (Brief 0083, decision 337): no grey tile before iOS 26.
             return .clear
         }
         if #available(iOS 26, *) {
@@ -208,7 +224,7 @@ public struct ListRowLabel<Icon: View>: View {
                     }
                     
                     Text(description)
-                        .font(.compound.bodySM)
+                        .font(descriptionFont) // AGENT-PLATFORM (Brief 0083): was always bodySM.
                         .foregroundColor(descriptionColor)
                         .lineLimit(descriptionLineLimit)
                 }

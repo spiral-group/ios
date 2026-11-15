@@ -24,6 +24,102 @@ struct NativeAgentCenterCandidate: Hashable, Identifiable {
     /// carrying the real name this far.
     let avatarURL: URL?
     let isRoomMember: Bool
+    /// The owner paused it (decision 194): offered with Resume, never hidden (question 387, F3a).
+    var isPaused = false
+}
+
+/// Why an own agent can't come into this call, or why its last add never reached it (question 387, F3). Each case
+/// has one next step in the sheet; none names a person.
+enum NativeAgentCenterJoinFailure: Equatable {
+    case paused
+    case aiConsentOwner
+    case aiConsentRoom
+    case askToJoin
+    case budgetReached
+    /// One category's cap is reached (question 395), e.g. calls, with its pause from the agent's usage; nil when that
+    /// could not be read.
+    case categoryPaused(AgentUsage.Category, AgentUsage.Pause?)
+    /// 409 `/errors/conflict` on attach: the agent has no voice (F3f).
+    case cannotJoinCalls
+    /// The attach or the join failed for a reason the owner can only retry.
+    case failed
+    /// A reason newer than this build (decision 96).
+    case needsUpdate
+
+    init?(_ reason: VoiceJoinCheckReason) {
+        switch reason {
+        case .ok: return nil
+        case .paused: self = .paused
+        case .aiConsentOwner: self = .aiConsentOwner
+        case .askToJoin: self = .askToJoin
+        case .aiConsentRoom: self = .aiConsentRoom
+        case .budgetReached: self = .budgetReached
+        case .categoryPaused(let pause): self = .categoryPaused(.calls, pause)
+        case .unknown: self = .needsUpdate
+        }
+    }
+
+    /// An ended session's reason, when it says the agent never got in; nil for an ordinary end.
+    init?(_ reason: VoiceSessionEndReason) {
+        switch reason {
+        case .callEnded, .manual: return nil
+        case .optOut, .aiConsentRoom: self = .aiConsentRoom
+        case .aiConsentOwner: self = .aiConsentOwner
+        case .budgetReached: self = .budgetReached
+        case .categoryPaused(let category): self = .categoryPaused(category, nil)
+        case .failed: self = .failed
+        case .unknown: self = .needsUpdate
+        }
+    }
+}
+
+/// Why the owner's own assistant stopped mid-call (D7, D10): the AI limit, or one category's cap. The call screen says
+/// it in one line to the owner only; the others just stop hearing the assistant.
+enum NativeAgentCenterLimitStop: Equatable {
+    /// `isWeekly` is false for a period without its own words, or when the limit could not be read: the line then
+    /// names no period rather than guess one.
+    case limitReached(isWeekly: Bool)
+    /// `until` is nil without a date: off until changed, or the limit could not be read.
+    case categoryPaused(AgentUsage.Category, until: Date?)
+
+    /// A refused enabling write's reason (ADR-0094 A.2): the per-call cap reads as a pause without a date.
+    init(_ refusal: VoiceTranslationRefusal) {
+        switch refusal.reason {
+        case .aiLimit: self = .limitReached(isWeekly: false)
+        case .translationPaused, .callCap: self = .categoryPaused(.callTranslation, until: refusal.pauseUntil)
+        }
+    }
+
+    /// «Перевод на паузе до понедельника», «Лимит ИИ на эту неделю исчерпан».
+    func line(now: Date = .now, calendar: Calendar = .current) -> String {
+        switch self {
+        case .limitReached(let isWeekly):
+            return isWeekly ? UntranslatedL10n.screenNativeCallLimitUsedUpThisWeek : UntranslatedL10n.screenNativeCallLimitUsedUp
+        case .categoryPaused(let category, let until):
+            let until = until.map { AgentLimitWording.until($0, now: now, calendar: calendar) }
+            // Translation stops on its own; any other cap ends the assistant's part of the call.
+            if category == .callTranslation {
+                return until.map(UntranslatedL10n.screenNativeCallLimitTranslationPausedUntil) ?? UntranslatedL10n.screenNativeCallLimitTranslationPaused
+            }
+            return until.map(UntranslatedL10n.screenNativeCallLimitAssistantPausedUntil) ?? UntranslatedL10n.screenNativeCallLimitAssistantPaused
+        }
+    }
+}
+
+/// Which control a failed write belongs to, so the sheet shows the error on that row (audit F8).
+enum NativeAgentCenterErrorScope: Equatable {
+    enum Row: Equatable {
+        case mainJob, translation, recording, summary, remove
+    }
+
+    case session(String, Row)
+    /// An own agent's add row, by agent id: a failed resume.
+    case agent(String)
+    /// Someone else's assistant, by MXID: a failed removal from the chat.
+    case foreign(String)
+    /// The chat's translation tool wasn't stored (Brief 0085).
+    case translationTool
+    case global
 }
 
 /// An artifact's live truth as the backend reports it. `revision` is the CAS
@@ -53,43 +149,60 @@ struct NativeAgentCenterArtifact: Equatable {
     }
 }
 
-/// A session's live translation state: the FULL booth list the engine
-/// actually runs (never a flattened projection — Brief 0062's central
-/// rule), the style, the source of truth and the CAS token.
+/// A session's translation as the owner reads it (ADR-0094 A.3): the intent, the lanes it holds, whether it stands by,
+/// stopped or waits for the runtime, and the CAS token for the next write.
 struct NativeAgentCenterTranslation: Equatable {
-    /// The booths the engine runs; empty when translation is off.
-    let booths: [VoiceTranslationBooth]
-    /// `consecutive` | `simultaneous`; nil while off.
-    let style: String?
-    /// `override` | `room_tool` | `off` — where the running config
-    /// comes from. The editor shows it so the owner knows whether an
-    /// Apply overrides a session tweak or the room's standing rule.
-    let source: String
+    var effective: VoiceControlsEffective
     /// CAS revision of the override row; 0 when none exists yet.
     let revision: Int32
 
+    /// `override` | `room_tool` | `off`.
+    var source: String {
+        effective.source
+    }
+
+    /// `consecutive` | `simultaneous`; nil while off or stopped.
+    var style: String? {
+        effective.style
+    }
+
+    /// Call translation is paused by its cap while the session goes on (question 395): the owner's call line, the
+    /// sheet's reason, and no translation offered.
+    var pause: AgentUsage.Pause? {
+        effective.pause
+    }
+
+    /// The intent is on: producing, standing by or starting — not stopped, not off.
     var isOn: Bool {
-        !booths.isEmpty
+        effective.isEnabled
     }
 
-    /// Flat union for the status line only — NEVER written back.
+    var isStandby: Bool {
+        effective.isStandby
+    }
+
+    var isSyncing: Bool {
+        effective.isSyncing
+    }
+
+    var stoppedReason: VoiceTranslationStopReason? {
+        effective.stoppedReason
+    }
+
+    /// The intent's languages.
     var languages: [String] {
-        Array(Set(booths.flatMap(\.targetLanguages))).sorted()
+        effective.forLanguage.map { [$0] } ?? effective.pocket ?? []
     }
 
-    static let unknown = NativeAgentCenterTranslation(booths: [], style: nil, source: "off", revision: 0)
+    static let unknown = NativeAgentCenterTranslation(effective: .off, revision: 0)
 
-    init(booths: [VoiceTranslationBooth], style: String?, source: String, revision: Int32) {
-        self.booths = booths
-        self.style = style
-        self.source = source
+    init(effective: VoiceControlsEffective, revision: Int32) {
+        self.effective = effective
         self.revision = revision
     }
 
     init(_ controls: VoiceControlsState) {
-        booths = controls.effective.booths
-        style = controls.effective.style
-        source = controls.effective.source
+        effective = controls.effective
         revision = controls.override?.revision ?? 0
     }
 }
@@ -133,9 +246,6 @@ struct NativeAgentCenterSession: Equatable, Identifiable {
     let summary: NativeAgentCenterArtifact
     let translation: NativeAgentCenterTranslation
     let conversation: NativeAgentCenterConversation
-    /// The server's word on keeping this call's translation as the room's
-    /// rule; false until a controls read says otherwise.
-    var canSaveAsRoomDefault = false
 }
 
 /// The owner's optimism between a tap and the runtime's document — THE one
@@ -154,8 +264,7 @@ struct NativeAgentCenterPendingWrite: Equatable {
         case summary(Bool)
         /// Brief 0080 — the agent talks (`true`) or stays silent.
         case conversation(Bool)
-        /// Base-normalised codes (`LanguageTag.base`), the document's
-        /// currency; empty = translation disabled.
+        /// The intent's catalog codes, the document's currency; empty = translation disabled.
         case translation(languages: [String])
         case leaving
 
@@ -189,39 +298,60 @@ struct NativeAgentCenterPendingWrite: Equatable {
 /// Everything the native Agent Center renders. A single snapshot so the view
 /// cannot show a half-applied mix of two loads.
 struct NativeAgentCenterSnapshot: Equatable {
-    /// Whether the platform is reachable at all. Views hide the entry point
-    /// rather than offering actions that can only fail.
+    /// This account has an agent platform. Known before any read, so the dock shows its Assistant button from the
+    /// first frame (question 401, remark 4); the sheet says "loading" or "unavailable" until the platform answers.
+    var isConfigured = false
+    /// The platform answered at least once. Until it does, nothing is known about whose assistant is whose.
     var isAvailable = false
     var isLoading = false
     var sessions: [NativeAgentCenterSession] = []
     var candidates: [NativeAgentCenterCandidate] = []
-    /// The tenant's selectable translation languages, from the owner's
-    /// agent's catalog — there before any session (decision 180).
+    /// The voice-translation catalog (ADR-0094 A.8): every language list's source, there before any session.
     var availableLanguages: [VoiceControlsCatalogLanguage] = []
-    /// Brief 0062 W5 (ADR-0075 D4): sessions whose translation coverage
-    /// was NARROWED by the system (another participant brought their own
-    /// agent for their own voice) rather than by this owner's edit. The
-    /// editor shows the displaced notice for them.
-    var displacedSessionIDs: Set<String> = []
-    /// Sessions whose override the owner promoted to the room's standing
-    /// rule during THIS call. Client-only and per-call: the backend has no
-    /// "was promoted" flag, and the editor must not claim a promotion the
-    /// write never made — the button used to latch on tap, so an action the
-    /// view model dropped (one already in flight) or a refusal still read
-    /// "Saved as the room standard" and disabled itself.
-    var savedAsRoomDefaultSessionIDs: Set<String> = []
     /// Set when the last action failed; cleared by the next successful load.
     var lastError: NativeAgentCenterError?
+    /// Where `lastError` belongs; `.global` only for "assistants are unavailable".
+    var lastErrorScope: NativeAgentCenterErrorScope = .global
+    /// Every own agent's MXID, paused ones included: "mine" never waits for the session list (audit F7).
+    var ownAgentMxids: Set<String> = []
+    /// The join check per own agent id (B4); absent when not asked yet or it could not be read.
+    var joinChecks: [String: VoiceJoinCheckReason] = [:]
+    /// Own agent ids whose join check has been asked at least once, answered or not; with `isCheckingJoins`, the sheet
+    /// holds a placeholder rather than offer a start the check may refuse a moment later.
+    var joinChecksAsked: Set<String> = []
+    var isCheckingJoins = false
+    /// Per own agent id: why its last add did not reach the call (B1), until the next add.
+    var joinFailures: [String: NativeAgentCenterJoinFailure] = [:]
+    /// When each accepted attach was answered, per session: "Still joining…" after a while (N8).
+    var joinStartedAt: [String: Date] = [:]
+    /// Own agent ids whose last add the backend accepted: the add form closes on it, before the re-read that follows
+    /// (question 401, board A).
+    var acceptedAttaches: Set<String> = []
+    /// The local user may kick in this room, so may remove someone else's assistant from the chat (D6).
+    var canRemoveOthersFromChat = false
+    /// The owner's own assistant stopped mid-call on the AI limit (D7, D10), until the next add.
+    var limitStop: NativeAgentCenterLimitStop?
     /// The owner's unsettled optimism, per agent MXID. Carried across
     /// reloads (a REST re-read neither extends nor shortens the window);
     /// settled by the document; swept by the clock once the write answered.
     var pendingOwnerWrites: [String: [NativeAgentCenterPendingWrite]] = [:]
+    /// Brief 0085: the call's translation beyond the agents' documents, from the translation port.
+    var translationFacts = NativeCallTranslationFacts()
+    /// Question 404: the backend refused the latest start of a recording because someone else's assistant records the
+    /// call; the call screen shows it as covered until the documents say who records.
+    var recordingRefusal: NativeAgentCenterRecordingRefusal?
 
     /// MXIDs with a live session — the call UI marks these tiles as attached
     /// agents rather than plain service members.
     var attachedAgentMxids: Set<String> {
         Set(sessions.map(\.agentMxid))
     }
+}
+
+/// Question 404: a start of a recording the backend refused, one recording per call, and when.
+struct NativeAgentCenterRecordingRefusal: Equatable {
+    let cover: VoiceRecordingCover
+    let at: Date
 }
 
 /// Failures the Agent Center surfaces verbatim rather than swallowing. Each
@@ -236,7 +366,6 @@ enum NativeAgentCenterError: Equatable {
     case rejected(String)
     /// The write was refused on this device, before the backend saw it.
     case notOwner
-    case invalidBooths
     /// 422 on turning the conversation ON — a failed Realtime spawn, a
     /// policy or budget refusal, the interpreter running. The owner must
     /// hear the outcome (the assistant stays silent), which the backend's
@@ -244,6 +373,8 @@ enum NativeAgentCenterError: Equatable {
     case conversationRefused(String)
     /// The owner paused the agent (decision 194): it joins no call.
     case agentPaused
+    /// Turning translation on was refused by a pause or a limit (ADR-0094 A.2): nothing changed.
+    case translationPaused(VoiceTranslationRefusal)
     case unavailable(String)
 
     /// The user-facing text. Lives on the model so every surface shows the
@@ -258,9 +389,9 @@ enum NativeAgentCenterError: Equatable {
         // thing that tells the owner WHAT to fix.
         case .rejected(let detail): detail
         case .notOwner: UntranslatedL10n.screenNativeCallAgentCenterErrorNotOwner
-        case .invalidBooths: UntranslatedL10n.screenNativeCallAgentCenterErrorInvalidBooths
         case .conversationRefused(let detail): Self.outcome(UntranslatedL10n.screenNativeCallAgentCenterErrorConversationRefused, reason: detail)
         case .agentPaused: UntranslatedL10n.screenNativeCallAgentCenterErrorAgentPaused
+        case .translationPaused(let refusal): NativeAgentCenterLimitStop(refusal).line()
         case .unavailable: UntranslatedL10n.screenNativeCallAgentCenterErrorUnavailable
         }
     }
@@ -279,9 +410,12 @@ enum NativeAgentCenterError: Equatable {
         // names the fix; the distinction only matters upstream, where it
         // decides whether to send an invite.
         case .rejected(let detail), .inviteRequired(let detail): self = .rejected(detail)
-        // The arm form's words, so a refused room rule reads the same wherever it is set.
-        case .toolRefused(let refusal): self = .rejected(refusal.message)
         case .agentPaused: self = .agentPaused
+        case .translationPaused(let refusal): self = .translationPaused(refusal)
+        case .intentUnavailable(let roomKind): self = .unavailable("intent unavailable in a \(roomKind) room")
+        // The controller shows it as the covered recording before it would get here (question 404).
+        case .recordingCovered: self = .conflict
+        case .serviceUnavailable: self = .unavailable("service unavailable")
         case .unauthorized: self = .unavailable("unauthorized")
         case .unavailable(let detail): self = .unavailable(detail)
         }
@@ -296,8 +430,15 @@ final class NativeAgentCenterController {
     /// testable without a room proxy.
     private let roomMemberMxids: @MainActor () async -> Set<String>
     private let inviteAgent: @MainActor (String) async -> Bool
+    /// Whether the local user may kick here, and the kick itself (D6): the person's own client acts (ADR-0082).
+    private let canKick: @MainActor () async -> Bool
+    private let kickAgent: @MainActor (String) async -> Bool
+    /// Nil without a platform or a call: nothing to read or write.
+    private let translationPort: NativeCallTranslationPortProtocol?
+    /// The person's own edit of an agent, for the session's Agents tab to show at once (S5).
+    private let agentEdited: @MainActor (AgentReadModel) -> Void
 
-    private let snapshotSubject: CurrentValueSubject<NativeAgentCenterSnapshot, Never> = .init(.init())
+    private let snapshotSubject: CurrentValueSubject<NativeAgentCenterSnapshot, Never>
     var snapshotPublisher: AnyPublisher<NativeAgentCenterSnapshot, Never> {
         snapshotSubject.eraseToAnyPublisher()
     }
@@ -310,12 +451,23 @@ final class NativeAgentCenterController {
          roomID: String,
          roomMemberMxids: @escaping @MainActor () async -> Set<String>,
          inviteAgent: @escaping @MainActor (String) async -> Bool,
-         endingRecheckInterval: Duration = .seconds(1)) {
+         canKick: @escaping @MainActor () async -> Bool = { false },
+         kickAgent: @escaping @MainActor (String) async -> Bool = { _ in false },
+         translationPort: NativeCallTranslationPortProtocol? = nil,
+         agentEdited: @escaping @MainActor (AgentReadModel) -> Void = { _ in },
+         endingRecheckInterval: Duration = .seconds(1),
+         joinPollInterval: Duration = .milliseconds(1500)) {
         self.agentPlatformService = agentPlatformService
+        snapshotSubject = .init(NativeAgentCenterSnapshot(isConfigured: agentPlatformService != nil))
         self.roomID = roomID
         self.roomMemberMxids = roomMemberMxids
         self.inviteAgent = inviteAgent
+        self.canKick = canKick
+        self.kickAgent = kickAgent
+        self.translationPort = translationPort
+        self.agentEdited = agentEdited
         self.endingRecheckInterval = endingRecheckInterval
+        self.joinPollInterval = joinPollInterval
     }
 
     // MARK: - Loading
@@ -398,10 +550,97 @@ final class NativeAgentCenterController {
             }
         }
 
-        let candidates = await loadCandidates(agentPlatformService)
-        let availableLanguages = await loadLanguages(agentPlatformService, sessions: sessions, candidates: candidates)
-        finishLoad(sessions: sessions, candidates: candidates, availableLanguages: availableLanguages, isAvailable: true, error: nil)
+        // The owner's own sessions that are gone since the last read, other than a join still being followed: one
+        // of them may have been stopped by the AI limit.
+        let ended = snapshotSubject.value.sessions.filter { previous in
+            previous.canControl && pendingJoinFollow[previous.sessionID] == nil && !sessions.contains { $0.sessionID == previous.sessionID }
+        }
+
+        // A failed list keeps the agents already known; with none known it is "couldn't check", never "you have
+        // no assistant" (question 401, checklist 1).
+        let loadedCandidates = await loadCandidates(agentPlatformService)
+        let candidates = loadedCandidates ?? snapshotSubject.value.candidates
+        let ownAgentsUnread = loadedCandidates == nil && snapshotSubject.value.ownAgentMxids.isEmpty
+        let availableLanguages = await translationPort?.languages() ?? snapshotSubject.value.availableLanguages
+        let canRemoveOthers = await canKick()
+        // Before the snapshot that says the platform answered: what reads that answer (the chat's tool at the call's
+        // start) must find the facts in it.
+        await refreshTranslationFacts()
+        // Why an own session ended lands with the snapshot that drops it, so the sheet never says "no assistants" in
+        // between (question 401, remark 10).
+        for session in ended {
+            await noteStop(session, candidates: candidates, service: agentPlatformService)
+        }
+        finishLoad(sessions: sessions,
+                   candidates: candidates,
+                   availableLanguages: availableLanguages,
+                   isAvailable: true,
+                   error: ownAgentsUnread ? .unavailable("own agents unread") : nil)
+        var loaded = snapshotSubject.value
+        loaded.canRemoveOthersFromChat = canRemoveOthers
+        snapshotSubject.value = loaded
         scheduleEndingRecheck(isAnySessionEnding: sessions.contains(where: \.isEnding))
+    }
+
+    // MARK: - The AI limit mid-call (D7, D10)
+
+    /// Reads why an own session ended: on the AI limit, the call screen's line and the reason on the agent's add row;
+    /// on a consent stop, the reason on the row only (flows N6). A read that fails says nothing: the session may have
+    /// ended for any reason.
+    private func noteStop(_ session: NativeAgentCenterSession,
+                          candidates: [NativeAgentCenterCandidate],
+                          service: AgentPlatformServiceProtocol) async {
+        guard case .success(.ended(let reason)) = await service.voiceSessionProgress(sessionID: session.sessionID) else { return }
+        let agentID = candidates.first { $0.mxid == session.agentMxid }?.id
+
+        let stop: NativeAgentCenterLimitStop?
+        let failure: NativeAgentCenterJoinFailure
+        switch reason {
+        case .budgetReached:
+            let usage = await usage(of: agentID, service: service)
+            stop = .limitReached(isWeekly: usage?.current.period == .week)
+            failure = .budgetReached
+        case .categoryPaused(let category):
+            let pause = await categoryPause(category, of: agentID, service: service)
+            if case .until(let date) = pause {
+                stop = .categoryPaused(category, until: date)
+            } else {
+                stop = .categoryPaused(category, until: nil)
+            }
+            failure = .categoryPaused(category, pause)
+        case .optOut, .aiConsentOwner, .aiConsentRoom:
+            guard let consent = NativeAgentCenterJoinFailure(reason) else { return }
+            stop = nil
+            failure = consent
+        case .callEnded, .manual, .failed, .unknown:
+            return
+        }
+
+        var pending = snapshotSubject.value
+        if let stop {
+            pending.limitStop = stop
+        }
+        if let agentID {
+            pending.joinFailures[agentID] = failure
+        }
+        snapshotSubject.value = pending
+    }
+
+    /// A category's pause from the agent's usage; nil when it could not be read, or says no pause.
+    private func categoryPause(_ category: AgentUsage.Category, of agentID: String?, service: AgentPlatformServiceProtocol) async -> AgentUsage.Pause? {
+        await usage(of: agentID, service: service)?.current.categories.first { $0.category == category }?.pause
+    }
+
+    /// The agent's usage for the line's date and period; nil when it could not be read.
+    private func usage(of agentID: String?, service: AgentPlatformServiceProtocol) async -> AgentUsage? {
+        guard let agentID else { return nil }
+        switch await service.fetchAgentUsage(agentID: agentID) {
+        case .success(let usage):
+            return usage
+        case .failure(let error):
+            MXLog.warning("Agent center: usage read failed after a limit stop: \(error)")
+            return nil
+        }
     }
 
     // MARK: - Teardown re-reads
@@ -439,32 +678,204 @@ final class NativeAgentCenterController {
 
     /// Adds an agent to this call. An invite-only room refuses the attach
     /// until the agent is a member, so that one rejection — and only that one
-    /// — is retried after inviting.
+    /// — is retried after inviting. A refusal lands on the agent's own add row
+    /// (question 387, F3), and an accepted attach is followed until the agent
+    /// is in the call or its session says why it never got there (B1).
     func attach(agentID: String, params: VoiceAttachParams) async -> Bool {
         guard let agentPlatformService else { return false }
 
         guard let candidate = snapshotSubject.value.candidates.first(where: { $0.id == agentID }) else {
-            setError(.unavailable("agent not found"))
+            setJoinFailure(.failed, for: agentID)
             return false
         }
+        var cleared = snapshotSubject.value
+        cleared.joinFailures[agentID] = nil
+        cleared.acceptedAttaches.remove(agentID)
+        snapshotSubject.value = cleared
 
         var result = await agentPlatformService.attachVoiceAgent(agentID: agentID, roomID: roomID, params: params)
 
         if !candidate.isRoomMember, case .failure(let error) = result, Self.isInviteRequired(error) {
             guard await inviteAgent(candidate.mxid) else {
-                setError(.unavailable("could not invite the agent"))
+                // An ask-to-join room: only admins may add members (D8).
+                await reload()
+                setJoinFailure(.askToJoin, for: agentID)
                 return false
             }
             result = await agentPlatformService.attachVoiceAgent(agentID: agentID, roomID: roomID, params: params)
         }
 
         switch result {
-        case .success:
+        case .success(let sessionID):
+            var pending = snapshotSubject.value
+            pending.limitStop = nil
+            pending.acceptedAttaches.insert(agentID)
+            pending.joinStartedAt[sessionID] = pending.joinStartedAt[sessionID] ?? Date()
+            snapshotSubject.value = pending
             await reload()
+            followJoin(sessionID: sessionID, agentID: agentID)
+            return true
+        case .failure(.recordingCovered(let cover)):
+            // Before the re-read, so the button never shows a start that can't happen while it runs.
+            setRecordingRefusal(cover)
+            await reload()
+            return false
+        case .failure(let error):
+            Self.logQuietRefusal(error)
+            await reload()
+            setJoinFailure(Self.joinFailure(error), for: agentID)
+            return false
+        }
+    }
+
+    /// `translation-intent-unavailable` (ADR-0094 A.2) is the app's own mistake, never the person's: refused quietly,
+    /// with the room kind for whoever reads the log.
+    private static func logQuietRefusal(_ error: VoiceControlsError) {
+        if case .intentUnavailable(let roomKind) = error {
+            MXLog.error("Agent center: the translation intent was refused in a \(roomKind) room")
+        }
+    }
+
+    /// Lets go of a join that is taking too long (N8): the same teardown as Remove.
+    func cancelJoin(sessionID: String) async -> Bool {
+        await remove(sessionID: sessionID)
+    }
+
+    /// Takes the owner's pause off (F3a), then asks again whether the agent can come.
+    func resume(agentID: String) async -> Bool {
+        guard let agentPlatformService else { return false }
+        var patch = AgentEditPatch()
+        patch.paused = false
+        switch await agentPlatformService.editAgent(agentID: agentID, patch: patch) {
+        case .success(let readModel):
+            agentEdited(readModel)
+            setJoinFailure(nil, for: agentID)
+            await reload()
+            await refreshJoinChecks()
             return true
         case .failure(let error):
-            await reloadReporting(.init(error))
+            MXLog.warning("Agent center: resume failed for \(agentID): \(error)")
+            setError(.unavailable("resume failed"), scope: .agent(agentID))
             return false
+        }
+    }
+
+    /// Removes someone else's assistant from the chat (D6): a Matrix kick from this person's own client, which ends
+    /// its call session. Only offered with kick rights.
+    func removeFromChat(agentMxid: String) async -> Bool {
+        guard await kickAgent(agentMxid) else {
+            setError(.unavailable("kick refused"), scope: .foreign(agentMxid))
+            return false
+        }
+        await reload()
+        return true
+    }
+
+    /// Asks the backend, for each own agent not in the call, whether it can come (B4). A check that could not be read
+    /// leaves no entry: the sheet then offers the plain add, and the attach still says why.
+    func refreshJoinChecks() async {
+        guard let agentPlatformService else { return }
+        var checking = snapshotSubject.value
+        checking.isCheckingJoins = true
+        snapshotSubject.value = checking
+        let snapshot = checking
+        var checks: [String: VoiceJoinCheckReason] = [:]
+        for candidate in snapshot.candidates where !snapshot.attachedAgentMxids.contains(candidate.mxid) {
+            guard case .success(let reason) = await agentPlatformService.voiceJoinCheck(agentID: candidate.id, roomID: roomID) else { continue }
+            if case .categoryPaused = reason {
+                // The check names no date; the usage says until when Calls are paused.
+                checks[candidate.id] = await .categoryPaused(categoryPause(.calls, of: candidate.id, service: agentPlatformService))
+            } else {
+                checks[candidate.id] = reason
+            }
+        }
+        var pending = snapshotSubject.value
+        pending.joinChecks = checks
+        pending.joinChecksAsked.formUnion(snapshot.candidates.map(\.id))
+        pending.isCheckingJoins = false
+        snapshotSubject.value = pending
+    }
+
+    /// The consent prompt the sheet shows for "Allow AI" (F3b): Brief 0078's own screen and words.
+    /// The weekly Limit page for an own agent (Brief 0079 3c), read through its own store: "My limit" next to a limit's
+    /// refusal (question 401, board A). Nil without a platform.
+    func makeUsageViewModel(agentID: String) -> AgentUsageScreenViewModel? {
+        guard let agentPlatformService else { return nil }
+        return AgentUsageScreenViewModel(agentID: agentID, store: AgentsStore(service: agentPlatformService))
+    }
+
+    func makeAIConsentViewModel() -> AIConsentPromptScreenViewModel? {
+        agentPlatformService.map {
+            AIConsentPromptScreenViewModel(store: AgentsStore(service: $0), privacyURL: SpiralEnvironment.current.privacyURL)
+        }
+    }
+
+    // MARK: - Following a join (B1, N8)
+
+    private let joinPollInterval: Duration
+    /// About three minutes at the default interval; a ringing call waits without a timeout on screen, and the
+    /// doorbell reload still covers a join that lands later.
+    private static let joinPollLimit = 120
+    /// Test seam, like `pendingReconcile`.
+    private(set) var pendingJoinFollow: [String: Task<Void, Never>] = [:]
+
+    private func followJoin(sessionID: String, agentID: String) {
+        pendingJoinFollow[sessionID]?.cancel()
+        pendingJoinFollow[sessionID] = Task { [weak self, joinPollInterval] in
+            for _ in 0..<Self.joinPollLimit {
+                guard let self, !Task.isCancelled,
+                      let service = agentPlatformService else { return }
+                switch await service.voiceSessionProgress(sessionID: sessionID) {
+                case .success(.joining):
+                    break
+                case .success(.active), .success(.ending), .failure(.gone):
+                    finishFollowing(sessionID: sessionID)
+                    return
+                case .success(.ended(let reason)):
+                    finishFollowing(sessionID: sessionID)
+                    await reload()
+                    setJoinFailure(NativeAgentCenterJoinFailure(reason), for: agentID)
+                    return
+                case .failure(let error):
+                    // A failed read is not an end: keep asking.
+                    MXLog.warning("Agent center: join progress read failed for \(sessionID): \(error)")
+                }
+                try? await Task.sleep(for: joinPollInterval)
+            }
+            self?.finishFollowing(sessionID: sessionID)
+        }
+    }
+
+    private func finishFollowing(sessionID: String) {
+        pendingJoinFollow[sessionID] = nil
+        var pending = snapshotSubject.value
+        pending.joinStartedAt[sessionID] = nil
+        snapshotSubject.value = pending
+    }
+
+    private func setRecordingRefusal(_ cover: VoiceRecordingCover) {
+        var pending = snapshotSubject.value
+        pending.recordingRefusal = NativeAgentCenterRecordingRefusal(cover: cover, at: Date())
+        snapshotSubject.value = pending
+    }
+
+    private func setJoinFailure(_ failure: NativeAgentCenterJoinFailure?, for agentID: String) {
+        var pending = snapshotSubject.value
+        pending.joinFailures[agentID] = failure
+        snapshotSubject.value = pending
+    }
+
+    private static func joinFailure(_ error: VoiceControlsError) -> NativeAgentCenterJoinFailure {
+        switch error {
+        case .agentPaused: .paused
+        case .inviteRequired: .askToJoin
+        case .conflict: .cannotJoinCalls
+        case .translationPaused(let refusal):
+            switch refusal.reason {
+            case .aiLimit: .budgetReached
+            case .translationPaused, .callCap: .categoryPaused(.callTranslation, refusal.pauseUntil.map(AgentUsage.Pause.until) ?? .untilChanged)
+            }
+        case .gone, .rejected, .intentUnavailable, .recordingCovered, .serviceUnavailable, .unauthorized, .unavailable: .failed
         }
     }
 
@@ -489,7 +900,7 @@ final class NativeAgentCenterController {
             reconcileAfterRemoval()
             return true
         case .failure(let error):
-            await reloadReporting(.init(error))
+            await reloadReporting(.init(error), scope: .session(sessionID, .remove))
             return false
         }
     }
@@ -533,12 +944,12 @@ final class NativeAgentCenterController {
     func setSwitch(sessionID: String, control: VoiceSessionSwitch, enabled: Bool) async -> Bool {
         guard let agentPlatformService,
               let session = snapshotSubject.value.sessions.first(where: { $0.sessionID == sessionID }) else {
-            setError(.unavailable("session not found"))
+            setError(.gone, scope: .session(sessionID, Self.row(of: control)))
             return false
         }
 
         guard session.canControl else {
-            setError(.notOwner)
+            setError(.notOwner, scope: .session(sessionID, Self.row(of: control)))
             return false
         }
 
@@ -572,14 +983,29 @@ final class NativeAgentCenterController {
         case .success(let controls):
             apply(controls: controls, sessionID: sessionID, written: fact)
             return true
+        case .failure(.recordingCovered(let cover)):
+            // Question 404: not a failure to retry — the button shows who records instead.
+            withdrawInFlight(fact, for: session.agentMxid, restoring: superseded)
+            setRecordingRefusal(cover)
+            await reload()
+            return false
         case .failure(let error):
             // An ON tap is rolled back before the re-read, which takes
             // several round trips (an OFF tap bridged nothing). Conflict and
             // gone both mean our view of the world is stale, so the only
             // honest next step is to re-read it.
             withdrawInFlight(fact, for: session.agentMxid, restoring: superseded)
-            await reloadReporting(Self.switchError(error, control: control, enabled: enabled))
+            await reloadReporting(Self.switchError(error, control: control, enabled: enabled),
+                                  scope: .session(sessionID, Self.row(of: control)))
             return false
+        }
+    }
+
+    private static func row(of control: VoiceSessionSwitch) -> NativeAgentCenterErrorScope.Row {
+        switch control {
+        case .recording: .recording
+        case .summary: .summary
+        case .conversation: .mainJob
         }
     }
 
@@ -597,78 +1023,39 @@ final class NativeAgentCenterController {
         return .init(error)
     }
 
-    /// Owner-authorized translation write. Takes the FULL booth list +
-    /// style — the editor edits what the engine runs, never a flat
-    /// projection that would erase per-speaker configuration on Apply
-    /// (the exact defect Brief 0062 removed from the web widget and the
-    /// first native editor reintroduced). CAS revision comes from the
-    /// snapshot so a stale view conflicts instead of clobbering.
+    /// An enabling translation write (ADR-0094 A.2): turning it on, changing its language, «Продолжить». The CAS
+    /// revision comes from the snapshot so a stale view conflicts instead of clobbering. A pause or limit refusal says
+    /// why on the call screen and in the sheet; a refused form is quiet.
     func setTranslation(sessionID: String, params: VoiceTranslationParams) async -> Bool {
         guard let agentPlatformService,
               let session = snapshotSubject.value.sessions.first(where: { $0.sessionID == sessionID }) else {
-            setError(.unavailable("session not found"))
+            setError(.gone, scope: .session(sessionID, .translation))
             return false
         }
         guard session.canControl else {
-            setError(.notOwner)
-            return false
-        }
-        guard VoiceTranslationBooths.isValid(params.booths) else {
-            setError(.invalidBooths)
+            setError(.notOwner, scope: .session(sessionID, .translation))
             return false
         }
 
-        markOwnerWrite(sessionID: sessionID)
         switch await agentPlatformService.setVoiceTranslation(sessionID: sessionID,
                                                               params: params,
                                                               revision: session.translation.revision) {
         case .success(let controls):
-            apply(controls: controls,
-                  sessionID: sessionID,
-                  written: .translation(languages: Self.documentLanguages(params.booths)))
+            apply(controls: controls, sessionID: sessionID, written: .translation(languages: params.languages))
             return true
-        case .failure(let error):
-            await reloadReporting(.init(error))
-            return false
-        }
-    }
-
-    /// Drop the session override and fall back to the room's standing
-    /// rule (`room_tool`) or off. The owner's mental model is "tools
-    /// live in the room" — this is the way back to that rule.
-    func clearTranslationOverride(sessionID: String) async -> Bool {
-        guard let agentPlatformService else { return false }
-        markOwnerWrite(sessionID: sessionID)
-        switch await agentPlatformService.clearVoiceTranslationOverride(sessionID: sessionID) {
-        case .success(let controls):
-            // Back to the room's rule: what the engine now runs is the
-            // effective booth list the server returned.
-            apply(controls: controls,
-                  sessionID: sessionID,
-                  written: .translation(languages: Self.documentLanguages(controls.effective.booths)))
-            return true
-        case .failure(let error):
-            await reloadReporting(.init(error))
-            return false
-        }
-    }
-
-    /// Promote the CURRENT override to the room's standing rule so the
-    /// next call starts with it without reconfiguring.
-    func saveTranslationAsRoomDefault(sessionID: String) async -> Bool {
-        guard let agentPlatformService else { return false }
-        switch await agentPlatformService.saveVoiceTranslationAsRoomDefault(sessionID: sessionID) {
-        case .success:
-            var pending = snapshotSubject.value
-            pending.savedAsRoomDefaultSessionIDs.insert(sessionID)
-            snapshotSubject.value = pending
-            // The promotion changes the effective source (override →
-            // room_tool); re-read so the editor stops offering to clear an
-            // override that is now the room's rule.
+        case .failure(.intentUnavailable(let roomKind)):
+            Self.logQuietRefusal(.intentUnavailable(roomKind: roomKind))
             await reload()
-            return true
+            return false
+        case .failure(.translationPaused(let refusal)):
+            await reload()
+            var pending = snapshotSubject.value
+            pending.limitStop = NativeAgentCenterLimitStop(refusal)
+            snapshotSubject.value = pending
+            setError(.translationPaused(refusal), scope: .session(sessionID, .translation))
+            return false
         case .failure(let error):
-            await reloadReporting(.init(error))
+            await reloadReporting(.init(error), scope: .session(sessionID, .translation))
             return false
         }
     }
@@ -676,23 +1063,70 @@ final class NativeAgentCenterController {
     func disableTranslation(sessionID: String) async -> Bool {
         guard let agentPlatformService,
               let session = snapshotSubject.value.sessions.first(where: { $0.sessionID == sessionID }) else {
-            setError(.unavailable("session not found"))
+            setError(.gone, scope: .session(sessionID, .mainJob))
             return false
         }
         guard session.canControl else {
-            setError(.notOwner)
+            setError(.notOwner, scope: .session(sessionID, .mainJob))
             return false
         }
-        markOwnerWrite(sessionID: sessionID)
         switch await agentPlatformService.disableVoiceTranslation(sessionID: sessionID,
                                                                   revision: session.translation.revision) {
         case .success(let controls):
             apply(controls: controls, sessionID: sessionID, written: .translation(languages: []))
             return true
         case .failure(let error):
-            await reloadReporting(.init(error))
+            await reloadReporting(.init(error), scope: .session(sessionID, .mainJob))
             return false
         }
+    }
+
+    // MARK: - Translation for everyone (Brief 0085)
+
+    /// Publishes "my language" with the call membership (ADR-0094 A.1); the facts are read again so the call sees it.
+    func publishMyLanguage(_ language: String) async -> Bool {
+        guard let translationPort else { return false }
+        let isPublished = await translationPort.publishMyLanguage(language, roomID: roomID)
+        await refreshTranslationFacts()
+        return isPublished
+    }
+
+    /// Stores this chat's personal tool "Call translation" (A.5, row 14), then reads it back.
+    func setTranslationTool(_ tool: NativeCallTranslationTool) async -> Bool {
+        guard let translationPort, await translationPort.setTool(tool, roomID: roomID) else {
+            setError(.unavailable("tool not stored"), scope: .translationTool)
+            return false
+        }
+        var pending = snapshotSubject.value
+        pending.translationFacts.tool = tool.isEnabled ? tool : nil
+        snapshotSubject.value = pending
+        await refreshTranslationFacts()
+        return true
+    }
+
+    /// The participants' languages alone, as the memberships change: no platform round trip.
+    func refreshParticipantLanguages() async {
+        guard let languages = await translationPort?.participantLanguages(roomID: roomID),
+              languages != snapshotSubject.value.translationFacts.languages else { return }
+        var pending = snapshotSubject.value
+        pending.translationFacts.languages = languages
+        snapshotSubject.value = pending
+    }
+
+    /// Reads the participants' languages and the chat's tool, without the sessions' round trips. A read that fails
+    /// keeps what was known.
+    func refreshTranslationFacts() async {
+        guard let translationPort else { return }
+        let languages = await translationPort.participantLanguages(roomID: roomID)
+        let tool = await translationPort.tool(roomID: roomID)
+        var pending = snapshotSubject.value
+        if let languages {
+            pending.translationFacts.languages = languages
+        }
+        if case .success(let tool) = tool {
+            pending.translationFacts.tool = tool
+        }
+        snapshotSubject.value = pending
     }
 
     func clearError() {
@@ -706,41 +1140,24 @@ final class NativeAgentCenterController {
     /// Re-reads backend truth after a failed action while keeping the reason
     /// the action failed. A plain `reload` clears the error, which would hide
     /// exactly the conflict or rejection the owner needs to see.
-    private func reloadReporting(_ error: NativeAgentCenterError) async {
+    private func reloadReporting(_ error: NativeAgentCenterError, scope: NativeAgentCenterErrorScope = .global) async {
         await reload()
-        setError(error)
+        setError(error, scope: scope)
     }
 
-    /// The owner's agent's catalog — read without a session, so the Add
-    /// sheet can pick a language before the FIRST attach (decision 180). The
-    /// agent in the call when there is one, else the first one offered. A
-    /// failed read keeps the languages already known: it is not "none".
-    private func loadLanguages(_ service: AgentPlatformServiceProtocol,
-                               sessions: [NativeAgentCenterSession],
-                               candidates: [NativeAgentCenterCandidate]) async -> [VoiceControlsCatalogLanguage] {
-        let inCall = sessions.first(where: \.canControl).flatMap { session in
-            candidates.first { $0.mxid == session.agentMxid }
-        }
-        // No agent to read for (or its list failed): nothing new is known.
-        guard let agent = inCall ?? candidates.first else { return snapshotSubject.value.availableLanguages }
-        switch await service.voiceControlsCatalog(agentID: agent.id) {
-        case .success(let catalog):
-            return catalog.voiceTranslationLanguages
-        case .failure(let error):
-            MXLog.warning("Agent center: catalog read failed for \(agent.id): \(error)")
-            return snapshotSubject.value.availableLanguages
-        }
-    }
-
-    private func loadCandidates(_ service: AgentPlatformServiceProtocol) async -> [NativeAgentCenterCandidate] {
+    /// Nil when the list could not be read.
+    private func loadCandidates(_ service: AgentPlatformServiceProtocol) async -> [NativeAgentCenterCandidate]? {
         switch await service.listMyPersonalAgents() {
         case .failure(let error):
             MXLog.warning("Agent center: listMyPersonalAgents failed: \(error)")
-            return []
+            return nil
         case .success(let view):
             let members = await roomMemberMxids()
+            var pending = snapshotSubject.value
+            pending.ownAgentMxids = Set(view.agents.map(\.matrixUserID))
+            snapshotSubject.value = pending
             return view.agents
-                .filter { $0.lifecycleState == "active" }
+                .filter { $0.lifecycleState == "active" || $0.lifecycleState == "suspended" }
                 .map { agent in
                     // The platform name wins; the localpart rule is the LAST
                     // resort, for a record whose name is somehow empty — not
@@ -752,7 +1169,8 @@ final class NativeAgentCenterController {
                                                           ? NativeCallFallbackName.make(mxid: agent.matrixUserID)
                                                           : name,
                                                       avatarURL: agent.avatarMXC.flatMap(URL.init(string:)),
-                                                      isRoomMember: members.contains(agent.matrixUserID))
+                                                      isRoomMember: members.contains(agent.matrixUserID),
+                                                      isPaused: agent.lifecycleState == "suspended")
                 }
         }
     }
@@ -762,25 +1180,32 @@ final class NativeAgentCenterController {
                             availableLanguages: [VoiceControlsCatalogLanguage] = [],
                             isAvailable: Bool,
                             error: NativeAgentCenterError?) {
-        var pending = NativeAgentCenterSnapshot(isAvailable: isAvailable,
+        var pending = NativeAgentCenterSnapshot(isConfigured: snapshotSubject.value.isConfigured,
+                                                isAvailable: isAvailable,
                                                 isLoading: false,
                                                 sessions: sessions,
                                                 candidates: candidates,
                                                 availableLanguages: availableLanguages,
                                                 lastError: error)
-        // Doorbell reloads are how ANOTHER participant's displacement
-        // reaches us — diff every surviving session's coverage.
-        pending.displacedSessionIDs = snapshotSubject.value.displacedSessionIDs
-        pending.savedAsRoomDefaultSessionIDs = snapshotSubject.value.savedAsRoomDefaultSessionIDs
-            .intersection(sessions.map(\.sessionID))
         pending.pendingOwnerWrites = snapshotSubject.value.pendingOwnerWrites
-        for session in sessions {
-            guard let previous = snapshotSubject.value.sessions
-                .first(where: { $0.sessionID == session.sessionID }) else { continue }
-            updateDisplacement(sessionID: session.sessionID,
-                               previous: previous.translation.booths,
-                               next: session.translation.booths,
-                               pending: &pending)
+        let previous = snapshotSubject.value
+        pending.ownAgentMxids = previous.ownAgentMxids
+        pending.joinChecks = previous.joinChecks
+        pending.joinChecksAsked = previous.joinChecksAsked
+        pending.isCheckingJoins = previous.isCheckingJoins
+        pending.joinFailures = previous.joinFailures
+        pending.joinStartedAt = previous.joinStartedAt
+        pending.acceptedAttaches = previous.acceptedAttaches
+        pending.limitStop = previous.limitStop
+        pending.canRemoveOthersFromChat = previous.canRemoveOthersFromChat
+        pending.translationFacts = previous.translationFacts
+        pending.recordingRefusal = previous.recordingRefusal
+        // A refusal on a row stays until the next write or the sheet closes: the re-read that the write's own effect
+        // rings (the doorbell) used to wipe it before it was seen (question 401, remark 8). Only a global error is
+        // the platform's state, and a good read answers it.
+        if error == nil, previous.lastError != nil, previous.lastErrorScope != .global {
+            pending.lastError = previous.lastError
+            pending.lastErrorScope = previous.lastErrorScope
         }
         snapshotSubject.value = pending
     }
@@ -794,10 +1219,6 @@ final class NativeAgentCenterController {
         guard let index = pending.sessions.firstIndex(where: { $0.sessionID == sessionID }) else { return }
 
         let existing = pending.sessions[index]
-        updateDisplacement(sessionID: sessionID,
-                           previous: existing.translation.booths,
-                           next: controls.effective.booths,
-                           pending: &pending)
         pending.sessions[index] = NativeAgentCenterSession(sessionID: existing.sessionID,
                                                            agentMxid: existing.agentMxid,
                                                            canControl: existing.canControl,
@@ -809,8 +1230,7 @@ final class NativeAgentCenterController {
                                                            recording: .init(controls.artifacts.recording),
                                                            summary: .init(controls.artifacts.summary),
                                                            translation: .init(controls),
-                                                           conversation: .init(controls.conversation),
-                                                           canSaveAsRoomDefault: controls.canSaveAsRoomDefault)
+                                                           conversation: .init(controls.conversation))
         pending.lastError = nil
         // The owner's optimism, time-bounded: what the server just accepted
         // shows at once (an ON tap already did), and expires unless the
@@ -818,13 +1238,6 @@ final class NativeAgentCenterController {
         Self.record(written, for: pending.sessions[index].agentMxid, in: &pending, expiresAt: Self.ownerWriteExpiry(from: Date()))
         snapshotSubject.value = pending
         rescheduleSweep()
-    }
-
-    /// The document's currency for a booth list: base-normalised codes,
-    /// unique, sorted — what `SpiralAgentStateReader` reads back, so a
-    /// write can settle against it.
-    static func documentLanguages(_ booths: [VoiceTranslationBooth]) -> [String] {
-        Array(Set(booths.flatMap(\.targetLanguages).map(LanguageTag.base(of:)))).sorted()
     }
 
     // MARK: - Owner optimism (the ONE bridge)
@@ -893,7 +1306,7 @@ final class NativeAgentCenterController {
                 case .recording(let value): document.isRecording != value
                 case .summary(let value): document.isSummaryArmed != value
                 case .conversation(let value): document.isConversationActive != value
-                case .translation(let languages): Set(document.translation.configuredLanguages) != Set(languages)
+                case .translation(let languages): Set(document.translation.languages) != Set(languages)
                 case .leaving: document.lifecycle != .leaving
                 }
             }
@@ -944,37 +1357,10 @@ final class NativeAgentCenterController {
         snapshotSubject.value.pendingOwnerWrites.values.flatMap { $0 }.compactMap(\.expiresAt).min()
     }
 
-    /// Timestamps of the last translation write THIS controller issued,
-    /// per session. A coverage shrink that lands shortly after our own
-    /// write is the write echoing back, not displacement.
-    private var lastOwnerWriteAt: [String: Date] = [:]
-    private static let ownerWriteEchoWindow: TimeInterval = 10
-
-    private func markOwnerWrite(sessionID: String) {
-        lastOwnerWriteAt[sessionID] = Date()
-    }
-
-    /// Compare the incoming translation state against what we last
-    /// showed; flag the session as displaced when coverage strictly
-    /// shrank and the owner did not just write themself.
-    private func updateDisplacement(sessionID: String,
-                                    previous: [VoiceTranslationBooth],
-                                    next: [VoiceTranslationBooth],
-                                    pending: inout NativeAgentCenterSnapshot) {
-        let recentOwnerWrite = lastOwnerWriteAt[sessionID]
-            .map { Date().timeIntervalSince($0) < Self.ownerWriteEchoWindow } ?? false
-        if recentOwnerWrite {
-            pending.displacedSessionIDs.remove(sessionID)
-            return
-        }
-        if VoiceTranslationBooths.coverageShrank(previous: previous, next: next) {
-            pending.displacedSessionIDs.insert(sessionID)
-        }
-    }
-
-    private func setError(_ error: NativeAgentCenterError) {
+    private func setError(_ error: NativeAgentCenterError, scope: NativeAgentCenterErrorScope = .global) {
         var pending = snapshotSubject.value
         pending.lastError = error
+        pending.lastErrorScope = scope
         snapshotSubject.value = pending
     }
 
@@ -987,8 +1373,7 @@ final class NativeAgentCenterController {
                                  recording: controls.map { .init($0.artifacts.recording) } ?? .unknown,
                                  summary: controls.map { .init($0.artifacts.summary) } ?? .unknown,
                                  translation: controls.map { .init($0) } ?? .unknown,
-                                 conversation: controls.map { .init($0.conversation) } ?? .unknown,
-                                 canSaveAsRoomDefault: controls?.canSaveAsRoomDefault ?? false)
+                                 conversation: controls.map { .init($0.conversation) } ?? .unknown)
     }
 
     /// Whether the backend refused this attach because the room is invite-only
@@ -1001,6 +1386,21 @@ final class NativeAgentCenterController {
     private static func isInviteRequired(_ error: VoiceControlsError) -> Bool {
         if case .inviteRequired = error { return true }
         return false
+    }
+}
+
+/// The call's "Перевод звонков" screen reads and stores the chat's tool through the call (row 14).
+extension NativeAgentCenterController: CallTranslationToolServiceProtocol {
+    func languages() async -> [VoiceControlsCatalogLanguage]? {
+        snapshot.availableLanguages.isEmpty ? await translationPort?.languages() : snapshot.availableLanguages
+    }
+
+    func translationTool() async -> Result<NativeCallTranslationTool?, NativeCallTranslationPortError> {
+        await translationPort?.tool(roomID: roomID) ?? .failure(.unavailable)
+    }
+
+    func storeTranslationTool(_ tool: NativeCallTranslationTool) async -> Bool {
+        await setTranslationTool(tool)
     }
 }
 

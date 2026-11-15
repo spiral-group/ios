@@ -4,9 +4,9 @@
 // AGENT-PLATFORM (Brief 0076, audit tail).
 //
 
-@testable import ElementX
 import Foundation
 import MatrixRustSDKMocks
+@testable import Spiral
 import Testing
 
 struct SecurityPassTailTests {
@@ -14,7 +14,7 @@ struct SecurityPassTailTests {
     func theInvitationIsAppendedWithoutReencodingTheSDKQuery() throws {
         let sdkData = OAuthAuthorizationDataSDKMock()
         sdkData.loginUrlReturnValue = "https://spiral.md/auth/authorize?state=a%2Bb&redirect_uri=spiral%3A%2F%2Foidc"
-        let proxy = OAuthAuthorizationDataProxy(underlyingData: sdkData, inviteToken: "TESTFLIGHT")
+        let proxy = OAuthAuthorizationDataProxy(underlyingData: sdkData, homeserver: "example.com", inviteToken: "TESTFLIGHT")
         
         let url = proxy.url.absoluteString
         #expect(url.contains("state=a%2Bb"), "the SDK's %2B must survive")
@@ -26,7 +26,7 @@ struct SecurityPassTailTests {
     func withoutAnInvitationTheURLIsUntouched() {
         let sdkData = OAuthAuthorizationDataSDKMock()
         sdkData.loginUrlReturnValue = "https://spiral.md/auth/authorize?state=a%2Bb"
-        #expect(OAuthAuthorizationDataProxy(underlyingData: sdkData, inviteToken: nil).url.absoluteString
+        #expect(OAuthAuthorizationDataProxy(underlyingData: sdkData, homeserver: "example.com", inviteToken: nil).url.absoluteString
             == "https://spiral.md/auth/authorize?state=a%2Bb")
     }
     
@@ -36,16 +36,18 @@ struct SecurityPassTailTests {
     func aRegistrationSaysSoEvenWithoutAnInvitation() {
         let sdkData = OAuthAuthorizationDataSDKMock()
         sdkData.loginUrlReturnValue = "https://spiral.md/auth/authorize?state=a%2Bb"
-        #expect(OAuthAuthorizationDataProxy(underlyingData: sdkData, inviteToken: nil, isRegistration: true).url.absoluteString
+        #expect(OAuthAuthorizationDataProxy(underlyingData: sdkData, homeserver: "example.com", inviteToken: nil, isRegistration: true).url.absoluteString
             == "https://spiral.md/auth/authorize?state=a%2Bb&spiral_flow=register")
-        #expect(OAuthAuthorizationDataProxy(underlyingData: sdkData, inviteToken: "TESTFLIGHT", isRegistration: true).url.absoluteString
+        #expect(OAuthAuthorizationDataProxy(underlyingData: sdkData, homeserver: "example.com", inviteToken: "TESTFLIGHT", isRegistration: true).url.absoluteString
             == "https://spiral.md/auth/authorize?state=a%2Bb&spiral_invite=TESTFLIGHT&spiral_flow=register")
     }
     
+    // The real Info.plist: `spiral` is the second scheme, after the bundle identifier.
     @Test
-    func ourOwnSchemeIsRecognisedSoItIsNeverBouncedToTheBrowser() throws {
-        #expect(Application.isOwnScheme(try #require(URL(string: "spiral://phrase-changed?result=x")), appScheme: "spiral"))
-        #expect(Application.isOwnScheme(try #require(URL(string: "SPIRAL://unknown")), appScheme: "spiral"))
-        #expect(!Application.isOwnScheme(try #require(URL(string: "https://spiral.md/@a")), appScheme: "spiral"))
+    func everySchemeTheAppRegistersIsItsOwnSoItIsNeverBouncedToTheBrowser() throws {
+        #expect(try Application.isOwnScheme(#require(URL(string: "spiral://unknown-path"))))
+        #expect(try Application.isOwnScheme(#require(URL(string: "SPIRAL://phrase-changed?result=x"))))
+        #expect(try Application.isOwnScheme(#require(URL(string: "\(InfoPlistReader.app.baseBundleIdentifier)://share"))))
+        #expect(try !Application.isOwnScheme(#require(URL(string: "https://spiral.md/@a"))))
     }
 }

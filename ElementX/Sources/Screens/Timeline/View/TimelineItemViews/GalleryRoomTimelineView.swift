@@ -16,14 +16,14 @@ struct GalleryRoomTimelineView: View {
         timelineItem.content.caption?.isBlank == false
     }
     
-    // List layout when any item is non-visual (file/audio); a grid reads badly for documents.
     private var usesListLayout: Bool {
-        timelineItem.content.items.contains { !$0.isImage && !$0.isVideo }
+        timelineItem.usesListLayout
     }
     
     var body: some View {
         TimelineStyler(timelineItem: timelineItem) {
-            VStack(alignment: .leading, spacing: 8) {
+            // AGENT-PLATFORM (question 413): an album reaches the bubble's edges, and its caption keeps the inset, as a photo's does.
+            VStack(alignment: .leading, spacing: usesListLayout ? 8 : 0) {
                 if usesListLayout {
                     GalleryListView(items: timelineItem.content.items,
                                     mediaProvider: context?.mediaProvider,
@@ -41,10 +41,11 @@ struct GalleryRoomTimelineView: View {
                         GalleryDivider()
                     }
                     caption
+                        .pictureCaptionInsets(isActive: !usesListLayout) // AGENT-PLATFORM (Brief 0083)
                         .accessibilityHidden(true) // Announced when entering the gallery, so not a stop of its own.
                 }
             }
-            .frame(width: GalleryGridView.groupWidth, alignment: .leading)
+            .frame(width: usesListLayout ? GalleryListView.width : nil, alignment: .leading)
         }
     }
     
@@ -63,6 +64,13 @@ struct GalleryRoomTimelineView: View {
     
     private func tap(index: Int) {
         context?.send(viewAction: .galleryItemTapped(.init(timelineItemID: timelineItem.id, mediaIndex: index)))
+    }
+}
+
+extension GalleryRoomTimelineItem {
+    /// List layout when any item is non-visual (file/audio); a grid reads badly for documents.
+    var usesListLayout: Bool {
+        content.items.contains { !$0.isImage && !$0.isVideo }
     }
 }
 
@@ -93,8 +101,12 @@ struct GalleryRoomTimelineView_Previews: PreviewProvider, TestablePreview {
         makeView(makeItem(itemCount: 4), viewModel).previewDisplayName("4 images")
         makeView(makeItem(itemCount: 5), viewModel).previewDisplayName("5 images")
         makeView(makeItem(itemCount: 9, caption: "A trip to remember 🌅"), viewModel).previewDisplayName("6+ images with caption")
+        // AGENT-PLATFORM (question 413): an own album, blue under its caption.
+        makeView(makeItem(itemCount: 3, caption: "Waterfalls from the trip", isOutgoing: true), viewModel).previewDisplayName("Own album with caption")
         makeView(makeMixedScanItem(), mixedScanViewModel).previewDisplayName("Mixed content scan")
         makeView(makeFileListItem(caption: "Quarterly reports"), viewModel).previewDisplayName("File list")
+        // AGENT-PLATFORM (Brief 0083): its rows draw on the own bubble's blue fill.
+        makeView(makeFileListItem(caption: "Quarterly reports", isOutgoing: true), viewModel).previewDisplayName("Own file list")
         makeView(makeMixedScanFileListItem(), mixedScanViewModel).previewDisplayName("Mixed content scan (files)")
     }
     
@@ -105,16 +117,20 @@ struct GalleryRoomTimelineView_Previews: PreviewProvider, TestablePreview {
             .environment(\.timelineContext, viewModel.context)
     }
     
-    private static func makeItem(itemCount: Int, caption: String? = nil) -> GalleryRoomTimelineItem {
+    // AGENT-PLATFORM (question 413): landscape, portrait and square pictures, so the mosaic lays out by their shapes.
+    private static let shapes: [(width: UInt64, height: UInt64)] = [(1920, 1280), (1080, 1440), (1200, 1200)]
+    
+    private static func makeItem(itemCount: Int, caption: String? = nil, isOutgoing: Bool = false) -> GalleryRoomTimelineItem {
         let items: [GalleryItem] = (0..<itemCount).map { index in
-            index.isMultiple(of: 3)
+            let shape = shapes[index % shapes.count]
+            return index.isMultiple(of: 3)
                 ? .mockVideo(index: index, filename: "clip-\(index).mp4")
-                : .mockImage(index: index, filename: "image-\(index).jpg")
+                : .mockImage(index: index, filename: "image-\(index).jpg", width: shape.width, height: shape.height)
         }
         
         return GalleryRoomTimelineItem(id: .randomEvent,
                                        timestamp: .mock,
-                                       isOutgoing: false,
+                                       isOutgoing: isOutgoing,
                                        isEditable: false,
                                        canBeRepliedTo: true,
                                        sender: .init(id: "Bob"),
@@ -143,7 +159,7 @@ struct GalleryRoomTimelineView_Previews: PreviewProvider, TestablePreview {
                                        properties: .init())
     }
     
-    private static func makeFileListItem(caption: String?) -> GalleryRoomTimelineItem {
+    private static func makeFileListItem(caption: String?, isOutgoing: Bool = false) -> GalleryRoomTimelineItem { // AGENT-PLATFORM (Brief 0083)
         let items: [GalleryItem] = [
             .mockImage(index: 0, filename: "photo.jpg"),
             .mockFile(index: 1, filename: "report.pdf"),
@@ -152,7 +168,7 @@ struct GalleryRoomTimelineView_Previews: PreviewProvider, TestablePreview {
         
         return GalleryRoomTimelineItem(id: .randomEvent,
                                        timestamp: .mock,
-                                       isOutgoing: false,
+                                       isOutgoing: isOutgoing, // AGENT-PLATFORM (Brief 0083)
                                        isEditable: false,
                                        canBeRepliedTo: true,
                                        sender: .init(id: "Bob"),

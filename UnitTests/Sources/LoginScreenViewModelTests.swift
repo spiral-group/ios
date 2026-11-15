@@ -6,7 +6,7 @@
 // Please see LICENSE files in the repository root for full details.
 //
 
-@testable import ElementX
+@testable import Spiral
 import Testing
 
 @MainActor
@@ -16,7 +16,7 @@ struct LoginScreenViewModelTests {
         viewModel.context
     }
     
-    var clientFactory: AuthenticationClientFactoryMock!
+    var clientFactory: ClientFactoryMock!
     var service: AuthenticationServiceProtocol!
     
     @Test
@@ -192,25 +192,7 @@ struct LoginScreenViewModelTests {
                 "An alert should be shown to the user.")
     }
     
-    @Test
-    mutating func elementProRequired() async throws {
-        // Given the screen configured for matrix.org
-        await setupViewModel()
-        #expect(context.alertInfo == nil,
-                "There shouldn't be an alert when the screen loads.")
-        
-        // When entering a username for an unsupported homeserver.
-        let deferred = deferFulfillment(context.observe(\.viewState.bindings.alertInfo)) {
-            $0 != nil
-        }
-        context.username = "@bob:secure.gov"
-        context.send(viewAction: .parseUsername)
-        try await deferred.fulfill()
-        
-        // Then the view state should be updated to show an alert.
-        #expect(context.alertInfo?.id == .elementProAlert,
-                "An alert should be shown to the user.")
-    }
+    // AGENT-PLATFORM (Brief 0083 L1b): no elementProRequired test, the alert is gone.
     
     @Test
     mutating func loginHint() async {
@@ -226,26 +208,24 @@ struct LoginScreenViewModelTests {
     
     // MARK: - Helpers
     
-    private mutating func setupViewModel(homeserverAddress: String = "example.com", loginHint: String? = nil) async {
+    private mutating func setupViewModel(serverNameOrBaseURL: String = "example.com", loginHint: String? = nil) async {
         let appSettings = AppSettings.volatile()
         
-        clientFactory = AuthenticationClientFactoryMock(.init())
-        service = AuthenticationService(userSessionStore: UserSessionStoreMock(.init()),
-                                        encryptionKeyProvider: EncryptionKeyProvider(),
-                                        classicAppManager: nil,
+        clientFactory = ClientFactoryMock(.init())
+        service = AuthenticationService(userSessionManager: UserSessionManagerMock(.init()),
+                                        encryptionKeyProvider: EncryptionKeyProvider(), // AGENT-PLATFORM (Brief 0083 L1b): no Classic app manager
                                         clientFactory: clientFactory,
                                         appSettings: appSettings,
                                         appHooks: AppHooks())
         
         guard case .success = await service
-            .configure(for: homeserverAddress, flow: .login) else {
+            .configure(for: serverNameOrBaseURL, flow: .login) else {
             Issue.record("A valid server should be configured for the test.")
             return
         }
         
         viewModel = LoginScreenViewModel(authenticationService: service,
                                          loginHint: loginHint,
-                                         userIndicatorController: UserIndicatorControllerMock(),
-                                         appSettings: appSettings)
+                                         userIndicatorController: UserIndicatorControllerMock()) // AGENT-PLATFORM (Brief 0083 L1b)
     }
 }

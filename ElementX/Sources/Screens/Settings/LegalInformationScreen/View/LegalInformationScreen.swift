@@ -14,17 +14,23 @@ struct LegalInformationScreen: View {
     @Environment(\.openURL) private var openURL
     
     var body: some View {
+        // AGENT-PLATFORM (Brief 0083, lane settings): a row that opens outside the app shows Security's pop-out glyph,
+        // grey as the chevron.
         Form {
             Section {
                 ListRow(label: .plain(title: L10n.commonCopyright),
+                        details: .icon(popOut),
                         kind: .button { openURL(context.viewState.copyrightURL) })
                 // AGENT-PLATFORM: the URL is the full Terms of Use, and the row says so.
                 ListRow(label: .plain(title: UntranslatedL10n.commonTermsOfUseSpiral),
+                        details: .icon(popOut),
                         kind: .button { openURL(context.viewState.acceptableUseURL) })
                 ListRow(label: .plain(title: L10n.commonPrivacyPolicy),
+                        details: .icon(popOut),
                         kind: .button { openURL(context.viewState.privacyURL) })
                 // AGENT-PLATFORM (Brief 0078): the acknowledgements in Settings.bundle.
                 ListRow(label: .plain(title: L10n.commonOpenSourceLicenses),
+                        details: .icon(popOut),
                         kind: .button { context.send(viewAction: .openAcknowledgements) })
             }
             
@@ -32,10 +38,13 @@ struct LegalInformationScreen: View {
             // and where the source of the app and of the server it talks to is.
             Section {
                 ListRow(label: .plain(title: UntranslatedL10n.screenLegalInformationSourceCodeSpiral),
+                        details: .icon(popOut),
                         kind: .button { openURL(context.viewState.sourceCodeURL) })
                 ListRow(label: .plain(title: UntranslatedL10n.screenLegalInformationServerSourceCodeSpiral),
+                        details: .icon(popOut),
                         kind: .button { openURL(context.viewState.serverSourceCodeURL) })
                 ListRow(label: .plain(title: UntranslatedL10n.screenLegalInformationAllSourcesSpiral),
+                        details: .icon(popOut),
                         kind: .button { openURL(context.viewState.sourcesListURL) })
                 ListRow(label: .plain(title: UntranslatedL10n.screenLegalInformationSourceRequestSpiral),
                         details: .title(context.viewState.sourceRequestAddress),
@@ -49,16 +58,23 @@ struct LegalInformationScreen: View {
                     .compoundListSectionFooter()
             }
         }
-        .compoundList()
+        .spiralGroupedList() // AGENT-PLATFORM (Brief 0083): Spiral's grouped list, was `compoundList()`.
         .navigationTitle(L10n.commonAbout)
         .navigationBarTitleDisplayMode(.inline)
+    }
+    
+    // AGENT-PLATFORM (Brief 0083, lane settings).
+    private var popOut: some View {
+        CompoundIcon(\.popOut)
+            .foregroundStyle(.compound.iconTertiaryAlpha)
     }
 }
 
 // MARK: - Previews
 
-struct LegalInformationScreen_Previews: PreviewProvider, TestablePreview {
-    static let viewModel = LegalInformationScreenViewModel(appSettings: .volatile(), appMediator: AppMediatorMock())
+// AGENT-PLATFORM (Brief 0083, lane settings): gated.
+struct LegalInformationScreen_Previews: PreviewProvider, TestablePreview, SpiralGatedPreview {
+    static let viewModel = LegalInformationScreenViewModel(userSettings: .mock(), appMediator: AppMediatorMock())
     static var previews: some View {
         LegalInformationScreen(context: viewModel.context)
     }

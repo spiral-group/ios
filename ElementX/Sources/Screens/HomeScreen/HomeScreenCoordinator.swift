@@ -11,12 +11,12 @@ import SwiftUI
 
 struct HomeScreenCoordinatorParameters {
     let userSession: UserSessionProtocol
+    let availableSessionsPublisher: CurrentValuePublisher<[UserSessionDetails], Never>
     let bugReportService: BugReportServiceProtocol
     let selectedRoomPublisher: CurrentValuePublisher<String?, Never>
-    let appSettings: AppSettings
     let analyticsService: AnalyticsServiceProtocol
-    let notificationManager: NotificationManagerProtocol
     let userIndicatorController: UserIndicatorControllerProtocol
+    let searchContext: SearchScreenViewModelType.Context? // AGENT-PLATFORM (Brief 0083, question 343)
 }
 
 enum HomeScreenCoordinatorAction {
@@ -28,7 +28,6 @@ enum HomeScreenCoordinatorAction {
     case presentSpace(SpaceRoomListProxyProtocol)
     case roomLeft(roomIdentifier: String)
     case transferOwnership(roomIdentifier: String)
-    case presentSettingsScreen
     case presentFeedbackScreen
     case presentSecureBackupSettings
     case presentRecoveryKeyScreen
@@ -39,8 +38,7 @@ enum HomeScreenCoordinatorAction {
 
 final class HomeScreenCoordinator: CoordinatorProtocol {
     private var viewModel: HomeScreenViewModelProtocol
-    // periphery:ignore - only used in release builds
-    private let bugReportService: BugReportServiceProtocol
+    private let searchContext: SearchScreenViewModelType.Context? // AGENT-PLATFORM (Brief 0083, question 343)
     
     private let actionsSubject: PassthroughSubject<HomeScreenCoordinatorAction, Never> = .init()
     private var cancellables = Set<AnyCancellable>()
@@ -50,13 +48,13 @@ final class HomeScreenCoordinator: CoordinatorProtocol {
     }
     
     init(parameters: HomeScreenCoordinatorParameters) {
+        searchContext = parameters.searchContext
         viewModel = HomeScreenViewModel(userSession: parameters.userSession,
+                                        availableSessionsPublisher: parameters.availableSessionsPublisher,
                                         selectedRoomPublisher: parameters.selectedRoomPublisher,
-                                        appSettings: parameters.appSettings,
                                         analyticsService: parameters.analyticsService,
-                                        notificationManager: parameters.notificationManager,
+                                        bugReportService: parameters.bugReportService,
                                         userIndicatorController: parameters.userIndicatorController)
-        bugReportService = parameters.bugReportService
         
         viewModel.actions
             .sink { [weak self] action in
@@ -79,8 +77,6 @@ final class HomeScreenCoordinator: CoordinatorProtocol {
                     actionsSubject.send(.roomLeft(roomIdentifier: roomIdentifier))
                 case .presentFeedbackScreen:
                     actionsSubject.send(.presentFeedbackScreen)
-                case .presentSettingsScreen:
-                    actionsSubject.send(.presentSettingsScreen)
                 case .presentSecureBackupSettings:
                     actionsSubject.send(.presentSecureBackupSettings)
                 case .presentRecoveryKeyScreen:
@@ -100,17 +96,7 @@ final class HomeScreenCoordinator: CoordinatorProtocol {
     
     // MARK: - Public
     
-    func start() {
-        #if !DEBUG
-        // Note: bugReportService.isEnabled doesn't determine if a user has opted in to Analytics/Sentry.
-        // Therefore we use lastCrashEventID as this will only be set if we have crash ID from Sentry.
-        if bugReportService.crashedLastRun, bugReportService.lastCrashEventID != nil {
-            viewModel.presentCrashedLastRunAlert()
-        }
-        #endif
-    }
-    
     func toPresentable() -> AnyView {
-        AnyView(HomeScreen(context: viewModel.context))
+        AnyView(HomeScreen(context: viewModel.context, searchContext: searchContext))
     }
 }

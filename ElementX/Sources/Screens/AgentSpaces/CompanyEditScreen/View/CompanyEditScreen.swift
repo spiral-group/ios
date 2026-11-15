@@ -103,6 +103,7 @@ struct CompanyEditScreen: View {
         Section {
             ListRow(label: .plain(title: UntranslatedL10n.screenCreateCompanyWebsiteExample),
                     kind: .textField(text: $context.website, axis: .horizontal))
+                .accessibilityLabel(UntranslatedL10n.screenCreateCompanyWebsitePlaceholder)
                 .focused($focus, equals: .website)
         } header: {
             Text(UntranslatedL10n.screenCreateCompanyWebsitePlaceholder)
@@ -152,8 +153,7 @@ struct CompanyEditScreen_Previews: PreviewProvider, TestablePreview {
                                                                     agents: []),
                                                       agentPlatformService: AgentPlatformServiceMock(),
                                                       userSession: UserSessionMock(.init(clientProxy: ClientProxyMock(.init()))),
-                                                      userIndicatorController: UserIndicatorControllerMock(),
-                                                      appSettings: .volatile())
+                                                      userIndicatorController: UserIndicatorControllerMock())
     
     static var previews: some View {
         ElementNavigationStack {

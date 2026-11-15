@@ -11,8 +11,11 @@ import GameController
 import SwiftUI
 import SwiftUIIntrospect
 
-struct SearchScreen: View {
+// AGENT-PLATFORM (Brief 0083, question 343): search has no tab. This screen hosts Chats: it puts the field on Chats' bar,
+// and while the field is active the results take the list's place.
+struct SearchScreen<Base: View>: View {
     @Bindable var context: SearchScreenViewModel.Context
+    private let base: Base
     
     @FocusState private var isSearchFieldFocused: Bool
     /// The result highlighted for hardware keyboard selection (arrow keys + return). Holds the id of a
@@ -21,33 +24,96 @@ struct SearchScreen: View {
     /// The selection is only meaningful with a hardware keyboard, so don't highlight anything otherwise.
     @State private var isHardwareKeyboardConnected = false
     
-    /// The ids of the results in the active tab, in display order.
+    init(context: SearchScreenViewModel.Context,
+         @ViewBuilder base: () -> Base) {
+        self.context = context
+        self.base = base()
+    }
+    
+    /// Previews show the results alone, without a field.
+    private var isPreviewingResults: Bool {
+        Base.self == EmptyView.self
+    }
+    
+    private var showsResults: Bool {
+        isPreviewingResults || context.isSearchPresented
+    }
+    
+    /// The ids of the rows the user can select, in display order. These are the breadcrumbs
+    /// until a query is entered, after which they're the active tab's results.
     private var selectableIDs: [String] {
-        switch context.viewState.bindings.searchMode {
+        guard context.viewState.isSearching else {
+            return context.viewState.breadcrumbs.map(\.id)
+        }
+        
+        return switch context.viewState.bindings.searchMode {
         case .rooms: context.viewState.rooms.map(\.id)
         case .messages: context.viewState.messages.map(\.id)
         }
     }
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            // Rendered as content rather than a navigation title so it stays visible while the search field is focused.
-            Text(L10n.actionSearch)
-                .font(.compound.headingXLBold)
-                .foregroundStyle(.compound.textPrimary)
-                .accessibilityAddTraits(.isHeader)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, 16)
-                .padding(.vertical, 8)
+        ZStack {
+            base
+                .opacity(showsResults ? 0 : 1)
+                .accessibilityHidden(showsResults)
             
-            Picker(L10n.actionSearch, selection: $context.searchMode) {
-                ForEach(SearchScreenMode.allCases) { mode in
-                    Text(mode.title).tag(mode)
-                }
+            if showsResults {
+                results
             }
-            .pickerStyle(.segmented)
-            .padding(.horizontal, 16)
-            .padding(.bottom, 8)
+        }
+        .conditionalSearchable(isEnabled: !isPreviewingResults,
+                               searchQuery: $context.searchQuery,
+                               isPresented: $context.isSearchPresented)
+        .searchFocused($isSearchFieldFocused)
+        .autocorrectionDisabled(true)
+        .scrollDismissesKeyboard(.immediately)
+        .onSubmit(of: .search) {
+            context.send(viewAction: .submitQuery)
+            // A software keyboard's submit/search button just dismisses; only a hardware return selects.
+            if isHardwareKeyboardConnected, selectedID != nil {
+                selectCurrent()
+            } else {
+                isSearchFieldFocused = false
+            }
+        }
+        // AGENT-PLATFORM (Brief 0083): the field takes focus when search opens and only then, so a tab's return
+        // undoes the system's. That comes within a moment, if at all: after it, a focus is the person's.
+        .onChange(of: context.isSearchPresented) { _, isPresented in
+            isSearchFieldFocused = isPresented
+        }
+        .onChange(of: isSearchFieldFocused) { _, isFocused in
+            guard isFocused, context.isFieldReturning else { return }
+            context.isFieldReturning = false
+            isSearchFieldFocused = false
+        }
+        .onDisappear {
+            context.isFieldReturning = context.isSearchPresented
+        }
+        .task {
+            guard context.isFieldReturning else { return }
+            try? await Task.sleep(for: .milliseconds(500))
+            guard !Task.isCancelled else { return }
+            context.isFieldReturning = false
+        }
+        .searchResultsKeyboardNavigation(moveUp: { moveSelection(backwards: true) },
+                                         moveDown: { moveSelection(backwards: false) },
+                                         cancel: { context.send(viewAction: .cancel) })
+    }
+    
+    private var results: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            // There's nothing to switch between until the user searches for something.
+            if context.viewState.isSearching {
+                Picker(L10n.actionSearch, selection: $context.searchMode) {
+                    ForEach(SearchScreenMode.allCases) { mode in
+                        Text(mode.title).tag(mode)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .padding(.horizontal, 16)
+                .padding(.bottom, 8)
+            }
             
             switch context.viewState.bindings.searchMode {
             case .rooms:
@@ -74,26 +140,10 @@ struct SearchScreen: View {
         }
         .frame(maxHeight: .infinity, alignment: .top)
         .background(Color.compound.bgCanvasDefault)
-        .conditionalSearchable(searchQuery: $context.searchQuery)
-        .searchFocused($isSearchFieldFocused)
-        .autocorrectionDisabled(true)
         .background(tabShortcuts)
-        .onSubmit(of: .search) {
-            // A software keyboard's submit/search button just dismisses; only a hardware return selects.
-            if isHardwareKeyboardConnected, selectedID != nil {
-                selectCurrent()
-            } else {
-                isSearchFieldFocused = false
-            }
-        }
-        .searchResultsKeyboardNavigation(moveUp: { moveSelection(backwards: true) },
-                                         moveDown: { moveSelection(backwards: false) },
-                                         cancel: { context.send(viewAction: .cancel) })
-        // The TabView calls onAppear each time the search tab is selected, so the field re-focuses
-        // and the selection resets on every switch.
+        // AGENT-PLATFORM (Brief 0083): this runs on a tab's return too, so it leaves the query and the focus alone.
         .onAppear {
             context.send(viewAction: .appeared)
-            isSearchFieldFocused = true
             selectedID = selectableIDs.first
             updateHardwareKeyboardConnected()
         }
@@ -118,14 +168,16 @@ struct SearchScreen: View {
     private var emptyState: some View {
         if context.viewState.isSearching {
             TitleAndIcon(title: L10n.commonNoResults,
-                         subtitle: UntranslatedL10n.screenSearchNoResultsMessage(context.searchQuery),
+                         subtitle: L10n.screenSearchNoResultsMessage(context.searchQuery),
                          icon: \.search,
                          iconStyle: .defaultSolid)
                 .frame(maxWidth: .infinity)
                 .padding(40)
+        } else if !context.viewState.breadcrumbs.isEmpty {
+            breadcrumbsList
         } else {
-            TitleAndIcon(title: UntranslatedL10n.screenSearchEmptyStateTitle,
-                         subtitle: UntranslatedL10n.screenSearchEmptyStateMessage,
+            TitleAndIcon(title: L10n.screenSearchEmptyStateTitle,
+                         subtitle: L10n.screenSearchEmptyStateMessage,
                          icon: \.search,
                          iconStyle: .defaultSolid)
                 .frame(maxWidth: .infinity)
@@ -173,6 +225,40 @@ struct SearchScreen: View {
         .compoundList(.plain)
     }
     
+    private var breadcrumbsList: some View {
+        List {
+            Section {
+                ForEach(context.viewState.breadcrumbs) { breadcrumb in
+                    let isSelected = isHardwareKeyboardConnected && selectedID == breadcrumb.id
+                    
+                    let onRemove = { context.send(viewAction: .removeBreadcrumb(breadcrumb)) }
+                    
+                    switch breadcrumb {
+                    case .query(let query):
+                        SearchScreenQueryCell(query: query, isSelected: isSelected, onRemove: onRemove) { context.searchQuery = query }
+                    case .room(let room):
+                        SearchScreenRoomCell(room: room, context: context, isSelected: isSelected, avatarSize: .searchHistory, onRemove: onRemove)
+                    }
+                }
+            } header: {
+                HStack(spacing: 8) {
+                    Text(L10n.screenSearchRecentSearches)
+                        .compoundListSectionHeader()
+                    
+                    Spacer()
+                    
+                    // The compound text link style has no accent colour variant.
+                    Button { context.send(viewAction: .clearBreadcrumbs) } label: {
+                        Text(L10n.actionClearAll)
+                            .font(.compound.bodyMDSemibold)
+                            .foregroundStyle(.compound.textActionAccent)
+                    }
+                }
+            }
+        }
+        .compoundList(.plain)
+    }
+    
     /// Hidden buttons that switch tabs via ⌘1/⌘2, the common shortcut for jumping to tab N.
     private var tabShortcuts: some View {
         ForEach(Array(SearchScreenMode.allCases.enumerated()), id: \.element) { index, mode in
@@ -198,6 +284,20 @@ struct SearchScreen: View {
     
     private func selectCurrent() {
         guard let selectedID else { return }
+        
+        guard context.viewState.isSearching else {
+            let breadcrumb = context.viewState.breadcrumbs.first { $0.id == selectedID }
+            switch breadcrumb {
+            case .query(let query):
+                context.searchQuery = query
+            case .room(let room):
+                context.send(viewAction: .selectRoom(roomID: room.id))
+            case nil:
+                break
+            }
+            return
+        }
+        
         switch context.viewState.bindings.searchMode {
         case .rooms:
             context.send(viewAction: .selectRoom(roomID: selectedID))
@@ -212,11 +312,24 @@ struct SearchScreen: View {
     }
 }
 
+// Previews show the results without a field, so nothing needs the type's `Base`.
+extension SearchScreen where Base == EmptyView {
+    init(context: SearchScreenViewModel.Context) {
+        self.init(context: context) { EmptyView() }
+    }
+}
+
 private extension View {
     /// Searchable makes the preview contents randomly appear lower
-    @ViewBuilder func conditionalSearchable(searchQuery: Binding<String>) -> some View {
-        if !ProcessInfo.isXcodePreview, !ProcessInfo.isRunningTests {
-            searchable(text: searchQuery, placement: .toolbarPrincipal)
+    @ViewBuilder func conditionalSearchable(isEnabled: Bool,
+                                            searchQuery: Binding<String>,
+                                            isPresented: Binding<Bool>) -> some View {
+        if isEnabled {
+            searchable(text: searchQuery,
+                       isPresented: isPresented,
+                       placement: .navigationBarDrawer(displayMode: .always),
+                       prompt: L10n.actionSearch)
+                .compoundSearchField()
         } else {
             self
         }
@@ -227,6 +340,8 @@ private struct SearchScreenRoomCell: View {
     let room: SearchScreenRoom
     let context: SearchScreenViewModel.Context
     let isSelected: Bool
+    var avatarSize: RoomAvatarSizeOnScreen = .search
+    var onRemove: (() -> Void)?
     
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     
@@ -237,25 +352,34 @@ private struct SearchScreenRoomCell: View {
             HStack(spacing: 16) {
                 avatar
                 
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(room.title)
-                        .font(.compound.bodyLGSemibold)
-                        .foregroundStyle(.compound.textPrimary)
-                        .lineLimit(1)
+                ZStack(alignment: .leading) {
+                    SearchScreenRowHeightPlaceholder()
                     
-                    if !room.description.isEmpty {
-                        Text(room.description)
-                            .font(.compound.bodyMD)
-                            .foregroundStyle(.compound.textSecondary)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(room.title)
+                            .font(.compound.bodyLGSemibold)
+                            .foregroundStyle(.compound.textPrimary)
                             .lineLimit(1)
+                        
+                        if !room.description.isEmpty {
+                            Text(room.description)
+                                .font(.compound.bodyMD)
+                                .foregroundStyle(.compound.textSecondary)
+                                .lineLimit(1)
+                        }
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
+                
+                if let onRemove {
+                    SearchScreenRemoveBreadcrumbButton(action: onRemove)
+                }
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
         }
         .buttonStyle(SearchScreenRoomCellButtonStyle(isSelected: isSelected))
+        .accessibilityIdentifier(A11yIdentifiers.searchScreen.roomName(room.title))
         .listRowInsets(.init())
         .listRowSeparator(.hidden)
         .rowDivider()
@@ -265,7 +389,7 @@ private struct SearchScreenRoomCell: View {
     private var avatar: some View {
         if dynamicTypeSize < .accessibility3 {
             RoomAvatarImage(avatar: room.avatar,
-                            avatarSize: .room(on: .search),
+                            avatarSize: .room(on: avatarSize),
                             mediaProvider: context.mediaProvider)
                 .dynamicTypeSize(dynamicTypeSize < .accessibility1 ? dynamicTypeSize : .accessibility1)
                 .accessibilityHidden(true)
@@ -281,6 +405,71 @@ private struct SearchScreenRoomCellButtonStyle: ButtonStyle {
             .background(isSelected || configuration.isPressed ? Color.compound.bgSubtleSecondary : Color.compound.bgCanvasDefault)
             .contentShape(Rectangle())
             .animation(isSelected ? .none : .easeOut(duration: 0.1).disabledDuringTests(), value: isSelected)
+    }
+}
+
+private struct SearchScreenQueryCell: View {
+    let query: String
+    let isSelected: Bool
+    let onRemove: () -> Void
+    let action: () -> Void
+    
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 16) {
+                CompoundIcon(\.history, size: .small, relativeTo: .compound.bodyLG)
+                    .foregroundStyle(.compound.iconPrimary)
+                    .scaledFrame(width: 32, height: 32)
+                    .background(.compound.bgSubtleSecondary, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    .accessibilityHidden(true)
+                
+                ZStack(alignment: .leading) {
+                    SearchScreenRowHeightPlaceholder()
+                    
+                    Text(query)
+                        .font(.compound.bodyLG)
+                        .foregroundStyle(.compound.textPrimary)
+                        .lineLimit(1)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                
+                SearchScreenRemoveBreadcrumbButton(action: onRemove)
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+        }
+        .buttonStyle(SearchScreenRoomCellButtonStyle(isSelected: isSelected))
+        .listRowInsets(.init())
+        .listRowSeparator(.hidden)
+        .rowDivider()
+    }
+}
+
+/// Reserves the height of a title and subtitle so every row matches, scaling with dynamic type.
+private struct SearchScreenRowHeightPlaceholder: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(verbatim: " ")
+                .font(.compound.bodyLGSemibold)
+            Text(verbatim: " ")
+                .font(.compound.bodyMD)
+        }
+        .hidden()
+        .accessibilityHidden(true)
+    }
+}
+
+private struct SearchScreenRemoveBreadcrumbButton: View {
+    let action: () -> Void
+    
+    var body: some View {
+        Button(action: action) {
+            CompoundIcon(\.close)
+                .foregroundStyle(.compound.iconTertiary)
+                .accessibilityLabel(L10n.actionRemove)
+        }
+        // Borderless so the button handles its own taps instead of the row it's nested in.
+        .buttonStyle(.borderless)
     }
 }
 
@@ -389,19 +578,22 @@ private struct SearchScreenMediaPreviewView: View {
         CompoundIcon(icon)
             .foregroundStyle(.compound.iconPrimary)
             .scaledFrame(width: 36, height: 36)
-            .background(.compound.iconOnSolidPrimary,
+            // AGENT-PLATFORM: Spiral's iconOnSolidPrimary is white in dark mode too, under the white icon.
+            .background(.compound.bgCanvasDefault,
                         in: RoundedRectangle(cornerRadius: 4, style: .continuous))
     }
     
     private func thumbnailView(_ thumbnail: ImageInfoProxy?, blurhash: String?, isVideo: Bool) -> some View {
-        Color.compound.bgSubtlePrimary // Let the image aspect fill in place
+        // AGENT-PLATFORM: Spiral's bgSubtlePrimary is white in light mode, under the white play icon; the
+        // empty-item gray is translucent, so it shows on the card in both modes. The image covers it.
+        Color.compound._bgEmptyItemAlpha // Let the image aspect fill in place
             .overlay {
                 if let thumbnail {
                     LoadableImage(mediaSource: thumbnail.source,
                                   blurhash: blurhash,
                                   size: thumbnail.size,
                                   mediaProvider: mediaProvider) {
-                        Color.compound.bgSubtlePrimary
+                        Color.clear // AGENT-PLATFORM: the gray behind shows through
                     }
                     .mediaGalleryTimelineAspectRatio(imageInfo: thumbnail)
                 }
@@ -466,37 +658,46 @@ private final class KeyNavigatingSearchTextField: UISearchTextField {
 
 struct SearchScreen_Previews: PreviewProvider, TestablePreview {
     static let emptyViewModel = SearchScreenViewModel(roomSummaryProvider: RoomSummaryProviderMock(.init(state: .loaded([]))),
-                                                      clientProxy: makeClientProxy(),
-                                                      mediaProvider: MediaProviderMock(.init()),
+                                                      userSession: UserSessionMock(.init(clientProxy: makeClientProxy())),
                                                       userIndicatorController: UserIndicatorControllerMock())
     static let noResultsViewModel = SearchScreenViewModel(roomSummaryProvider: RoomSummaryProviderMock(.init(state: .loaded([]))),
-                                                          clientProxy: makeClientProxy(),
-                                                          mediaProvider: MediaProviderMock(.init()),
+                                                          userSession: UserSessionMock(.init(clientProxy: makeClientProxy())),
                                                           userIndicatorController: UserIndicatorControllerMock(),
                                                           initialSearchQuery: "John Doe")
     static let roomsViewModel = SearchScreenViewModel(roomSummaryProvider: RoomSummaryProviderMock(.init(state: .loaded(.mockRooms))),
-                                                      clientProxy: makeClientProxy(),
-                                                      mediaProvider: MediaProviderMock(.init()),
+                                                      userSession: UserSessionMock(.init(clientProxy: makeClientProxy())),
                                                       userIndicatorController: UserIndicatorControllerMock(),
                                                       initialSearchQuery: "Foundation")
     static let messagesViewModel = SearchScreenViewModel(roomSummaryProvider: RoomSummaryProviderMock(.init(state: .loaded([]))),
-                                                         clientProxy: makeClientProxy(searchService: makeSearchService(results: .mockResults)),
-                                                         mediaProvider: MediaProviderMock(.init()),
+                                                         userSession: UserSessionMock(.init(clientProxy: makeClientProxy(searchService: makeSearchService(results: .mockResults)))),
                                                          userIndicatorController: UserIndicatorControllerMock(),
                                                          initialSearchQuery: "Foundation",
                                                          initialSearchMode: .messages)
     static let loadingMessagesViewModel = SearchScreenViewModel(roomSummaryProvider: RoomSummaryProviderMock(.init(state: .loaded([]))),
-                                                                clientProxy: makeClientProxy(searchService: makeSearchService(paginationState: .loading)),
-                                                                mediaProvider: MediaProviderMock(.init()),
+                                                                userSession: UserSessionMock(.init(clientProxy: makeClientProxy(searchService: makeSearchService(paginationState: .loading)))),
                                                                 userIndicatorController: UserIndicatorControllerMock(),
                                                                 initialSearchQuery: "Foundation",
                                                                 initialSearchMode: .messages)
+    
+    static let breadcrumbsViewModel = SearchScreenViewModel(roomSummaryProvider: RoomSummaryProviderMock(.init(state: .loaded([]))),
+                                                            userSession: UserSessionMock(.init(clientProxy: makeClientProxy(),
+                                                                                               userSettings: makeUserSettings(breadcrumbs: [.room(roomID: "!room1:matrix.org"),
+                                                                                                                                            .query("Bob"),
+                                                                                                                                            .room(roomID: "!room5:matrix.org"),
+                                                                                                                                            .query("Element HR"),
+                                                                                                                                            .query("Alice")]))),
+                                                            userIndicatorController: UserIndicatorControllerMock())
     
     static var previews: some View {
         ElementNavigationStack {
             SearchScreen(context: emptyViewModel.context)
         }
         .previewDisplayName("Empty")
+        
+        ElementNavigationStack {
+            SearchScreen(context: breadcrumbsViewModel.context)
+        }
+        .previewDisplayName("Recent searches")
         
         ElementNavigationStack {
             SearchScreen(context: noResultsViewModel.context)
@@ -511,6 +712,9 @@ struct SearchScreen_Previews: PreviewProvider, TestablePreview {
         ElementNavigationStack {
             SearchScreen(context: messagesViewModel.context)
         }
+        // AGENT-PLATFORM: the results arrive on the main queue after the first render; wait for them (their
+        // timestamps are the fixed `Date.mock`, so the snapshot doesn't change with the clock).
+        .snapshotPreferences(expect: messagesViewModel.context.observe(\.viewState.messages).map { !$0.isEmpty })
         .previewDisplayName("Messages")
         
         ElementNavigationStack {
@@ -527,13 +731,22 @@ struct SearchScreen_Previews: PreviewProvider, TestablePreview {
         return mock
     }
     
+    private static func makeUserSettings(breadcrumbs: [SearchBreadcrumb]) -> UserSettings {
+        let userSettings = UserSettings.mock()
+        userSettings.account.searchBreadcrumbs = breadcrumbs
+        return userSettings
+    }
+    
     private static func makeClientProxy(searchService: SearchServiceProxyMock = makeSearchService()) -> ClientProxyMock {
         let mock = ClientProxyMock(.init(userID: "@alice:matrix.org"))
         mock.searchService = searchService
         let names: [String: String] = ["!room1:matrix.org": "Alice", "!room2:matrix.org": "Bob", "!room3:matrix.org": "Coline",
                                        "!room4:matrix.org": "Bob", "!room5:matrix.org": "Office", "!room6:matrix.org": "Data analytics",
                                        "!room7:matrix.org": "Alice", "!room8:matrix.org": "Bob", "!room9:matrix.org": "Coline"]
-        mock.roomSummaryForIdentifierClosure = { id in .mock(id: id, name: names[id] ?? id) }
+        mock.roomSummaryForIdentifierClosure = { id in
+            let name = names[id] ?? id
+            return .mock(id: id, name: name, canonicalAlias: "#\(name.lowercased()):matrix.org")
+        }
         return mock
     }
 }
@@ -545,12 +758,12 @@ private extension [SearchServiceResult] {
                                 eventID: "$1",
                                 sender: .init(id: "@alice:matrix.org", displayName: "Alice"),
                                 content: .message(.text(.init(body: "Have you read the Foundation series?"))),
-                                timestamp: .now),
+                                timestamp: .mock),
             SearchServiceResult(roomID: "!room2:matrix.org",
                                 eventID: "$2",
                                 sender: .init(id: "@bob:matrix.org", displayName: "Bob"),
                                 content: .message(.text(.init(body: "The Second Foundation was hidden at the other end of the galaxy."))),
-                                timestamp: .now),
+                                timestamp: .mock),
             SearchServiceResult(roomID: "!room3:matrix.org",
                                 eventID: "$3",
                                 sender: .init(id: "@coline:matrix.org", displayName: "Coline"),
@@ -560,7 +773,7 @@ private extension [SearchServiceResult] {
                                                               fileSize: 4 * 1024 * 1024,
                                                               thumbnailSource: nil,
                                                               contentType: nil))),
-                                timestamp: .now),
+                                timestamp: .mock),
             SearchServiceResult(roomID: "!room4:matrix.org",
                                 eventID: "$4",
                                 sender: .init(id: "@bob:matrix.org", displayName: "Bob"),
@@ -571,7 +784,7 @@ private extension [SearchServiceResult] {
                                                                source: nil,
                                                                fileSize: 4 * 1024 * 1024,
                                                                contentType: nil))),
-                                timestamp: .now),
+                                timestamp: .mock),
             SearchServiceResult(roomID: "!room5:matrix.org",
                                 eventID: "$5",
                                 sender: .init(id: "@office:matrix.org", displayName: "Office"),
@@ -581,7 +794,7 @@ private extension [SearchServiceResult] {
                                                                thumbnailInfo: .mockThumbnail,
                                                                blurhash: nil,
                                                                contentType: nil))),
-                                timestamp: .now),
+                                timestamp: .mock),
             SearchServiceResult(roomID: "!room6:matrix.org",
                                 eventID: "$6",
                                 sender: .init(id: "@data:matrix.org", displayName: "Data analytics"),
@@ -591,22 +804,33 @@ private extension [SearchServiceResult] {
                                                                thumbnailInfo: .mockThumbnail,
                                                                blurhash: nil,
                                                                contentType: nil))),
-                                timestamp: .now),
+                                timestamp: .mock),
+            // AGENT-PLATFORM: a video without a thumbnail shows the placeholder behind its play icon.
+            SearchServiceResult(roomID: "!room6:matrix.org",
+                                eventID: "$6b",
+                                sender: .init(id: "@data:matrix.org", displayName: "Data analytics"),
+                                content: .message(.video(.init(filename: "Foundation trailer.mp4",
+                                                               caption: nil,
+                                                               videoInfo: .mockVideo,
+                                                               thumbnailInfo: nil,
+                                                               blurhash: nil,
+                                                               contentType: nil))),
+                                timestamp: .mock),
             SearchServiceResult(roomID: "!room7:matrix.org",
                                 eventID: "$7",
                                 sender: .init(id: "@alice:matrix.org", displayName: "Alice"),
                                 content: .poll(question: "What's your favourite Foundation book?"),
-                                timestamp: .now),
+                                timestamp: .mock),
             SearchServiceResult(roomID: "!room8:matrix.org",
                                 eventID: "$8",
                                 sender: .init(id: "@bob:matrix.org", displayName: "Bob"),
                                 content: .liveLocation,
-                                timestamp: .now),
+                                timestamp: .mock),
             SearchServiceResult(roomID: "!room9:matrix.org",
                                 eventID: "$9",
                                 sender: .init(id: "@coline:matrix.org", displayName: "Coline"),
                                 content: .redacted,
-                                timestamp: .now)
+                                timestamp: .mock)
         ]
     }
 }

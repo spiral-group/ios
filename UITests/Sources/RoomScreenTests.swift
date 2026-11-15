@@ -14,7 +14,7 @@ class RoomScreenUITests: XCTestCase {
         let app = Application.launch(.roomPlainNoAvatar)
         
         XCTAssert(app.buttons[A11yIdentifiers.roomScreen.name].exists)
-        XCTAssert(app.buttons[A11yIdentifiers.roomScreen.avatar].exists)
+        // AGENT-PLATFORM (Brief 0083, decision 344): the avatar is inside the capsule, hidden from VoiceOver as the name says it.
         
         try await app.assertScreenshot()
     }

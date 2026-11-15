@@ -10,30 +10,36 @@
 // The Spiral feature is built on Element's `TemplateScreen.swift`.
 
 import Compound
+import SpiralComponents
 import SwiftUI
 
 struct ApprovalDetailScreen: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
     @Bindable var context: ApprovalDetailScreenViewModel.Context
 
     var body: some View {
         Form {
             switch context.viewState.loadState {
             case .loading:
-                skeletonSection
+                loadingSections
             case .failed:
                 failedSection
             case .loaded(let detail):
                 if case .blockSender(let request) = detail.context {
                     blockRequestSections(detail, request)
                 } else {
+                    // Brief 0083 (decision 308): the draft, then its context.
                     contextBannerSection(detail)
-                    detailsSection(detail)
                     draftSection(detail)
-                    actionsSection(detail)
+                    detailsSection(detail)
                 }
             }
         }
-        .compoundList()
+        .spiralGroupedList() // Brief 0083 (P4-D): iOS's grouped cards and plain grey glyphs (decision 337).
+        // Brief 0083 (critique F6): v11 draws the rows' descriptions at 15 pt; the escalation reason isn't fine print.
+        .environment(\.listRowDescriptionFont, .compound.bodyMD)
+        .decisionBar { decisions }
         .navigationTitle(UntranslatedL10n.screenApprovalDetailTitle)
         .navigationBarTitleDisplayMode(.inline)
         .alert(item: $context.alertInfo)
@@ -42,42 +48,58 @@ struct ApprovalDetailScreen: View {
 
     // MARK: - Sections
 
-    // Canon §3 (operator ruling, CODEBASE/14): fast/rare data → a delayed
-    // spinner, never a skeleton (it only flickers).
-    private var skeletonSection: some View {
+    // AGENT-PLATFORM (Brief 0083, question 359): a card's draft and context as placeholders, after a short delay (decision
+    // 330). Only the read says what kind of card it is, so only "Context", which every kind has, is real.
+    @ViewBuilder
+    private var loadingSections: some View {
         Section {
             ListRow(kind: .custom {
-                DelayedProgressView()
-                    .frame(minHeight: 80)
+                SpiralPreloader(label: L10n.commonLoading) {
+                    SpiralPlaceholderLines(count: 4)
+                        .padding(CompoundDesignTokens.space4X)
+                }
             })
+        } header: {
+            SpiralPreloader(label: L10n.commonLoading) {
+                draftHeader(isPlaceholder: true)
+            }
+            .accessibilityHidden(true) // The draft's card reads "Loading…" for the screen.
         }
-        .listRowBackground(Color.clear)
+        
+        Section {
+            detailPlaceholderRow(icon: \.chat)
+            detailPlaceholderRow(icon: \.info)
+            detailPlaceholderRow(icon: \.time)
+        } header: {
+            Text(UntranslatedL10n.screenApprovalDetailContextSectionTitle)
+                .compoundListSectionHeader()
+        }
+    }
+    
+    private func detailPlaceholderRow(icon: KeyPath<CompoundIcons, Image>) -> some View {
+        SpiralPreloader(label: L10n.commonLoading) {
+            ListRow(label: .default(title: String(repeating: "0", count: 14),
+                                    description: String(repeating: "0", count: 24),
+                                    icon: icon),
+                    kind: .label)
+        }
+        .accessibilityHidden(true)
     }
 
     private var failedSection: some View {
         Section {
-            VStack(spacing: 16) {
-                BigIcon(icon: \.errorSolid, style: .alertSolid)
-                Text(UntranslatedL10n.screenApprovalDetailFailedTitle)
-                    .font(.compound.headingSMSemibold)
-                    .foregroundStyle(.compound.textPrimary)
-                Text(UntranslatedL10n.screenApprovalDetailFailedSubtitle)
-                    .font(.compound.bodyMD)
-                    .foregroundStyle(.compound.textSecondary)
-                    .multilineTextAlignment(.center)
-                Button(L10n.actionRetry) { context.send(viewAction: .retryFetch) }
-                    .buttonStyle(.compound(.secondary, size: .medium))
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 40)
-            .listRowBackground(Color.clear)
+            SpiralEmptyState(symbol: .exclamationmarkCircle,
+                             title: UntranslatedL10n.screenApprovalDetailFailedTitle,
+                             message: UntranslatedL10n.screenApprovalDetailFailedSubtitle,
+                             action: .init(L10n.actionRetry) { context.send(viewAction: .retryFetch) })
+                .listRowBackground(Color.clear)
         }
     }
 
     /// Context-type-specific banner. The three layouts diverge
-    /// here: cold-outreach stacks warnings on top, first-contact
-    /// names the visitor, generic shows nothing (the rest of the
-    /// screen tells the story).
+    /// here: cold-outreach lists its warnings under the heading,
+    /// first-contact names the visitor, generic shows nothing (the
+    /// rest of the screen tells the story).
     @ViewBuilder
     private func contextBannerSection(_ detail: ApprovalDetail) -> some View {
         switch detail.context {
@@ -86,78 +108,56 @@ struct ApprovalDetailScreen: View {
 
         case .personalAgentFirstContact(let visitor):
             Section {
-                ListRow(kind: .custom {
-                    HStack(alignment: .top, spacing: 12) {
-                        CompoundIcon(\.userProfile, size: .medium, relativeTo: .compound.bodyLG)
-                            .foregroundStyle(.compound.iconAccentPrimary)
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(UntranslatedL10n.screenApprovalDetailVisitorTitle)
-                                .font(.compound.bodyLGSemibold)
-                                .foregroundStyle(.compound.textPrimary)
-                            Text(visitor)
-                                .font(.compound.bodyMD)
-                                .foregroundStyle(.compound.textSecondary)
-                            Text(UntranslatedL10n.screenApprovalDetailVisitorExplainer)
-                                .font(.compound.bodySM)
-                                .foregroundStyle(.compound.textSecondary)
-                        }
-                        Spacer(minLength: 0)
-                    }
-                    .padding(16)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(Color.compound.bgSubtleSecondary)
+                ApprovalHeading(icon: \.userProfile,
+                                title: UntranslatedL10n.screenApprovalDetailVisitorTitle,
+                                subtitle: visitor,
+                                explainer: UntranslatedL10n.screenApprovalDetailVisitorExplainer)
                     .accessibilityIdentifier(A11yIdentifiers.approvalDetailScreen.kind("first_contact")) // AGENT-PLATFORM (decision 148)
-                })
             }
 
         case .coldOutreach(let target, let warnings):
             Section {
-                ListRow(kind: .custom {
-                    VStack(alignment: .leading, spacing: 12) {
-                        HStack(spacing: 12) {
-                            CompoundIcon(\.send, size: .medium, relativeTo: .compound.bodyLG)
-                                .foregroundStyle(.compound.iconAccentPrimary)
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text(UntranslatedL10n.screenApprovalDetailColdOutreachTitle)
-                                    .font(.compound.bodyLGSemibold)
-                                    .foregroundStyle(.compound.textPrimary)
-                                Text(target)
-                                    .font(.compound.bodyMD)
-                                    .foregroundStyle(.compound.textSecondary)
-                            }
-                        }
-                        if !warnings.isEmpty {
-                            Divider()
-                            VStack(alignment: .leading, spacing: 6) {
-                                ForEach(warnings, id: \.self) { warning in
-                                    HStack(alignment: .top, spacing: 8) {
-                                        CompoundIcon(\.errorSolid, size: .xSmall, relativeTo: .compound.bodySM)
-                                            .foregroundStyle(.compound.iconCriticalPrimary)
-                                        Text(warning)
-                                            .font(.compound.bodySM)
-                                            .foregroundStyle(.compound.textPrimary)
-                                    }
+                ApprovalHeading(icon: \.send,
+                                title: UntranslatedL10n.screenApprovalDetailColdOutreachTitle,
+                                subtitle: target)
+                    .accessibilityIdentifier(A11yIdentifiers.approvalDetailScreen.kind("cold_outreach")) // AGENT-PLATFORM (decision 148)
+            }
+
+            if !warnings.isEmpty {
+                Section {
+                    ListRow(kind: .custom {
+                        VStack(alignment: .leading, spacing: 6) {
+                            ForEach(warnings, id: \.self) { warning in
+                                HStack(alignment: .top, spacing: 8) {
+                                    CompoundIcon(\.errorSolid, size: .xSmall, relativeTo: .compound.bodyMD)
+                                        .foregroundStyle(.compound.iconCriticalPrimary)
+                                    Text(warning)
+                                        .font(.compound.bodyMD)
+                                        .foregroundStyle(.compound.textPrimary)
                                 }
                             }
                         }
-                    }
-                    .padding(16)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(warnings.isEmpty
-                        ? Color.compound.bgSubtleSecondary
-                        : Color.compound.bgCriticalSubtle)
-                    .accessibilityIdentifier(A11yIdentifiers.approvalDetailScreen.kind("cold_outreach")) // AGENT-PLATFORM (decision 148)
-                })
+                        .padding(CompoundDesignTokens.space4X)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Color.compound.bgCriticalSubtle)
+                    })
+                }
             }
         }
     }
 
+    /// The room's raw name: VoiceOver reads a line-breakable ID's zero-width spaces.
+    private var targetRoomAccessibilityLabel: String {
+        [UntranslatedL10n.screenApprovalDetailTargetRoomTitle, context.viewState.targetRoomName].compactMap(\.self).joined(separator: ", ")
+    }
+    
     private func detailsSection(_ detail: ApprovalDetail) -> some View {
         Section {
             ListRow(label: .default(title: UntranslatedL10n.screenApprovalDetailTargetRoomTitle,
-                                    description: context.viewState.targetRoomName,
+                                    description: context.viewState.targetRoomName?.lineBreakableIfMatrixIdentifier,
                                     icon: \.chat),
                     kind: .label)
+                .accessibilityLabel(targetRoomAccessibilityLabel)
             // Brief 0078: human copy per tag, never the tag itself.
             if let reason = detail.escalationReason, !reason.isEmpty {
                 ListRow(label: .default(title: UntranslatedL10n.screenApprovalDetailEscalationReasonTitle,
@@ -202,53 +202,143 @@ struct ApprovalDetailScreen: View {
             Section {
                 ListRow(kind: .custom {
                     Text(detail.draftBody)
-                        .font(.compound.bodyMD)
+                        .font(.compound.bodyLG)
                         .foregroundStyle(.compound.textPrimary)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(16)
+                        .padding(CompoundDesignTokens.space4X)
                 })
             } header: {
-                Text(UntranslatedL10n.screenApprovalDetailDraftSectionTitle)
-                    .compoundListSectionHeader()
+                draftHeader()
             }
         }
     }
 
-    @ViewBuilder
-    private func actionsSection(_ detail: ApprovalDetail) -> some View {
-        if context.viewState.bindings.isEditing {
-            // Edit-mode action row: Save + Cancel.
-            Section {
-                ListRow(label: .centeredAction(title: UntranslatedL10n.screenApprovalDetailActionSave, icon: \.check),
-                        kind: .button { context.send(viewAction: .commitEdit) })
-                    .disabled(context.viewState.isDecideInFlight
-                        || context.viewState.bindings.editBuffer.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                    .accessibilityIdentifier(A11yIdentifiers.approvalDetailScreen.save) // AGENT-PLATFORM (decision 148)
-                ListRow(label: .centeredAction(title: L10n.actionCancel, icon: \.close),
-                        kind: .button { context.send(viewAction: .cancelEdit) })
-                    .disabled(context.viewState.isDecideInFlight)
-                    .accessibilityIdentifier(A11yIdentifiers.approvalDetailScreen.cancelEdit) // AGENT-PLATFORM (decision 148)
+    /// The heading with "Edit draft" beside it, or under it at accessibility sizes.
+    /// - Parameter isPlaceholder: a preloader's: its button carries no identifier and is hidden itself. In a list's
+    ///   section header or the decision bar the preloader's own `accessibilityHidden` didn't reach the buttons, and the
+    ///   redacted «􀮷􀮷􀮷» buttons stayed in the tree: the audit failed their contrast, and a UI test could find them.
+    private func draftHeader(isPlaceholder: Bool = false) -> some View {
+        let layout = dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 0))
+            : AnyLayout(HStackLayout(alignment: .center, spacing: CompoundDesignTokens.space2X))
+        return layout {
+            Text(UntranslatedL10n.screenApprovalDetailDraftSectionTitle)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            Button { context.send(viewAction: .beginEdit) } label: {
+                Text(UntranslatedL10n.screenApprovalDetailActionEdit)
+                    .font(.compound.bodyMDSemibold)
+                    .foregroundStyle(.compound.textActionAccent)
+                    .textCase(nil)
+                    .frame(minHeight: CompoundDesignTokens.space11X)
+                    .contentShape(.rect)
             }
+            .buttonStyle(.plain)
+            .disabled(context.viewState.isDecideInFlight)
+            .accessibilityIdentifier(A11yIdentifiers.approvalDetailScreen.edit, isEnabled: !isPlaceholder) // AGENT-PLATFORM (decision 148)
+            .accessibilityHidden(isPlaceholder)
+        }
+        .compoundListSectionHeader()
+    }
+
+    // MARK: - Decision bar (decision 308)
+
+    /// Pinned below the list, so the decision is always above the tab bar. Inside the list,
+    /// Reject sat under the floating tab bar until the list scrolled (DEBT, build 5).
+    @ViewBuilder
+    private var decisions: some View {
+        switch context.viewState.loadState {
+        case .loading:
+            // AGENT-PLATFORM (Brief 0083, question 359): the bar holds its place; a preloader's buttons take no tap.
+            decisionBarContent {
+                SpiralPreloader(label: L10n.commonLoading) {
+                    approvalDecisionButtons(isPlaceholder: true)
+                }
+                .accessibilityHidden(true)
+            }
+        case .loaded(let detail):
+            decisionBarContent {
+                if case .blockSender = detail.context {
+                    blockDecisionButtons
+                } else if context.viewState.bindings.isEditing {
+                    editDecisionButtons
+                } else {
+                    approvalDecisionButtons()
+                }
+            }
+        case .failed:
+            EmptyView()
+        }
+    }
+
+    private func decisionBarContent(@ViewBuilder buttons: () -> some View) -> some View {
+        buttons()
+            .padding(.horizontal, CompoundDesignTokens.space4X)
+            .padding(.vertical, CompoundDesignTokens.space3X)
+    }
+
+    /// - Parameter isPlaceholder: a preloader's: its buttons carry no identifiers and are hidden (see `draftHeader`).
+    private func approvalDecisionButtons(isPlaceholder: Bool = false) -> some View {
+        DecisionButtons {
+            Button(role: .destructive) { context.send(viewAction: .reject) } label: {
+                DecisionLabel(title: UntranslatedL10n.screenApprovalDetailActionReject, isWaiting: isRejectingNow)
+            }
+            .buttonStyle(.compound(.secondary, isRaised: true)) // Brief 0083 (P4-D): the raised secondary (decision 329).
+            .disabled(context.viewState.isDecideInFlight)
+            .accessibilityIdentifier(A11yIdentifiers.approvalDetailScreen.reject, isEnabled: !isPlaceholder) // AGENT-PLATFORM (decision 148)
+            .accessibilityHidden(isPlaceholder)
+        } primary: {
+            Button { context.send(viewAction: .approve) } label: {
+                DecisionLabel(title: UntranslatedL10n.screenApprovalDetailActionApprove, isWaiting: isApprovingNow, isOnSolid: true)
+            }
+            .buttonStyle(.compound(.primary))
+            .disabled(context.viewState.isDecideInFlight)
+            .accessibilityIdentifier(A11yIdentifiers.approvalDetailScreen.approve, isEnabled: !isPlaceholder) // AGENT-PLATFORM (decision 148)
+            .accessibilityHidden(isPlaceholder)
+        }
+    }
+
+    private var editDecisionButtons: some View {
+        DecisionButtons {
+            Button { context.send(viewAction: .cancelEdit) } label: {
+                DecisionLabel(title: L10n.actionCancel)
+            }
+            .buttonStyle(.compound(.secondary, isRaised: true)) // Brief 0083 (P4-D): the raised secondary (decision 329).
+            .disabled(context.viewState.isDecideInFlight)
+            .accessibilityIdentifier(A11yIdentifiers.approvalDetailScreen.cancelEdit) // AGENT-PLATFORM (decision 148)
+        } primary: {
+            Button { context.send(viewAction: .commitEdit) } label: {
+                DecisionLabel(title: UntranslatedL10n.screenApprovalDetailActionSave)
+            }
+            .buttonStyle(.compound(.primary))
+            .disabled(context.viewState.isDecideInFlight
+                || context.viewState.bindings.editBuffer.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            .accessibilityIdentifier(A11yIdentifiers.approvalDetailScreen.save) // AGENT-PLATFORM (decision 148)
+        }
+    }
+
+    @ViewBuilder
+    private var blockDecisionButtons: some View {
+        if context.viewState.isBlocked {
+            Button { context.send(viewAction: .done) } label: {
+                DecisionLabel(title: L10n.actionDone)
+            }
+            .buttonStyle(.compound(.primary))
+            .accessibilityIdentifier(A11yIdentifiers.approvalDetailScreen.done) // AGENT-PLATFORM (decision 148)
         } else {
-            // Default action row: Approve / Reject / Edit.
-            Section {
-                ListRow(label: .centeredAction(title: UntranslatedL10n.screenApprovalDetailActionApprove,
-                                               icon: \.check),
-                        details: context.viewState.isDecideInFlight ? .isWaiting(isApprovingNow) : nil,
-                        kind: .button { context.send(viewAction: .approve) })
-                    .disabled(context.viewState.isDecideInFlight)
-                    .accessibilityIdentifier(A11yIdentifiers.approvalDetailScreen.approve) // AGENT-PLATFORM (decision 148)
-                ListRow(label: .centeredAction(title: UntranslatedL10n.screenApprovalDetailActionEdit, icon: \.edit),
-                        kind: .button { context.send(viewAction: .beginEdit) })
-                    .disabled(context.viewState.isDecideInFlight)
-                    .accessibilityIdentifier(A11yIdentifiers.approvalDetailScreen.edit) // AGENT-PLATFORM (decision 148)
-                ListRow(label: .centeredAction(title: UntranslatedL10n.screenApprovalDetailActionReject,
-                                               icon: \.close,
-                                               role: .destructive),
-                        details: context.viewState.isDecideInFlight ? .isWaiting(isRejectingNow) : nil,
-                        kind: .button { context.send(viewAction: .reject) })
-                    .disabled(context.viewState.isDecideInFlight)
-                    .accessibilityIdentifier(A11yIdentifiers.approvalDetailScreen.reject) // AGENT-PLATFORM (decision 148)
+            DecisionButtons {
+                Button { context.send(viewAction: .reject) } label: {
+                    DecisionLabel(title: UntranslatedL10n.screenApprovalDetailBlockActionDontBlock, isWaiting: isRejectingNow)
+                }
+                .buttonStyle(.compound(.secondary, isRaised: true)) // Brief 0083 (P4-D): the raised secondary (decision 329).
+                .disabled(context.viewState.isDecideInFlight)
+                .accessibilityIdentifier(A11yIdentifiers.approvalDetailScreen.dontBlock) // AGENT-PLATFORM (decision 148)
+            } primary: {
+                Button(role: .destructive) { context.send(viewAction: .approve) } label: {
+                    DecisionLabel(title: UntranslatedL10n.screenApprovalDetailBlockActionBlock, isWaiting: isApprovingNow, isOnSolid: true)
+                }
+                .buttonStyle(.compound(.primary))
+                .disabled(context.viewState.isDecideInFlight)
+                .accessibilityIdentifier(A11yIdentifiers.approvalDetailScreen.block) // AGENT-PLATFORM (decision 148)
             }
         }
     }
@@ -309,28 +399,6 @@ private extension ApprovalDetailScreen {
         if let message = request.userMessage {
             blockTextSection(title: UntranslatedL10n.screenApprovalDetailBlockMessageTitle, text: message)
         }
-
-        Section {
-            if isBlocked {
-                ListRow(label: .centeredAction(title: L10n.actionDone, icon: \.check),
-                        kind: .button { context.send(viewAction: .done) })
-                    .accessibilityIdentifier(A11yIdentifiers.approvalDetailScreen.done) // AGENT-PLATFORM (decision 148)
-            } else {
-                ListRow(label: .centeredAction(title: UntranslatedL10n.screenApprovalDetailBlockActionBlock,
-                                               icon: \.block,
-                                               role: .destructive),
-                        details: context.viewState.isDecideInFlight ? .isWaiting(isApprovingNow) : nil,
-                        kind: .button { context.send(viewAction: .approve) })
-                    .disabled(context.viewState.isDecideInFlight)
-                    .accessibilityIdentifier(A11yIdentifiers.approvalDetailScreen.block) // AGENT-PLATFORM (decision 148)
-                ListRow(label: .centeredAction(title: UntranslatedL10n.screenApprovalDetailBlockActionDontBlock,
-                                               icon: \.close),
-                        details: context.viewState.isDecideInFlight ? .isWaiting(isRejectingNow) : nil,
-                        kind: .button { context.send(viewAction: .reject) })
-                    .disabled(context.viewState.isDecideInFlight)
-                    .accessibilityIdentifier(A11yIdentifiers.approvalDetailScreen.dontBlock) // AGENT-PLATFORM (decision 148)
-            }
-        }
     }
 
     /// Whom it blocks, by name and MXID; once blocked, that it is done.
@@ -349,9 +417,10 @@ private extension ApprovalDetailScreen {
                         .font(.compound.bodyMD)
                         .foregroundStyle(.compound.textPrimary)
                 }
-                Text(request.targetMXID)
+                Text(request.targetMXID.lineBreakableIdentifier)
                     .font(.compound.bodySM)
                     .foregroundStyle(.compound.textSecondary)
+                    .accessibilityLabel(request.targetMXID)
                 Text(isBlocked ? UntranslatedL10n.screenApprovalDetailBlockBlockedSubtitle : UntranslatedL10n.screenApprovalDetailBlockExplainer)
                     .font(.compound.bodySM)
                     .foregroundStyle(.compound.textSecondary)
@@ -361,7 +430,7 @@ private extension ApprovalDetailScreen {
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.compound.bgSubtleSecondary)
+        // Brief 0083 (P4-D): on the card's own fill; Element's grey made a card in a card.
     }
 
     func blockTextSection(title: String, text: String) -> some View {
@@ -389,9 +458,124 @@ private extension ApprovalDetailScreen {
     }
 }
 
+// MARK: - Identifiers (Brief 0083, critique F3)
+
+private extension String {
+    /// A Matrix ID as it shows: it may break only after ":" and ".", never inside a part, where the text system
+    /// would hyphenate it ("@stranger:exam-ple.com") and show a wrong identifier on a consent decision. VoiceOver
+    /// reads the raw ID.
+    var lineBreakableIdentifier: String {
+        reduce(into: "") { result, character in
+            result.append(character)
+            if character == ":" || character == "." {
+                result.append("\u{200B}")
+            }
+        }
+    }
+
+    /// The same, for a name that is a Matrix ID (a person without a display name); any other name as it is.
+    var lineBreakableIfMatrixIdentifier: String {
+        guard let sigil = first, "@#!".contains(sigil), contains(":") else { return self }
+        return lineBreakableIdentifier
+    }
+}
+
+// MARK: - Components (Brief 0083, decision 308)
+
+/// What the card is about, on the screen's background rather than in a card: its kind, whom it
+/// concerns and, for a first contact, what approving does.
+private struct ApprovalHeading: View {
+    let icon: KeyPath<CompoundIcons, Image>
+    let title: String
+    let subtitle: String
+    var explainer: String?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: CompoundDesignTokens.space1X) {
+            HStack(spacing: CompoundDesignTokens.space2X) {
+                CompoundIcon(icon, size: .medium, relativeTo: .compound.headingMD)
+                    .foregroundStyle(.compound.iconAccentPrimary)
+                    .accessibilityHidden(true)
+                Text(title)
+                    .font(.compound.headingMDBold)
+                    .foregroundStyle(.compound.textPrimary)
+                    .accessibilityAddTraits(.isHeader)
+            }
+            Text(subtitle.lineBreakableIdentifier)
+                .font(.compound.bodyLG)
+                .foregroundStyle(.compound.textPrimary)
+                .accessibilityLabel(subtitle)
+            if let explainer {
+                Text(explainer)
+                    .font(.compound.bodyMD)
+                    .foregroundStyle(.compound.textSecondary)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .listRowBackground(Color.clear)
+        .listRowInsets(EdgeInsets(top: 0,
+                                  leading: ListRowPadding.horizontal,
+                                  bottom: 0,
+                                  trailing: ListRowPadding.horizontal))
+    }
+}
+
+/// Two decision buttons side by side, the primary one trailing and as wide as its title. When
+/// they don't fit on one line (a long language, a large text size) they stack, primary first.
+private struct DecisionButtons<Secondary: View, Primary: View>: View {
+    @ViewBuilder var secondary: Secondary
+    @ViewBuilder var primary: Primary
+
+    var body: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: CompoundDesignTokens.space3X) {
+                secondary
+                primary
+                    .fixedSize(horizontal: true, vertical: false)
+            }
+
+            VStack(spacing: CompoundDesignTokens.space2X) {
+                primary
+                secondary
+            }
+        }
+    }
+}
+
+/// A decision button's title, with a spinner while that decision is being sent.
+private struct DecisionLabel: View {
+    let title: String
+    var isWaiting = false
+    /// The title sits on a filled button, so the spinner takes the title's colour.
+    var isOnSolid = false
+
+    var body: some View {
+        HStack(spacing: CompoundDesignTokens.space2X) {
+            if isWaiting {
+                ProgressView()
+                    .tint(isOnSolid ? .compound.iconOnSolidPrimary : nil)
+            }
+            Text(title)
+        }
+    }
+}
+
+private extension View {
+    /// The bar the decision buttons sit in, below the list rather than over it: text half under an
+    /// overlaid bar stays on screen for the contrast audit, which read it as faint (a cold outreach's
+    /// "Expires", 2026-11-03), and a snapshot has no scroll edge effect to blur it.
+    func decisionBar(@ViewBuilder content: () -> some View) -> some View {
+        VStack(spacing: 0) {
+            self
+            content()
+                .background(Color.compound.bgSubtleSecondaryLevel0.ignoresSafeArea(edges: .bottom))
+        }
+    }
+}
+
 // MARK: - Previews
 
-struct ApprovalDetailScreen_Previews: PreviewProvider, TestablePreview {
+struct ApprovalDetailScreen_Previews: PreviewProvider, TestablePreview, SpiralGatedPreview {
     static let loadingViewModel = makeViewModel(state: .loading)
     static let genericViewModel = makeViewModel(state: .loaded(Self.genericFixture))
     static let firstContactViewModel = makeViewModel(state: .loaded(Self.firstContactFixture))
@@ -405,12 +589,15 @@ struct ApprovalDetailScreen_Previews: PreviewProvider, TestablePreview {
                                                             knownRoomName: "Book club")
     static let blockedViewModel = makeViewModel(state: .loaded(Self.blockRequestFixture),
                                                 delivery: .applied)
+    static let inAgentsTabViewModel = makeViewModel(state: .loaded(Self.firstContactFixture))
+    static let agentsTab = makeAgentsTab(showing: inAgentsTabViewModel)
 
     // Brief 0078: the loaded previews wait for their fetch; until then every snapshot showed the spinner.
     static var previews: some View {
         ElementNavigationStack {
             ApprovalDetailScreen(context: loadingViewModel.context)
         }
+        .environment(\.spiralPreloaderDelay, .zero)
         .previewDisplayName("Loading")
 
         ElementNavigationStack {
@@ -461,6 +648,30 @@ struct ApprovalDetailScreen_Previews: PreviewProvider, TestablePreview {
         }
         .snapshotPreferences(expect: blockedViewModel.context.observe(\.viewState.isBlockedAndNamed))
         .previewDisplayName("Blocked")
+
+        // Decision 308: the decision sits above the tab bar, where Reject used to be under it.
+        agentsTab.toPresentable()
+            .snapshotPreferences(expect: inAgentsTabViewModel.context.observe(\.viewState.loadState).map { if case .loading = $0 { false } else { true } })
+            .previewDisplayName("In the Agents tab")
+    }
+
+    /// The tab bar the app shows over the screen: Chats, Feed and Agents, with Agents selected and its badge, and Search.
+    static func makeAgentsTab(showing viewModel: ApprovalDetailScreenViewModel) -> NavigationTabCoordinator<Int> {
+        let agentsTabDetails = NavigationTabCoordinator<Int>.TabDetails(tag: 2, title: UntranslatedL10n.screenHomeTabAgents, symbol: SpiralTabSymbol.agents)
+        agentsTabDetails.badgeCount = 1 // The approval on screen is pending.
+        let tabs: [(NavigationTabCoordinator<Int>.TabDetails, AnyView)] = [
+            (.init(tag: 0, title: L10n.screenHomeTabChats, symbol: SpiralTabSymbol.chats), AnyView(EmptyView())),
+            (.init(tag: 1, title: UntranslatedL10n.screenHomeTabFeed, symbol: SpiralTabSymbol.feed), AnyView(EmptyView())),
+            (agentsTabDetails,
+             AnyView(ElementNavigationStack { ApprovalDetailScreen(context: viewModel.context) })),
+            (.init(tag: 3, title: L10n.commonSettings, icon: \.userProfile, selectedIcon: \.userProfileSolid), AnyView(EmptyView()))
+        ]
+        let coordinator = NavigationTabCoordinator<Int>()
+        coordinator.setTabs(tabs.map { .init(coordinator: PreviewTabCoordinator(content: $0.1), details: $0.0) }, animated: false)
+        coordinator.selectedTab = 2
+        // A snapshot renders a tab's content only in its window, after the wait for the fetch.
+        viewModel.context.send(viewAction: .appeared)
+        return coordinator
     }
 
     // MARK: Fixtures
@@ -560,8 +771,9 @@ struct ApprovalDetailScreen_Previews: PreviewProvider, TestablePreview {
         }
         switch state {
         case .loading:
+            // Both snapshot suites share this view model in one run, which can outlast a minute.
             service.fetchApprovalIdClosure = { _ in
-                try? await Task.sleep(for: .seconds(60))
+                try? await Task.sleep(for: .seconds(24 * 3600))
                 return .failure(.serverError(status: 0))
             }
         case .loaded(let detail):
@@ -577,7 +789,13 @@ struct ApprovalDetailScreen_Previews: PreviewProvider, TestablePreview {
                                                       clientProxy: clientProxy)
         if let delivery, case .loaded(let detail) = state {
             service.decideApprovalIdDecisionReturnValue = .success(.init(approval: detail, delivery: delivery))
-            viewModel.context.send(viewAction: .approve)
+            // A decision waits for the card.
+            Task {
+                for await loadState in viewModel.context.observe(\.viewState.loadState) where loadState == .loaded(detail) {
+                    viewModel.context.send(viewAction: .approve)
+                    break
+                }
+            }
         }
         if isEditing, case .loaded(let detail) = state {
             viewModel.context.editBuffer = detail.draftBody
@@ -598,6 +816,19 @@ struct ApprovalDetailScreen_Previews: PreviewProvider, TestablePreview {
         // the Cold Outreach + edit previews).
         _ = sendFailedReason
         return viewModel
+    }
+}
+
+/// A tab's content in the preview's tab bar.
+private final class PreviewTabCoordinator: CoordinatorProtocol {
+    private let content: AnyView
+
+    init(content: AnyView) {
+        self.content = content
+    }
+
+    func toPresentable() -> AnyView {
+        content
     }
 }
 

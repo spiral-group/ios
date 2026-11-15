@@ -193,10 +193,15 @@ enum SpiralAppOperation: Equatable {
 
     /// Whose namespace this operation writes into, or nil for shared state.
     /// A batch has no single owner; ask its `members`.
+    ///
+    /// The bare `by` is everybody's namespaces at once, so it belongs to
+    /// nobody: its owner is "", which no sender is. A write there is refused
+    /// before it is sent and skipped by every reader's owned pass; as shared
+    /// state it forged other members' votes (corpus F2).
     var owner: String? {
         let path = path
-        guard path.count >= 2, path[0] == Self.ownedNamespace else { return nil }
-        return path[1]
+        guard path.first == Self.ownedNamespace else { return nil }
+        return path.count >= 2 ? path[1] : ""
     }
 
     // MARK: - Application

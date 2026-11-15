@@ -7,7 +7,7 @@
 //
 
 import Combine
-@testable import ElementX
+@testable import Spiral
 import Testing
 
 @MainActor
@@ -19,13 +19,13 @@ final class HomeScreenViewModelTests {
     
     var clientProxy: ClientProxyMock!
     var roomSummaryProvider: RoomSummaryProviderMock!
-    var notificationManager: NotificationManagerMock!
-    private let appSettings: AppSettings
+    var notificationService: NotificationServiceMock!
+    private let userSettings: UserSettings
     
     var cancellables = Set<AnyCancellable>()
     
     init() {
-        appSettings = AppSettings.volatile()
+        userSettings = UserSettings.mock()
     }
     
     @Test
@@ -55,28 +55,6 @@ final class HomeScreenViewModelTests {
     }
     
     @Test
-    func tapUserAvatar() async {
-        setupViewModel()
-        
-        var correctResult = false
-        
-        viewModel.actions
-            .sink { action in
-                switch action {
-                case .presentSettingsScreen:
-                    correctResult = true
-                default:
-                    break
-                }
-            }
-            .store(in: &cancellables)
-        
-        context.send(viewAction: .showSettings)
-        await Task.yield()
-        #expect(correctResult)
-    }
-    
-    @Test
     func leaveRoomAlert() async throws {
         setupViewModel()
         
@@ -93,6 +71,23 @@ final class HomeScreenViewModelTests {
         try await deferred.fulfill()
         
         #expect(context.leaveRoomAlertItem?.roomID == mockRoomID)
+    }
+    
+    @Test
+    func markingARoomAsReadTakesNewAwayToo() async {
+        setupViewModel()
+        let room = JoinedRoomProxyMock(.init(id: "1", name: "Some room"))
+        clientProxy.roomForIdentifierClosure = { _ in .joined(room) }
+        
+        await waitForConfirmation("Both receipts", expectedCount: 2) { confirm in
+            room.markAsReadReceiptTypeClosure = { _ in
+                confirm()
+                return .success(())
+            }
+            context.send(viewAction: .markRoomAsRead(roomIdentifier: "1"))
+        }
+        
+        #expect(room.markAsReadReceiptTypeReceivedInvocations.contains(.fullyRead))
     }
     
     @Test
@@ -275,7 +270,7 @@ final class HomeScreenViewModelTests {
                 room.roomID == invites[0].roomID && room.badges.isDotShown == false
             }
         }
-        appSettings.seenInvites = Set(invites.compactMap(\.roomID))
+        userSettings.account.seenInvites = Set(invites.compactMap(\.roomID))
         try await deferred.fulfill()
         invites = context.viewState.rooms.invites
         
@@ -289,15 +284,15 @@ final class HomeScreenViewModelTests {
         setupViewModel(invites: .rooms)
         
         let invitedRoomIDs = context.viewState.rooms.invites.compactMap(\.roomID)
-        appSettings.seenInvites = Set(invitedRoomIDs)
+        userSettings.account.seenInvites = Set(invitedRoomIDs)
         #expect(invitedRoomIDs.count == 2)
         
         let deferred = deferFulfillment(viewModel.actions) { $0 == .presentRoom(roomIdentifier: invitedRoomIDs[0]) }
         context.send(viewAction: .acceptInvite(roomIdentifier: invitedRoomIDs[0]))
         try await deferred.fulfill()
         
-        #expect(appSettings.seenInvites == [invitedRoomIDs[1]])
-        #expect(!notificationManager.removeDeliveredMessageNotificationsForCalled, "The notification will be dismissed when opening the room.")
+        #expect(userSettings.account.seenInvites == [invitedRoomIDs[1]])
+        #expect(!notificationService.removeDeliveredMessageNotificationsForCalled, "The notification will be dismissed when opening the room.")
     }
     
     @Test
@@ -305,7 +300,7 @@ final class HomeScreenViewModelTests {
         setupViewModel(invites: .spaces)
         
         let invitedRoomIDs = context.viewState.rooms.invites.compactMap(\.roomID)
-        appSettings.seenInvites = Set(invitedRoomIDs)
+        userSettings.account.seenInvites = Set(invitedRoomIDs)
         #expect(invitedRoomIDs.count == 2)
         
         let deferred = deferFulfillment(viewModel.actions) {
@@ -314,15 +309,15 @@ final class HomeScreenViewModelTests {
         context.send(viewAction: .acceptInvite(roomIdentifier: invitedRoomIDs[0]))
         try await deferred.fulfill()
         
-        #expect(appSettings.seenInvites == [invitedRoomIDs[1]])
-        #expect(!notificationManager.removeDeliveredMessageNotificationsForCalled, "The notification will be dismissed when opening the room.")
+        #expect(userSettings.account.seenInvites == [invitedRoomIDs[1]])
+        #expect(!notificationService.removeDeliveredMessageNotificationsForCalled, "The notification will be dismissed when opening the room.")
     }
     
     @Test
     func declineInvite() async throws {
         setupViewModel(invites: .rooms)
         let invitedRoomIDs = context.viewState.rooms.invites.compactMap(\.roomID)
-        appSettings.seenInvites = Set(invitedRoomIDs)
+        userSettings.account.seenInvites = Set(invitedRoomIDs)
         #expect(invitedRoomIDs.count == 2)
         
         let deferred = deferFulfillment(context.$viewState) { $0.bindings.alertInfo != nil }
@@ -345,16 +340,16 @@ final class HomeScreenViewModelTests {
         try await Task.sleep(for: .milliseconds(100))
         #expect(rejectCalled)
         
-        #expect(appSettings.seenInvites == [invitedRoomIDs[1]])
-        #expect(notificationManager.removeDeliveredMessageNotificationsForCalled)
-        #expect(notificationManager.removeDeliveredMessageNotificationsForReceivedInvocations == [invitedRoomIDs[0]])
+        #expect(userSettings.account.seenInvites == [invitedRoomIDs[1]])
+        #expect(notificationService.removeDeliveredMessageNotificationsForCalled)
+        #expect(notificationService.removeDeliveredMessageNotificationsForReceivedInvocations == [invitedRoomIDs[0]])
     }
     
     @Test
     func declineAndBlockInvite() async throws {
         setupViewModel(invites: .rooms)
         let invitedRoomIDs = context.viewState.rooms.invites.compactMap(\.roomID)
-        appSettings.seenInvites = Set(invitedRoomIDs)
+        userSettings.account.seenInvites = Set(invitedRoomIDs)
         #expect(invitedRoomIDs.count == 2)
         
         let deferred = deferFulfillment(context.$viewState) { $0.bindings.alertInfo != nil }
@@ -368,7 +363,7 @@ final class HomeScreenViewModelTests {
     
     @Test
     func newSoundBanner() {
-        appSettings.hasSeenNewSoundBanner = false
+        userSettings.app.hasSeenNewSoundBanner = false
         
         setupViewModel()
         #expect(context.viewState.shouldShowBanner)
@@ -377,14 +372,214 @@ final class HomeScreenViewModelTests {
         context.send(viewAction: .dismissNewSoundBanner)
         #expect(!context.viewState.shouldShowBanner)
         #expect(!context.viewState.shouldShowNewSoundBanner)
-        #expect(appSettings.hasSeenNewSoundBanner)
+        #expect(userSettings.app.hasSeenNewSoundBanner)
+    }
+    
+    @Test
+    func multiAccountAnnouncement() async throws {
+        userSettings.app.multiAccountEnabled = true
+        setupViewModel()
+        
+        // Arming it after the view model exists (Developer options) doesn't present it on its own.
+        userSettings.app.hasSeenMultiAccountAnnouncement = false
+        let deferredFailure = deferFailure(context.$viewState, timeout: .seconds(1)) { $0.bindings.isPresentingMultiAccountAnnouncement }
+        try await deferredFailure.fulfill()
+        
+        let deferred = deferFulfillment(context.$viewState) { $0.bindings.isPresentingMultiAccountAnnouncement }
+        context.send(viewAction: .screenAppeared)
+        try await deferred.fulfill()
+        #expect(!userSettings.app.hasSeenMultiAccountAnnouncement)
+        
+        context.send(viewAction: .multiAccountAnnouncementAppeared)
+        #expect(userSettings.app.hasSeenMultiAccountAnnouncement)
+        #expect(context.viewState.bindings.isPresentingMultiAccountAnnouncement)
+        
+        // A swipe down dismisses it without any of the announcement's actions.
+        context.isPresentingMultiAccountAnnouncement = false
+        let deferredReappearance = deferFailure(context.$viewState, timeout: .seconds(1)) { $0.bindings.isPresentingMultiAccountAnnouncement }
+        context.send(viewAction: .screenAppeared)
+        try await deferredReappearance.fulfill()
+    }
+    
+    @Test(arguments: [HomeScreenViewAction.dismissMultiAccountAnnouncement, .addAccount])
+    func multiAccountAnnouncementActionsDismissIt(_ action: HomeScreenViewAction) async throws {
+        userSettings.app.multiAccountEnabled = true
+        userSettings.app.hasSeenMultiAccountAnnouncement = false
+        setupViewModel()
+        
+        let deferred = deferFulfillment(context.$viewState) { $0.bindings.isPresentingMultiAccountAnnouncement }
+        context.send(viewAction: .screenAppeared)
+        try await deferred.fulfill()
+        
+        context.send(viewAction: action)
+        #expect(!context.viewState.bindings.isPresentingMultiAccountAnnouncement)
+    }
+    
+    @Test(arguments: MultiAccountAnnouncementHiddenCase.allCases)
+    func multiAccountAnnouncementHidden(_ hiddenCase: MultiAccountAnnouncementHiddenCase) async throws {
+        userSettings.app.multiAccountEnabled = hiddenCase != .flagOff
+        userSettings.app.hasSeenMultiAccountAnnouncement = hiddenCase == .alreadySeen
+        let verificationState: SessionVerificationState = switch hiddenCase {
+        case .unverified: .unverified
+        case .unknownVerificationState: .unknown
+        case .flagOff, .alreadySeen: .verified
+        }
+        let securityStateSubject = CurrentValueSubject<SessionSecurityState, Never>(.init(verificationState: verificationState, recoveryState: .enabled))
+        setupViewModel(securityStatePublisher: securityStateSubject.asCurrentValuePublisher())
+        
+        let deferred = deferFailure(context.$viewState, timeout: .seconds(1)) { $0.bindings.isPresentingMultiAccountAnnouncement }
+        context.send(viewAction: .screenAppeared)
+        try await deferred.fulfill()
+        #expect(userSettings.app.hasSeenMultiAccountAnnouncement == (hiddenCase == .alreadySeen))
+    }
+    
+    @Test
+    func multiAccountAnnouncementPresentsOnTheNextAppearanceOnceVerified() async throws {
+        userSettings.app.multiAccountEnabled = true
+        userSettings.app.hasSeenMultiAccountAnnouncement = false
+        let securityStateSubject = CurrentValueSubject<SessionSecurityState, Never>(.init(verificationState: .unverified, recoveryState: .enabled))
+        setupViewModel(securityStatePublisher: securityStateSubject.asCurrentValuePublisher())
+        
+        let deferredFailure = deferFailure(context.$viewState, timeout: .seconds(1)) { $0.bindings.isPresentingMultiAccountAnnouncement }
+        context.send(viewAction: .screenAppeared)
+        try await deferredFailure.fulfill()
+        
+        // Becoming verified doesn't present it on its own…
+        securityStateSubject.send(.init(verificationState: .verified, recoveryState: .enabled))
+        let deferredVerifiedFailure = deferFailure(context.$viewState, timeout: .seconds(1)) { $0.bindings.isPresentingMultiAccountAnnouncement }
+        try await deferredVerifiedFailure.fulfill()
+        
+        // …the room list appearing again does, e.g. once the identity confirmation cover is dismissed.
+        let deferred = deferFulfillment(context.$viewState) { $0.bindings.isPresentingMultiAccountAnnouncement }
+        context.send(viewAction: .screenAppeared)
+        try await deferred.fulfill()
+    }
+    
+    @Test
+    func multiAccountAnnouncementIsMarkedSeenWithSeveralAccounts() async throws {
+        userSettings.app.multiAccountEnabled = true
+        userSettings.app.hasSeenMultiAccountAnnouncement = false
+        setupViewModel(otherAccountUserIDs: ["@other:client.com"])
+        
+        let deferred = deferFailure(context.$viewState, timeout: .seconds(1)) { $0.bindings.isPresentingMultiAccountAnnouncement }
+        context.send(viewAction: .screenAppeared)
+        try await deferred.fulfill()
+        
+        #expect(userSettings.app.hasSeenMultiAccountAnnouncement)
     }
     
     // MARK: - Helpers
     
     enum InviteType { case rooms, spaces }
     
-    private func setupViewModel(securityStatePublisher: CurrentValuePublisher<SessionSecurityState, Never>? = nil, invites: InviteType? = nil) {
+    enum MultiAccountAnnouncementHiddenCase: CaseIterable { case flagOff, alreadySeen, unverified, unknownVerificationState }
+    
+    @Test
+    func roomListModeIsSetSynchronouslyOnAWarmLaunch() {
+        setupViewModel()
+        
+        // No awaiting, the mode must not need the subscription's async delivery.
+        #expect(context.viewState.roomListMode == .rooms)
+    }
+    
+    @Test
+    func roomListModeWaitsForTheRoomsToPublish() async throws {
+        let (roomListSubject, stateSubject) = setupViewModelWithManualProvider()
+        
+        #expect(context.viewState.roomListMode == .skeletons)
+        
+        // The provider reports loaded before the first summaries have been published.
+        let failure = deferFailure(context.$viewState, timeout: .seconds(1)) { $0.roomListMode != .skeletons }
+        stateSubject.send(.loaded(totalNumberOfRooms: 8))
+        try await failure.fulfill()
+        
+        let deferred = deferFulfillment(context.$viewState) { $0.roomListMode == .rooms }
+        roomListSubject.send(.mockRooms)
+        try await deferred.fulfill()
+    }
+    
+    @Test
+    func roomListModeDoesntHoldSkeletonsForAnEmptyFilteredResult() async throws {
+        let (roomListSubject, stateSubject) = setupViewModelWithManualProvider()
+        #expect(context.viewState.roomListMode == .skeletons)
+        
+        // A filter is active before anything has published and the filtered list is loaded but empty.
+        context.filtersState.activateFilter(.people)
+        let deferred = deferFulfillment(context.$viewState) { $0.roomListMode == .rooms }
+        roomListSubject.send([])
+        stateSubject.send(.loaded(totalNumberOfRooms: 8))
+        try await deferred.fulfill()
+    }
+    
+    @Test
+    func roomListModeGoesStraightToTheCachedRooms() async throws {
+        let (roomListSubject, _) = setupViewModelWithManualProvider(state: .loaded(totalNumberOfRooms: 8))
+        #expect(context.viewState.roomListMode == .awaitingCachedRooms)
+        
+        let deferred = deferFulfillment(context.$viewState) { $0.roomListMode == .rooms }
+        roomListSubject.send(.mockRooms)
+        try await deferred.fulfill()
+    }
+    
+    @Test
+    func roomListModeShowsSkeletonsWhenTheCachedRoomsAreSlow() async throws {
+        _ = setupViewModelWithManualProvider(state: .loaded(totalNumberOfRooms: 8))
+        #expect(context.viewState.roomListMode == .awaitingCachedRooms)
+        
+        let deferred = deferFulfillment(context.$viewState) { $0.roomListMode == .skeletons }
+        try await deferred.fulfill()
+    }
+    
+    @Test
+    func roomListModeDoesntReturnToSkeletonsWhenTheRoomsAreFilteredOut() async throws {
+        let (roomListSubject, stateSubject) = setupViewModelWithManualProvider()
+        
+        stateSubject.send(.loaded(totalNumberOfRooms: 8))
+        let deferred = deferFulfillment(context.$viewState) { $0.roomListMode == .rooms }
+        roomListSubject.send(.mockRooms)
+        try await deferred.fulfill()
+        
+        // A filter or a search without matches empties the list, the mode must not regress.
+        let failure = deferFailure(context.$viewState, timeout: .seconds(1)) { $0.roomListMode != .rooms }
+        roomListSubject.send([])
+        stateSubject.send(.loaded(totalNumberOfRooms: 9))
+        try await failure.fulfill()
+    }
+    
+    // AGENT-PLATFORM (decision 301): the space filter button follows the spaces flag.
+    @Test
+    func spaceFiltersAreShownWhenSpacesAreEnabled() async throws {
+        userSettings.app.spacesEnabled = true
+        setupViewModel(spaceServiceConfiguration: .populated)
+        
+        let deferred = deferFulfillment(context.$viewState) { $0.shouldShowSpaceFilters }
+        try await deferred.fulfill()
+    }
+    
+    @Test
+    func spaceFiltersAreHiddenWhenSpacesAreHidden() async throws {
+        userSettings.app.spacesEnabled = false
+        setupViewModel(spaceServiceConfiguration: .populated)
+        
+        let deferredFailure = deferFailure(context.$viewState, timeout: .seconds(1)) { $0.shouldShowSpaceFilters }
+        try await deferredFailure.fulfill()
+    }
+    
+    private func setupViewModelWithManualProvider(state: RoomSummaryProviderState = .notLoaded) -> (CurrentValueSubject<[RoomSummary], Never>, CurrentValueSubject<RoomSummaryProviderState, Never>) {
+        let roomListSubject = CurrentValueSubject<[RoomSummary], Never>([])
+        let stateSubject = CurrentValueSubject<RoomSummaryProviderState, Never>(state)
+        
+        let provider = RoomSummaryProviderMock()
+        provider.roomListPublisher = roomListSubject.asCurrentValuePublisher()
+        provider.statePublisher = stateSubject.asCurrentValuePublisher()
+        
+        setupViewModel(roomSummaryProvider: provider)
+        
+        return (roomListSubject, stateSubject)
+    }
+    
+    private func setupViewModel(otherAccountUserIDs: [String] = [], securityStatePublisher: CurrentValuePublisher<SessionSecurityState, Never>? = nil, invites: InviteType? = nil, roomSummaryProvider: RoomSummaryProviderMock? = nil,
+                                spaceServiceConfiguration: SpaceServiceProxyMock.Configuration? = nil) {
         cancellables.removeAll()
         
         var rooms: [RoomSummary] = .mockRooms
@@ -398,13 +593,16 @@ final class HomeScreenViewModelTests {
             break
         }
         
-        roomSummaryProvider = RoomSummaryProviderMock(.init(state: .loaded(rooms)))
+        self.roomSummaryProvider = roomSummaryProvider ?? RoomSummaryProviderMock(.init(state: .loaded(rooms)))
         
         clientProxy = ClientProxyMock(.init(userID: "@mock:client.com",
-                                            roomSummaryProvider: roomSummaryProvider))
+                                            roomSummaryProvider: self.roomSummaryProvider))
         
         clientProxy.joinRoomViaReturnValue = .success(())
         clientProxy.joinRoomAliasReturnValue = .success(())
+        if let spaceServiceConfiguration { // AGENT-PLATFORM (decision 301)
+            clientProxy.spaceService = SpaceServiceProxyMock(spaceServiceConfiguration)
+        }
         
         switch invites {
         case .rooms:
@@ -421,18 +619,19 @@ final class HomeScreenViewModelTests {
             break
         }
         
-        let userSession = UserSessionMock(.init(clientProxy: clientProxy))
+        notificationService = NotificationServiceMock(.init())
+        let userSession = UserSessionMock(.init(clientProxy: clientProxy, userSettings: userSettings, notificationService: notificationService))
         if let securityStatePublisher {
             userSession.sessionSecurityStatePublisher = securityStatePublisher
         }
         
-        notificationManager = NotificationManagerMock()
+        let sessionDetails = [UserSessionDetails(userSession: userSession)] + otherAccountUserIDs.map { UserSessionDetails(userID: $0) }
         
         viewModel = HomeScreenViewModel(userSession: userSession,
+                                        availableSessionsPublisher: .init(sessionDetails),
                                         selectedRoomPublisher: CurrentValueSubject<String?, Never>(nil).asCurrentValuePublisher(),
-                                        appSettings: appSettings,
                                         analyticsService: AnalyticsServiceMock(.init()),
-                                        notificationManager: notificationManager,
+                                        bugReportService: BugReportServiceMock(.init()),
                                         userIndicatorController: UserIndicatorControllerMock())
     }
 }
@@ -473,8 +672,6 @@ extension HomeScreenViewModelAction: @MainActor @retroactive Equatable {
         case (.presentRecoveryKeyScreen, .presentRecoveryKeyScreen):
             true
         case (.presentEncryptionResetScreen, .presentEncryptionResetScreen):
-            true
-        case (.presentSettingsScreen, .presentSettingsScreen):
             true
         case (.presentFeedbackScreen, .presentFeedbackScreen):
             true

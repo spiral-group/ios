@@ -14,6 +14,8 @@ import UserNotifications
 enum RoomFlowCoordinatorAction: Equatable {
     case presentCallScreen(roomProxy: JoinedRoomProxyProtocol, isVoiceCall: Bool)
     case presentAIConsentSettings // AGENT-PLATFORM (decision 150)
+    /// The Agents tab, where the person's agent is or will be (question 412).
+    case presentAgentsTab
     case verifyUser(userID: String)
     /// The requested room was actually a space. The room flow has been dismissed
     /// and a space flow should be started to continue.
@@ -24,7 +26,7 @@ enum RoomFlowCoordinatorAction: Equatable {
         switch (lhs, rhs) {
         case (.presentCallScreen(let lhsRoomProxy, let lhsIsVoiceCall), .presentCallScreen(let rhsRoomProxy, let rhsIsVoiceCall)):
             lhsRoomProxy.id == rhsRoomProxy.id && lhsIsVoiceCall == rhsIsVoiceCall
-        case (.finished, .finished):
+        case (.finished, .finished), (.presentAgentsTab, .presentAgentsTab):
             true
         default:
             false
@@ -100,10 +102,14 @@ class RoomFlowCoordinator: FlowCoordinatorProtocol {
     private var membersFlowCoordinator: RoomMembersFlowCoordinator?
     // AGENT-PLATFORM: the agent-tools child flow (Brief 0036).
     private var agentToolsFlowCoordinator: AgentToolsFlowCoordinator?
+    // AGENT-PLATFORM (Brief 0083, question 359): one of the owner's rows of an agent's page.
+    private(set) var agentRowFlowCoordinator: AgentRowFlowCoordinator? // AGENT-PLATFORM: read by the tests
     
-    private let stateMachine: StateMachine<State, Event> = .init(state: .initial)
+    let stateMachine: StateMachine<State, Event> = .init(state: .initial) // AGENT-PLATFORM (Brief 0083): tests drive the details' Threads row through it.
     
     private var cancellables = Set<AnyCancellable>()
+    /// The open catalogue's actions, which hold the screen and what it keeps.
+    private var catalogueActions: AnyCancellable?
     
     private let actionsSubject: PassthroughSubject<RoomFlowCoordinatorAction, Never> = .init()
     var actions: AnyPublisher<RoomFlowCoordinatorAction, Never> {
@@ -223,10 +229,13 @@ class RoomFlowCoordinator: FlowCoordinatorProtocol {
             break // AGENT-PLATFORM: without this room it is the chats tab's.
         case .roomAlias, .childRoomAlias, .eventOnRoomAlias, .childEventOnRoomAlias:
             break // These are converted to a room ID route one level above.
-        case .accountProvisioningLink, .oAuthCallback, .inviteLink, .roomList, .userProfile, .call, .settings, .chatBackupSettings, .search, .aiConsentSettings: // AGENT-PLATFORM: .inviteLink (Brief 0073), .aiConsentSettings (decision 150)
+        // AGENT-PLATFORM (Brief 0083 L1b): no .accountProvisioningLink.
+        case .oAuthCallback, .inviteLink, .roomList, .userProfile, .call, .settings, .chatBackupSettings, .search, .aiConsentSettings: // AGENT-PLATFORM: .inviteLink (Brief 0073), .aiConsentSettings (decision 150)
             break // These routes can't be handled.
         case .approvalDetail, .verificationDetail, .publicProfile:
             break // AGENT-PLATFORM: handled by AgentsTabFlowCoordinator, not here.
+        case .feedPost, .feedNotices:
+            break // AGENT-PLATFORM: feed (Brief 0082): handled by FeedTabFlowCoordinator.
         case .transferOwnership(let roomID):
             guard self.roomID == roomID else { fatalError("Navigation route doesn't belong to this room flow.") }
             
@@ -257,7 +266,7 @@ class RoomFlowCoordinator: FlowCoordinatorProtocol {
                 defer { hideLoadingIndicator() }
                 switch await roomProxy.loadOrFetchEventDetails(for: eventID) {
                 case .success(let event):
-                    if flowParameters.appSettings.threadsEnabled, let threadRootEventID = event.threadRootEventId() {
+                    if userSession.userSettings.app.threadsEnabled, let threadRootEventID = event.threadRootEventId() {
                         if case .thread(threadRootEventID: threadRootEventID, _) = stateMachine.state, let threadCoordinator = childThreadScreenCoordinators.last {
                             threadCoordinator.focusOnEvent(eventID: eventID)
                         } else {
@@ -337,7 +346,7 @@ class RoomFlowCoordinator: FlowCoordinatorProtocol {
                 // Otherwise check if the focussed event exists to handle a possible error or theaded event.
                 switch await roomProxy.loadOrFetchEventDetails(for: focusEvent.eventID) {
                 case .success(let event):
-                    if flowParameters.appSettings.threadsEnabled, let threadRootEventID = event.threadRootEventId() {
+                    if userSession.userSettings.app.threadsEnabled, let threadRootEventID = event.threadRootEventId() {
                         stateMachine.tryEvent(.presentRoom(presentationAction: .thread(rootEventID: threadRootEventID,
                                                                                        focusEvent: .init(eventID: focusEvent.eventID,
                                                                                                          shouldSetPin: focusEvent.shouldSetPin))),
@@ -353,6 +362,21 @@ class RoomFlowCoordinator: FlowCoordinatorProtocol {
         default:
             stateMachine.tryEvent(.presentJoinRoomScreen(via: via), userInfo: EventUserInfo(animated: animated))
         }
+    }
+    
+    /// Returns to this room's timeline from a screen pushed over it, when `roomID` is this room. A room that is the
+    /// stack's root is selected again by its route; a child flow's timeline is one of the stack's screens, so the
+    /// screens above it go. Anything else isn't this flow's to show.
+    /// - Returns: whether `roomID` is this room.
+    func showTimeline(ifRoomID roomID: String) -> Bool {
+        guard roomID == self.roomID else { return false }
+        
+        if isChildFlow, let roomScreenCoordinator {
+            navigationStackCoordinator.pop(to: roomScreenCoordinator)
+        } else {
+            handleAppRoute(.room(roomID: roomID, via: []), animated: true)
+        }
+        return true
     }
     
     func clearRoute(animated: Bool) {
@@ -422,7 +446,7 @@ class RoomFlowCoordinator: FlowCoordinatorProtocol {
                 
             // Thread List
                 
-            case (.room, .presentThreadList, .threadList):
+            case (.roomDetails, .presentThreadList, .threadList): // AGENT-PLATFORM (Brief 0083, decision 344): only the details' row opens it.
                 Task { await self.presentThreadList(animated: animated) }
                 
             // Thread
@@ -457,8 +481,8 @@ class RoomFlowCoordinator: FlowCoordinatorProtocol {
                                    emojiPickerContinuation: continuation,
                                    animated: animated)
                 
-            case (_, .presentMessageForwarding(let forwardingItem), .messageForwarding):
-                presentMessageForwarding(with: forwardingItem)
+            case (_, .presentMessageForwarding(let forwardingPayload), .messageForwarding):
+                presentMessageForwarding(with: forwardingPayload)
                 
             case (_, .presentMapNavigator(let mode), .mapNavigator):
                 guard let timelineController = (context.userInfo as? EventUserInfo)?.timelineController else {
@@ -536,10 +560,15 @@ class RoomFlowCoordinator: FlowCoordinatorProtocol {
             case (.membersFlow, .stopMembersFlow, _):
                 membersFlowCoordinator = nil
                 
-            case (_, .startAgentToolsFlow(let entryPoint), .agentToolsFlow):
-                startAgentToolsFlow(entryPoint: entryPoint, animated: animated)
+            case (_, .startAgentToolsFlow, .agentToolsFlow):
+                startAgentToolsFlow(animated: animated)
             case (.agentToolsFlow, .stopAgentToolsFlow, _):
                 agentToolsFlowCoordinator = nil
+                
+            case (_, .startAgentRowFlow(let row, let card), .agentRowFlow): // AGENT-PLATFORM (Brief 0083, question 359)
+                startAgentRowFlow(row: row, card: card, animated: animated)
+            case (.agentRowFlow, .stopAgentRowFlow, _):
+                agentRowFlowCoordinator = nil
                 
             case (_, .startChildFlow(let roomID, let via, let entryPoint), .presentingChild):
                 startChildFlow(for: roomID, via: via, entryPoint: entryPoint)
@@ -613,6 +642,8 @@ class RoomFlowCoordinator: FlowCoordinatorProtocol {
             // And then decide if the room actually needs to be presented again
             switch fromState {
             case .initial, .roomDetails(isRoot: true), .joinRoomScreen:
+                break
+            case _ where roomScreenCoordinator == nil: // AGENT-PLATFORM (Brief 0083): a screen over details at the root.
                 break
             default:
                 // The room is already on the stack, no need to present it again
@@ -709,8 +740,6 @@ class RoomFlowCoordinator: FlowCoordinatorProtocol {
                                                          completionSuggestionService: completionSuggestionService,
                                                          ongoingCallRoomIDPublisher: flowParameters.ongoingCallRoomIDPublisher,
                                                          appMediator: flowParameters.appMediator,
-                                                         appSettings: flowParameters.appSettings,
-                                                         appHooks: flowParameters.appHooks,
                                                          analytics: flowParameters.analytics,
                                                          composerDraftService: composerDraftService,
                                                          timelineControllerFactory: flowParameters.timelineControllerFactory,
@@ -751,8 +780,8 @@ class RoomFlowCoordinator: FlowCoordinatorProtocol {
                                           userInfo: EventUserInfo(animated: animated, timelineController: timelineController))
                 case .presentRoomMemberDetails(userID: let userID):
                     stateMachine.tryEvent(.startMembersFlow(entryPoint: .roomMember(userID: userID)))
-                case .presentMessageForwarding(let forwardingItem):
-                    stateMachine.tryEvent(.presentMessageForwarding(forwardingItem: forwardingItem))
+                case .presentMessageForwarding(let forwardingPayload):
+                    stateMachine.tryEvent(.presentMessageForwarding(forwardingPayload: forwardingPayload))
                 case .presentCallScreen(let isVoiceCall):
                     actionsSubject.send(.presentCallScreen(roomProxy: roomProxy, isVoiceCall: isVoiceCall))
                 case .presentAIConsentSettings: // AGENT-PLATFORM (decision 150)
@@ -768,18 +797,14 @@ class RoomFlowCoordinator: FlowCoordinatorProtocol {
                     }
                 case .presentKnockRequestsList:
                     stateMachine.tryEvent(.presentKnockRequestsListScreen)
-                case .presentThreadList:
-                    stateMachine.tryEvent(.presentThreadList, userInfo: EventUserInfo(animated: animated))
                 case .presentThread(let threadRootEventID, let focussedEventID):
                     stateMachine.tryEvent(.presentThread(threadRootEventID: threadRootEventID, focusEventID: focussedEventID))
                 case .presentRoom(let roomID, let via):
                     stateMachine.tryEvent(.startChildFlow(roomID: roomID,
                                                           via: via,
                                                           entryPoint: .room))
-                case .presentAgentToolsEdit:
-                    stateMachine.tryEvent(.startAgentToolsFlow(entryPoint: .banner))
-                case .presentAgentToolsCreate:
-                    stateMachine.tryEvent(.startAgentToolsFlow(entryPoint: .composer))
+                case .presentAgentTools:
+                    stateMachine.tryEvent(.startAgentToolsFlow)
                 case .presentInteractivePostAgentPicker:
                     Task { await presentInteractivePostAgentPicker() }
                 case .presentInteractivePostEditor(let eventID, let post, let title):
@@ -800,8 +825,9 @@ class RoomFlowCoordinator: FlowCoordinatorProtocol {
     /// navigation + its own state machine; this only creates, subscribes to,
     /// starts and retains it. On `.finished` the parent restores its previous
     /// state and refreshes the banner (tools may have changed).
-    private func startAgentToolsFlow(entryPoint: AgentToolsFlowEntryPoint, animated: Bool) {
-        guard let agentPlatformService = userSession.agentPlatformService else {
+    private func startAgentToolsFlow(animated: Bool) {
+        // AGENT-PLATFORM: the Agents store is there with the service (platform sync, decision 289).
+        guard let agentPlatformService = userSession.agentPlatformService, let agentsStore = userSession.agentsStore else {
             MXLog.warning("RoomFlowCoordinator: no AgentPlatformService configured — cannot start agent-tools flow")
             showErrorIndicator()
             stateMachine.tryEvent(.stopAgentToolsFlow)
@@ -809,24 +835,69 @@ class RoomFlowCoordinator: FlowCoordinatorProtocol {
         }
 
         let flowCoordinator = AgentToolsFlowCoordinator(roomID: roomID,
-                                                        entryPoint: entryPoint,
                                                         roomProxy: roomProxy,
                                                         agentPlatformService: agentPlatformService,
+                                                        agentsStore: agentsStore,
                                                         navigationStackCoordinator: navigationStackCoordinator,
                                                         flowParameters: flowParameters)
 
         flowCoordinator.actions.sink { [weak self] action in
-            guard let self else { return }
-            switch action {
-            case .finished:
-                roomScreenCoordinator?.refreshAgentToolsBanner()
-                stateMachine.tryEvent(.stopAgentToolsFlow)
-            }
+            self?.handle(action)
         }
         .store(in: &cancellables)
 
         flowCoordinator.start(animated: animated)
         agentToolsFlowCoordinator = flowCoordinator
+    }
+    
+    func handle(_ action: AgentToolsFlowCoordinatorAction) {
+        switch action {
+        case .finished:
+            roomScreenCoordinator?.refreshAgentToolsBanner()
+            stateMachine.tryEvent(.stopAgentToolsFlow)
+        case .presentProfile(let userID):
+            // The state goes back first: the dismissal's `.finished` finds it so.
+            stateMachine.tryEvent(.stopAgentToolsFlow)
+            stateMachine.tryEvent(.startMembersFlow(entryPoint: .roomMember(userID: userID)))
+        }
+    }
+
+    // AGENT-PLATFORM (Brief 0083, question 359)
+    private func startAgentRowFlow(row: AgentPageRow, card: AgentSpaceAgentCard, animated: Bool) {
+        guard let flowCoordinator = AgentRowFlowCoordinator(row: row,
+                                                            card: card,
+                                                            navigationStackCoordinator: navigationStackCoordinator,
+                                                            flowParameters: flowParameters,
+                                                            showOriginRoom: { [weak self] in self?.showTimeline(ifRoomID: $0) ?? false }) else {
+            MXLog.warning("RoomFlowCoordinator: no agent platform: cannot open an agent's row")
+            showErrorIndicator()
+            stateMachine.tryEvent(.stopAgentRowFlow)
+            return
+        }
+        
+        flowCoordinator.actionsPublisher.sink { [weak self, weak flowCoordinator] action in
+            guard let self else { return }
+            switch action {
+            case .finished:
+                // The row's Message to this very chat routes to the room, which moves the state on before its screens
+                // are popped; the flow is let go there too rather than held for the rest of the room's life.
+                if !stateMachine.tryEvent(.stopAgentRowFlow), agentRowFlowCoordinator === flowCoordinator {
+                    agentRowFlowCoordinator = nil
+                }
+            case .presentCallScreen(let roomProxy, let isVoiceCall):
+                actionsSubject.send(.presentCallScreen(roomProxy: roomProxy, isVoiceCall: isVoiceCall))
+            case .presentAIConsentSettings:
+                actionsSubject.send(.presentAIConsentSettings)
+            case .presentAgentsTab: // AGENT-PLATFORM (question 412)
+                actionsSubject.send(.presentAgentsTab)
+            case .verifyUser(let userID):
+                actionsSubject.send(.verifyUser(userID: userID))
+            }
+        }
+        .store(in: &cancellables)
+        
+        flowCoordinator.start(animated: animated)
+        agentRowFlowCoordinator = flowCoordinator
     }
 
     private func presentThreadList(animated: Bool) async {
@@ -879,7 +950,6 @@ class RoomFlowCoordinator: FlowCoordinatorProtocol {
                                                                             linkMetadataProvider: flowParameters.linkMetadataProvider,
                                                                             completionSuggestionService: completionSuggestionService,
                                                                             appMediator: flowParameters.appMediator,
-                                                                            appSettings: flowParameters.appSettings,
                                                                             analytics: flowParameters.analytics,
                                                                             composerDraftService: composerDraftService,
                                                                             timelineControllerFactory: flowParameters.timelineControllerFactory,
@@ -915,8 +985,8 @@ class RoomFlowCoordinator: FlowCoordinatorProtocol {
                                       userInfo: EventUserInfo(animated: animated, emojiPickerContinuation: continuation))
             case .presentRoomMemberDetails(let userID):
                 stateMachine.tryEvent(.startMembersFlow(entryPoint: .roomMember(userID: userID)))
-            case .presentMessageForwarding(let forwardingItem):
-                stateMachine.tryEvent(.presentMessageForwarding(forwardingItem: forwardingItem))
+            case .presentMessageForwarding(let forwardingPayload):
+                stateMachine.tryEvent(.presentMessageForwarding(forwardingPayload: forwardingPayload))
             case .presentResolveSendFailure(let failure, let resolver): // AGENT-PLATFORM: § 5.87
                 if !stateMachine.tryEvent(.presentResolveSendFailure(failure: failure,
                                                                      resolver: resolver)) {
@@ -941,8 +1011,7 @@ class RoomFlowCoordinator: FlowCoordinatorProtocol {
     private func presentJoinRoomScreen(via: [String], animated: Bool) {
         let coordinator = JoinRoomScreenCoordinator(parameters: .init(source: .generic(roomID: roomID, via: via),
                                                                       userSession: userSession,
-                                                                      userIndicatorController: flowParameters.userIndicatorController,
-                                                                      appSettings: flowParameters.appSettings))
+                                                                      userIndicatorController: flowParameters.userIndicatorController))
         
         joinRoomScreenCoordinator = coordinator
         
@@ -1039,7 +1108,7 @@ class RoomFlowCoordinator: FlowCoordinatorProtocol {
             case .presentRoomMembersList:
                 stateMachine.tryEvent(.startMembersFlow(entryPoint: .roomMembersList))
             case .presentAgents: // AGENT-PLATFORM (decision 192)
-                stateMachine.tryEvent(.startAgentToolsFlow(entryPoint: .composer))
+                stateMachine.tryEvent(.startAgentToolsFlow)
             case .presentRoomDetailsEditScreen:
                 stateMachine.tryEvent(.presentRoomDetailsEditScreen)
             case .presentNotificationSettingsScreen:
@@ -1060,6 +1129,10 @@ class RoomFlowCoordinator: FlowCoordinatorProtocol {
                 stateMachine.tryEvent(.presentKnockRequestsListScreen)
             case .presentMediaEventsTimeline:
                 stateMachine.tryEvent(.presentMediaEventsTimeline)
+            case .presentThreadList: // AGENT-PLATFORM (Brief 0083, decision 344)
+                stateMachine.tryEvent(.presentThreadList)
+            case .presentAgentRow(let row, let card): // AGENT-PLATFORM (Brief 0083, question 359)
+                stateMachine.tryEvent(.startAgentRowFlow(row: row, card: card))
             case .presentSecurityAndPrivacyScreen:
                 stateMachine.tryEvent(.presentSecurityAndPrivacyScreen)
             case .presentRecipientDetails(let userID):
@@ -1105,10 +1178,10 @@ class RoomFlowCoordinator: FlowCoordinatorProtocol {
         
         let roomDetailsEditParameters = RoomDetailsEditScreenCoordinatorParameters(roomProxy: roomProxy,
                                                                                    userSession: userSession,
-                                                                                   mediaUploadingPreprocessor: MediaUploadingPreprocessor(appSettings: flowParameters.appSettings),
+                                                                                   mediaUploadingPreprocessor: MediaUploadingPreprocessor(userSettings: userSession.userSettings),
                                                                                    navigationStackCoordinator: stackCoordinator,
-                                                                                   userIndicatorController: flowParameters.userIndicatorController,
-                                                                                   orientationManager: flowParameters.appMediator.windowManager)
+                                                                                   appMediator: flowParameters.appMediator,
+                                                                                   userIndicatorController: flowParameters.userIndicatorController)
         let roomDetailsEditCoordinator = RoomDetailsEditScreenCoordinator(parameters: roomDetailsEditParameters)
         
         roomDetailsEditCoordinator.actions.sink { [weak self] action in
@@ -1196,6 +1269,7 @@ class RoomFlowCoordinator: FlowCoordinatorProtocol {
             DispatchQueue.main.async {
                 guard let self, self.navigationStackCoordinator.sheetCoordinator == nil else { return }
                 self.roomScreenCoordinator?.setInteractivePostsCovered(false)
+                self.catalogueActions = nil
             }
         }
     }
@@ -1245,26 +1319,36 @@ class RoomFlowCoordinator: FlowCoordinatorProtocol {
         let roomName = roomProxy.infoPublisher.value.displayName ?? roomProxy.id
         let room: JoinedRoomProxyProtocol = roomProxy
         let mediaProvider = userSession.mediaProvider
+        let appSettings = userSession.userSettings.app
         let coordinator = InteractivePostCatalogScreenCoordinator(parameters: .init(roomName: roomName,
-                                                                                    catalogURL: flowParameters.appSettings.interactiveCatalogURL,
+                                                                                    catalogURL: appSettings.interactiveCatalogURL,
                                                                                     dms: dms,
                                                                                     ownUserID: roomProxy.ownUserID,
                                                                                     initialTemplateID: templateID,
                                                                                     assistant: assistant,
+                                                                                    hasSeenIntroduction: appSettings.hasSeenInteractivePostIntroduction,
+                                                                                    introductionSeen: { appSettings.hasSeenInteractivePostIntroduction = true },
+                                                                                    countPeople: {
+                                                                                        await room.members().map { SpiralAppPostSession.people(in: $0).count }
+                                                                                    },
                                                                                     loadMembers: {
                                                                                         await SpiralAppPostSession.membersPayload(room.members() ?? [], mediaProvider: mediaProvider)
                                                                                     }))
         let stackCoordinator = NavigationStackCoordinator()
-        coordinator.actionsPublisher.sink { [weak self] action in
+        // Only ✕ closes it (question 412): a swipe down inside a post being tried closed the whole catalogue.
+        stackCoordinator.isInteractiveDismissDisabled = true
+        // Held alone, not with `cancellables`: it holds the screen, and the
+        // pictures of what ran go with the sheet rather than with the room.
+        catalogueActions = coordinator.actionsPublisher.sink { [weak self] action in
             guard let self else { return }
             switch action {
             // A thread opens ON the catalogue, not instead of it: «back» then
             // returns to the catalogue, as it did not when the catalogue was
             // closed first and the thread opened as its own sheet (operator,
             // 2026-09-25; § 5.61). Publishing closes the whole sheet.
-            case .startNew:
-                chooseAgent(from: agents, onto: stackCoordinator, above: coordinator) { [weak self] agent in
-                    Task { await self?.presentInteractivePostThread(with: agent, onto: stackCoordinator) }
+            case .startNew(let description):
+                chooseAgent(from: agents, onto: stackCoordinator) { [weak self] agent in
+                    Task { await self?.presentInteractivePostThread(with: agent, describing: description, onto: stackCoordinator) }
                 }
             case .openThread(let thread):
                 guard let dm = dms.first(where: { $0.id == thread.dmRoomID }) else { return }
@@ -1280,20 +1364,30 @@ class RoomFlowCoordinator: FlowCoordinatorProtocol {
                 navigationStackCoordinator.setSheetCoordinator(nil)
                 Task { await self.publishInteractiveTemplate(template, roomName: roomName) }
             case .changeTemplate(let template):
-                chooseAgent(from: agents, onto: stackCoordinator, above: coordinator) { [weak self] agent in
+                chooseAgent(from: agents, onto: stackCoordinator) { [weak self] agent in
                     Task {
                         guard let self, let seed = await self.seed(of: template) else { return }
                         await self.presentInteractivePostThread(with: agent, seed: seed, onto: stackCoordinator)
                     }
                 }
-            case .showAllThreads:
-                stackCoordinator.push(coordinator.threadsCoordinator)
+            case .showAgents:
+                // The person's assistant appears on the Agents tab: the server sets it up, nothing in the app makes
+                // one, so there is no "created" to come back here on (question 412).
+                navigationStackCoordinator.setSheetCoordinator(nil)
+                actionsSubject.send(.presentAgentsTab)
+            case .retryAgents(let templateID):
+                // Only a link's catalogue can fail to read the agents (decision 129); it reads them again, on its post.
+                navigationStackCoordinator.setSheetCoordinator(nil)
+                Task { await self.presentInteractivePostCatalogForLink(templateID: templateID) }
+            case .showPost:
+                stackCoordinator.push(coordinator.postCoordinator())
+            case .showYours:
+                stackCoordinator.push(coordinator.yoursCoordinator())
             case .cancel:
                 navigationStackCoordinator.setSheetCoordinator(nil)
             }
         }
-        .store(in: &cancellables)
-
+        
         // Not `coordinator.start()` here: `setRootCoordinator` starts it, and
         // started twice it subscribed twice, so every action ran twice — the
         // thread was pushed two deep and «back» took two taps (§ 5.63).
@@ -1306,7 +1400,6 @@ class RoomFlowCoordinator: FlowCoordinatorProtocol {
     /// stack (decision 129: a ready template is shown before any question).
     private func chooseAgent(from agents: [AgentPickerItem],
                              onto stack: NavigationStackCoordinator,
-                             above catalogue: CoordinatorProtocol,
                              then continuation: @escaping (AgentPickerItem) -> Void) {
         if agents.count == 1, let only = agents.first {
             continuation(only)
@@ -1314,9 +1407,11 @@ class RoomFlowCoordinator: FlowCoordinatorProtocol {
         }
         guard !agents.isEmpty else { return } // The catalogue shows no assistant path then.
 
+        // Back to the screen the picker was pushed from: the post page, Yours, or the catalogue.
+        guard let below = stack.stackCoordinators.last ?? stack.rootCoordinator else { return }
         let picker = AgentPickerScreenCoordinator(parameters: .init(agents: agents))
-        picker.actionsPublisher.sink { action in
-            stack.pop(to: catalogue, animated: false)
+        picker.actionsPublisher.sink { [weak stack] action in
+            stack?.pop(to: below, animated: false)
             if case .selectAgent(let agent) = action {
                 continuation(agent)
             }
@@ -1365,13 +1460,13 @@ class RoomFlowCoordinator: FlowCoordinatorProtocol {
     private func seed(of template: SpiralAppTemplate) async -> InteractiveSeed? {
         showLoadingIndicator()
         defer { hideLoadingIndicator() }
-        guard let files = await SpiralAppCatalog.files(of: template, from: flowParameters.appSettings.interactiveCatalogURL) else {
+        guard let source = await SpiralAppCatalog.source(of: template, from: flowParameters.userSession.userSettings.app.interactiveCatalogURL) else {
             showErrorIndicator()
             return nil
         }
         return InteractiveSeed(title: template.localizedTitle,
                                aspect: template.aspect,
-                               source: files.source,
+                               source: source,
                                asks: template.localizedAsk)
     }
 
@@ -1379,13 +1474,13 @@ class RoomFlowCoordinator: FlowCoordinatorProtocol {
     private func publishInteractiveTemplate(_ template: SpiralAppTemplate, roomName: String) async {
         showLoadingIndicator()
         defer { hideLoadingIndicator() }
-        guard let files = await SpiralAppCatalog.files(of: template, from: flowParameters.appSettings.interactiveCatalogURL) else {
+        guard let files = await SpiralAppCatalog.files(of: template, from: flowParameters.userSession.userSettings.app.interactiveCatalogURL) else {
             showErrorIndicator()
             return
         }
         let room: JoinedRoomProxyProtocol = roomProxy
         let published = await SpiralAppPublisher.publish(template: files.manifestJSON,
-                                                         source: files.source,
+                                                         source: files.module,
                                                          title: template.localizedTitle,
                                                          into: room,
                                                          clientProxy: userSession.clientProxy) { raw in
@@ -1408,7 +1503,10 @@ class RoomFlowCoordinator: FlowCoordinatorProtocol {
         }
     }
 
+    /// `description`: what to make, in the person's words — what they searched the catalogue
+    /// for and didn't find (question 412). It opens the thread as their first message.
     private func presentInteractivePostThread(with agent: AgentPickerItem,
+                                              describing description: String? = nil,
                                               seed: InteractiveSeed? = nil,
                                               live: SpiralLivePost? = nil,
                                               onto stack: NavigationStackCoordinator? = nil) async {
@@ -1470,6 +1568,9 @@ class RoomFlowCoordinator: FlowCoordinatorProtocol {
         if let seed, let content = Self.seedContent(seed, threadRootEventID: rootEventID) {
             _ = await dm.sendSpiralRawEventReturningEventID(type: "m.room.message", content: content)
         }
+        if let description, let content = Self.descriptionContent(description, threadRootEventID: rootEventID) {
+            _ = await dm.sendSpiralRawEventReturningEventID(type: "m.room.message", content: content)
+        }
 
         await presentInteractivePostSheet(dm: dm, threadRootEventID: rootEventID, targetRoomName: roomName, onto: stack)
     }
@@ -1506,12 +1607,49 @@ class RoomFlowCoordinator: FlowCoordinatorProtocol {
         return String(data: data, encoding: .utf8)
     }
 
+    /// The person's own words in the thread, as if typed there; nil when there are none.
+    static func descriptionContent(_ description: String, threadRootEventID: String) -> String? {
+        let text = description.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else { return nil }
+        let content: [String: Any] = [
+            "msgtype": "m.text",
+            "body": text,
+            "m.relates_to": ["rel_type": "m.thread",
+                             "event_id": threadRootEventID,
+                             "is_falling_back": true,
+                             "m.in_reply_to": ["event_id": threadRootEventID]]
+        ]
+        guard let data = try? JSONSerialization.data(withJSONObject: content) else { return nil }
+        return String(bytes: data, encoding: .utf8)
+    }
+
     /// «Change» on a published post: back to the thread it was made in (§ 5.55).
     ///
     /// The post's manifest names that thread (`origin`), inside what its
     /// digest covers. A note goes into the thread first — «📌 Changing …» with
     /// `com.spiral.live_post` — so the agent knows the post is live and keeps
     /// its state, and the thread's drafts offer to update THIS post in place.
+    /// The code a thread about a published post starts from. The agent edits
+    /// source, so a catalogue template published compiled (question 374)
+    /// starts from the catalogue's source; one the catalogue no longer has,
+    /// from the module it was published with, which is all there is. Nil
+    /// when the catalogue couldn't be read.
+    private func seedSource(of artifact: SpiralAppArtifact) async -> String? {
+        let module = String(decoding: artifact.source, as: UTF8.self)
+        guard artifact.manifest.isCompiled, artifact.manifest.appID.hasPrefix("tpl-") else {
+            return module
+        }
+        let catalogURL = flowParameters.userSession.userSettings.app.interactiveCatalogURL
+        switch await SpiralAppCatalog.resolve(String(artifact.manifest.appID.dropFirst(4)), from: catalogURL) {
+        case .template(let template):
+            return await SpiralAppCatalog.source(of: template, from: catalogURL)
+        case .unknown, .needsNewerApp:
+            return module
+        case .unavailable:
+            return nil
+        }
+    }
+
     private func presentInteractivePostEditor(eventID: String, post: SpiralAppPost, title: String) async {
         showLoadingIndicator()
         defer { hideLoadingIndicator() }
@@ -1533,9 +1671,11 @@ class RoomFlowCoordinator: FlowCoordinatorProtocol {
                                                                              title: UntranslatedL10n.screenRoomInteractivePostNoOrigin))
                 return
             }
-            let seed = InteractiveSeed(title: title,
-                                       aspect: artifact.manifest.aspect,
-                                       source: String(decoding: artifact.source, as: UTF8.self))
+            guard let source = await seedSource(of: artifact) else {
+                showErrorIndicator()
+                return
+            }
+            let seed = InteractiveSeed(title: title, aspect: artifact.manifest.aspect, source: source)
             await presentInteractivePostThread(with: agent, seed: seed, live: live)
             return
         }
@@ -1590,7 +1730,6 @@ class RoomFlowCoordinator: FlowCoordinatorProtocol {
                                                                             linkMetadataProvider: flowParameters.linkMetadataProvider,
                                                                             completionSuggestionService: completionSuggestionService,
                                                                             appMediator: flowParameters.appMediator,
-                                                                            appSettings: flowParameters.appSettings,
                                                                             analytics: flowParameters.analytics,
                                                                             composerDraftService: composerDraftService,
                                                                             timelineControllerFactory: flowParameters.timelineControllerFactory,
@@ -1716,9 +1855,7 @@ class RoomFlowCoordinator: FlowCoordinatorProtocol {
         let parameters = MediaUploadPreviewScreenCoordinatorParameters(mediaURLs: mediaURLs,
                                                                        caption: caption,
                                                                        title: title,
-                                                                       shouldShowCaptionWarning: flowParameters.appSettings.shouldShowMediaCaptionWarning,
-                                                                       galleryEnabled: flowParameters.appSettings.galleryEnabled,
-                                                                       mediaUploadingPreprocessor: MediaUploadingPreprocessor(appSettings: flowParameters.appSettings),
+                                                                       mediaUploadingPreprocessor: MediaUploadingPreprocessor(userSettings: userSession.userSettings),
                                                                        timelineController: timelineController,
                                                                        clientProxy: userSession.clientProxy,
                                                                        userIndicatorController: flowParameters.userIndicatorController)
@@ -1746,7 +1883,8 @@ class RoomFlowCoordinator: FlowCoordinatorProtocol {
     private func presentEmojiPicker(selectedEmojis: Set<String>,
                                     emojiPickerContinuation: EmojiPickerScreenContinuation,
                                     animated: Bool) {
-        let params = EmojiPickerScreenCoordinatorParameters(selectedEmojis: selectedEmojis,
+        let params = EmojiPickerScreenCoordinatorParameters(mode: .reaction,
+                                                            selectedEmojis: selectedEmojis,
                                                             emojiProvider: flowParameters.emojiProvider,
                                                             continuation: emojiPickerContinuation)
         let coordinator = EmojiPickerScreenCoordinator(parameters: params)
@@ -1772,15 +1910,13 @@ class RoomFlowCoordinator: FlowCoordinatorProtocol {
         let stackCoordinator = NavigationStackCoordinator()
         
         let params = LocationSharingScreenCoordinatorParameters(interactionMode: interactionMode,
-                                                                mapURLBuilder: flowParameters.appSettings.mapTilerSettings.publisher.value,
+                                                                mapURLBuilder: userSession.userSettings.app.mapTilerConfiguration.publisher.value,
                                                                 roomProxy: roomProxy,
                                                                 timelineController: timelineController,
-                                                                liveLocationManager: flowParameters.userSession.liveLocationManager,
-                                                                appSettings: flowParameters.appSettings,
+                                                                userSession: userSession,
                                                                 appMediator: flowParameters.appMediator,
                                                                 analytics: flowParameters.analytics,
-                                                                userIndicatorController: flowParameters.userIndicatorController,
-                                                                mediaProvider: flowParameters.userSession.mediaProvider)
+                                                                userIndicatorController: flowParameters.userIndicatorController)
         let coordinator = LocationSharingScreenCoordinator(parameters: params)
         
         coordinator.actions.sink { [weak self] action in
@@ -1857,12 +1993,12 @@ class RoomFlowCoordinator: FlowCoordinatorProtocol {
         }
     }
     
-    private func presentMessageForwarding(with forwardingItem: MessageForwardingItem) {
+    private func presentMessageForwarding(with forwardingPayload: MessageForwardingPayload) {
         let roomSummaryProvider = userSession.clientProxy.alternateRoomSummaryProvider
         
         let stackCoordinator = NavigationStackCoordinator()
         
-        let parameters = MessageForwardingScreenCoordinatorParameters(forwardingItem: forwardingItem,
+        let parameters = MessageForwardingScreenCoordinatorParameters(forwardingPayload: forwardingPayload,
                                                                       userSession: userSession,
                                                                       roomSummaryProvider: roomSummaryProvider,
                                                                       userIndicatorController: flowParameters.userIndicatorController)
@@ -1876,6 +2012,7 @@ class RoomFlowCoordinator: FlowCoordinatorProtocol {
                 navigationStackCoordinator.setSheetCoordinator(nil)
             case .sent(let roomIDs):
                 navigationStackCoordinator.setSheetCoordinator(nil)
+                clearMessageSelection()
                 processPostMessageForwardingTo(rooms: roomIDs)
             }
         }
@@ -1886,6 +2023,12 @@ class RoomFlowCoordinator: FlowCoordinatorProtocol {
         navigationStackCoordinator.setSheetCoordinator(stackCoordinator) { [weak self] in
             self?.stateMachine.tryEvent(.dismissMessageForwarding)
         }
+    }
+    
+    /// Ends the message selection now that the forwarding has completed. Only one timeline can be selecting at a time.
+    private func clearMessageSelection() {
+        roomScreenCoordinator?.clearMessageSelection()
+        childThreadScreenCoordinators.forEach { $0.clearMessageSelection() }
     }
     
     private func presentNotificationSettingsScreen() {
@@ -1913,8 +2056,7 @@ class RoomFlowCoordinator: FlowCoordinatorProtocol {
                                                                          userSession: userSession,
                                                                          userNotificationCenter: UNUserNotificationCenter.current(),
                                                                          userIndicatorController: flowParameters.userIndicatorController,
-                                                                         isModallyPresented: true,
-                                                                         appSettings: flowParameters.appSettings)
+                                                                         isModallyPresented: true)
         let coordinator = NotificationSettingsScreenCoordinator(parameters: parameters)
         coordinator.actions.sink { [weak self] action in
             switch action {
@@ -2020,9 +2162,8 @@ class RoomFlowCoordinator: FlowCoordinatorProtocol {
     
     private func presentSecurityAndPrivacyScreen() {
         let coordinator = SecurityAndPrivacyScreenCoordinator(parameters: .init(roomProxy: roomProxy,
-                                                                                clientProxy: userSession.clientProxy,
-                                                                                userIndicatorController: flowParameters.userIndicatorController,
-                                                                                appSetting: flowParameters.appSettings))
+                                                                                userSession: userSession,
+                                                                                userIndicatorController: flowParameters.userIndicatorController))
         
         coordinator.actionsPublisher.sink { [weak self] action in
             guard let self else { return }
@@ -2151,6 +2292,8 @@ class RoomFlowCoordinator: FlowCoordinatorProtocol {
                 actionsSubject.send(.presentCallScreen(roomProxy: roomProxy, isVoiceCall: isVoiceCall))
             case .presentAIConsentSettings: // AGENT-PLATFORM (decision 150)
                 actionsSubject.send(.presentAIConsentSettings)
+            case .presentAgentsTab: // AGENT-PLATFORM (question 412)
+                actionsSubject.send(.presentAgentsTab)
             case .verifyUser(let userID):
                 actionsSubject.send(.verifyUser(userID: userID))
             case .continueWithSpaceFlow(let spaceRoomListProxy):
@@ -2240,8 +2383,8 @@ class RoomFlowCoordinator: FlowCoordinatorProtocol {
                                       userInfo: EventUserInfo(animated: false)) // No animation so the timeline visible when the preview animates away.
             case .finished:
                 stateMachine.tryEvent(.dismissMediaEventsTimeline)
-            case .displayMessageForwarding(let forwardingItem):
-                stateMachine.tryEvent(.presentMessageForwarding(forwardingItem: forwardingItem))
+            case .displayMessageForwarding(let forwardingPayload):
+                stateMachine.tryEvent(.presentMessageForwarding(forwardingPayload: forwardingPayload))
             }
         }
         .store(in: &cancellables)
@@ -2265,6 +2408,8 @@ class RoomFlowCoordinator: FlowCoordinatorProtocol {
                     actionsSubject.send(.presentCallScreen(roomProxy: roomProxy, isVoiceCall: isVoiceCall))
                 case .presentAIConsentSettings: // AGENT-PLATFORM (decision 150)
                     actionsSubject.send(.presentAIConsentSettings)
+                case .presentAgentsTab: // AGENT-PLATFORM (question 412)
+                    actionsSubject.send(.presentAgentsTab)
                 case .verifyUser(let userID):
                     actionsSubject.send(.verifyUser(userID: userID))
                 case .finished:
@@ -2282,7 +2427,8 @@ class RoomFlowCoordinator: FlowCoordinatorProtocol {
         let flowCoordinator = RoomMembersFlowCoordinator(entryPoint: entryPoint,
                                                          roomProxy: roomProxy,
                                                          navigationStackCoordinator: navigationStackCoordinator,
-                                                         flowParameters: flowParameters)
+                                                         flowParameters: flowParameters,
+                                                         showOriginRoom: { [weak self] in self?.showTimeline(ifRoomID: $0) ?? false })
         
         flowCoordinator.actions.sink { [weak self] action in
             guard let self else { return }
@@ -2293,6 +2439,8 @@ class RoomFlowCoordinator: FlowCoordinatorProtocol {
                 actionsSubject.send(.presentCallScreen(roomProxy: roomProxy, isVoiceCall: isVoiceCall))
             case .presentAIConsentSettings: // AGENT-PLATFORM (decision 150)
                 actionsSubject.send(.presentAIConsentSettings)
+            case .presentAgentsTab: // AGENT-PLATFORM (question 412)
+                actionsSubject.send(.presentAgentsTab)
             case .verifyUser(let userID):
                 actionsSubject.send(.verifyUser(userID: userID))
             }

@@ -11,12 +11,12 @@ import SwiftUI
 
 enum TimelineMediaPreviewViewModelAction: Equatable {
     case viewInRoomTimeline(TimelineItemIdentifier)
-    case displayMessageForwarding(MessageForwardingItem)
+    case displayMessageForwarding(MessageForwardingPayload)
     case dismiss
 }
 
 /// Identifies a media preview item — either a whole timeline item or a single gallery attachment.
-enum MediaPreviewItemID: Hashable {
+nonisolated enum MediaPreviewItemID: Hashable {
     case timelineItem(TimelineItemIdentifier.EventOrTransactionID)
     case galleryItem(GalleryItemID)
     
@@ -25,42 +25,6 @@ enum MediaPreviewItemID: Hashable {
     init(timelineItem: EventBasedMessageTimelineItemProtocol) {
         guard let id = timelineItem.id.eventOrTransactionID else { fatalError("Virtual items cannot be previewed.") }
         self = .timelineItem(id)
-    }
-}
-
-enum TimelineMediaPreviewDriverAction {
-    case itemLoaded(MediaPreviewItemID)
-    case showItemDetails(TimelineMediaPreviewItem.Media)
-    case exportFile(TimelineMediaPreviewFileExportPicker.File)
-    case authorizationRequired(appMediator: AppMediatorProtocol)
-    case dismissDetailsSheet
-    
-    var isItemLoaded: Bool {
-        switch self {
-        case .itemLoaded: true
-        default: false
-        }
-    }
-    
-    var isShowItemDetails: Bool {
-        switch self {
-        case .showItemDetails: true
-        default: false
-        }
-    }
-    
-    var isExportFile: Bool {
-        switch self {
-        case .exportFile: true
-        default: false
-        }
-    }
-    
-    var isAuthorizationRequired: Bool {
-        switch self {
-        case .authorizationRequired: true
-        default: false
-        }
     }
 }
 
@@ -76,21 +40,61 @@ struct TimelineMediaPreviewViewState: BindableState {
     /// All of the available actions for the current item.
     var currentItemActions: TimelineItemMenuActions?
     
-    /// A publisher that the view model uses to signal actions to the QLPreviewController.
-    let previewControllerDriver = PassthroughSubject<TimelineMediaPreviewDriverAction, Never>()
+    /// Whether the current item can be replied to from the viewer: only where a composer is behind it.
+    var canReplyToCurrentItem = false
+    
+    // AGENT-PLATFORM (Brief 0083, question 413): Spiral's own viewer — the bottom bar's forward, and what ⋯ offers.
+    /// Forwarding the current item, when the room allows it.
+    var forwardAction: TimelineItemMenuAction? {
+        currentItemActions?.actions.first { if case .forward = $0 { true } else { false } }
+    }
+    
+    /// What ⋯ offers for the current item: saving, the room's timeline and deleting, where allowed. Forwarding
+    /// sits in the bottom bar instead.
+    var moreMenuActions: [TimelineItemMenuAction] {
+        guard let currentItemActions else { return [] }
+        return (currentItemActions.actions + currentItemActions.secondaryActions).filter { action in
+            switch action {
+            case .viewInRoomTimeline, .downloadMedia, .redact: true
+            default: false
+            }
+        }
+    }
+    
+    /// Asks the pager to show a page it didn't reach by a swipe, such as a tapped thumbnail.
+    let pagerDriver = PassthroughSubject<TimelineMediaPreviewPage, Never>()
+    
+    /// Sends when a media's file has downloaded or failed to, whether it's on screen or loaded ahead of a swipe.
+    let mediaDidLoad = PassthroughSubject<MediaPreviewItemID, Never>()
     
     var bindings = TimelineMediaPreviewViewStateBindings()
 }
 
 struct TimelineMediaPreviewViewStateBindings {
+    /// Whether the bars and the thumbnails are hidden, leaving the media alone on black.
+    var isChromeHidden = false
+    /// The item whose details sheet is shown.
+    var detailsItem: TimelineMediaPreviewItem.Media?
     /// A binding that will present a confirmation to redact the specified item.
     var redactConfirmationItem: TimelineMediaPreviewItem.Media?
+    /// A file being saved through the system's document picker.
+    var exportFile: TimelineMediaPreviewFileExportPicker.File?
+    /// A file that isn't a photo or a video, opened in QuickLook on its own.
+    var quickLookItem: MediaPreviewItem?
+    var alertInfo: AlertInfo<UUID>?
 }
 
 enum TimelineMediaPreviewViewAction {
-    case updateCurrentItem(TimelineMediaPreviewItem)
+    /// The pager settled on a page after a swipe.
+    case pageChanged(TimelineMediaPreviewPage)
+    /// A thumbnail was tapped.
+    case showPage(TimelineMediaPreviewPage)
+    /// Pages the next swipes are likely to reach, whose files are worth downloading ahead.
+    case prefetch([TimelineMediaPreviewPage])
+    case toggleChrome
     case showItemDetails(TimelineMediaPreviewItem.Media)
     case menuAction(TimelineItemMenuAction, item: TimelineMediaPreviewItem.Media)
-    case redactConfirmation(item: TimelineMediaPreviewItem.Media)
-    case timelineEndReached
+    case redactConfirmation(item: TimelineMediaPreviewItem.Media, reason: String)
+    case reply(TimelineMediaPreviewItem.Media)
+    case openFile(TimelineMediaPreviewItem.Media)
 }

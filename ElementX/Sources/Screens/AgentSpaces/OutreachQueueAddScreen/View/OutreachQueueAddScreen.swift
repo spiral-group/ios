@@ -17,6 +17,7 @@
 //                   (Queued / Duplicate / Invalid) + Done.
 
 import Compound
+import SpiralComponents
 import SwiftUI
 
 struct OutreachQueueAddScreen: View {
@@ -50,6 +51,7 @@ struct OutreachQueueAddScreen: View {
                 .lineLimit(8...20)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled(true)
+                .accessibilityLabel(UntranslatedL10n.screenOutreachQueueAddSectionTitle)
                 .accessibilityIdentifier("outreachQueueAddField")
                 .disabled(context.viewState.detailState.isInFlight)
         } header: {
@@ -133,20 +135,10 @@ struct OutreachQueueAddScreen: View {
 
     private var unavailableSection: some View {
         Section {
-            VStack(spacing: 16) {
-                BigIcon(icon: \.send, style: .alertSolid)
-                Text(UntranslatedL10n.screenOutreachQueueAddUnavailableTitle)
-                    .font(.compound.headingSMSemibold)
-                    .foregroundStyle(.compound.textPrimary)
-                    .multilineTextAlignment(.center)
-                Text(UntranslatedL10n.screenOutreachQueueAddUnavailableSubtitle)
-                    .font(.compound.bodyMD)
-                    .foregroundStyle(.compound.textSecondary)
-                    .multilineTextAlignment(.center)
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 40)
-            .listRowBackground(Color.clear)
+            SpiralEmptyState(symbol: .paperplane,
+                             title: UntranslatedL10n.screenOutreachQueueAddUnavailableTitle,
+                             message: UntranslatedL10n.screenOutreachQueueAddUnavailableSubtitle)
+                .listRowBackground(Color.clear)
         }
     }
 

@@ -66,6 +66,11 @@ final class AgentPlatformService: AgentPlatformServiceProtocol {
     /// human-perceptible time.
     nonisolated static let unauthorizedRetryDelay: Duration = .milliseconds(700)
 
+    /// ADR-0094 A.2: an enabling translation write answered 503 is retried once after the contract's `Retry-After: 5`.
+    /// The backend's OpenAPI export declares no header, so the generated client can't read it; the value is the
+    /// contract's. A test passes a shorter one.
+    let serviceUnavailableRetryDelay: Duration
+
     // AGENT-PLATFORM (decision 98)
     private let ownerBlocksResyncSubject = PassthroughSubject<Void, Never>()
     var ownerBlocksResyncPublisher: AnyPublisher<Void, Never> {
@@ -75,9 +80,20 @@ final class AgentPlatformService: AgentPlatformServiceProtocol {
     // AGENT-PLATFORM (decision 136)
     let personalAssistantSightings: PersonalAssistantSightings
 
-    init(client: AgentPlatformClient) {
+    // AGENT-PLATFORM: feed (Brief 0082)
+    let feed: FeedServiceProtocol
+
+    // AGENT-PLATFORM: platform sync (decision 289)
+    let sync: PlatformSyncServiceProtocol
+
+    /// - Parameter feedCacheDirectory: where the feed keeps its first page for
+    ///   the offline state; the session's cache directory, `nil` for none.
+    init(client: AgentPlatformClient, feedCacheDirectory: URL? = nil, serviceUnavailableRetryDelay: Duration = .seconds(5)) {
         self.client = client
+        self.serviceUnavailableRetryDelay = serviceUnavailableRetryDelay
         personalAssistantSightings = PersonalAssistantSightings()
+        feed = FeedService(client: client, cacheDirectory: feedCacheDirectory)
+        sync = PlatformSyncService(client: client)
     }
 
     /// The rows the owner's blocks live in were dropped or created.
@@ -1221,7 +1237,8 @@ final class AgentPlatformService: AgentPlatformServiceProtocol {
                                     targetLanguage: tool.targetLanguage,
                                     params: params,
                                     trigger: trigger,
-                                    safeSliceSalt: "\(agentIndex).\(toolIndex)")
+                                    safeSliceSalt: "\(agentIndex).\(toolIndex)",
+                                    appliesToViewer: ToolAppliesToViewer(wire: tool.appliesToViewer))
             }
             return RoomToolAgentEntry(agentID: entry.agentId,
                                       matrixUserID: entry.matrixUserId,

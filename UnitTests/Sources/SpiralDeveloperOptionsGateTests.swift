@@ -6,7 +6,7 @@
 // taps on the version — a hidden feature App Review flags (2.3.1). They are for Debug
 // (and Nightly) builds only; a Debug build behaves as before.
 
-@testable import ElementX
+@testable import Spiral
 import Testing
 
 @MainActor
@@ -61,17 +61,17 @@ struct SpiralDeveloperOptionsGateTests {
     // MARK: - Helpers
 
     private func makeViewModel(appSettings: AppSettings, allowsDeveloperOptions: Bool? = nil) -> SettingsScreenViewModel {
-        let userSession = UserSessionMock(.init(clientProxy: ClientProxyMock(.init(userID: "@alice:spiral.md"))))
+        let userSession = UserSessionMock(.init(clientProxy: ClientProxyMock(.init(userID: "@alice:spiral.md")),
+                                                userSettings: UserSettings(appSettings: appSettings,
+                                                                           accountSettings: appSettings.userSettings(for: "@alice:spiral.md").account)))
         if let allowsDeveloperOptions {
             return SettingsScreenViewModel(userSession: userSession,
-                                           appSettings: appSettings,
                                            isBugReportServiceEnabled: false,
                                            isInSecondaryWindow: false,
                                            userIndicatorController: UserIndicatorControllerMock(),
                                            allowsDeveloperOptions: allowsDeveloperOptions)
         }
         return SettingsScreenViewModel(userSession: userSession,
-                                       appSettings: appSettings,
                                        isBugReportServiceEnabled: false,
                                        isInSecondaryWindow: false,
                                        userIndicatorController: UserIndicatorControllerMock())

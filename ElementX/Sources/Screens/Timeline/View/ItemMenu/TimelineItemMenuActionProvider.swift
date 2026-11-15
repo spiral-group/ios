@@ -19,6 +19,8 @@ struct TimelineItemMenuActionProvider {
     let areThreadsEnabled: Bool
     let timelineKind: TimelineKind
     let emojiProvider: EmojiProviderProtocol
+    /// Whether anyone has read the message, for "Seen by". AGENT-PLATFORM (Brief 0083, question 357)
+    var hasReaders = false
     
     // swiftlint:disable:next cyclomatic_complexity
     func makeActions() -> TimelineItemMenuActions? {
@@ -115,6 +117,10 @@ struct TimelineItemMenuActionProvider {
             actions.append(.editInteractivePost)
         }
         
+        if hasReaders {
+            actions.append(.seenBy)
+        }
+        
         if isViewSourceEnabled {
             actions.append(.viewSource)
         }
@@ -161,6 +167,10 @@ struct TimelineItemMenuActionProvider {
     
     private func makeEncryptedItemActions() -> TimelineItemMenuActions? {
         var actions: [TimelineItemMenuAction] = [.copyPermalink]
+        
+        if hasReaders {
+            actions.append(.seenBy)
+        }
         
         if isViewSourceEnabled {
             actions.append(.viewSource)

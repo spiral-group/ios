@@ -7,9 +7,8 @@
 //
 
 import Combine
-@testable import ElementX
 import MatrixRustSDKMocks
-import SwiftUI
+@testable import Spiral
 import Testing
 
 @MainActor
@@ -19,7 +18,6 @@ struct QRCodeLoginScreenViewModelTests {
     var qrLoginProgressSubject: CurrentValueSubject<QRLoginProgress, AuthenticationServiceError>!
     var qrCodeLoginService: QRCodeLoginServiceMock!
     
-    var regeneratedQRCodeImage: UIImage!
     var linkMobileProgressSubject: CurrentValueSubject<LinkNewDeviceService.LinkMobileProgress, QRCodeLoginError>!
     var linkDesktopProgressSubject: CurrentValueSubject<LinkNewDeviceService.LinkDesktopProgress, QRCodeLoginError>!
     var linkNewDeviceService: LinkNewDeviceServiceMock!
@@ -152,7 +150,8 @@ struct QRCodeLoginScreenViewModelTests {
             guard case .requestOAuthAuthorisation = action else { return false }
             return true
         }
-        linkDesktopProgressSubject.send(.waitingForAuthorisation(verificationURL: .homeDirectory))
+        linkDesktopProgressSubject.send(.waitingForAuthorisation(verificationURL: .homeDirectory,
+                                                                 continuationSender: .init(underlyingSender: ContinuationMessageSenderSDKMock())))
         try await deferredAction.fulfill()
         
         let currentState = context.viewState.state
@@ -166,6 +165,25 @@ struct QRCodeLoginScreenViewModelTests {
         }
         linkDesktopProgressSubject.send(.done)
         try await deferredAction.fulfill()
+    }
+    
+    @Test
+    mutating func linkDesktopExpiresWithoutSecureChannel() async throws {
+        setup(mode: .linkDesktop, linkDesktopTimeout: .zero)
+        #expect(context.viewState.state == .linkDesktopInstructions)
+        
+        // The timeout begins as soon as the screen appears, so the flow expires before a channel is established.
+        let deferred = deferFulfillment(context.$viewState) { $0.state == .error(.expired) }
+        try await deferred.fulfill()
+    }
+    
+    @Test
+    mutating func loginDoesNotExpire() async throws {
+        setup(mode: .login, linkDesktopTimeout: .zero)
+        
+        // The timeout only applies when linking a desktop, so signing in must never expire.
+        let deferredFailure = deferFailure(context.$viewState, timeout: .seconds(1)) { $0.state == .error(.expired) }
+        try await deferredFailure.fulfill()
     }
     
     @Test
@@ -188,7 +206,8 @@ struct QRCodeLoginScreenViewModelTests {
             guard case .requestOAuthAuthorisation = action else { return false }
             return true
         }
-        linkMobileProgressSubject.send(.waitingForAuthorisation(verificationURL: .homeDirectory))
+        linkMobileProgressSubject.send(.waitingForAuthorisation(verificationURL: .homeDirectory,
+                                                                continuationSender: .init(underlyingSender: ContinuationMessageSenderSDKMock())))
         try await deferredAction.fulfill()
         
         let currentState = context.viewState.state
@@ -204,33 +223,129 @@ struct QRCodeLoginScreenViewModelTests {
         try await deferredAction.fulfill()
     }
     
+    // MARK: - Cancellation
+    
     @Test
-    mutating func linkMobileDeviceQRCodeExpiry() async throws {
-        setup(mode: .linkMobile)
+    mutating func cancelLoginClosesRendezvousChannel() async throws {
+        // Given a screen that has scanned a QR code to log in.
+        let operationTask = Task { _ = try? await Task.sleep(for: .seconds(3600)) }
+        setup(mode: .login, operationTask: operationTask)
+        try await scanQRCode()
+        
+        // When cancelling.
+        let deferredAction = deferFulfillment(viewModel.actionsPublisher) { $0.isCancel }
+        context.send(viewAction: .cancel)
+        try await deferredAction.fulfill()
+        
+        // Then the login's rendezvous channel should be closed.
+        #expect(operationTask.isCancelled)
+    }
+    
+    @Test
+    mutating func cancelLinkDesktopClosesRendezvousChannel() async throws {
+        // Given a screen that has scanned a desktop's QR code.
+        let operationTask = Task { _ = try? await Task.sleep(for: .seconds(3600)) }
+        setup(mode: .linkDesktop, operationTask: operationTask)
+        try await scanQRCode()
+        
+        // When cancelling.
+        let deferredAction = deferFulfillment(viewModel.actionsPublisher) { $0.isCancel }
+        context.send(viewAction: .cancel)
+        try await deferredAction.fulfill()
+        
+        // Then the link's rendezvous channel should be closed.
+        #expect(operationTask.isCancelled)
+    }
+    
+    @Test
+    mutating func cancelLinkMobileClosesRendezvousChannel() async throws {
+        // Given a screen showing a QR code for a mobile device to scan.
+        let operationTask = Task { _ = try? await Task.sleep(for: .seconds(3600)) }
+        setup(mode: .linkMobile, operationTask: operationTask)
         #expect(context.viewState.state.isDisplayQR)
         
-        let deferred = deferFulfillment(context.$viewState, keyPath: \.state, transitionValues: [.displayQR(.expired),
-                                                                                                 .displayQR(.active(regeneratedQRCodeImage))])
-        linkMobileProgressSubject.send(completion: .failure(.expired))
-        try await deferred.fulfill()
+        // When cancelling.
+        let deferredAction = deferFulfillment(viewModel.actionsPublisher) { $0.isCancel }
+        context.send(viewAction: .cancel)
+        try await deferredAction.fulfill()
+        
+        // Then the link's rendezvous channel should be closed.
+        #expect(operationTask.isCancelled)
+    }
+    
+    @Test
+    mutating func linkDesktopExpiryClosesRendezvousChannel() async throws {
+        // Given a screen linking a desktop with a short timeout.
+        let operationTask = Task { _ = try? await Task.sleep(for: .seconds(3600)) }
+        setup(mode: .linkDesktop, linkDesktopTimeout: .seconds(1), operationTask: operationTask)
+        
+        // When the timeout passes after scanning but before a secure channel is established.
+        let deferredExpiry = deferFulfillment(context.$viewState) { $0.state == .error(.expired) }
+        try await scanQRCode()
+        try await deferredExpiry.fulfill()
+        
+        // Then the link's rendezvous channel should be closed.
+        #expect(operationTask.isCancelled)
+    }
+    
+    @Test
+    mutating func linkDesktopExpiryIsNotReplacedByLaterError() async throws {
+        // Given a screen whose link has expired after scanning.
+        setup(mode: .linkDesktop, linkDesktopTimeout: .seconds(1))
+        
+        let deferredExpiry = deferFulfillment(context.$viewState) { $0.state == .error(.expired) }
+        try await scanQRCode()
+        try await deferredExpiry.fulfill()
+        
+        // When Rust later reports an error for the cancelled link.
+        let deferredFailure = deferFailure(context.$viewState, timeout: .seconds(1)) { $0.state != .error(.expired) }
+        linkDesktopProgressSubject.send(completion: .failure(.cancelled))
+        
+        // Then the expired error should still be shown.
+        try await deferredFailure.fulfill()
+    }
+    
+    @Test
+    mutating func cancelFromErrorDoesNotCloseRendezvousChannel() async throws {
+        // Given a screen showing an error because the Rust SDK's link has failed.
+        let operationTask = Task { _ = try? await Task.sleep(for: .seconds(3600)) }
+        setup(mode: .linkDesktop, operationTask: operationTask)
+        try await scanQRCode()
+        
+        let deferredError = deferFulfillment(context.$viewState) { $0.state == .error(.connectionNotSecure) }
+        linkDesktopProgressSubject.send(completion: .failure(.connectionInsecure))
+        try await deferredError.fulfill()
+        
+        // When cancelling from the error.
+        let deferredAction = deferFulfillment(viewModel.actionsPublisher) { $0.isCancel }
+        context.send(viewAction: .errorAction(.cancel))
+        try await deferredAction.fulfill()
+        
+        // Then the flow should be dismissed without trying to close the finished rendezvous channel.
+        #expect(!operationTask.isCancelled)
     }
     
     // MARK: - Helpers
     
-    private mutating func setup(mode: Mode) {
+    private func scanQRCode() async throws {
+        var deferred = deferFulfillment(context.$viewState) { $0.state == .scan(.scanning) }
+        context.send(viewAction: .startScan)
+        try await deferred.fulfill()
+        
+        deferred = deferFulfillment(context.$viewState) { $0.state == .scan(.connecting) }
+        context.qrResult = .init()
+        try await deferred.fulfill()
+    }
+    
+    private mutating func setup(mode: Mode, linkDesktopTimeout: Duration = .seconds(120), operationTask: Task<Void, Never>? = nil) {
         qrLoginProgressSubject = .init(.starting)
         qrCodeLoginService = QRCodeLoginServiceMock()
-        qrCodeLoginService.loginWithQRCodeDataReturnValue = qrLoginProgressSubject.asCurrentValuePublisher()
+        qrCodeLoginService.loginWithQRCodeDataReturnValue = .init(progressPublisher: qrLoginProgressSubject.asCurrentValuePublisher(), task: operationTask)
         
         linkMobileProgressSubject = .init(.qrReady(LinkNewDeviceServiceMock.mockQRCodeImage))
         linkDesktopProgressSubject = .init(.starting)
-        linkNewDeviceService = LinkNewDeviceServiceMock(.init(linkMobileProgressPublisher: linkMobileProgressSubject.asCurrentValuePublisher(),
-                                                              linkDesktopProgressPublisher: linkDesktopProgressSubject.asCurrentValuePublisher()))
-        
-        regeneratedQRCodeImage = LinkNewDeviceServiceMock.mockQRCodeImage
-        let clientProxy = ClientProxyMock(.init())
-        clientProxy.linkNewDeviceServiceReturnValue = LinkNewDeviceServiceMock(.init(linkMobileProgressPublisher: .init(.qrReady(regeneratedQRCodeImage)),
-                                                                                     linkDesktopProgressPublisher: .init(.starting)))
+        linkNewDeviceService = LinkNewDeviceServiceMock(.init(linkMobileOperation: .init(progressPublisher: linkMobileProgressSubject.asCurrentValuePublisher(), task: operationTask),
+                                                              linkDesktopOperation: .init(progressPublisher: linkDesktopProgressSubject.asCurrentValuePublisher(), task: operationTask)))
         
         let screenMode: QRCodeLoginScreenMode
         switch mode {
@@ -239,12 +354,22 @@ struct QRCodeLoginScreenViewModelTests {
         case .linkDesktop:
             screenMode = .linkDesktop(linkNewDeviceService)
         case .linkMobile:
-            screenMode = .linkMobile(linkNewDeviceService.linkMobileDevice(), clientProxy)
+            screenMode = .linkMobile(linkNewDeviceService.linkMobileDevice())
         }
         
         appMediator = AppMediatorMock(.init())
         viewModel = QRCodeLoginScreenViewModel(mode: screenMode,
                                                canSignInManually: true,
-                                               appMediator: appMediator)
+                                               appMediator: appMediator,
+                                               linkDesktopTimeout: linkDesktopTimeout)
+    }
+}
+
+private extension QRCodeLoginScreenViewModelAction {
+    var isCancel: Bool {
+        switch self {
+        case .cancel: true
+        default: false
+        }
     }
 }

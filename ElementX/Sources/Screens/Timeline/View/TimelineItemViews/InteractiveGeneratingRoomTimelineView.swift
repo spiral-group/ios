@@ -6,10 +6,10 @@
 // SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial.
 // Please see LICENSE files in the repository root for full details.
 //
-// AGENT-PLATFORM (Brief 0066, § 5.71): the card that stands where the draft
-// will land while the agent's model writes it — a square the bubble's width,
-// a band of the accent colour crossing it, the agent's own line and «usually
-// under a minute». The draft takes 25–65 s; the card is the difference
+// AGENT-PLATFORM (Brief 0066, § 5.71; Brief 0083, question 359): the card that
+// stands where the draft will land while the agent's model writes it — a row of
+// the chat's cards, a band of the accent colour crossing it, the agent's own line
+// and «usually under a minute». The draft takes 25–65 s; the card is the difference
 // between «it is working» and «it said “done” and nothing came».
 //
 // It is never dismissed by hand: the controller drops the marker the moment
@@ -29,37 +29,23 @@ struct InteractiveGeneratingRoomTimelineView: View {
 
     var body: some View {
         TimelineStyler(timelineItem: timelineItem) {
-            ZStack {
-                Color.clear
-                if !isStale {
-                    band
-                }
-                VStack(spacing: 6) {
-                    Group {
-                        if isStale {
-                            CompoundIcon(\.error, size: .custom(40), relativeTo: .compound.headingLG)
-                                .foregroundStyle(.compound.iconSecondary)
-                        } else {
-                            CompoundIcon(\.extensions, size: .custom(40), relativeTo: .compound.headingLG)
-                                .foregroundStyle(.compound.iconAccentPrimary)
-                        }
-                    }
-                    .padding(.bottom, 10)
-                    Text(isStale ? UntranslatedL10n.screenRoomInteractiveGeneratingFailed : timelineItem.body)
-                        .font(.compound.bodyLGSemibold)
-                        .foregroundColor(.compound.textPrimary)
-                    Text(isStale ? UntranslatedL10n.screenRoomInteractiveGeneratingFailedHint : UntranslatedL10n.screenRoomInteractiveGeneratingHint)
-                        .font(.compound.bodyMD)
-                        .foregroundColor(.compound.textSecondary)
-                }
-                .multilineTextAlignment(.center)
-                .padding(24)
+            ChatCardRow(icon: isStale ? \.error : \.extensions,
+                        isCritical: isStale,
+                        title: isStale ? UntranslatedL10n.screenRoomInteractiveGeneratingFailed : timelineItem.body) {
+                Text(isStale ? UntranslatedL10n.screenRoomInteractiveGeneratingFailedHint : UntranslatedL10n.screenRoomInteractiveGeneratingHint)
+                    .font(.compound.bodySM)
+                    .foregroundColor(.compound.textSecondary)
             }
-            .aspectRatio(1, contentMode: .fit)
-            .background(Color.compound.bgSubtleSecondary)
-            // The band runs past the square on both sides; the bubble's own
-            // radius clips the row, and this clips the band to the same shape.
-            .clipShape(RoundedRectangle(cornerRadius: 16))
+            .padding(.top, 8)
+            .padding(.leading, 8)
+            .padding(.trailing, 12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(alignment: .leading) {
+                if !isStale {
+                    // Under the time too, which sits below this: the bubble's shape is what clips the band.
+                    band.padding(.bottom, -32)
+                }
+            }
             .accessibilityElement(children: .combine)
         }
         .task(id: timelineItem.timestamp) {
@@ -87,9 +73,9 @@ struct InteractiveGeneratingRoomTimelineView: View {
             LinearGradient(colors: [.clear, Color.compound.iconAccentPrimary.opacity(0.15), .clear],
                            startPoint: .leading,
                            endPoint: .trailing)
-                .frame(width: width * 0.4, height: geometry.size.height * 1.6)
+                .frame(width: width * 0.4, height: geometry.size.height * 3)
                 .rotationEffect(.degrees(18))
-                .offset(x: bandOffset * width, y: -geometry.size.height * 0.3)
+                .offset(x: bandOffset * width, y: -geometry.size.height)
         }
     }
 }

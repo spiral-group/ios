@@ -10,9 +10,8 @@ import Combine
 import SwiftUI
 
 enum SettingsFlowCoordinatorAction {
-    case dismiss
     // AGENT-PLATFORM (Brief 0073): someone who joined by invitation was
-    // tapped — the session flow closes settings and opens their profile.
+    // tapped — the session flow opens their profile on the Chats tab.
     case openUserProfile(userID: String)
     case clearCache
     case runLogoutFlow
@@ -25,6 +24,10 @@ class SettingsFlowCoordinator: FlowCoordinatorProtocol {
     private let isInSecondaryWindow: Bool
     private let navigationStackCoordinator: NavigationStackCoordinator
     private let flowParameters: CommonFlowParameters
+    
+    private var userSettings: UserSettings {
+        flowParameters.userSession.userSettings
+    }
     
     // periphery:ignore - retaining purpose
     private var appLockSetupFlowCoordinator: AppLockSetupFlowCoordinator?
@@ -64,7 +67,7 @@ class SettingsFlowCoordinator: FlowCoordinatorProtocol {
         case .chatBackupSettings:
             startEncryptionSettingsFlow()
         case .aiConsentSettings: // AGENT-PLATFORM (decisions 150, 187): the toggle is the first row of Privacy.
-            presentAdvancedSettings()
+            presentModerationAndSafetySettings()
         default:
             break
         }
@@ -78,7 +81,6 @@ class SettingsFlowCoordinator: FlowCoordinatorProtocol {
     
     private func presentSettingsScreen(animated: Bool) {
         let settingsScreenCoordinator = SettingsScreenCoordinator(parameters: .init(userSession: flowParameters.userSession,
-                                                                                    appSettings: flowParameters.appSettings,
                                                                                     isBugReportServiceEnabled: flowParameters.bugReportService.isEnabled,
                                                                                     isInSecondaryWindow: isInSecondaryWindow,
                                                                                     userIndicatorController: flowParameters.userIndicatorController))
@@ -88,8 +90,6 @@ class SettingsFlowCoordinator: FlowCoordinatorProtocol {
                 guard let self else { return }
                 
                 switch action {
-                case .dismiss:
-                    actionsSubject.send(.dismiss)
                 case .userDetails:
                     presentUserDetailsEditScreen()
                 case let .userStatusEmojiPicker(continuation):
@@ -98,8 +98,8 @@ class SettingsFlowCoordinator: FlowCoordinatorProtocol {
                     presentInvitePeopleScreen()
                 case .security: // AGENT-PLATFORM (decision 187).
                     presentSecuritySettings()
-                case .privacy: // AGENT-PLATFORM (decision 187): Advanced settings re-purposed.
-                    presentAdvancedSettings()
+                case .privacy: // AGENT-PLATFORM (decision 187): upstream's Moderation and safety plus AI consent.
+                    presentModerationAndSafetySettings()
                 case .notifications:
                     presentNotificationSettings()
                 case .yourData: // AGENT-PLATFORM (Brief 0078).
@@ -133,7 +133,7 @@ class SettingsFlowCoordinator: FlowCoordinatorProtocol {
     
     // AGENT-PLATFORM (decision 188): no row opens Labs; kept for upstream syncs.
     private func presentLabs() {
-        let coordinator = LabsScreenCoordinator(parameters: .init(appSettings: flowParameters.appSettings))
+        let coordinator = LabsScreenCoordinator(parameters: .init(userSettings: userSettings))
         coordinator.actions
             .sink { [weak self] action in
                 switch action {
@@ -148,8 +148,6 @@ class SettingsFlowCoordinator: FlowCoordinatorProtocol {
     
     private func startEncryptionSettingsFlow() {
         let coordinator = EncryptionSettingsFlowCoordinator(parameters: .init(userSession: flowParameters.userSession,
-                                                                              appSettings: flowParameters.appSettings,
-                                                                              appHooks: flowParameters.appHooks,
                                                                               userIndicatorController: flowParameters.userIndicatorController,
                                                                               navigationStackCoordinator: navigationStackCoordinator))
         coordinator.actionsPublisher.sink { [weak self] action in
@@ -166,7 +164,8 @@ class SettingsFlowCoordinator: FlowCoordinatorProtocol {
     }
     
     private func presentEmojiPicker(emojiPickerContinuation: EmojiPickerScreenContinuation) {
-        let coordinator = EmojiPickerScreenCoordinator(parameters: .init(selectedEmojis: [],
+        let coordinator = EmojiPickerScreenCoordinator(parameters: .init(mode: .userStatus,
+                                                                         selectedEmojis: [],
                                                                          emojiProvider: flowParameters.emojiProvider,
                                                                          continuation: emojiPickerContinuation))
         coordinator.actions
@@ -182,10 +181,10 @@ class SettingsFlowCoordinator: FlowCoordinatorProtocol {
     }
     
     private func presentUserDetailsEditScreen() {
-        let coordinator = UserDetailsEditScreenCoordinator(parameters: .init(orientationManager: flowParameters.windowManager,
-                                                                             userSession: flowParameters.userSession,
-                                                                             mediaUploadingPreprocessor: MediaUploadingPreprocessor(appSettings: flowParameters.appSettings),
+        let coordinator = UserDetailsEditScreenCoordinator(parameters: .init(userSession: flowParameters.userSession,
+                                                                             mediaUploadingPreprocessor: MediaUploadingPreprocessor(userSettings: userSettings),
                                                                              navigationStackCoordinator: navigationStackCoordinator,
+                                                                             appMediator: flowParameters.appMediator,
                                                                              userIndicatorController: flowParameters.userIndicatorController))
         coordinator.actions
             .sink { [weak self] action in
@@ -228,7 +227,7 @@ class SettingsFlowCoordinator: FlowCoordinatorProtocol {
     }
     
     private func presentAnalyticsScreen() {
-        let coordinator = AnalyticsSettingsScreenCoordinator(parameters: .init(appSettings: flowParameters.appSettings,
+        let coordinator = AnalyticsSettingsScreenCoordinator(parameters: .init(userSettings: userSettings,
                                                                                analytics: flowParameters.analytics))
         navigationStackCoordinator.push(coordinator)
     }
@@ -254,7 +253,7 @@ class SettingsFlowCoordinator: FlowCoordinatorProtocol {
     }
     
     private func presentLegalInformationScreen() {
-        navigationStackCoordinator.push(LegalInformationScreenCoordinator(appSettings: flowParameters.appSettings,
+        navigationStackCoordinator.push(LegalInformationScreenCoordinator(userSettings: userSettings,
                                                                           appMediator: flowParameters.appMediator)) // AGENT-PLATFORM (Brief 0078)
     }
     
@@ -307,7 +306,7 @@ class SettingsFlowCoordinator: FlowCoordinatorProtocol {
     }
     
     private func presentBlockedUsersScreen() {
-        let coordinator = BlockedUsersScreenCoordinator(parameters: .init(hideProfiles: flowParameters.appSettings.hideIgnoredUserProfiles,
+        let coordinator = BlockedUsersScreenCoordinator(parameters: .init(hideProfiles: userSettings.app.hideIgnoredUserProfiles,
                                                                           userSession: flowParameters.userSession,
                                                                           userIndicatorController: flowParameters.userIndicatorController))
         navigationStackCoordinator.push(coordinator)
@@ -318,24 +317,24 @@ class SettingsFlowCoordinator: FlowCoordinatorProtocol {
                                                                                      userSession: flowParameters.userSession,
                                                                                      userNotificationCenter: UNUserNotificationCenter.current(),
                                                                                      userIndicatorController: flowParameters.userIndicatorController,
-                                                                                     isModallyPresented: false,
-                                                                                     appSettings: flowParameters.appSettings)
+                                                                                     isModallyPresented: false)
         let coordinator = NotificationSettingsScreenCoordinator(parameters: notificationParameters)
         navigationStackCoordinator.push(coordinator)
     }
     
-    // AGENT-PLATFORM (decision 187): «Privacy». At the upstream sync this maps
-    // onto ModerationAndSafetySettingsScreen plus the AI consent row.
-    private func presentAdvancedSettings() {
-        let coordinator = AdvancedSettingsScreenCoordinator(parameters: .init(appSettings: flowParameters.appSettings,
-                                                                              clientProxy: flowParameters.userSession.clientProxy,
-                                                                              userIndicatorController: flowParameters.userIndicatorController,
-                                                                              agentPlatformService: flowParameters.userSession.agentPlatformService))
+    // AGENT-PLATFORM (decision 187): «Privacy» is upstream's Moderation and
+    // safety screen plus the AI consent row.
+    private func presentModerationAndSafetySettings() {
+        let parameters = ModerationAndSafetySettingsScreenCoordinatorParameters(userSession: flowParameters.userSession,
+                                                                                userIndicatorController: flowParameters.userIndicatorController)
+        let coordinator = ModerationAndSafetySettingsScreenCoordinator(parameters: parameters)
         coordinator.actionsPublisher
             .sink { [weak self] action in
+                guard let self else { return }
+                
                 switch action {
                 case .blockedUsers:
-                    self?.presentBlockedUsersScreen()
+                    presentBlockedUsersScreen()
                 }
             }
             .store(in: &cancellables)
@@ -346,7 +345,7 @@ class SettingsFlowCoordinator: FlowCoordinatorProtocol {
     // AGENT-PLATFORM (decision 187): the Security hub; each row opens a presenter of this flow.
     private func presentSecuritySettings() {
         let coordinator = SecuritySettingsScreenCoordinator(parameters: .init(userSession: flowParameters.userSession,
-                                                                              appSettings: flowParameters.appSettings))
+                                                                              appSettings: flowParameters.userSession.userSettings.app))
         coordinator.actionsPublisher
             .sink { [weak self] action in
                 guard let self else { return }
@@ -371,14 +370,14 @@ class SettingsFlowCoordinator: FlowCoordinatorProtocol {
     
     // AGENT-PLATFORM (decision 187): upstream's inline Appearance picker and MediaUploadQualitySettingsScreen, as one screen.
     private func presentAppearanceAndMediaSettings() {
-        let coordinator = AppearanceAndMediaSettingsScreenCoordinator(parameters: .init(appSettings: flowParameters.appSettings,
+        let coordinator = AppearanceAndMediaSettingsScreenCoordinator(parameters: .init(appSettings: flowParameters.userSession.userSettings.app,
                                                                                         analytics: flowParameters.analytics))
         navigationStackCoordinator.push(coordinator)
     }
     
     private func presentDeveloperOptions() {
-        let coordinator = DeveloperOptionsScreenCoordinator(appSettings: flowParameters.appSettings,
-                                                            appHooks: flowParameters.appHooks,
+        let coordinator = DeveloperOptionsScreenCoordinator(appSettings: userSettings.app,
+                                                            screenHook: flowParameters.userSession.userHooks.developerOptionsScreenHook,
                                                             clientProxy: flowParameters.userSession.clientProxy)
         
         coordinator.actions
@@ -425,8 +424,7 @@ class SettingsFlowCoordinator: FlowCoordinatorProtocol {
         accountSettingsPresenter = OAuthAccountSettingsPresenter(accountURL: url,
                                                                  presentationAnchor: flowParameters.windowManager.mainWindow,
                                                                  appMediator: flowParameters.appMediator,
-                                                                 appSettings: flowParameters.appSettings,
-                                                                 appHooks: flowParameters.appHooks,
+                                                                 userSession: flowParameters.userSession,
                                                                  continuation: continuation)
         accountSettingsPresenter?.start()
     }

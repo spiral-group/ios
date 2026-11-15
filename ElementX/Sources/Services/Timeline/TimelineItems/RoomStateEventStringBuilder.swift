@@ -87,26 +87,39 @@ nonisolated struct RoomStateEventStringBuilder {
         L10n.stateEventRoomInviteYou(senderDisplayName)
     }
     
-    func buildProfileChangeString(displayName: String?, previousDisplayName: String?,
-                                  avatarURLString: String?, previousAvatarURLString: String?,
-                                  member: String, memberIsYou: Bool) -> String? {
+    /// - Parameters:
+    ///   - displayName: The new display name, only set by the SDK when the display name changed.
+    ///   - previousDisplayName: The old display name, only set by the SDK when the display name changed.
+    ///   - avatarURLString: The new avatar URL, only set by the SDK when the avatar changed.
+    ///   - previousAvatarURLString: The old avatar URL, only set by the SDK when the avatar changed.
+    ///   - memberID: The member's user ID, used in the display name change strings.
+    ///   - memberDisplayName: The member's disambiguated display name, used when only the avatar changed.
+    ///   - memberIsYou: Whether the member is the current user, which selects the "You" variant of the strings.
+    func buildProfileChangeString(displayName: String?,
+                                  previousDisplayName: String?,
+                                  avatarURLString: String?,
+                                  previousAvatarURLString: String?,
+                                  memberID: String,
+                                  memberDisplayName: String,
+                                  memberIsYou: Bool) -> String? {
         let displayNameChanged = displayName != previousDisplayName
         let avatarChanged = avatarURLString != previousAvatarURLString
         
         switch (displayNameChanged, avatarChanged, memberIsYou) {
         case (true, false, false):
             if let displayName, let previousDisplayName {
-                return L10n.stateEventDisplayNameChangedFrom(member, previousDisplayName, displayName)
+                return L10n.stateEventDisplayNameChangedFrom(memberID, previousDisplayName, displayName)
             } else if let displayName {
-                return L10n.stateEventDisplayNameSet(member, displayName)
+                return L10n.stateEventDisplayNameSet(memberID, displayName)
             } else if let previousDisplayName {
-                return L10n.stateEventDisplayNameRemoved(member, previousDisplayName)
+                return L10n.stateEventDisplayNameRemoved(memberID, previousDisplayName)
             } else {
                 MXLog.error("The display name changed from nil to nil, filtering the item.")
                 return nil
             }
         case (false, true, false):
-            return L10n.stateEventAvatarUrlChanged(displayName ?? member)
+            // The SDK only sets displayName when it changed, so it's nil here and we need the member's current name.
+            return L10n.stateEventAvatarUrlChanged(memberDisplayName)
         case (true, false, true):
             if let displayName, let previousDisplayName {
                 return L10n.stateEventDisplayNameChangedFromByYou(previousDisplayName, displayName)
@@ -122,9 +135,13 @@ nonisolated struct RoomStateEventStringBuilder {
             return L10n.stateEventAvatarUrlChangedByYou
         case (true, true, _):
             // When both have changed, get the string for the display name and tack on that the avatar changed too.
-            guard let string = buildProfileChangeString(displayName: displayName, previousDisplayName: previousDisplayName,
-                                                        avatarURLString: nil, previousAvatarURLString: nil,
-                                                        member: member, memberIsYou: memberIsYou) else { return nil }
+            guard let string = buildProfileChangeString(displayName: displayName,
+                                                        previousDisplayName: previousDisplayName,
+                                                        avatarURLString: nil,
+                                                        previousAvatarURLString: nil,
+                                                        memberID: memberID,
+                                                        memberDisplayName: memberDisplayName,
+                                                        memberIsYou: memberIsYou) else { return nil }
             return string + "\n" + L10n.stateEventAvatarChangedToo
         case (false, false, _):
             MXLog.error("Nothing changed, shouldn't be possible. Filtering the item.")
@@ -212,14 +229,13 @@ nonisolated struct RoomStateEventStringBuilder {
         case .custom(let eventType):
             // AGENT-PLATFORM (Brief 0043/0044, ADR-0057/0058): Spiral room
             // facts render as quiet gray rows for EVERY participant. The
-            // factory now hands us the event's raw JSON, so we render the
-            // CURRENT tool state ("Agent: translating to English") instead
-            // of a generic "updated tools" line; we fall back to the
-            // generic line when the JSON isn't available or doesn't parse.
-            if eventType == "com.spiral.tools" {
+            // factory hands us the event's raw JSON, so we say what changed;
+            // we fall back to the generic line when the JSON isn't available
+            // or doesn't parse.
+            if eventType == SpiralToolsStateReader.eventType {
                 if let rawEventJSON,
                    let event = SpiralToolsStateReader.parseEvent(rawEventJSON: rawEventJSON) {
-                    return spiralToolsLine(agentName: displayName, tools: event.tools)
+                    return spiralToolChangesRow(for: event, sender: sender)
                 }
                 return UntranslatedL10n.stateEventSpiralToolsUpdated(displayName)
             }
@@ -241,10 +257,66 @@ nonisolated struct RoomStateEventStringBuilder {
         guard let event = SpiralToolsStateReader.parseFallbackEvent(rawEventJSON: rawEventJSON, ownUserID: userID) else {
             return nil
         }
-        return spiralToolsLine(agentName: sender.disambiguatedDisplayName ?? sender.id, tools: event.tools)
+        return spiralToolChangesRow(for: event, sender: sender)
     }
 
-    /// Compact gray-row line for a `com.spiral.tools` state event: the
+    /// The row for a tools event, the state row or its fallback: one line per
+    /// action in the event's `changes`. The snapshot when it has no list this
+    /// build can read; nil, so no row, when the list is empty.
+    private func spiralToolChangesRow(for event: SpiralToolsStateReader.ParsedEvent, sender: TimelineItemSender) -> String? {
+        let agentName = sender.disambiguatedDisplayName ?? sender.id
+        guard let changes = event.changes else {
+            return spiralToolsLine(agentName: agentName, tools: event.tools)
+        }
+        guard !changes.isEmpty else { return nil }
+        let isOwnAgent = isOwnAgentSpeaking(event, sender: sender)
+        return changes.map { spiralToolChangeLine($0, agentName: agentName, isOwnAgent: isOwnAgent) }.joined(separator: "\n")
+    }
+
+    /// Whether a tools event, a state row or its fallback, is the agent's echo
+    /// of this user's own change: every action in it reads "You". A change the
+    /// system made, or one the event doesn't describe, is news to the owner too.
+    func isSpiralToolsEventByYou(rawEventJSON: String, sender: TimelineItemSender) -> Bool {
+        guard let event = SpiralToolsStateReader.parseEvent(rawEventJSON: rawEventJSON, ownUserID: userID),
+              let changes = event.changes else {
+            return false
+        }
+        return isOwnAgentSpeaking(event, sender: sender) && changes.allSatisfy { $0.actor == .owner }
+    }
+
+    /// The agent sends the event and `by` names its owner, the only person who
+    /// can change its tools. Anyone at the default level may send this state
+    /// type, so `by` counts only from one of this server's agents speaking for itself.
+    private func isOwnAgentSpeaking(_ event: SpiralToolsStateReader.ParsedEvent, sender: TimelineItemSender) -> Bool {
+        event.ownerUserID == userID
+            && event.agentMatrixUserID == sender.id
+            && SpiralAgentRoomGrants.isLocalAgent(sender.id, ownUserID: userID)
+    }
+
+    private func spiralToolChangeLine(_ change: SpiralToolChange, agentName: String, isOwnAgent: Bool) -> String {
+        let isByYou = isOwnAgent && change.actor == .owner
+        let name = spiralToolText(for: change.tool)
+        switch change.action {
+        case .turnedOn:
+            return isByYou ? UntranslatedL10n.stateEventSpiralToolOnByYou(name) : UntranslatedL10n.stateEventSpiralToolOn(agentName, name)
+        case .turnedOff:
+            if change.actor == .system {
+                return UntranslatedL10n.stateEventSpiralToolOffBySystem(name, agentName)
+            }
+            return isByYou ? UntranslatedL10n.stateEventSpiralToolOffByYou(name) : UntranslatedL10n.stateEventSpiralToolOff(agentName, name)
+        case .changed(let previous):
+            guard let oldLanguage = previous.targetLanguage, let newLanguage = change.tool.targetLanguage, oldLanguage != newLanguage else {
+                return isByYou ? UntranslatedL10n.stateEventSpiralToolChangedByYou(name) : UntranslatedL10n.stateEventSpiralToolChanged(agentName, name)
+            }
+            let from = TranslationLanguageDisplayName.localizedName(for: oldLanguage)
+            let to = TranslationLanguageDisplayName.localizedName(for: newLanguage)
+            return isByYou
+                ? UntranslatedL10n.stateEventSpiralToolLanguageChangedByYou(from, to)
+                : UntranslatedL10n.stateEventSpiralToolLanguageChanged(agentName, from, to)
+        }
+    }
+
+    /// The snapshot line, for an event that doesn't say what it changed: the
     /// agent's CURRENT tools. Empty tools = "turned all tools off"; otherwise
     /// EVERY active tool is listed by name, joined with " · " — the event is a
     /// full snapshot of the agent's tools, so the row shows the complete

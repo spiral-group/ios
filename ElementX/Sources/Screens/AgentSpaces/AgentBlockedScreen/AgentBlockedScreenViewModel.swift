@@ -15,18 +15,36 @@ class AgentBlockedScreenViewModel: AgentBlockedScreenViewModelType, AgentBlocked
     static let pageSize = 50
 
     private let agentPlatformService: AgentPlatformServiceProtocol
+    // AGENT-PLATFORM: platform sync (decision 289): `agent.blocks` reads the list again while shown.
+    private let store: AgentsStore
     private let userIndicatorController: UserIndicatorControllerProtocol
-    /// Guards a page against a retry that started after it.
-    private var loadGeneration: UInt64 = 0
+    /// The next page on its way, or the last one that could not be read.
+    private var loadMore: LoadMoreState?
+
+    private var resource: AgentsResource {
+        .blocks(agentID: state.agent.agentID)
+    }
 
     init(agent: AgentSpaceAgentCard,
          agentPlatformService: AgentPlatformServiceProtocol,
+         store: AgentsStore,
          userIndicatorController: UserIndicatorControllerProtocol) {
         self.agentPlatformService = agentPlatformService
+        self.store = store
         self.userIndicatorController = userIndicatorController
         super.init(initialViewState: AgentBlockedScreenViewState(agent: agent))
 
-        Task { await loadFirstPage() }
+        render()
+        store.observe { [weak self] in
+            guard let self else { return false }
+            render()
+            return true
+        }
+        store.show(resource, by: self)
+    }
+
+    isolated deinit {
+        store.stopShowing(resource, by: self)
     }
 
     override func process(viewAction: AgentBlockedScreenViewAction) {
@@ -34,12 +52,12 @@ class AgentBlockedScreenViewModel: AgentBlockedScreenViewModelType, AgentBlocked
 
         switch viewAction {
         case .retry:
-            Task { await loadFirstPage() }
+            Task { await store.reread(resource) }
         case .loadMore:
-            guard case .loaded(let blocks, let loadMore) = state.listState else { return }
-            switch loadMore {
-            case .idle(let cursor), .failed(let cursor):
-                Task { await loadNextPage(after: blocks, cursor: cursor) }
+            guard case .loaded(_, let sentinel) = state.listState else { return }
+            switch sentinel {
+            case .idle, .failed:
+                Task { await loadNextPage() }
             case .loading, .exhausted:
                 return
             }
@@ -51,40 +69,33 @@ class AgentBlockedScreenViewModel: AgentBlockedScreenViewModelType, AgentBlocked
 
     // MARK: - Private
 
-    private func loadFirstPage() async {
-        loadGeneration += 1
-        let generation = loadGeneration
-        state.listState = .loading
-
-        let result = await agentPlatformService.listBlockedContacts(agentID: state.agent.agentID, cursor: nil, limit: Self.pageSize)
-        guard generation == loadGeneration else { return }
-
-        switch result {
-        case .success(let page):
-            state.listState = .loaded(page.blocks, loadMore: Self.loadMore(after: page))
-        case .failure(let error):
-            MXLog.error("Failed to read the blocks of agent \(state.agent.agentID): \(error)")
-            state.listState = .failed
+    private func render() {
+        let listState: AgentBlockedListState = switch store.readState(resource, \.blocks) {
+        case .loading: .loading
+        case .failed: .failed
+        case .loaded(let page): .loaded(page.blocks, loadMore: loadMore ?? Self.loadMore(after: page))
+        }
+        if state.listState != listState {
+            state.listState = listState
+        }
+        if state.syncStatus != store.syncStatus {
+            state.syncStatus = store.syncStatus
         }
     }
 
-    private func loadNextPage(after blocks: [AgentBlockedContact], cursor: String) async {
-        let generation = loadGeneration
-        state.listState = .loaded(blocks, loadMore: .loading)
-
-        let result = await agentPlatformService.listBlockedContacts(agentID: state.agent.agentID, cursor: cursor, limit: Self.pageSize)
-        guard generation == loadGeneration, case .loaded(let current, _) = state.listState else { return }
-
-        switch result {
-        case .success(let page):
-            // An unblock while the page was out may have removed a row; a
-            // person already shown is never shown twice.
-            let shown = Set(current.map(\.contactMXID))
-            state.listState = .loaded(current + page.blocks.filter { !shown.contains($0.contactMXID) }, loadMore: Self.loadMore(after: page))
-        case .failure(let error):
-            MXLog.error("Failed to read more blocks of agent \(state.agent.agentID): \(error)")
-            state.listState = .loaded(current, loadMore: .failed(cursor: cursor))
+    private func loadNextPage() async {
+        guard case .loaded(_, let sentinel) = state.listState else { return }
+        loadMore = .loading
+        render()
+        let isRead = await store.loadMore(resource)
+        if isRead {
+            loadMore = nil
+        } else if case .idle(let cursor) = sentinel {
+            loadMore = .failed(cursor: cursor)
+        } else {
+            loadMore = sentinel
         }
+        render()
     }
 
     private static func loadMore(after page: AgentBlockedContactsPage) -> LoadMoreState {
@@ -110,9 +121,7 @@ class AgentBlockedScreenViewModel: AgentBlockedScreenViewModelType, AgentBlocked
         switch await agentPlatformService.unblockContact(block.contactMXID, forAgent: state.agent.agentID) {
         case .success:
             MXLog.info("Unblocked a contact for agent \(state.agent.agentID)")
-            if case .loaded(let blocks, let loadMore) = state.listState {
-                state.listState = .loaded(blocks.filter { $0.contactMXID != block.contactMXID }, loadMore: loadMore)
-            }
+            store.removeBlock(of: block.contactMXID, agentID: state.agent.agentID)
             userIndicatorController.submitIndicator(UserIndicator(title: UntranslatedL10n.screenRoomMemberDetailsAgentUnblockDone(state.agent.displayName),
                                                                   icon: \.checkCircle))
         case .failure(let error):

@@ -39,6 +39,12 @@ public protocol AuthTokenProviding: Sendable {
     /// long-lived (≥ 1 hour) so caching is safe within that
     /// window.
     func currentAccessToken() async -> String?
+
+    /// A token newer than `rejected`, which the server has just
+    /// answered `401` to, or `nil` when there is none. An access
+    /// token lives minutes: the platform can refuse it before the
+    /// Matrix SDK has had a reason to refresh it.
+    func refreshedAccessToken(replacing rejected: String) async -> String?
 }
 
 // MARK: - Static token provider (testing)
@@ -55,6 +61,10 @@ public struct StaticAuthTokenProvider: AuthTokenProviding {
 
     public func currentAccessToken() async -> String? {
         token
+    }
+
+    public func refreshedAccessToken(replacing rejected: String) async -> String? {
+        nil
     }
 }
 
@@ -84,12 +94,19 @@ public struct StaticAuthTokenProvider: AuthTokenProviding {
 /// ```
 public struct ClosureAuthTokenProvider: AuthTokenProviding {
     private let resolve: @Sendable () async -> String?
+    private let refresh: @Sendable (String) async -> String?
 
-    public init(resolve: @escaping @Sendable () async -> String?) {
+    public init(resolve: @escaping @Sendable () async -> String?,
+                refresh: @escaping @Sendable (_ rejected: String) async -> String? = { _ in nil }) {
         self.resolve = resolve
+        self.refresh = refresh
     }
 
     public func currentAccessToken() async -> String? {
         await resolve()
+    }
+
+    public func refreshedAccessToken(replacing rejected: String) async -> String? {
+        await refresh(rejected)
     }
 }

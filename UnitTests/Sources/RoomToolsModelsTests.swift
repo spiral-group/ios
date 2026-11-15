@@ -9,8 +9,8 @@
 // tagged JSON the `tool.arm` capability accepts, and the read-model parse
 // back. A backend shape change fails loudly here long before it ships.
 
-@testable import ElementX
 import Foundation
+@testable import Spiral
 import Testing
 
 struct RoomToolsModelsTests {
@@ -90,12 +90,13 @@ struct RoomToolsModelsTests {
         #expect(custom["instruction"] as? String == "make it a TL;DR")
     }
 
+    /// ADR-0094 A.5: the personal Tool carries one language, the catalog's exact code, and nothing else.
     @Test
-    func toolParamsLiveTranslateWiresLanguagesAndStyle() {
-        let wire = ToolParams.liveTranslate(targetLanguages: ["en", "de"], style: .consecutive).wireObject.value
+    func toolParamsLiveTranslateWiresOneLanguageOnly() {
+        let wire = ToolParams.liveTranslate(language: "pt-BR").wireObject.value
         #expect(wire["kind"] as? String == "live_translate")
-        #expect(wire["target_languages"] as? [String] == ["en", "de"])
-        #expect(wire["style"] as? String == "consecutive")
+        #expect(wire["language"] as? String == "pt-BR")
+        #expect(wire.count == 2)
     }
 
     @Test
@@ -113,7 +114,7 @@ struct RoomToolsModelsTests {
             .simplify, .correct, .summarize,
             .rephrase(instruction: "formal"),
             .custom(instruction: "emoji only"),
-            .liveTranslate(targetLanguages: ["en", "de"], style: .simultaneous),
+            .liveTranslate(language: "zh-Hans"),
             .callSummary, .callRecording
         ]
         for params in cases {

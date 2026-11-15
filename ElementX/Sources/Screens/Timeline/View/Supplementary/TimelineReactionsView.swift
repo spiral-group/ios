@@ -9,32 +9,17 @@
 import Compound
 import SwiftUI
 
+/// AGENT-PLATFORM (Brief 0083, question 359): one for all the rows, as each row making its own showed in the cost of a new row.
+private let feedbackGenerator = UIImpactFeedbackGenerator(style: .heavy)
+
 struct TimelineReactionsView: View {
-    private let feedbackGenerator = UIImpactFeedbackGenerator(style: .heavy)
     @Environment(\.layoutDirection) private var layoutDirection: LayoutDirection
+    @Environment(\.timelineRowContext.areReactionsCollapsed) private var isCollapsed // AGENT-PLATFORM (Brief 0083, question 359)
     
-    let context: TimelineViewModel.Context
+    let context: TimelineViewModel.Context?
     let itemID: TimelineItemIdentifier
     let reactions: [AggregatedReaction]
-    let isLayoutRTL: Bool
-    
-    private var collapsed: Binding<Bool>
-    
-    init(context: TimelineViewModel.Context,
-         itemID: TimelineItemIdentifier,
-         reactions: [AggregatedReaction],
-         isLayoutRTL: Bool = false) {
-        self.context = context
-        self.itemID = itemID
-        self.reactions = reactions
-        self.isLayoutRTL = isLayoutRTL
-        
-        collapsed = Binding(get: {
-            context.reactionsCollapsed[itemID] ?? true
-        }, set: {
-            context.reactionsCollapsed[itemID] = $0
-        })
-    }
+    var isLayoutRTL = false
     
     var reactionsLayoutDirection: LayoutDirection {
         guard isLayoutRTL else { return layoutDirection }
@@ -46,9 +31,9 @@ struct TimelineReactionsView: View {
             ForEach(reactions) { reaction in
                 TimelineReactionButton(reaction: reaction) { key in
                     feedbackGenerator.impactOccurred()
-                    context.send(viewAction: .toggleReaction(key: key, itemID: itemID))
+                    context?.send(viewAction: .toggleReaction(key: key, itemID: itemID))
                 } showReactionSummary: { key in
-                    context.send(viewAction: .displayReactionSummary(itemID: itemID, key: key))
+                    context?.send(viewAction: .displayReactionSummary(itemID: itemID, key: key))
                 }
                 .reactionLayoutItem(.reaction)
                 .environment(\.layoutDirection, layoutDirection)
@@ -56,9 +41,9 @@ struct TimelineReactionsView: View {
             
             if isCollapsible {
                 Button {
-                    collapsed.wrappedValue.toggle()
+                    context?.reactionsCollapsed[itemID] = !isCollapsed
                 } label: {
-                    TimelineCollapseButtonLabel(collapsed: collapsed.wrappedValue)
+                    TimelineCollapseButtonLabel(collapsed: isCollapsed)
                         .transaction { $0.animation = nil }
                 }
                 .reactionLayoutItem(.expandCollapse)
@@ -66,7 +51,7 @@ struct TimelineReactionsView: View {
             }
             
             Button {
-                context.send(viewAction: .displayEmojiPicker(itemID: itemID))
+                context?.send(viewAction: .displayEmojiPicker(itemID: itemID))
             } label: {
                 TimelineReactionAddMoreButtonLabel()
             }
@@ -87,7 +72,7 @@ struct TimelineReactionsView: View {
         if isCollapsible {
             return AnyLayout(CollapsibleReactionLayout(itemSpacing: 4,
                                                        rowSpacing: 4,
-                                                       collapsed: collapsed.wrappedValue,
+                                                       collapsed: isCollapsed,
                                                        rowsBeforeCollapsible: 2))
         }
         
@@ -95,29 +80,27 @@ struct TimelineReactionsView: View {
     }
 }
 
+// AGENT-PLATFORM (Brief 0083, the room's timeline): a capsule under the bubble, filled with the accent's tint when
+// it's your reaction, as Chats' counts are. Element drew a rounded square with a ring of the canvas's colour, over
+// the bubble's edge, and outlined your reactions.
 /// The pill shape for the label that surrounds both the reaction and collapse buttons.
 struct TimelineReactionButtonLabel<Content: View>: View {
+    @Environment(\.colorScheme) private var colorScheme // AGENT-PLATFORM (Brief 0083)
+    
     var isHighlighted = false
     @ViewBuilder var content: () -> Content
     
     var body: some View {
         content()
-            .background(backgroundShape.inset(by: 1).fill(overlayBackgroundColor))
-            .overlay(backgroundShape.inset(by: 2.0).strokeBorder(overlayBorderColor))
-            .overlay(backgroundShape.strokeBorder(Color.compound.bgCanvasDefault, lineWidth: 2))
+            .background(isHighlighted ? Color.compound.bgBadgeAccent : .compound.bgSubtleSecondary, in: .capsule)
+            // AGENT-PLATFORM (Brief 0083): in dark the accent's tint sits close to the grey of the others, so yours
+            // also takes a 1 pt accent outline.
+            .overlay {
+                if isHighlighted, colorScheme == .dark {
+                    Capsule().strokeBorder(Color.compound.iconAccentPrimary, lineWidth: 1)
+                }
+            }
             .accessibilityElement(children: .combine)
-    }
-    
-    var backgroundShape: some InsettableShape {
-        RoundedRectangle(cornerRadius: 14, style: .continuous)
-    }
-    
-    var overlayBackgroundColor: Color {
-        isHighlighted ? Color.compound.bgSubtlePrimary : .compound.bgSubtleSecondary
-    }
-    
-    var overlayBorderColor: Color {
-        isHighlighted ? Color.compound.borderInteractivePrimary : .clear
     }
 }
 
@@ -180,30 +163,34 @@ struct TimelineReactionButton: View {
                     .font(.compound.bodySM)
                 if reaction.count > 1 {
                     Text(String(reaction.count))
-                        .font(.compound.bodyMD)
+                        .font(.compound.bodySMSemibold) // AGENT-PLATFORM (Brief 0083)
                         .foregroundColor(textColor)
                 }
             }
             .frame(height: lineHeight, alignment: .center)
             .padding(.vertical, 6)
-            .padding(.horizontal, 12)
+            .padding(.horizontal, 10) // AGENT-PLATFORM (Brief 0083)
         }
     }
     
+    // AGENT-PLATFORM (Brief 0083): your reaction's count in the accent, on its tint.
     var textColor: Color {
-        reaction.isHighlighted ? Color.compound.textPrimary : .compound.textSecondary
+        reaction.isHighlighted ? Color.compound.textBadgeAccent : .compound.textSecondary
     }
 }
 
+// AGENT-PLATFORM (Brief 0083): the glyph alone, at a reaction's height, so it reads as an action beside them.
 struct TimelineReactionAddMoreButtonLabel: View {
     var body: some View {
-        TimelineReactionButtonLabel {
-            CompoundIcon(\.reactionAdd, size: .xSmall, relativeTo: .compound.bodySM)
-                .padding(.vertical, 8)
-                .padding(.horizontal, 12)
-                .foregroundColor(.compound.iconSecondary)
-                .accessibilityLabel(L10n.actionReact)
-        }
+        CompoundIcon(\.reactionAdd, size: .small, relativeTo: .compound.bodySM)
+            .padding(.vertical, 6)
+            .padding(.horizontal, 8)
+            .foregroundColor(.compound.iconSecondary)
+            // A 44 pt target around the 32 pt glyph, without moving the pills.
+            .padding(6)
+            .contentShape(.rect)
+            .padding(-6)
+            .accessibilityLabel(L10n.actionReact)
     }
 }
 

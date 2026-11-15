@@ -65,6 +65,20 @@ final class SpiralAppPostSession: SpiralAppSessionProtocol {
     }
 
     private var listening: SpiralAppActionFeed.Token?
+    /// A read under way, which a second reason to read joins.
+    private var reading: Task<Void, Never>?
+    /// When a read last succeeded, on the clock `now` reads.
+    private var lastRead: TimeInterval?
+
+    /// How long a read stands for a session that heard everything since.
+    ///
+    /// The relations read has no cursor, so it can only ever be all of it: the
+    /// subscription is what keeps a kept session up to date, and this is how
+    /// often the authority is asked anyway.
+    private static let readStaysFresh: TimeInterval = 60
+    /// How long anything waits for the first verdict on this post's state.
+    /// A mount gets 8 s, and this is no reason to wait longer.
+    private static let verdictDeadline = Duration.seconds(8)
 
     /// This phone's corner of the post, for this account (§ 5.78): the move
     /// behind a seal waits here to be opened.
@@ -106,6 +120,18 @@ final class SpiralAppPostSession: SpiralAppSessionProtocol {
     private var pending: [(seq: Int, operation: SpiralAppOperation, mentioned: [String])] = []
 
     private var snapshotCancellable: AnyCancellable?
+
+    /// Others' actions a write of ours has already followed: not newer than
+    /// our previous write, so an untouched ping cannot answer them.
+    private var followedByOurWrite: Set<String> = []
+    /// Others' actions an untouched ping has already answered: one each, so
+    /// a post cannot push the same person again and again off one move.
+    private var answeredWithPing: Set<String> = []
+
+    /// What this post may still write (H2): a tap's burst and a drag's
+    /// stream pass; a flood in the reader's name does not.
+    private var writes: SpiralAppTokenBucket
+    private let now: () -> TimeInterval
 
     /// Set by the row that owns this post; nil while nobody can expand.
     var onExpandRequested: (() -> Void)?
@@ -185,11 +211,51 @@ final class SpiralAppPostSession: SpiralAppSessionProtocol {
     /// pushed nothing), and an `m.text` reaches everyone who keeps the room on
     /// «all messages» and grows a thread under the game. The NSE shows the
     /// action (`SpiralActionNotification`).
-    private func mentionable(in summary: [String: Any]?) -> [String] {
+    ///
+    /// Only people joined to the room (corpus F5): someone who left, was only
+    /// invited or was never here is not told, and their id is not written
+    /// into the room's history.
+    private func mentionable(in summary: [String: Any]?, present: Set<String>) -> [String] {
         guard let named = summary?["notify_users"] as? [String] else { return [] }
         let waiting = reader.snapshot.awaitingReply.union(pending.flatMap(\.mentioned))
         var seen = Set<String>()
-        return named.filter { $0 != roomProxy.ownUserID && !Self.isAgent($0) && !waiting.contains($0) && seen.insert($0).inserted }
+        return named.filter { present.contains($0) && $0 != roomProxy.ownUserID && !waiting.contains($0) && seen.insert($0).inserted }
+    }
+
+    /// The people joined to the room now, waited for once when the roster
+    /// has not loaded yet, as `members()` does.
+    private func joinedPeople() async -> Set<String> {
+        var loaded = Self.people(in: roomProxy.membersPublisher.value)
+        if loaded.count <= 1 {
+            loaded = await Self.people(in: roomProxy.members() ?? [])
+        }
+        return Set(loaded.map(\.userID))
+    }
+
+    /// Others' actions an untouched write may answer with a ping: newer than
+    /// our previous write, and not answered with one already.
+    private func answerable() -> [SpiralAppAction] {
+        reader.actions(after: roomProxy.ownUserID).filter {
+            !followedByOurWrite.contains($0.eventID) && !answeredWithPing.contains($0.eventID)
+        }
+    }
+
+    /// A summary written with nobody touching the post (decision 235).
+    ///
+    /// «Your move» is the point of a game, and a phone that answers a move
+    /// by itself — a defender reporting a hit — must still tell the mover.
+    /// So the ping stays, narrowed to the senders of the moves it answers:
+    /// anyone else it named is dropped, and a ping naming nobody (to the
+    /// whole room) goes as a badge. The write itself always goes.
+    private func untouchedPing(_ summary: [String: Any], answering: [SpiralAppAction]) -> [String: Any] {
+        var summary = summary
+        let movers = Set(answering.map(\.sender))
+        let kept = (summary["notify_users"] as? [String] ?? []).filter(movers.contains)
+        summary["notify_users"] = kept.isEmpty ? nil : kept
+        if kept.isEmpty, summary["notify"] as? String == "ping" {
+            summary["notify"] = "badge"
+        }
+        return summary
     }
 
     /// Whether a Matrix user is one of the platform's agents rather than a
@@ -204,9 +270,22 @@ final class SpiralAppPostSession: SpiralAppSessionProtocol {
     /// foreign `@assistant-…` must count as a person — a call's peer, a room
     /// grant — `SpiralAgentRoomGrants.isLocalAgent` adds the server.
     nonisolated static func isAgent(_ userID: String) -> Bool {
-        guard userID.hasPrefix("@"), let colon = userID.firstIndex(of: ":") else { return false }
+        agentIDKind(userID) != nil
+    }
+    
+    nonisolated enum AgentIDKind {
+        case assistant
+        case agent
+    }
+    
+    /// Which of the two an agent's ID says it is; `nil` for anyone else.
+    nonisolated static func agentIDKind(_ userID: String) -> AgentIDKind? {
+        guard userID.hasPrefix("@"), let colon = userID.firstIndex(of: ":") else { return nil }
         let localpart = userID[userID.index(after: userID.startIndex)..<colon]
-        return localpart.hasPrefix("assistant-") || localpart.hasPrefix("agent-")
+        if localpart.hasPrefix("assistant-") {
+            return .assistant
+        }
+        return localpart.hasPrefix("agent-") ? .agent : nil
     }
 
     /// The pixel size of the avatar a post gets: the row's avatar is 28 pt,
@@ -228,7 +307,7 @@ final class SpiralAppPostSession: SpiralAppSessionProtocol {
     /// the messenger's placeholder.
     static func membersPayload(_ members: [RoomMemberProxyProtocol],
                                mediaProvider: MediaProviderProtocol? = nil) async -> [String: Any] {
-        let people = members.filter { $0.membership == .join && !isAgent($0.userID) }
+        let people = people(in: members)
         let avatars = await avatarDataURLs(for: people, mediaProvider: mediaProvider)
         let entries = people.map { member -> [String: Any] in
             var entry: [String: Any] = ["userId": member.userID]
@@ -244,6 +323,11 @@ final class SpiralAppPostSession: SpiralAppSessionProtocol {
         }
 
         return ["members": entries]
+    }
+
+    /// The people actually in a room: joined, and no agents.
+    static func people(in members: [RoomMemberProxyProtocol]) -> [RoomMemberProxyProtocol] {
+        members.filter { $0.membership == .join && !isAgent($0.userID) }
     }
 
     /// The thumbnails, fetched together; one that does not arrive is left out.
@@ -286,12 +370,16 @@ final class SpiralAppPostSession: SpiralAppSessionProtocol {
          roomProxy: JoinedRoomProxyProtocol,
          feed: SpiralAppActionFeed,
          mediaProvider: MediaProviderProtocol? = nil,
-         refusals: SpiralAppSendRefusals? = nil) {
+         refusals: SpiralAppSendRefusals? = nil,
+         writes: SpiralAppTokenBucket = .sharedWrites,
+         now: @escaping () -> TimeInterval = { ProcessInfo.processInfo.systemUptime }) {
         self.postEventID = postEventID
         self.roomProxy = roomProxy
         self.feed = feed
         self.mediaProvider = mediaProvider
         self.refusals = refusals
+        self.writes = writes
+        self.now = now
 
         reader = SpiralAppStateReader(postEventID: postEventID) { [roomProxy] eventID in
             try await roomProxy.loadSpiralAppRelations(for: eventID).get()
@@ -324,7 +412,56 @@ final class SpiralAppPostSession: SpiralAppSessionProtocol {
             self?.ingest(events)
         }
 
-        await reader.refresh()
+        await read()
+    }
+
+    /// Read again, unless what is known can be trusted as it stands: a recent
+    /// read, and a subscription that has been delivering since.
+    func readIfStale() {
+        if let lastRead, now() - lastRead < Self.readStaysFresh, feed.isLive { return }
+        Task { await read() }
+    }
+
+    /// The subscription may have missed something, as after time in the
+    /// background: the next `readIfStale` asks the authority.
+    func markStale() {
+        lastRead = nil
+    }
+
+    /// Nobody can see this post. It goes on listening, and folds nothing.
+    func sleep() {
+        reader.sleep()
+    }
+
+    /// Somebody can see this post again.
+    func wake() {
+        Task { await reader.wake() }
+    }
+
+    #if DEBUG
+    /// What the room's subscription would deliver.
+    func ingestForTesting(_ rawEventJSONs: [String]) async {
+        await reader.ingest(rawEventJSONs: rawEventJSONs)
+    }
+    #endif
+
+    private func read() async {
+        if let reading {
+            await reading.value
+            return
+        }
+
+        let task = Task { [reader] in
+            await reader.refresh()
+            lastRead = reader.snapshot.readiness.isVouched ? now() : nil
+            reading = nil
+        }
+        reading = task
+        await task.value
+    }
+
+    func hasReadableState() async -> Bool {
+        await reader.verdict(within: Self.verdictDeadline)
     }
 
     /// Give up the room subscription's share of this post.
@@ -344,11 +481,21 @@ final class SpiralAppPostSession: SpiralAppSessionProtocol {
     ///   not running — the timeline card, a push, a search snapshot. Passed
     ///   through as the app wrote it; the shell has already refused the one
     ///   shape that reaches people uninvited (a `ping` naming nobody).
+    /// - Parameter touched: whether the reader touched the post just now.
+    ///   Without a touch a ping may name only the senders of the actions
+    ///   this write answers (decision 235; see `untouchedPing`).
     func apply(_ operation: SpiralAppOperation,
-               summary: [String: Any]? = nil) async -> Result<Void, SpiralAppPostError> {
+               summary: [String: Any]? = nil,
+               touched: Bool = true) async -> Result<Void, SpiralAppPostError> {
+        // A paused app can still get a write out on its way to being stopped,
+        // and the next `seq` has to come from everything heard, folded or not.
+        await reader.wake()
+        // Before anything is numbered: nothing may suspend between the `seq`
+        // below and the send, or two quick writes would share one.
+        let present = summary?["notify_users"] == nil ? [] : await joinedPeople()
         let current = reader.snapshot
 
-        guard current.readiness != .loading else {
+        guard current.readiness.isVouched else {
             // Writing from a state we could not vouch for would publish a
             // snapshot built on a hole, and every other client would adopt it.
             return .failure(.stateNotReady)
@@ -374,8 +521,13 @@ final class SpiralAppPostSession: SpiralAppSessionProtocol {
 
         // Follows the highest of what the room has confirmed and what we have
         // already written, so a burst of taps numbers itself 1, 2, 3 rather
-        // than claiming 1 three times.
-        let seq = max(current.seq, pending.last?.seq ?? 0) + 1
+        // than claiming 1 three times. Never past the bound: every reader,
+        // this one included, refuses an action numbered above it.
+        let previous = max(current.seq, pending.last?.seq ?? 0)
+        guard previous < SpiralAppActionLimits.maxSeq else {
+            return .failure(.sequenceExhausted)
+        }
+        let seq = previous + 1
 
         // THE OPERATION, NOT THE STATE.
         //
@@ -401,10 +553,14 @@ final class SpiralAppPostSession: SpiralAppSessionProtocol {
             "op": operation.jsonObject,
             "seq": seq
         ]
+        let answering = touched ? [] : answerable()
+        let summary = touched ? summary : summary.map { untouchedPing($0, answering: answering) }
+        // Capped before it leaves: every reader would cut it anyway, and
+        // here the cut is ours, with an ellipsis, not somebody's surprise.
         if let summary {
-            content["summary"] = summary
+            content["summary"] = SpiralAppActionLimits.cappingLine(in: summary)
         }
-        let mentioned = mentionable(in: summary)
+        let mentioned = mentionable(in: summary, present: present)
         if !mentioned.isEmpty {
             content["m.mentions"] = ["user_ids": mentioned]
         }
@@ -429,10 +585,27 @@ final class SpiralAppPostSession: SpiralAppSessionProtocol {
               let json = String(data: data, encoding: .utf8) else {
             return .failure(.notEncodable)
         }
+        // The bound every reader holds an action to; one past it would be
+        // written for nobody.
+        guard data.count <= SpiralAppActionLimits.maxContentBytes else {
+            return .failure(.actionTooLarge)
+        }
+
+        // Last, so only a write that would really go out spends a token.
+        guard writes.take(at: now()) else {
+            return .failure(.rateLimited)
+        }
 
         pending.append((seq, operation, mentioned))
         // Shown NOW, before the round trip — see `echoSubject`.
         echo()
+
+        // Taken now, not on success, so a burst of writes cannot all answer
+        // the same move; given back if this one never leaves.
+        let followed = Set(reader.actions(after: roomProxy.ownUserID).map(\.eventID)).subtracting(followedByOurWrite)
+        let answered = Set(answering.filter { mentioned.contains($0.sender) }.map(\.eventID)).subtracting(answeredWithPing)
+        followedByOurWrite.formUnion(followed)
+        answeredWithPing.formUnion(answered)
 
         let send = { [roomProxy] in await roomProxy.sendSpiralRawEvent(type: SpiralAppAction.eventType, content: json) }
         let outcome = if let refusals { await refusals.send(send) } else { await send() }
@@ -455,6 +628,8 @@ final class SpiralAppPostSession: SpiralAppSessionProtocol {
             // It was never written, so replaying it would invent a change
             // nobody else will ever see.
             pending.removeAll { $0.seq == seq }
+            followedByOurWrite.subtract(followed)
+            answeredWithPing.subtract(answered)
             echo()
             return .failure(.sendFailed(error))
         }
@@ -479,6 +654,12 @@ enum SpiralAppPostError: Error {
     case stateTooLarge
     /// The operation writes into another user's `by.<userId>` namespace.
     case notOwner
+    /// The post has used every `seq` an action may carry.
+    case sequenceExhausted
+    /// More writes than a reader's taps account for (`SpiralAppTokenBucket`).
+    case rateLimited
+    /// The action is past `SpiralAppActionLimits.maxContentBytes`.
+    case actionTooLarge
     case notEncodable
     case sendFailed(RoomProxyError)
 }
@@ -493,6 +674,9 @@ extension SpiralAppPostError {
         case .stateNotReady: "unavailable"
         case .stateTooLarge: "rejected"
         case .notOwner: "rejected"
+        case .sequenceExhausted: "rejected"
+        case .rateLimited: "rejected"
+        case .actionTooLarge: "rejected"
         case .notEncodable: "rejected"
         case .sendFailed: "unavailable"
         }

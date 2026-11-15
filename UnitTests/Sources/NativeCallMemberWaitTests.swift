@@ -3,9 +3,9 @@
 //
 
 import Combine
-@testable import ElementX
 import Foundation
 import MatrixRustSDK
+@testable import Spiral
 import Testing
 
 /// A call configured on a room proxy fresh from `roomForIdentifier` reads

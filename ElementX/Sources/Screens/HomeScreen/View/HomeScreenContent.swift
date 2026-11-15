@@ -7,6 +7,7 @@
 //
 
 import Compound
+import SpiralComponents // AGENT-PLATFORM (Brief 0083)
 import SwiftUI
 
 struct HomeScreenContent: View {
@@ -23,18 +24,18 @@ struct HomeScreenContent: View {
         GeometryReader { geometry in
             ScrollView {
                 switch context.viewState.roomListMode {
-                case .skeletons:
-                    LazyVStack(spacing: 0) {
-                        ForEach(context.viewState.visibleRooms) { room in
-                            HomeScreenRoomCell(room: room, isSelected: false, mediaProvider: context.mediaProvider, action: context.send)
-                                .redacted(reason: .placeholder)
-                                .shimmer() // Putting this directly on the LazyVStack creates an accordion animation on iOS 16.
+                case .awaitingCachedRooms, .skeletons:
+                    // AGENT-PLATFORM (Brief 0083, decision 330): Spiral's preloader redacts the placeholder rooms, with
+                    // its delay, its quiet shimmer and one loading element for VoiceOver.
+                    SpiralPreloader(label: L10n.commonLoading) {
+                        LazyVStack(spacing: 0) {
+                            ForEach(context.viewState.visibleRooms) { room in
+                                HomeScreenRoomCell(room: room, isSelected: false, mediaProvider: context.mediaProvider, action: context.send)
+                            }
                         }
                     }
-                    .disabled(true)
-                    .accessibilityRepresentation {
-                        Text(L10n.commonLoading)
-                    }
+                    // Laid out but hidden while awaiting so the rooms replace it without a growing animation.
+                    .opacity(context.viewState.roomListMode == .awaitingCachedRooms ? 0 : 1)
                 case .empty:
                     HomeScreenEmptyStateLayout(minHeight: geometry.size.height) {
                         topSection
@@ -66,7 +67,7 @@ struct HomeScreenContent: View {
                 scrollViewAdapter.scrollView = scrollView
             }
             .onReceive(scrollViewAdapter.didScroll) { _ in
-                updateVisibleRange()
+                sendVisibleRange()
             }
             .onReceive(scrollViewAdapter.isScrolling) { _ in
                 updateVisibleRange()
@@ -101,7 +102,7 @@ struct HomeScreenContent: View {
                 }
             }
             .scrollDismissesKeyboard(.immediately)
-            .scrollDisabled(context.viewState.roomListMode == .skeletons)
+            .scrollDisabled(context.viewState.roomListMode == .skeletons || context.viewState.roomListMode == .awaitingCachedRooms)
             .scrollBounceBehavior(context.viewState.roomListMode == .empty ? .basedOnSize : .automatic)
             .animation(.elementDefault, value: context.viewState.roomListMode)
             .animation(.none, value: context.viewState.visibleRooms)
@@ -111,9 +112,9 @@ struct HomeScreenContent: View {
     @ViewBuilder
     private var topSection: some View {
         // An empty VStack causes glitches within the room list
-        if context.viewState.shouldShowFilters || context.viewState.shouldShowBanner {
+        if shouldShowFiltersRow || context.viewState.shouldShowBanner { // AGENT-PLATFORM (Brief 0083)
             VStack(spacing: 0) {
-                if context.viewState.shouldShowFilters {
+                if shouldShowFiltersRow { // AGENT-PLATFORM (Brief 0083)
                     RoomListFiltersView(state: $context.filtersState)
                 }
                 
@@ -128,16 +129,29 @@ struct HomeScreenContent: View {
         }
     }
     
+    // AGENT-PLATFORM (Brief 0083): the filter menu is in the bar; the list shows the tokens only while filtering.
+    private var shouldShowFiltersRow: Bool {
+        context.viewState.shouldShowFilters && context.filtersState.isFiltering
+    }
+    
     /// Often times the scroll view's content size isn't correct yet when this method is called e.g. when cancelling a search
     /// Dispatch it with a delay to allow the UI to update and the computations to be correct
     /// Once we move to iOS 17 we should remove all of this and use scroll anchors instead
+    /// Update: We're on iOS 26 now and the scroll achors still don't work properly.
     private func updateVisibleRange() {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { delayedUpdateVisibleRange() }
     }
     
     private func delayedUpdateVisibleRange() {
+        guard scrollViewAdapter.isScrolling.value == false else {
+            // Scrolling reports live through didScroll
+            return
+        }
+        sendVisibleRange()
+    }
+    
+    private func sendVisibleRange() {
         guard let scrollView = scrollViewAdapter.scrollView,
-              scrollViewAdapter.isScrolling.value == false, // Ignore while scrolling
               context.searchQuery.isEmpty == true, // Ignore while filtering
               !context.viewState.visibleRooms.isEmpty else {
             return

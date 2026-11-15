@@ -11,6 +11,7 @@ import SwiftUI
 
 struct PollOptionView: View {
     @Environment(\.isEnabled) private var isEnabled
+    @Environment(\.ownBubbleInk) private var ownBubbleInk // AGENT-PLATFORM (Brief 0083)
     
     let pollOption: Poll.Option
     let showVotes: Bool
@@ -20,7 +21,7 @@ struct PollOptionView: View {
         HStack(alignment: .firstTextBaseline, spacing: 12) {
             Image(systemSymbol: pollOption.isSelected ? .checkmarkCircleFill : .circle)
                 .font(.compound.bodyLG)
-                .foregroundColor(pollOption.isSelected && isEnabled ? .compound.iconPrimary : .compound.iconTertiary)
+                .foregroundColor(pollOption.isSelected && isEnabled ? ownBubbleInk?.pollMark ?? .compound.iconPrimary : ownBubbleInk?.pollIdleMark ?? .compound.iconTertiary)
                 .accessibilityAddTraits(pollOption.isSelected ? .isSelected : [])
             
             VStack(spacing: 10) {
@@ -28,25 +29,25 @@ struct PollOptionView: View {
                     Text(pollOption.text)
                         .font(isFinalWinningOption ? .compound.bodyLGSemibold : .compound.bodyLG)
                         .multilineTextAlignment(.leading)
-                        .foregroundColor(.compound.textPrimary)
+                        .foregroundColor(ownBubbleInk?.text ?? .compound.textPrimary)
                         .frame(maxWidth: .infinity, alignment: .leading)
                     
                     if showVotes {
                         if isFinalWinningOption {
                             HStack(spacing: 4) {
                                 CompoundIcon(asset: Asset.Images.pollWinner)
-                                    .foregroundColor(.compound.iconAccentTertiary)
+                                    .foregroundColor(ownBubbleInk?.pollMark ?? .compound.iconAccentPrimary)
                                     .accessibilityLabel(L10n.a11yPollsWinningAnswer)
                                 
                                 Text(L10n.commonPollVotesCount(pollOption.votes))
                                     .font(.compound.bodySMSemibold)
-                                    .foregroundColor(.compound.textPrimary)
+                                    .foregroundColor(ownBubbleInk?.text ?? .compound.textPrimary)
                             }
                             .accessibilityElement(children: .combine)
                         } else {
                             Text(L10n.commonPollVotesCount(pollOption.votes))
                                 .font(.compound.bodySM)
-                                .foregroundColor(.compound.textSecondary)
+                                .foregroundColor(ownBubbleInk?.secondaryText ?? .compound.textSecondary)
                         }
                     }
                 }
@@ -77,13 +78,15 @@ struct PollOptionView: View {
 }
 
 private struct PollProgressView: View {
+    @Environment(\.ownBubbleInk) private var ownBubbleInk // AGENT-PLATFORM (Brief 0083)
+    
     let progress: Double
     
     var body: some View {
         GeometryReader { geometry in
             ZStack(alignment: .leading) {
                 Capsule()
-                    .foregroundColor(.compound._bgEmptyItemAlpha)
+                    .foregroundColor(ownBubbleInk?.pollTrack ?? .compound._bgEmptyItemAlpha)
                 
                 Capsule()
                     .frame(maxWidth: progress * geometry.size.width)

@@ -22,7 +22,6 @@ class MediaUploadPreviewScreenViewModel: MediaUploadPreviewScreenViewModelType, 
     private var processingTask: Task<Result<[MediaInfo], MediaUploadingPreprocessorError>, Never>
     private var requestHandle: SendAttachmentJoinHandleProtocol?
     private let clientProxy: ClientProxyProtocol
-    private let galleryEnabled: Bool
     
     private var actionsSubject: PassthroughSubject<MediaUploadPreviewScreenViewModelAction, Never> = .init()
     
@@ -33,8 +32,6 @@ class MediaUploadPreviewScreenViewModel: MediaUploadPreviewScreenViewModelType, 
     init(mediaURLs: [URL],
          caption: NSAttributedString?,
          title: String?,
-         shouldShowCaptionWarning: Bool,
-         galleryEnabled: Bool,
          mediaUploadingPreprocessor: MediaUploadingPreprocessor,
          timelineController: TimelineControllerProtocol,
          clientProxy: ClientProxyProtocol,
@@ -44,14 +41,12 @@ class MediaUploadPreviewScreenViewModel: MediaUploadPreviewScreenViewModelType, 
         self.timelineController = timelineController
         self.clientProxy = clientProxy
         self.userIndicatorController = userIndicatorController
-        self.galleryEnabled = galleryEnabled
         
         // Start processing the media whilst the user is reviewing it/adding a caption.
         processingTask = Self.processMedia(at: mediaURLs, preprocessor: mediaUploadingPreprocessor, clientProxy: clientProxy)
         
         super.init(initialViewState: MediaUploadPreviewScreenViewState(mediaURLs: mediaURLs,
                                                                        title: title,
-                                                                       shouldShowCaptionWarning: shouldShowCaptionWarning,
                                                                        bindings: .init(caption: caption ?? NSAttributedString())))
     }
     
@@ -63,12 +58,14 @@ class MediaUploadPreviewScreenViewModel: MediaUploadPreviewScreenViewModelType, 
         case .send:
             startLoading()
             
-            Task {
+            Task { [processingTask] in
                 defer { stopLoading() }
                 
-                switch await processingTask.value {
+                let result = await processingTask.value
+                guard !processingTask.isCancelled else { return }
+                switch result {
                 case .success(let mediaInfos):
-                    if galleryEnabled, mediaInfos.count > 1 {
+                    if mediaInfos.formsAlbum {
                         switch await sendGallery(mediaInfos: mediaInfos, caption: caption) {
                         case .success:
                             break
@@ -247,5 +244,23 @@ extension NSAttributedString {
     var nonBlankString: String? {
         guard !string.isBlank else { return nil }
         return string
+    }
+}
+
+// AGENT-PLATFORM (question 413): photos and videos picked together go as one album (MSC4274 gallery), with one caption.
+// Files keep upstream's default and go one by one, the caption on the first, and so do more pictures than an album
+// holds, which only the Files picker allows.
+extension [MediaInfo] {
+    var formsAlbum: Bool {
+        (2...MediaPickerScreenSelectionType.multipleLimit).contains(count) && allSatisfy(\.isVisual)
+    }
+}
+
+private extension MediaInfo {
+    var isVisual: Bool {
+        switch self {
+        case .image, .video: true
+        case .audio, .file: false
+        }
     }
 }

@@ -89,7 +89,7 @@ struct RoomNotificationSettingsScreenStrings {
     let customSettingFootnoteLink: URL?
     
     init() {
-        customSettingFootnoteLink = URL(string: "element://openGlobalSettings")
+        customSettingFootnoteLink = URL(string: "action://openGlobalSettings") // AGENT-PLATFORM (Brief 0083 L1b): only the screen reads it
         
         let linkPlaceholder = "{link}"
         var customSettingFootnote = AttributedString(L10n.screenRoomNotificationSettingsDefaultSettingFootnote(linkPlaceholder))

@@ -6,6 +6,9 @@
 // Please see LICENSE files in the repository root for full details.
 //
 
+import Compound
+import SpiralComponents // AGENT-PLATFORM (Brief 0083)
+import SpiralTokens // AGENT-PLATFORM (Brief 0083)
 import SwiftUI
 
 struct ReactionsSummaryView: View {
@@ -18,13 +21,15 @@ struct ReactionsSummaryView: View {
         reactions.first { $0.key == selectedReactionKey }
     }
     
+    // AGENT-PLATFORM (Brief 0083): iOS's grouped sheet, as the message's menu: the reactions above, who reacted on a card.
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             reactionButtons
             sendersList
         }
+        .background(Color.compound.bgSubtleSecondaryLevel0.ignoresSafeArea())
         .presentationDetents([.medium])
-        .presentationBackground(Color.compound.bgCanvasDefault)
+        .presentationBackground(Color.compound.bgSubtleSecondaryLevel0)
         .presentationDragIndicator(.visible)
     }
     
@@ -38,7 +43,7 @@ struct ReactionsSummaryView: View {
                         }
                     }
                 }
-                .padding(.horizontal, 20)
+                .padding(.horizontal, CompoundDesignTokens.space4X) // AGENT-PLATFORM (Brief 0083): the cards' edge
                 .onAppear {
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
                         scrollView.scrollTo(selectedReactionKey)
@@ -53,17 +58,23 @@ struct ReactionsSummaryView: View {
         .padding(.bottom, 12)
     }
     
+    // AGENT-PLATFORM (Brief 0083): the senders are rows of one card, each separator inset to the text.
     @ViewBuilder
     private var sendersList: some View {
         if let selectedReaction {
             ScrollView {
-                VStack(alignment: .leading, spacing: 8) {
+                SpiralCard(on: .groupedSheet) {
                     ForEach(selectedReaction.senders) { sender in
                         ReactionSummarySenderView(sender: sender, member: members[sender.id], mediaProvider: mediaProvider)
-                            .padding(.horizontal, 16)
+                            .overlay(alignment: .bottom) {
+                                if sender.id != selectedReaction.senders.last?.id {
+                                    SpiralCardSeparator(leadingInset: ReactionSummarySenderView.textInset)
+                                }
+                            }
                     }
                 }
-                .frame(maxWidth: .infinity)
+                .padding(.horizontal, CompoundDesignTokens.space4X)
+                .padding(.bottom, CompoundDesignTokens.space4X)
             }
         }
     }
@@ -91,6 +102,7 @@ private struct ReactionSummaryButton: View {
         }
         .padding(.vertical, 8)
         .padding(.horizontal, 12)
+        .frame(minHeight: CompoundDesignTokens.space11X) // AGENT-PLATFORM (Brief 0083): a 44 pt target
         .background(highlighted ? Color.compound.bgActionPrimaryRest : .clear, in: Capsule())
         .accessibilityElement(children: .combine)
     }
@@ -109,8 +121,13 @@ private struct ReactionSummarySenderView: View {
         member?.displayName ?? sender.id
     }
     
+    /// Where the text starts: the separator under a row is inset to it.
+    static let textInset = CompoundDesignTokens.space4X + SpiralAvatarSize.small + CompoundDesignTokens.space3X
+    
+    // AGENT-PLATFORM (Brief 0083): a row of the senders' card, as a list row: the name in body text, the time beside
+    // it and the Matrix ID under it in secondary text.
     var body: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: CompoundDesignTokens.space3X) {
             LoadableAvatarImage(url: member?.avatarURL,
                                 name: displayName,
                                 contentID: sender.id,
@@ -118,12 +135,13 @@ private struct ReactionSummarySenderView: View {
                                 mediaProvider: mediaProvider)
             
             VStack(alignment: .leading, spacing: 0) {
-                HStack(spacing: 8) {
+                HStack(alignment: .firstTextBaseline, spacing: CompoundDesignTokens.space2X) {
                     Text(displayName)
-                        .font(.compound.bodyMDSemibold)
+                        .font(.compound.bodyLG)
+                        .foregroundColor(.compound.textPrimary)
                         .frame(maxWidth: .infinity, alignment: .leading)
                     Text(sender.timestamp.formattedMinimal())
-                        .font(.compound.bodyXS)
+                        .font(.compound.bodySM)
                         .foregroundColor(.compound.textSecondary)
                 }
                 Text(sender.id)
@@ -131,12 +149,12 @@ private struct ReactionSummarySenderView: View {
                     .foregroundColor(.compound.textSecondary)
             }
         }
-        
-        .padding(.vertical, 8)
+        .padding(.horizontal, CompoundDesignTokens.space4X)
+        .padding(.vertical, CompoundDesignTokens.space3X)
     }
 }
 
-struct ReactionsSummaryView_Previews: PreviewProvider, TestablePreview {
+struct ReactionsSummaryView_Previews: PreviewProvider, TestablePreview, SpiralGatedPreview { // AGENT-PLATFORM (Brief 0083): Spiral's gates
     static var previews: some View {
         ReactionsSummaryView(reactions: AggregatedReaction.mockReactions,
                              members: [:],

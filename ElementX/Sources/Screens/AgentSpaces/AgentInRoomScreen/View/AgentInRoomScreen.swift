@@ -17,8 +17,11 @@ struct AgentInRoomScreen: View {
     
     var body: some View {
         Form {
+            openChatSection
             toolsSection
-            removeSection
+            if context.viewState.canRemoveFromRoom {
+                removeSection
+            }
         }
         .compoundList()
         .navigationTitle(context.viewState.roomTitle)
@@ -40,6 +43,17 @@ struct AgentInRoomScreen: View {
         }
         .background(Color.compound.bgCanvasDefault.ignoresSafeArea())
         .alert(item: $context.alertInfo)
+    }
+    
+    /// The first action: from here the chat itself is one tap away.
+    private var openChatSection: some View {
+        Section {
+            ListRow(label: .default(title: UntranslatedL10n.screenAgentInRoomOpenChat, icon: \.chat),
+                    kind: .navigationLink {
+                        context.send(viewAction: .openChat)
+                    })
+                    .accessibilityIdentifier(A11yIdentifiers.agentInRoomScreen.openChat)
+        }
     }
     
     private var toolsSection: some View {
@@ -91,6 +105,7 @@ struct AgentInRoomScreen: View {
 struct AgentInRoomScreen_Previews: PreviewProvider, TestablePreview {
     static let viewModel = makeViewModel()
     static let emptyViewModel = makeViewModel(hasTools: false)
+    static let ownerDMViewModel = makeViewModel(isOwnerDM: true)
     
     static var previews: some View {
         ElementNavigationStack {
@@ -101,9 +116,14 @@ struct AgentInRoomScreen_Previews: PreviewProvider, TestablePreview {
             AgentInRoomScreen(context: emptyViewModel.context)
         }
         .previewDisplayName("No tools")
+        
+        ElementNavigationStack {
+            AgentInRoomScreen(context: ownerDMViewModel.context)
+        }
+        .previewDisplayName("The owner's own chat")
     }
     
-    static func makeViewModel(hasTools: Bool = true) -> AgentInRoomScreenViewModel {
+    static func makeViewModel(hasTools: Bool = true, isOwnerDM: Bool = false) -> AgentInRoomScreenViewModel {
         let agent = AgentInRoomScreenAgent(agentID: "agent-1",
                                            matrixUserID: "@assistant-owner:spiral.md",
                                            displayName: "Personal Assistant")
@@ -116,10 +136,15 @@ struct AgentInRoomScreen_Previews: PreviewProvider, TestablePreview {
                                          .init(toolID: "t2", toolKind: "call_summary", targetLanguages: [], firing: .onVoiceCall, audience: .anyone)]
                                       : [])
         
+        let clientProxy = ClientProxyMock(.init())
+        if isOwnerDM {
+            clientProxy.directRoomForUserIDReturnValue = .success(room.roomID)
+        }
+        
         return AgentInRoomScreenViewModel(agent: agent,
                                           room: room,
                                           agentPlatformService: AgentPlatformServiceMock(),
-                                          clientProxy: ClientProxyMock(.init()),
+                                          clientProxy: clientProxy,
                                           mediaProvider: MediaProviderMock(.init()))
     }
 }

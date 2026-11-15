@@ -7,7 +7,7 @@
 //
 
 import Combine
-@testable import ElementX
+@testable import Spiral
 import Testing
 
 @MainActor

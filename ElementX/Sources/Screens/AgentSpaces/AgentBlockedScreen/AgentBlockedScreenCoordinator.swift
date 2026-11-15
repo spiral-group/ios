@@ -7,6 +7,7 @@ import SwiftUI
 struct AgentBlockedScreenCoordinatorParameters {
     let agent: AgentSpaceAgentCard
     let agentPlatformService: AgentPlatformServiceProtocol
+    let store: AgentsStore
     let userIndicatorController: UserIndicatorControllerProtocol
 }
 
@@ -17,6 +18,7 @@ final class AgentBlockedScreenCoordinator: CoordinatorProtocol {
     init(parameters: AgentBlockedScreenCoordinatorParameters) {
         viewModel = AgentBlockedScreenViewModel(agent: parameters.agent,
                                                 agentPlatformService: parameters.agentPlatformService,
+                                                store: parameters.store,
                                                 userIndicatorController: parameters.userIndicatorController)
     }
 

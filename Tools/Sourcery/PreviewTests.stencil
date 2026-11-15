@@ -2,7 +2,7 @@
 // swiftformat:disable all
 
 import Testing
-@testable import ElementX
+@testable import Spiral{# AGENT-PLATFORM (Brief 0083 L1a): the app module is Spiral, not upstream's ElementX. #}
 {% if argument.mainTarget %}
 @testable import {{ argument.mainTarget }}
 {% endif %}
@@ -26,6 +26,9 @@ extension PreviewTests {
     // MARK: - PreviewProvider
 
     {% for type in types.types where (type.implements.TestablePreview or type.based.TestablePreview or type|annotated:"TestablePreview") and type.name != "TestablePreview" %}
+    {% if type.attributes.available %}
+    @available(iOS 26.0, *){# AGENT-PLATFORM (Brief 0083 L1c): this target builds for iOS 18.5, for the pre-glass lane. #}
+    {% endif %}
     @Test
     func {{ type.name|replace:"_Previews", ""| lowerFirstLetter }}() async throws {
         for (index, preview) in {{ type.name }}._allPreviews.enumerated() {

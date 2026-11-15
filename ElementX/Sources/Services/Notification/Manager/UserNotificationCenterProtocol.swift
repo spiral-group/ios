@@ -15,13 +15,10 @@ protocol UserNotificationCenterProtocol: AnyObject {
     func requestAuthorization(options: UNAuthorizationOptions) async throws -> Bool
     func deliveredNotifications() async -> [UNNotification]
     func removeDeliveredNotifications(withIdentifiers identifiers: [String])
+    func setBadgeCount(_ newBadgeCount: Int) async throws
     func setNotificationCategories(_ categories: Set<UNNotificationCategory>)
     func authorizationStatus() async -> UNAuthorizationStatus
     func notificationSettings() async -> UNNotificationSettings
-    /// AGENT-PLATFORM: on the protocol so the badge the user sees is
-    /// assertable in tests. Before this, the only writers were the NSE and
-    /// logout, and neither was reachable from a test.
-    func setBadgeCount(_ count: Int) async throws
 }
 
 // sourcery: AutoMockable

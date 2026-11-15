@@ -46,13 +46,13 @@ final class SecureBackupRecoveryKeyScreenCoordinator: SecureBackupRecoveryKeyCoo
             case .cancel:
                 self.actionsSubject.send(.complete)
             case .done(let mode):
-                switch mode {
+                switch mode { // AGENT-PLATFORM (Brief 0083, decision 314): Spiral's copy.
                 case .setupRecovery:
-                    showSuccessIndicator(title: L10n.screenRecoveryKeySetupSuccess)
+                    showSuccessIndicator(title: UntranslatedL10n.screenRecoveryKeySetupSuccessSpiral)
                 case .changeRecovery:
-                    showSuccessIndicator(title: L10n.screenRecoveryKeyChangeSuccess)
+                    showSuccessIndicator(title: UntranslatedL10n.screenRecoveryKeyChangeSuccessSpiral)
                 case .fixRecovery:
-                    showSuccessIndicator(title: L10n.screenRecoveryKeyConfirmSuccess)
+                    showSuccessIndicator(title: UntranslatedL10n.screenRecoveryKeyConfirmSuccessSpiral)
                 case .unknown:
                     fatalError()
                 }

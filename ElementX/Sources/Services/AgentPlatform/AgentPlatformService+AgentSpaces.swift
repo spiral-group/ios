@@ -53,7 +53,7 @@ nonisolated extension AgentPlatformService {
                                       avatarMXC: body.avatarMxc.flatMap { $0.isEmpty ? nil : $0 },
                                       industry: body.industry,
                                       website: body.website,
-                                      agents: body.agents.map(Self.mapAgentSpaceAgentCard)))
+                                      agents: body.agents.map { Self.mapAgentSpaceAgentCard($0) }))
 
             case .unauthorized:
                 return .failure(.unauthorized)
@@ -113,20 +113,30 @@ nonisolated extension AgentPlatformService {
             switch response {
             case .ok(let ok):
                 let body = try ok.body.json
+                let shares = { (categories: [Components.Schemas.UsageCategoryShareResponse]) in
+                    AgentUsage.CategoryShare.merged(categories.map {
+                        AgentUsage.CategoryShare(category: .init(serverValue: $0.category), usedPercent: $0.usedPercent)
+                    })
+                }
+                // The current window's categories carry their pause (question 395); a day's carry none.
+                let currentShares = AgentUsage.CategoryShare.merged(body.current.categories.map {
+                    AgentUsage.CategoryShare(category: .init(serverValue: $0.category),
+                                             usedPercent: $0.usedPercent,
+                                             pause: .init(paused: $0.paused, pauseUntil: $0.pauseUntil))
+                })
                 let days = body.days.compactMap { day -> AgentUsage.Day? in
                     guard let date = try? Date(day.date, strategy: .iso8601.year().month().day()) else {
                         return nil
                     }
-                    return .init(id: day.date,
-                                 date: date,
-                                 usedPercent: day.usedPercent,
-                                 categories: day.categories.map {
-                                     .init(category: .init(serverValue: $0.category), usedPercent: $0.usedPercent)
-                                 })
+                    return .init(id: day.date, date: date, usedPercent: day.usedPercent, categories: shares(day.categories))
                 }
-                return .success(.init(today: .init(usedPercent: body.today.usedPercent,
-                                                   limitReached: body.today.limitReached,
-                                                   resetsAt: body.today.resetsAt),
+                let current = body.current
+                return .success(.init(current: .init(period: .init(serverValue: current.period),
+                                                     startsAt: current.startsAt,
+                                                     resetsAt: current.resetsAt,
+                                                     usedPercent: current.usedPercent,
+                                                     limitReached: current.limitReached,
+                                                     categories: currentShares),
                                       days: days))
 
             case .unauthorized:
@@ -256,6 +266,9 @@ nonisolated extension AgentPlatformService {
                 return .failure(.validation(detail: detail))
             case .unauthorized:
                 return .failure(.unauthorized)
+            // Company spaces are hidden in this release (396); the app never offers the create.
+            case .forbidden:
+                return .failure(.forbidden)
             case .unprocessableContent:
                 return .failure(.validation(detail: "unprocessable"))
             case .unsupportedMediaType:
@@ -315,7 +328,6 @@ nonisolated extension AgentPlatformService {
                             kind: card.kind,
                             visibility: card.visibility,
                             lifecycleState: card.lifecycleState,
-                            presence: AgentSpaceAgentCard.Presence(rawValue: card.presence) ?? .offline,
                             roomCount: Int(card.roomCount),
                             activeToolCount: Int(card.activeToolCount),
                             isPaused: card.paused)

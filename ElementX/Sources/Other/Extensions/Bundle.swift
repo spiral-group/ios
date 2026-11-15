@@ -27,9 +27,30 @@ public nonisolated extension Bundle {
     
     /// Overrides `Bundle.app.preferredLocalizations` for testing translations since this is
     /// only for testing, and is changed at runtime only in tests, it's fine to keep as `nonisolated(unsafe)`
-    nonisolated(unsafe) static var overrideLocalizations: [String]?
+    nonisolated(unsafe) static var overrideLocalizations: [String]? {
+        didSet { cachedTranslations.withLock { $0.removeAll() } }
+    }
     
     private static let cachedBundles = Mutex<[String: Bundle]>([:])
+    /// AGENT-PLATFORM (Brief 0083, question 359): the strings with nothing to fill in, by table and key.
+    private static let cachedTranslations = Mutex<[TranslationKey: String]>([:])
+    
+    private struct TranslationKey: Hashable {
+        let table: String
+        let key: String
+    }
+    
+    /// The translation of a string with no arguments, which is the same until the language is.
+    static func cachedTranslation(table: String, key: String, lookUp: () -> String) -> String {
+        let translationKey = TranslationKey(table: table, key: key)
+        if let translation = cachedTranslations.withLock({ $0[translationKey] }) {
+            return translation
+        }
+        
+        let translation = lookUp()
+        cachedTranslations.withLock { $0[translationKey] = translation }
+        return translation
+    }
     
     /// Get an lproj language bundle from the receiver bundle.
     /// - Parameter language: The language to try to load.

@@ -17,7 +17,7 @@ enum UITestsScreenIdentifier: String {
     case appLockSetupFlowMandatory
     case appLockSetupFlowUnlock
     case authenticationFlow
-    case provisionedAuthenticationFlow
+    // AGENT-PLATFORM (Brief 0083 L1b): no provisionedAuthenticationFlow, Element's provisioning links are gone.
     case singleProviderAuthenticationFlow
     case multipleProvidersAuthenticationFlow
     case bugReport
@@ -45,6 +45,11 @@ enum UITestsScreenIdentifier: String {
     case roomWithUndisclosedPolls
     case serverSelection
     case spiralTabBarBadge // AGENT-PLATFORM (coverage walk F3)
+    case feedPostCard // AGENT-PLATFORM: feed (Brief 0082): a tap on a card's text opens the post.
+    case feedScreen // AGENT-PLATFORM: feed (Brief 0082): Latest with its pinned post, on the mock service.
+    case interactivePostCatalog // AGENT-PLATFORM (question 412): the catalogue in its sheet, a card opens the post page.
+    case interactivePostCatalogIntroduction // AGENT-PLATFORM (question 412): the same, on its first opening.
+    case mediaViewer // AGENT-PLATFORM (Brief 0083, question 398): close at the top, share and info at the bottom.
     case sessionVerification
     case startChatFlow
     case userSessionScreen

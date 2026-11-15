@@ -13,6 +13,8 @@
 //
 
 import Compound
+import SpiralComponents
+import SpiralTokens
 import SwiftUI
 
 struct AddAgentPickerScreen: View {
@@ -30,37 +32,31 @@ struct AddAgentPickerScreen: View {
                 errorSection
             }
         }
-        .compoundList()
+        .spiralGroupedList() // Brief 0083 (P4-D): iOS's grouped cards and plain grey glyphs (decision 337).
         .navigationTitle(UntranslatedL10n.screenAddAgentTitle)
         .navigationBarTitleDisplayMode(.inline)
         .alert(item: $context.alertInfo)
-        .onAppear { context.send(viewAction: .appeared) }
         .toolbar { toolbar }
     }
 
     // MARK: - Sections
 
-    /// Fast data → a delayed spinner, no flicker (CODEBASE/14 §3).
+    /// The person's agents as placeholders, after a short delay (decision 330).
     private var loadingSection: some View {
         Section {
             ListRow(kind: .custom {
-                DelayedProgressView()
-                    .frame(minHeight: 80)
+                SpiralPreloader(label: L10n.commonLoading) {
+                    SpiralPlaceholderRows(count: 3, leading: .avatar(SpiralAvatarSize.small))
+                }
             })
         }
-        .listRowBackground(Color.clear)
-        .accessibilityRepresentation { Text(L10n.commonLoading) }
     }
 
     @ViewBuilder
     private var agentsSection: some View {
         if context.viewState.agents.isEmpty {
             Section {
-                Text(UntranslatedL10n.screenAddAgentEmpty)
-                    .font(.compound.bodyMD)
-                    .foregroundStyle(.compound.textSecondary)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 24)
+                SpiralEmptyState(symbol: .sparkles, title: UntranslatedL10n.screenAddAgentEmpty)
                     .listRowBackground(Color.clear)
             }
         } else {
@@ -85,7 +81,6 @@ struct AddAgentPickerScreen: View {
 
     private func agentRow(_ agent: AddAgentItem) -> some View {
         AgentRow(title: agent.displayName,
-                 description: agent.matrixUserID,
                  status: agent.isInRoom ? UntranslatedL10n.screenAddAgentInRoomBadge : nil,
                  avatarContentID: agent.matrixUserID,
                  avatarURL: agent.avatarURL,
@@ -97,6 +92,8 @@ struct AddAgentPickerScreen: View {
         .disabled(agent.isInRoom == false
             && context.viewState.invitingAgentID != nil
             && context.viewState.invitingAgentID != agent.agentID)
+        // Not `.disabled`, which dims the row: nothing here has failed, the room is only being read.
+        .allowsHitTesting(context.viewState.isRoomRead)
     }
 
     private func rowKind(for agent: AddAgentItem) -> AgentRowKind {
@@ -110,7 +107,7 @@ struct AddAgentPickerScreen: View {
     }
 
     private var errorSection: some View {
-        AgentSpacesRetryErrorSection { context.send(viewAction: .retry) }
+        AgentSpacesRetryErrorSection(title: UntranslatedL10n.screenAddAgentPickerLoadFailed) { context.send(viewAction: .retry) }
     }
 
     @ToolbarContentBuilder
@@ -123,21 +120,32 @@ struct AddAgentPickerScreen: View {
 
 // MARK: - Previews
 
-struct AddAgentPickerScreen_Previews: PreviewProvider, TestablePreview {
+struct AddAgentPickerScreen_Previews: PreviewProvider, TestablePreview, SpiralGatedPreview {
     static let viewModel = makeViewModel()
+    static let noAgentsViewModel = makeViewModel(hasAgents: false)
 
     static var previews: some View {
+        // Decision 330: without the wait, the snapshot caught the first load's blank 250 ms.
         ElementNavigationStack {
             AddAgentPickerScreen(context: viewModel.context, mediaProvider: nil)
         }
+        .snapshotPreferences(expect: viewModel.context.observe(\.viewState).map { $0.isRoomRead && !$0.sections.isEmpty })
+
+        ElementNavigationStack {
+            AddAgentPickerScreen(context: noAgentsViewModel.context, mediaProvider: nil)
+        }
+        .snapshotPreferences(expect: noAgentsViewModel.context.observe(\.viewState).map { state in
+            if case .loaded = state.listState { state.isRoomRead } else { false }
+        })
+        .previewDisplayName("No agents")
     }
 
-    private static func makeViewModel() -> AddAgentPickerScreenViewModel {
+    private static func makeViewModel(hasAgents: Bool = true) -> AddAgentPickerScreenViewModel {
         let service = AgentPlatformServiceMock()
-        service.listMyAgentSpacesReturnValue = .success(AgentSpacesDirectory(spaces: [
+        service.listMyAgentSpacesReturnValue = .success(AgentSpacesDirectory(spaces: hasAgents ? [
             AgentSpaceSummary(orgID: "personal", name: "Alice", kind: .solo, avatarMXC: nil, agentCount: 1),
             AgentSpaceSummary(orgID: "acme", name: "Acme", kind: .company, avatarMXC: nil, agentCount: 1)
-        ], provisioningStatus: .ready))
+        ] : [], provisioningStatus: .ready))
         service.fetchAgentSpaceOrgIDClosure = { orgID in
             orgID == "personal"
                 ? .success(space(orgID, kind: .solo, agent: card("a1", mxid: "@assistant-alice:example.com", name: "Assistant Alice")))
@@ -147,11 +155,9 @@ struct AddAgentPickerScreen_Previews: PreviewProvider, TestablePreview {
                                                                          agents: [RoomToolAgentEntry(agentID: "a1", matrixUserID: "@assistant-alice:example.com",
                                                                                                      displayName: "Assistant", ownerUserID: "@o:host",
                                                                                                      isMine: true, tools: [])]))
-        let viewModel = AddAgentPickerScreenViewModel(roomID: "!room:example.com",
-                                                      roomProxy: JoinedRoomProxyMock(.init()),
-                                                      agentPlatformService: service)
-        viewModel.context.send(viewAction: .appeared)
-        return viewModel
+        return AddAgentPickerScreenViewModel(roomID: "!room:example.com",
+                                             roomProxy: JoinedRoomProxyMock(.init()),
+                                             store: AgentsStore(service: service))
     }
 
     private nonisolated static func space(_ orgID: String, kind: AgentSpaceSummary.Kind, agent: AgentSpaceAgentCard) -> AgentSpaceDetail {
@@ -161,6 +167,6 @@ struct AddAgentPickerScreen_Previews: PreviewProvider, TestablePreview {
     private nonisolated static func card(_ id: String, mxid: String, name: String) -> AgentSpaceAgentCard {
         AgentSpaceAgentCard(agentID: id, matrixUserID: mxid, displayName: name, avatarMXC: nil,
                             kind: "sales", visibility: "private", lifecycleState: "active",
-                            presence: .online, roomCount: 0, activeToolCount: 0)
+                            roomCount: 0, activeToolCount: 0)
     }
 }

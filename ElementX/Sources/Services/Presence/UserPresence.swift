@@ -40,6 +40,8 @@ struct UserPresence: Equatable {
     var lastSeenBucket: LastSeenBucket?
     /// When this answer arrived. `lastActiveAgo` ages from here.
     let receivedAt: Date
+    /// The owner paused this agent. The server's answer doesn't say so: `PresenceObservation` adds it for the owner.
+    var isAgentPaused = false
     
     /// The absolute instant of the last activity, if the server gave one.
     var lastActiveAt: Date? {
@@ -50,7 +52,7 @@ struct UserPresence: Equatable {
     /// the last minute. Never for a coarse answer — "recently" includes "now"
     /// on purpose.
     var isOnline: Bool {
-        lastSeenBucket == nil && state == .online && currentlyActive
+        lastSeenBucket == nil && state == .online && currentlyActive && !isAgentPaused
     }
     
     /// Shows the same as `other`. Every poll re-anchors `receivedAt`, which
@@ -85,6 +87,13 @@ extension UserPresence {
     /// to say. Re-evaluate as time passes (the minutes move without a new
     /// answer).
     func statusText(now: Date = .now, calendar: Calendar = .current, locale: Locale = .current) -> String? {
+        if isAgentPaused {
+            return UntranslatedL10n.screenAgentsPaused
+        }
+        // An agent's `last_active_ts` stays at its setup time, so it has no «last seen» to tell.
+        if SpiralAppPostSession.isAgent(userID), !isOnline {
+            return nil
+        }
         if let lastSeenBucket {
             return switch lastSeenBucket {
             case .recently: UntranslatedL10n.commonPresenceLastSeenRecently
@@ -133,22 +142,14 @@ extension UserPresence {
 // MARK: - Whose presence means anything
 
 enum SpiralPresencePolicy {
-    /// Whether presence is worth asking for and showing: not for this
-    /// platform's agents, and not for the puppets and bots of the bridges —
-    /// a Telegram, WhatsApp or Instagram contact never opens this app, so
-    /// they would read as «a long time ago» forever. The prefixes are the
-    /// bridges' exclusive appservice namespaces (deploy/config
-    /// `mautrix-*-registration.yaml.tmpl`, `instagram-login-bot-…`).
+    /// Whether presence is worth asking for and showing: an agent has it as
+    /// a person does; the puppets and bots of the bridges don't — a Telegram,
+    /// WhatsApp or Instagram contact never opens this app, so they would read
+    /// as «a long time ago» forever.
     static func hasPresence(_ userID: String) -> Bool {
-        if SpiralAppPostSession.isAgent(userID) {
+        guard userID.hasPrefix("@"), userID.contains(":") else {
             return false
         }
-        guard userID.hasPrefix("@"), let colon = userID.firstIndex(of: ":") else {
-            return false
-        }
-        let localpart = userID[userID.index(after: userID.startIndex)..<colon]
-        let bridgePrefixes = ["telegram_", "whatsapp_", "instagram_"]
-        let bridgeBots = ["telegrambot", "whatsappbot", "instagrambot", "instagram-login-bot"]
-        return !bridgePrefixes.contains { localpart.hasPrefix($0) } && !bridgeBots.contains(String(localpart))
+        return !SpiralBridgeUsers.isBridgeUser(userID)
     }
 }

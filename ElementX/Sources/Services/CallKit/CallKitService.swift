@@ -20,6 +20,8 @@ import UserNotifications
 /// Keep this class testable
 struct TimeProvider {
     var clock: any Clock<Duration>
+    /// Upstream 26.10's addition, for `LiveLocationService`.
+    var now: () -> Date = Date.init
 }
 
 protocol CXCallControllerProtocol {
@@ -355,18 +357,7 @@ class CallKitService: NSObject, CallKitServiceProtocol, PKPushRegistryDelegate, 
         if let callProvider {
             self.callProvider = callProvider
         } else {
-            let configuration = CXProviderConfiguration()
-            configuration.supportsVideo = true
-            configuration.includesCallsInRecents = true
-
-            if let callKitIcon = UIImage(named: "images/app-logo") {
-                configuration.iconTemplateImageData = callKitIcon.pngData()
-            }
-
-            // https://stackoverflow.com/a/46077628/730924
-            configuration.supportedHandleTypes = [.generic]
-
-            self.callProvider = CXProvider(configuration: configuration)
+            self.callProvider = CXProvider(configuration: Self.makeProviderConfiguration())
         }
 
         super.init()
@@ -375,6 +366,19 @@ class CallKitService: NSObject, CallKitServiceProtocol, PKPushRegistryDelegate, 
         pushRegistry.desiredPushTypes = [.voIP]
 
         self.callProvider.setDelegate(self, queue: nil)
+    }
+
+    static func makeProviderConfiguration() -> CXProviderConfiguration {
+        let configuration = CXProviderConfiguration()
+        configuration.supportsVideo = true
+        configuration.includesCallsInRecents = true
+        // CallKit reads only the alpha, so this can't be `app-logo`, an opaque tile.
+        configuration.iconTemplateImageData = Asset.Images.callkitLogo.image.pngData()
+
+        // https://stackoverflow.com/a/46077628/730924
+        configuration.supportedHandleTypes = [.generic]
+
+        return configuration
     }
 
     func setClientProxy(_ clientProxy: any ClientProxyProtocol) {

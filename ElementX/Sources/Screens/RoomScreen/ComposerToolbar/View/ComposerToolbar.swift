@@ -18,21 +18,13 @@ struct ComposerToolbar: View {
     @ObservedObject var context: ComposerToolbarViewModel.Context
     
     @FocusState private var composerFocused: Bool
-    @State private var frame: CGRect = .zero
     
     /// - When Liquid Glass is available, the buttons and composer are all 44pt x 44pt.
-    /// - On iOS 18 and below, the main buttons are 30pt x 30pt and the composer is 42pt high, so some
+    /// - On iOS 18 and below, the main buttons are 36pt x 36pt and the composer is 40pt high, so some
     ///   additional padding is required to centre the buttons vertically when there's a single line of text,
     ///   but preserve their position (using bottom alignment) when there's 2 or more lines of text.
     private var buttonVerticalPadding: CGFloat {
-        Compound.supportsGlass ? 0 : 6
-    }
-    
-    /// - When Liquid Glass is available, the buttons and composer are all 44pt x 44pt.
-    /// - On iOS 18 and below, the trailing button is 36pt x 36pt and the composer is 42pt high, so some
-    ///   additional padding is required to centre the button (and maintain alignment as described above).
-    private var trailingButtonVerticalPadding: CGFloat {
-        Compound.supportsGlass ? 0 : 3
+        Compound.supportsGlass ? 0 : 2 // AGENT-PLATFORM (Brief 0083): 36pt discs beside Spiral's 40pt field
     }
     
     var body: some View {
@@ -52,14 +44,8 @@ struct ComposerToolbar: View {
         .padding(.leading, 12)
         .padding(.trailing, 12)
         .padding(.bottom, context.composerFormattingEnabled ? 8 : 12)
-        .background {
-            if context.composerFormattingEnabled {
-                RoundedRectangle(cornerRadius: 20)
-                    .stroke(Color.compound.borderInteractiveSecondary, lineWidth: 0.5)
-                    .ignoresSafeArea()
-            }
-        }
-        .readFrame($frame)
+        // AGENT-PLATFORM (Brief 0083): no outline around the composer while it formats; the field and the
+        // formatting row sit on the bar as the plain composer does.
         .safeAreaInset(edge: .top) {
             if !context.viewState.isRoomEncrypted {
                 Label {
@@ -73,45 +59,29 @@ struct ComposerToolbar: View {
                 .padding(4.0)
             }
         }
-        .overlay(alignment: .bottom) {
-            ZStack {
-                if verticalSizeClass != .compact, !context.composerExpanded {
-                    suggestionView
-                        .offset(y: -frame.height)
-                }
-            }
-        }
         .disabled(!context.viewState.canSend)
         .alert(item: $context.alertInfo)
+    }
+    
+    /// AGENT-PLATFORM (Brief 0083, question 357): the suggestions outside an expanded composer, for the screen to float
+    /// above the composer's bar (`timelineComposerBar`). A system bar takes no touch outside its own bounds.
+    var floatingSuggestions: some View {
+        FloatingSuggestions(context: context)
     }
     
     private var suggestionView: some View {
         CompletionSuggestionView(mediaProvider: context.mediaProvider,
                                  items: context.viewState.suggestions,
-                                 showBackgroundShadow: !context.composerExpanded) { suggestion in
+                                 showBackgroundShadow: false) { suggestion in
             context.send(viewAction: .selectedSuggestion(suggestion))
         }
     }
     
+    // AGENT-PLATFORM (Brief 0083): the trailing button moved inside the field (`fieldAction` and the voice
+    // message composers' own actions), as Messages draws send and the microphone.
     private var topBar: some View {
-        topBarLayout {
-            mainTopBarContent
-            
-            if !context.composerFormattingEnabled {
-                if context.viewState.isUploading {
-                    ProgressView()
-                        .scaledFrame(size: Compound.supportsGlass ? 44 : 36, relativeTo: .compound.headingLG)
-                        .scaledPadding(.vertical, trailingButtonVerticalPadding, relativeTo: .compound.headingLG)
-                } else if context.viewState.showSendButton {
-                    sendButton
-                        .scaledPadding(.vertical, trailingButtonVerticalPadding, relativeTo: .compound.headingLG)
-                } else {
-                    voiceMessageRecordingButton(mode: context.viewState.isVoiceMessageModeActivated ? .recording : .idle)
-                        .scaledPadding(.vertical, trailingButtonVerticalPadding, relativeTo: .compound.headingLG)
-                }
-            }
-        }
-        .animation(.linear(duration: 0.15), value: context.viewState.composerMode)
+        mainTopBarContent
+            .animation(.linear(duration: 0.15), value: context.viewState.composerMode)
     }
     
     private var bottomBar: some View {
@@ -141,6 +111,7 @@ struct ComposerToolbar: View {
                 messageComposer
             }
             .opacity(context.viewState.isVoiceMessageModeActivated ? 0 : 1)
+            .accessibilityHidden(context.viewState.isVoiceMessageModeActivated)
             
             if context.viewState.isVoiceMessageModeActivated {
                 voiceMessageContent
@@ -181,7 +152,8 @@ struct ComposerToolbar: View {
                         placeholder: placeholder,
                         composerFormattingEnabled: context.composerFormattingEnabled,
                         showResizeGrabber: context.composerFormattingEnabled,
-                        isExpanded: $context.composerExpanded) {
+                        isExpanded: $context.composerExpanded,
+                        trailing: fieldAction) { // AGENT-PLATFORM (Brief 0083)
             sendMessage()
         } editAction: {
             context.send(viewAction: .editLastMessage)
@@ -204,7 +176,8 @@ struct ComposerToolbar: View {
         }
         .environmentObject(context)
         .focused($composerFocused)
-        .accessibilityIdentifier(A11yIdentifiers.roomScreen.messageComposer)
+        // AGENT-PLATFORM (Brief 0083): the identifier sits on the text field inside `MessageComposer`; here it covered
+        // the send button that now sits in the field's trailing end, and UI tests found no `room-send_button`.
         .onTapGesture {
             guard !composerFocused else { return }
             composerFocused = true
@@ -231,6 +204,21 @@ struct ComposerToolbar: View {
         }
     }
     
+    // AGENT-PLATFORM (Brief 0083): the text field's action. While formatting, send is on the formatting row; a voice
+    // message's composers carry their own (the field stays underneath, hidden, to keep the keyboard). Without an
+    // action, a sliver keeps the text off the field's end as far as the leading side's.
+    @ViewBuilder
+    private var fieldAction: some View {
+        if context.composerFormattingEnabled || context.viewState.isVoiceMessageModeActivated {
+            Color.clear
+                .frame(width: CompoundDesignTokens.space1X, height: 0)
+        } else if context.viewState.showSendButton {
+            sendButton
+        } else {
+            voiceMessageRecordingButton(mode: .idle)
+        }
+    }
+    
     private func sendMessage() {
         // Allow the inner TextField do apply any final processing before
         // sending e.g. accepting current autocorrection.
@@ -243,6 +231,9 @@ struct ComposerToolbar: View {
     }
     
     private var placeholder: String {
+        // AGENT-PLATFORM (Brief 0083): the field stays under a voice message, hidden, and its placeholder would stay readable.
+        guard !context.viewState.isVoiceMessageModeActivated else { return "" }
+        
         switch context.viewState.composerMode {
         case .reply(_, _, let isThread):
             return isThread ? L10n.actionReplyInThread : composerPlaceholder
@@ -257,7 +248,7 @@ struct ComposerToolbar: View {
     
     private var composerView: WysiwygComposerView {
         WysiwygComposerView(placeholder: placeholder,
-                            placeholderColor: .compound.textSecondary,
+                            placeholderColor: SpiralComposerMetrics.chatPlaceholder, // AGENT-PLATFORM (Brief 0083): the field's grey says disabled
                             viewModel: context.viewState.wysiwygViewModel,
                             itemProviderHelper: ItemProviderHelper(),
                             keyCommands: context.viewState.keyCommands) { provider in
@@ -281,7 +272,8 @@ struct ComposerToolbar: View {
             topBarLayout {
                 voiceMessageTrashButton
                     .scaledPadding(.vertical, buttonVerticalPadding, relativeTo: .compound.headingLG)
-                VoiceMessageRecordingComposer(recorderState: state)
+                VoiceMessageRecordingComposer(recorderState: state,
+                                              trailing: voiceMessageRecordingButton(mode: .recording)) // AGENT-PLATFORM (Brief 0083)
             }
         case .previewVoiceMessage(let state, let waveform, let isUploading):
             topBarLayout {
@@ -303,6 +295,16 @@ struct ComposerToolbar: View {
         }
     }
     
+    @ViewBuilder
+    private var voiceMessagePreviewAction: some View {
+        if context.viewState.isUploading {
+            ProgressView()
+                .spiralComposerAction()
+        } else {
+            sendButton
+        }
+    }
+    
     private var voiceMessageTrashButton: some View {
         VoiceMessageTrashButton {
             context.send(viewAction: .voiceMessage(.deleteRecording))
@@ -310,8 +312,9 @@ struct ComposerToolbar: View {
         .accessibilityLabel(L10n.a11yDelete)
     }
     
+    // AGENT-PLATFORM (Brief 0083): send, or the upload's progress, inside the preview's field.
     private func voiceMessagePreviewComposer(audioPlayerState: AudioPlayerState, waveform: WaveformSource) -> some View {
-        VoiceMessagePreviewComposer(playerState: audioPlayerState, waveform: waveform) {
+        VoiceMessagePreviewComposer(playerState: audioPlayerState, waveform: waveform, trailing: voiceMessagePreviewAction) {
             context.send(viewAction: .voiceMessage(.startPlayback))
         } onPause: {
             context.send(viewAction: .voiceMessage(.pausePlayback))
@@ -345,14 +348,16 @@ struct ComposerToolbarButtonStyle: ButtonStyle {
                                              snapshotBackground: .compound.bgSubtleSecondary,
                                              in: .circle)
             } else {
+                // AGENT-PLATFORM: Spiral's bgSubtlePrimary is the canvas white and its iconDisabled #E5E5EA in
+                // light mode; disabled is the enabled disc's gray without the glass, the icon in textDisabled.
                 label(content: content)
-                    .background(.compound.bgSubtlePrimary, in: .circle)
+                    .background(.compound.bgSubtleSecondary, in: .circle)
             }
         }
         
         func label(content: Content) -> some View {
             content
-                .foregroundStyle(isEnabled ? .compound.iconPrimary : .compound.iconDisabled)
+                .foregroundStyle(isEnabled ? .compound.iconPrimary : .compound.textDisabled) // AGENT-PLATFORM
                 .scaledPadding(10, relativeTo: .compound.headingLG)
         }
     }
@@ -362,23 +367,37 @@ struct ComposerToolbarButtonStyle: ButtonStyle {
         
         let isPressed: Bool
         
+        // AGENT-PLATFORM (Brief 0083): the storyboard's iOS 18 composer (RP-ios18), a dark glyph on a grey
+        // 36pt disc, like the glass disc's look in snapshots. It was a white glyph on a filled blue disc.
         func body(content: Content) -> some View {
             content
-                .foregroundStyle(.compound.iconOnSolidPrimary)
-                .scaledPadding(5, relativeTo: .compound.headingLG)
-                .background(backgroundColor(isPressed: isPressed), in: .circle)
+                .foregroundStyle(isEnabled ? .compound.iconPrimary : .compound.textDisabled)
+                .scaledPadding(8, relativeTo: .compound.headingLG)
+                .background(.compound.bgSubtleSecondary, in: .circle)
+                .opacity(isPressed ? 0.6 : 1)
         }
-        
-        private func backgroundColor(isPressed: Bool) -> Color {
-            guard isEnabled else { return .compound.bgActionPrimaryDisabled }
-            return isPressed ? .compound.bgActionPrimaryPressed : .compound.bgActionPrimaryRest
+    }
+}
+
+private struct FloatingSuggestions: View {
+    @Environment(\.verticalSizeClass) private var verticalSizeClass
+    
+    @ObservedObject var context: ComposerToolbarViewModel.Context
+    
+    var body: some View {
+        if verticalSizeClass != .compact, !context.composerExpanded {
+            CompletionSuggestionView(mediaProvider: context.mediaProvider,
+                                     items: context.viewState.suggestions) { suggestion in
+                context.send(viewAction: .selectedSuggestion(suggestion))
+            }
+            .disabled(!context.viewState.canSend)
         }
     }
 }
 
 // MARK: - Previews
 
-struct ComposerToolbar_Previews: PreviewProvider, TestablePreview {
+struct ComposerToolbar_Previews: PreviewProvider, TestablePreview, SpiralGatedPreview { // AGENT-PLATFORM (Brief 0083): Spiral's gates
     static let timelineViewModel = TimelineViewModel.mock
     
     static let viewModel = ComposerToolbarViewModel.mock()
@@ -391,6 +410,14 @@ struct ComposerToolbar_Previews: PreviewProvider, TestablePreview {
     static let replyLoadedViewModel = ComposerToolbarViewModel.mock(mockMode: .reply(isLoading: false))
     static let suggestionsViewModel = ComposerToolbarViewModel.mock(hasSuggestions: true)
     static let disabledViewModel = ComposerToolbarViewModel.mock(canSend: false)
+    // AGENT-PLATFORM (Brief 0083): one line and five lines typed, and the formatting toolbar open.
+    static let oneLineViewModel = ComposerToolbarViewModel.mock(message: "On my way, five minutes")
+    static let fiveLinesViewModel = ComposerToolbarViewModel.mock(message: "Here is the plan for tomorrow: we meet at the station at nine, take the first train out, walk the ridge until lunch, and come back down the valley before it gets dark.")
+    static let formattingViewModel = {
+        let viewModel = ComposerToolbarViewModel.mock()
+        viewModel.state.bindings.composerFormattingEnabled = true
+        return viewModel
+    }()
     
     static var previews: some View {
         VStack(spacing: 8) {
@@ -405,10 +432,14 @@ struct ComposerToolbar_Previews: PreviewProvider, TestablePreview {
                 .padding(.bottom)
             
             ComposerToolbar(context: disabledViewModel.context)
+                // AGENT-PLATFORM: the identity violation disables it asynchronously, after the snapshot (and
+                // waiting for it crashes the preview host), so disable it here as `canSend == false` does.
+                .disabled(true)
         }
         
         // Putting them in a VStack allows the completion suggestion preview to work properly in tests
         VStack(spacing: 8) {
+            ComposerToolbar(context: suggestionsViewModel.context).floatingSuggestions
             ComposerToolbar(context: suggestionsViewModel.context)
         }
         .previewDisplayName("With Suggestions")
@@ -417,7 +448,19 @@ struct ComposerToolbar_Previews: PreviewProvider, TestablePreview {
             ComposerToolbar(context: replyLoadingViewModel.context)
             ComposerToolbar(context: replyLoadedViewModel.context)
         }
-        .environmentObject(timelineViewModel.context)
+        .environment(\.timelineContext, timelineViewModel.context)
         .previewDisplayName("Reply")
+        
+        // AGENT-PLATFORM (Brief 0083): the states the composer's sheet compares.
+        VStack(spacing: 8) {
+            ComposerToolbar(context: oneLineViewModel.context)
+            ComposerToolbar(context: fiveLinesViewModel.context)
+        }
+        .previewDisplayName("Typing")
+        
+        VStack(spacing: 8) {
+            ComposerToolbar(context: formattingViewModel.context)
+        }
+        .previewDisplayName("Formatting")
     }
 }

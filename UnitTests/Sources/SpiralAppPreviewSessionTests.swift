@@ -10,8 +10,8 @@
 // would be someone in the room.
 //
 
-@testable import ElementX
 import Foundation
+@testable import Spiral
 import Testing
 
 @MainActor
@@ -91,10 +91,12 @@ struct SpiralAppPreviewSessionTests {
         // One implementation serves both, so an app cannot tell which it is
         // running in — which is what makes the rehearsal worth anything.
         let session = Self.session()
+        let touched = SpiralAppActivation.touched()
 
         let written = await session.answer(method: SpiralAppCapability.stateSharedWrite.rawValue,
-                                           args: Data(#"{"op":{"incr":{"path":["n"],"by":4}}}"#.utf8))
-        let read = await session.answer(method: SpiralAppCapability.stateSharedRead.rawValue, args: Data())
+                                           args: Data(#"{"op":{"incr":{"path":["n"],"by":4}}}"#.utf8),
+                                           activation: touched)
+        let read = await session.answer(method: SpiralAppCapability.stateSharedRead.rawValue, args: Data(), activation: touched)
 
         #expect(written.contains("\"ok\""))
         #expect(read.contains("\"n\""))
@@ -102,7 +104,7 @@ struct SpiralAppPreviewSessionTests {
 
     @Test
     func aCapabilityItWasNotGrantedIsRefused() async {
-        let refused = await Self.session().answer(method: "chat.messages.read", args: Data())
+        let refused = await Self.session().answer(method: "chat.messages.read", args: Data(), activation: .touched())
 
         #expect(refused.contains("rejected"))
     }

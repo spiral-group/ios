@@ -4,10 +4,10 @@
 
 import AVFoundation
 import Combine
-@testable import ElementX
 import Foundation
 import LiveKit
 import MatrixRustSDK
+@testable import Spiral
 import Testing
 
 // AGENT-PLATFORM (Brief 0063)
@@ -73,7 +73,7 @@ struct NativeCallSessionTests {
         let rtcSession = makeRTCSession()
         let transport = makeTransport()
         let gate = Gate()
-        rtcSession.joinEncryptMediaNotificationMediaClosure = { _, _, _ in
+        rtcSession.joinEncryptMediaNotificationMediaLanguageClosure = { _, _, _, _ in
             await gate.wait()
             return .success(())
         }
@@ -85,7 +85,7 @@ struct NativeCallSessionTests {
                                         transport: transport)
 
         let startTask = Task { await session.start() }
-        try await waitUntil { rtcSession.joinEncryptMediaNotificationMediaCallsCount == 1 }
+        try await waitUntil { rtcSession.joinEncryptMediaNotificationMediaLanguageCallsCount == 1 }
 
         await session.stop()
         gate.open()
@@ -318,7 +318,7 @@ struct NativeCallSessionTests {
     func anOutgoingCallHeldDuringJoinStillAcceptsThePeersDecline() async throws {
         let rtcSession = makeRTCSession()
         let gate = Gate()
-        rtcSession.joinEncryptMediaNotificationMediaClosure = { _, _, _ in
+        rtcSession.joinEncryptMediaNotificationMediaLanguageClosure = { _, _, _, _ in
             await gate.wait()
             return .success(())
         }
@@ -328,7 +328,7 @@ struct NativeCallSessionTests {
                                         configuration: .init(media: .audio, scope: .direct),
                                         transport: makeTransport())
         let task = Task { await session.start() }
-        try await waitUntil { rtcSession.joinEncryptMediaNotificationMediaCallsCount == 1 }
+        try await waitUntil { rtcSession.joinEncryptMediaNotificationMediaLanguageCallsCount == 1 }
         session.setOnHold(true)
         gate.open()
         await task.value
@@ -828,7 +828,7 @@ struct NativeCallSessionTests {
         let rtcSession = MatrixRTCSessionMock()
         rtcSession.underlyingOwnIdentity = "@alice:matrix.org:DEVICE"
         rtcSession.underlyingUpdates = Empty().eraseToAnyPublisher()
-        rtcSession.joinEncryptMediaNotificationMediaReturnValue = .success(())
+        rtcSession.joinEncryptMediaNotificationMediaLanguageReturnValue = .success(())
         rtcSession.setMediaReturnValue = .success(())
         rtcSession.rtcNotificationEventIDReturnValue = "$ring:matrix.org"
         rtcSession.transportCredentialsReturnValue = URL(string: "wss://rtc.example.org")
@@ -848,7 +848,7 @@ struct NativeCallSessionTests {
         transport.underlyingLocalConnectionQuality = .unknown
         transport.underlyingIsMicrophoneEnabled = true
         transport.underlyingIsCameraEnabled = false
-        transport.setSubscriptionsAuthorizedIdentitiesIsTrackExcludedClosure = { _, _ in true }
+        transport.setSubscriptionsAuthorizedIdentitiesStagedVideoIdentitiesIsTrackExcludedClosure = { _, _, _ in true }
         transport.setEncryptionKeyIndexIdentityClosure = { _, _, _ in }
         return transport
     }
@@ -1072,10 +1072,128 @@ extension NativeCallSessionTests {
 
         await session.start()
 
-        let join = try #require(rtcSession.joinEncryptMediaNotificationMediaReceivedArguments)
+        let join = try #require(rtcSession.joinEncryptMediaNotificationMediaLanguageReceivedArguments)
         #expect(join.notification == .ring)
         #expect(session.state == .ringing)
         await session.stop()
+    }
+
+    /// ADR-0094 A.1, row 9: "my language" rides the join; a change once joined republishes the membership once, and
+    /// the same language again sends nothing.
+    @Test
+    func myLanguageRidesTheJoinAndAChangeRepublishesItOnce() async throws {
+        let rtcSession = makeRTCSession()
+        rtcSession.updateLanguageReturnValue = .success(())
+        let session = NativeCallSession(rtcSession: rtcSession,
+                                        isRoomEncrypted: false,
+                                        notifyRoom: false,
+                                        configuration: .init(media: .audio, scope: .group),
+                                        transport: makeTransport())
+
+        await session.setLanguage("uk")
+        #expect(rtcSession.updateLanguageCallsCount == 0, "not joined yet: kept for the join")
+        await session.start()
+        #expect(rtcSession.joinEncryptMediaNotificationMediaLanguageReceivedArguments?.language == "uk")
+
+        #expect(await session.setLanguage("pt-BR"))
+        #expect(await session.setLanguage("pt-BR"))
+
+        #expect(rtcSession.updateLanguageCallsCount == 1)
+        #expect(rtcSession.updateLanguageReceivedLanguage == "pt-BR")
+        await session.stop()
+    }
+
+    /// A.1: a language changed while the join is out isn't on the membership the join sent, so it is republished once
+    /// the join lands — once.
+    @Test
+    func aLanguageChangedDuringTheJoinIsRepublishedAfterIt() async throws {
+        let rtcSession = makeRTCSession()
+        rtcSession.updateLanguageReturnValue = .success(())
+        let session = NativeCallSession(rtcSession: rtcSession,
+                                        isRoomEncrypted: false,
+                                        notifyRoom: false,
+                                        configuration: .init(media: .audio, scope: .group),
+                                        transport: makeTransport())
+        await session.setLanguage("uk")
+        rtcSession.joinEncryptMediaNotificationMediaLanguageClosure = { _, _, _, _ in
+            await session.setLanguage("pt-BR")
+            return .success(())
+        }
+
+        await session.start()
+        for _ in 0..<100 where rtcSession.updateLanguageCallsCount == 0 {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+
+        #expect(rtcSession.joinEncryptMediaNotificationMediaLanguageReceivedArguments?.language == "uk")
+        #expect(rtcSession.updateLanguageReceivedInvocations == ["pt-BR"])
+        await session.stop()
+    }
+
+    /// A.1: a republish that failed leaves the membership on the old language, so the same language asked for again
+    /// is sent again rather than taken as done.
+    @Test
+    func aFailedRepublishIsSentAgainForTheSameLanguage() async {
+        let rtcSession = makeRTCSession()
+        rtcSession.updateLanguageReturnValue = .failure(.roomInvalid)
+        let session = NativeCallSession(rtcSession: rtcSession,
+                                        isRoomEncrypted: false,
+                                        notifyRoom: false,
+                                        configuration: .init(media: .audio, scope: .group),
+                                        transport: makeTransport(),
+                                        languageRetryDelay: .seconds(60))
+        await session.setLanguage("uk")
+        await session.start()
+
+        #expect(await !session.setLanguage("pt-BR"))
+        rtcSession.updateLanguageReturnValue = .success(())
+        #expect(await session.setLanguage("pt-BR"))
+        #expect(await session.setLanguage("pt-BR"))
+
+        #expect(rtcSession.updateLanguageReceivedInvocations == ["pt-BR", "pt-BR"])
+        await session.stop()
+    }
+
+    /// A.1: nobody has to ask again — a failed republish is retried on its own while in the call.
+    @Test
+    func aFailedRepublishIsRetriedOnItsOwn() async throws {
+        let rtcSession = makeRTCSession()
+        rtcSession.updateLanguageReturnValue = .failure(.roomInvalid)
+        let session = NativeCallSession(rtcSession: rtcSession,
+                                        isRoomEncrypted: false,
+                                        notifyRoom: false,
+                                        configuration: .init(media: .audio, scope: .group),
+                                        transport: makeTransport(),
+                                        languageRetryDelay: .milliseconds(20))
+        await session.setLanguage("uk")
+        await session.start()
+
+        #expect(await !session.setLanguage("pt-BR"))
+        rtcSession.updateLanguageReturnValue = .success(())
+        for _ in 0..<200 where rtcSession.updateLanguageCallsCount < 2 {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+
+        #expect(rtcSession.updateLanguageReceivedInvocations == ["pt-BR", "pt-BR"])
+        await session.stop()
+    }
+
+    /// A.1: every participant's language is read from the memberships; one with none (or an empty one) is absent.
+    @Test
+    func theParticipantsLanguagesAreReadFromTheMemberships() async throws {
+        let updates = PassthroughSubject<MatrixRTCSessionUpdate, Never>()
+        let rtcSession = makeRTCSession()
+        rtcSession.underlyingUpdates = updates.eraseToAnyPublisher()
+        let session = NativeCallSession(rtcSession: rtcSession,
+                                        isRoomEncrypted: false,
+                                        notifyRoom: false,
+                                        configuration: .init(media: .audio, scope: .group),
+                                        transport: makeTransport())
+
+        updates.send(.participantsChanged([.init(userID: "@bob:matrix.org", deviceID: "BOB", identity: "@bob:matrix.org:BOB", language: "zh-Hans"),
+                                           .init(userID: "@carol:matrix.org", deviceID: "CAROL", identity: "@carol:matrix.org:CAROL")]))
+
+        #expect(await session.languages() == ["@bob:matrix.org": "zh-Hans"])
     }
 
     /// Another device of the same user in the call is somebody: this device
@@ -1093,7 +1211,7 @@ extension NativeCallSessionTests {
 
         await session.start()
 
-        let join = try #require(rtcSession.joinEncryptMediaNotificationMediaReceivedArguments)
+        let join = try #require(rtcSession.joinEncryptMediaNotificationMediaLanguageReceivedArguments)
         #expect(join.notification == nil)
         #expect(session.state == .connected)
         await session.stop()
@@ -1113,7 +1231,7 @@ extension NativeCallSessionTests {
 
         await session.start()
 
-        let join = try #require(rtcSession.joinEncryptMediaNotificationMediaReceivedArguments)
+        let join = try #require(rtcSession.joinEncryptMediaNotificationMediaLanguageReceivedArguments)
         #expect(join.notification == nil)
         await session.stop()
     }
@@ -1310,5 +1428,13 @@ struct NativeCallVideoQualityLadderTests {
         // linearly with the roster.
         #expect(LiveKitCallTransport.preferredVideoQuality(subscribedVideoCount: 5) == .low)
         #expect(LiveKitCallTransport.preferredVideoQuality(subscribedVideoCount: 9) == .low)
+    }
+
+    /// A group's Focus (question 383): the staged person fills the screen, the filmstrip is thumbnails.
+    @Test
+    func aGroupsStageTakesTheTopLayerAndItsStripTheLowest() {
+        #expect(LiveKitCallTransport.preferredVideoQuality(subscribedVideoCount: 6, isStaged: true) == .high)
+        #expect(LiveKitCallTransport.preferredVideoQuality(subscribedVideoCount: 6, isStaged: false) == .low)
+        #expect(LiveKitCallTransport.preferredVideoQuality(subscribedVideoCount: 2, isStaged: false) == .low)
     }
 }

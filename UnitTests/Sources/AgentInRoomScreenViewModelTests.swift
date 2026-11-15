@@ -9,8 +9,8 @@
 //
 
 import Combine
-@testable import ElementX
 import Foundation
+@testable import Spiral
 import Testing
 
 @MainActor
@@ -22,7 +22,6 @@ struct AgentInRoomScreenViewModelTests {
                                                    kind: "personal_assistant",
                                                    visibility: "public",
                                                    lifecycleState: "active",
-                                                   presence: .online,
                                                    roomCount: 1,
                                                    activeToolCount: 1)
     
@@ -43,6 +42,41 @@ struct AgentInRoomScreenViewModelTests {
                                    agentPlatformService: service,
                                    clientProxy: clientProxy,
                                    mediaProvider: MediaProviderMock(.init()))
+    }
+    
+    /// The owner's own chat with the agent is theirs with it (357 item 6).
+    @Test
+    func theOwnersOwnChatWithTheAgentHasNoRemove() {
+        let clientProxy = ClientProxyMock(.init())
+        clientProxy.directRoomForUserIDReturnValue = .success(Self.room.roomID)
+        let service = AgentPlatformServiceMock()
+        let viewModel = makeViewModel(service: service, clientProxy: clientProxy)
+        
+        #expect(!viewModel.context.viewState.canRemoveFromRoom)
+        
+        viewModel.context.send(viewAction: .removeTapped)
+        viewModel.context.send(viewAction: .confirmRemove)
+        
+        #expect(viewModel.context.viewState.bindings.alertInfo == nil)
+        #expect(service.leaveRoomAgentIDRoomIDCallsCount == 0)
+    }
+    
+    @Test
+    func anyOtherChatKeepsRemove() {
+        let clientProxy = ClientProxyMock(.init())
+        clientProxy.directRoomForUserIDReturnValue = .success("!another:host")
+        
+        #expect(makeViewModel(service: AgentPlatformServiceMock(), clientProxy: clientProxy).context.viewState.canRemoveFromRoom)
+    }
+    
+    /// A DM the agent was added to reads as it does on this device, not as the server's «X and Y» (357 item 5).
+    @Test
+    func theChatReadsAsItDoesOnThisDevice() {
+        let clientProxy = ClientProxyMock(.init())
+        clientProxy.roomSummaryForIdentifierClosure = { .mock(id: $0, name: "Stage A") }
+        let room = AgentRoomEntry(roomID: "!dm:host", displayName: "Personal Assistant and Stage A", kind: "group", activeTools: [])
+        
+        #expect(makeViewModel(service: AgentPlatformServiceMock(), room: room, clientProxy: clientProxy).context.viewState.roomTitle == "Stage A")
     }
     
     @Test
@@ -86,6 +120,19 @@ struct AgentInRoomScreenViewModelTests {
         try await deferred.fulfill()
         
         #expect(viewModel.context.viewState.isRemoving == false)
+    }
+
+    /// Question 359, item 7: the chat itself, by the room this screen is about.
+    @Test
+    func openChat_asksForThisScreensRoom() async throws {
+        let viewModel = makeViewModel(service: AgentPlatformServiceMock())
+        
+        let deferred = deferFulfillment(viewModel.actionsPublisher) { action in
+            if case .openChat(let roomID) = action { return roomID == Self.room.roomID }
+            return false
+        }
+        viewModel.context.send(viewAction: .openChat)
+        try await deferred.fulfill()
     }
 
     @Test
@@ -132,7 +179,7 @@ struct AgentInRoomScreenViewModelTests {
             #expect(tool.localizedTrigger() == UntranslatedL10n.screenAgentRoomToolTriggerCalls)
         }
         // Every kind the app can arm is covered by one of the two lists.
-        #expect(Set(AgentCapability.allCases.flatMap(\.toolKinds)).isSubset(of: Set(textKinds + callKinds)))
+        #expect(Set(AgentToolKind.allCases.map(\.rawValue)).isSubset(of: Set(textKinds + callKinds)))
     }
     
     @Test
@@ -172,7 +219,7 @@ struct AgentInRoomScreenViewModelTests {
                                                                                                                           targetLanguage: "en",
                                                                                                                           params: .translate(targetLanguage: "en"),
                                                                                                                           trigger: .onMessage(senderScope: .anyone),
-                                                                                                                          safeSliceSalt: "s")])]))
+                                                                                                                          safeSliceSalt: "s", appliesToViewer: .yes)])]))
         let viewModel = makeViewModel(service: service)
         
         let opened = deferFulfillment(viewModel.actionsPublisher) { action in

@@ -29,6 +29,7 @@ extension TimelineProxyMock {
         paginateBackwardsRequestSizeReturnValue = .success(())
         paginateForwardsRequestSizeReturnValue = .success(())
         sendReadReceiptForTypeReturnValue = .success(())
+        markAsReadReceiptTypeReturnValue = .success(()) // AGENT-PLATFORM (§ 5.73): reading the newest item marks the room read.
         createPollQuestionAnswersMaxSelectionsPollKindReturnValue = .success(())
         editPollOriginalQuestionAnswersMaxSelectionsPollKindReturnValue = .success(())
         

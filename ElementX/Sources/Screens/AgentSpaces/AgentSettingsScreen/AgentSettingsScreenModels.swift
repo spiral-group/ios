@@ -30,7 +30,7 @@ struct AgentSettingsScreenViewState: BindableState {
     let card: AgentSpaceAgentCard
     let section: AgentSettingsSection
 
-    var loadState: AgentSettingsScreenLoadState = .loading
+    var loadState = AgentSettingsScreenLoadState()
     var isSaving = false
     /// A choice's PATCH is on its way; the next choice waits for it.
     var isApplyingChoice = false
@@ -45,20 +45,21 @@ struct AgentSettingsScreenViewState: BindableState {
     }
 
     var readModel: AgentReadModel? {
-        if case .loaded(let readModel, _) = loadState { return readModel }
-        return nil
+        loadState.readModel
     }
 
     var personaBounds: AgentEditSchema.PersonaBounds? {
-        if case .loaded(_, let bounds) = loadState { return bounds }
-        return nil
+        loadState.personaBounds
     }
 
     // MARK: Rows the section has
 
+    // The section and the card decide them, so the form has its shape before any read. A read only takes a row
+    // away for a value the server didn't give, or one this build doesn't know.
+
     /// The person's own fields here, in screen order.
     var personaFields: [AgentEditPersonaField] {
-        guard card.isPersonalAssistant, readModel?.persona != nil, personaBounds != nil else { return [] }
+        guard card.isPersonalAssistant else { return [] }
         switch section {
         case .people: return [.visitorGreeting]
         case .character: return [.ownerDisplayName, .tone, .greeting]
@@ -67,7 +68,11 @@ struct AgentSettingsScreenViewState: BindableState {
     }
 
     var showsRoleBrief: Bool {
-        section == .character && !card.isPersonalAssistant && readModel != nil
+        section == .character && !card.isPersonalAssistant
+    }
+
+    var showsVisitorPolicy: Bool {
+        section == .people && card.isPersonalAssistant && (readModel == nil || readModel?.visitorPolicy != nil)
     }
 
     var visitorPolicy: AgentVisitorPolicy? {
@@ -81,7 +86,11 @@ struct AgentSettingsScreenViewState: BindableState {
     }
     
     var showsSearchToggle: Bool {
-        section == .people && readModel != nil
+        section == .people
+    }
+
+    var showsVoiceLanguage: Bool {
+        section == .calls && card.isPersonalAssistant && (readModel == nil || readModel?.voiceLanguage != nil)
     }
 
     var voiceLanguage: AgentVoiceLanguage? {
@@ -89,7 +98,18 @@ struct AgentSettingsScreenViewState: BindableState {
         return readModel?.voiceLanguage
     }
 
+    /// The assistant's text needs its limits; without them a field can't be checked.
+    var needsPersonaBounds: Bool {
+        card.isPersonalAssistant && section != .calls
+    }
+
     // MARK: Text
+
+    /// A field can't be compared without what the server holds, nor checked without its limits.
+    var isTextEditable: Bool {
+        guard let readModel else { return false }
+        return !card.isPersonalAssistant || (readModel.persona != nil && personaBounds != nil)
+    }
 
     var toneChoice: AgentToneChoice {
         if bindings.isCustomTone { return .custom }
@@ -144,17 +164,23 @@ struct AgentSettingsScreenViewState: BindableState {
 
     var canSave: Bool {
         !isWriting
+            && isTextEditable
             && !textPatch.isEmpty
             && personaFields.allSatisfy { personaIssue($0) == nil }
             && roleBriefIssue == nil
     }
 }
 
-enum AgentSettingsScreenLoadState: Equatable {
-    case loading
-    /// The read-model, and the persona bounds for the assistant's text.
-    case loaded(AgentReadModel, AgentEditSchema.PersonaBounds?)
-    case failure
+/// What the form is filled from. The form never waits for it, and only `isAgentUnavailable` replaces it.
+nonisolated struct AgentSettingsScreenLoadState: Equatable {
+    /// The agent as the server holds it, the baseline of every write; `nil` until read.
+    var readModel: AgentReadModel?
+    /// The assistant's text limits; `nil` until read, and on a screen without that text.
+    var personaBounds: AgentEditSchema.PersonaBounds?
+    /// The agent's read failed and nothing is held: there is nothing to show.
+    var isAgentUnavailable = false
+    /// The limits' read failed: the values show and the text stays closed.
+    var hasFailedLimits = false
 }
 
 struct AgentSettingsScreenViewStateBindings {
@@ -166,7 +192,7 @@ struct AgentSettingsScreenViewStateBindings {
     var isCustomTone = false
     var roleBrief = ""
     /// The choices as shown: set at once on a tap, stepped back on a failure.
-    var visitorPolicy: AgentVisitorPolicy = .askFirst
+    var visitorPolicy: AgentVisitorPolicy?
     var showInSearch = false
     var voiceLanguage: AgentVoiceLanguage = .en
     var alertInfo: AlertInfo<AgentSettingsScreenAlertType>?

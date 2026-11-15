@@ -14,11 +14,13 @@ import UIKit
 class JoinedRoomProxy: JoinedRoomProxyProtocol {
     private let roomListService: RoomListServiceProtocol
     private let room: RoomProtocol
-    private let appSettings: AppSettings
+    private let userSettings: UserSettings
     private let analyticsService: AnalyticsServiceProtocol
     private let eventStringBuilder: RoomEventStringBuilder
     
     private var roomInfoObservationToken: TaskHandle?
+    /// AGENT-PLATFORM: counts the subscription's updates, so a catch-up read never replaces a newer one.
+    private var roomInfoUpdates = 0
     // periphery:ignore - required for instance retention in the rust codebase
     private var typingNotificationObservationToken: TaskHandle?
     // periphery:ignore - required for instance retention in the rust codebase
@@ -71,19 +73,19 @@ class JoinedRoomProxy: JoinedRoomProxyProtocol {
     
     init(roomListService: RoomListServiceProtocol,
          room: RoomProtocol,
-         appSettings: AppSettings,
+         userSettings: UserSettings,
          analyticsService: AnalyticsServiceProtocol,
          eventStringBuilder: RoomEventStringBuilder) async throws {
         self.roomListService = roomListService
         self.room = room
-        self.appSettings = appSettings
+        self.userSettings = userSettings
         self.analyticsService = analyticsService
         self.eventStringBuilder = eventStringBuilder
         
         infoSubject = try await .init(RoomInfoProxy(roomInfo: room.roomInfo()))
         
         let openRoomSpan = analyticsService.signpost.addSpan(.timelineLoad, toTransaction: .openRoom)
-        timeline = try await TimelineProxy(timeline: room.timelineWithConfiguration(configuration: .init(focus: .live(hideThreadedEvents: appSettings.threadsEnabled),
+        timeline = try await TimelineProxy(timeline: room.timelineWithConfiguration(configuration: .init(focus: .live(hideThreadedEvents: userSettings.app.threadsEnabled),
                                                                                                          filter: .eventFilter(filter: Self.excludedEventsFilter),
                                                                                                          internalIdPrefix: nil,
                                                                                                          dateDividerMode: .daily,
@@ -114,7 +116,7 @@ class JoinedRoomProxy: JoinedRoomProxyProtocol {
         subscribedForUpdates = true
         
         do {
-            try await roomListService.subscribeToRooms(roomIds: [id])
+            try await roomListService.setRoomSubscriptions(roomIds: [id])
         } catch {
             MXLog.error("Failed subscribing to room with error: \(error)")
         }
@@ -141,8 +143,19 @@ class JoinedRoomProxy: JoinedRoomProxyProtocol {
         
         roomInfoObservationToken = room.subscribeToRoomInfoUpdates(listener: SDKListener.onMainActor { [weak self] roomInfo in
             MXLog.info("Received room info update")
+            self?.roomInfoUpdates += 1 // AGENT-PLATFORM
             self?.infoSubject.send(RoomInfoProxy(roomInfo: roomInfo))
         })
+
+        // AGENT-PLATFORM: the subscription reports only changes after it starts. A sync since
+        // `init` read the info (a DM joined a moment ago: «People 0», no Block) is caught up here.
+        // An equal info is sent again on purpose: `RoomInfo` has no `==` (its power levels are an
+        // SDK object), and a hand-written one over ~45 fields would drop real changes when the SDK adds one.
+        let updates = roomInfoUpdates
+        Task { [weak self] in
+            guard let self, let roomInfo = try? await room.roomInfo(), roomInfoUpdates == updates else { return }
+            infoSubject.send(RoomInfoProxy(roomInfo: roomInfo))
+        }
     }
     
     func timelineFocusedOnEvent(eventID: String, numberOfEvents: UInt16) async -> Result<TimelineProxyProtocol, RoomProxyError> {
@@ -150,7 +163,7 @@ class JoinedRoomProxy: JoinedRoomProxyProtocol {
             let openRoomSpan = analyticsService.signpost.addSpan(.timelineLoad, toTransaction: .notificationToMessage)
             let sdkTimeline = try await room.timelineWithConfiguration(configuration: .init(focus: .event(eventId: eventID,
                                                                                                           numContextEvents: numberOfEvents,
-                                                                                                          threadMode: .automatic(hideThreadedEvents: appSettings.threadsEnabled)),
+                                                                                                          threadMode: .automatic(hideThreadedEvents: userSettings.app.threadsEnabled)),
                                                                                             filter: .all,
                                                                                             internalIdPrefix: UUID().uuidString,
                                                                                             dateDividerMode: .daily,
@@ -214,7 +227,7 @@ class JoinedRoomProxy: JoinedRoomProxyProtocol {
     
     func loadSpiralAppRelations(for eventID: String) async -> Result<[String], RoomProxyError> {
         do {
-            let result = try await room.loadOrFetchEventWithRelations(eventId: eventID, filter: .reference)
+            let result = try await room.spiralLoadOrFetchEventWithRelations(eventId: eventID, filter: .reference)
             return .success(result.relationsJson)
         } catch {
             MXLog.error("Failed fetching relations for the event with id: \(eventID) with error: \(error)")
@@ -435,6 +448,16 @@ class JoinedRoomProxy: JoinedRoomProxyProtocol {
     }
     
     func invite(userID: String) async -> Result<Void, RoomProxyError> {
+        // AGENT-PLATFORM (Brief 0066 § 5.88): adding an agent lets it keep its
+        // own two state rows here — granted by this person's client rather
+        // than by the platform acting as the room's admin later. Before the
+        // invite: the agent joins at once and writes its hint a single time,
+        // so a grant that lands after the join leaves a DM reading as a group.
+        // A grant that failed stops the invite: the agent writes that hint only once.
+        if SpiralAgentRoomGrants.isLocalAgent(userID, ownUserID: ownUserID),
+           case .failure(let error) = await grantAgentStateTypes(to: userID) {
+            return .failure(error)
+        }
         do {
             MXLog.info("Inviting user \(userID)")
             try await room.inviteUserById(userId: userID)
@@ -442,19 +465,13 @@ class JoinedRoomProxy: JoinedRoomProxyProtocol {
             MXLog.error("Failed inviting user \(userID) with error: \(error)")
             return .failure(.sdkError(error))
         }
-        // AGENT-PLATFORM (Brief 0066 § 5.88): adding an agent lets it keep its
-        // own two state rows here — granted by this person's client, now,
-        // rather than by the platform acting as the room's admin later.
-        if SpiralAgentRoomGrants.isLocalAgent(userID, ownUserID: ownUserID) {
-            await grantAgentStateTypes(to: userID)
-        }
         return .success(())
     }
 
-    /// AGENT-PLATFORM (§ 5.88): best-effort — the invite stands either way.
-    /// Without the grant the agent's tools still reach the room as a
-    /// message-like fallback, and only the member hint is missing.
-    private func grantAgentStateTypes(to agentID: String) async {
+    /// AGENT-PLATFORM (§ 5.88): a person without the rights to grant still adds
+    /// the agent, whose tools then reach the room as a message-like fallback.
+    /// A failed request is a failure, so the person can try again.
+    private func grantAgentStateTypes(to agentID: String) async -> Result<Void, RoomProxyError> {
         do {
             let granted = try await room.allowStateTypesAtDefaultLevel(eventTypes: SpiralAgentRoomGrants.stateTypes)
             if granted {
@@ -462,8 +479,10 @@ class JoinedRoomProxy: JoinedRoomProxyProtocol {
             } else {
                 MXLog.info("[SpiralAgent] \(agentID) added to \(id); this user may not change its power levels")
             }
+            return .success(())
         } catch {
             MXLog.error("[SpiralAgent] granting \(agentID) its state rows in \(id) failed: \(error)")
+            return .failure(.sdkError(error))
         }
     }
     
@@ -691,6 +710,16 @@ class JoinedRoomProxy: JoinedRoomProxyProtocol {
         }
     }
     
+    // AGENT-PLATFORM (bug S2)
+    func membership(of userID: String) async -> MembershipState? {
+        do {
+            return try await room.member(userId: userID).membership
+        } catch {
+            MXLog.error("Failed reading the membership of \(userID) with error: \(error)")
+            return nil
+        }
+    }
+    
     func banUser(_ userID: String, reason: String?) async -> Result<Void, RoomProxyError> {
         do {
             try await room.banUser(userId: userID, reason: reason)
@@ -901,19 +930,19 @@ class JoinedRoomProxy: JoinedRoomProxyProtocol {
     }
     
     private static let excludedEventsFilter: TimelineEventFilter = {
-        var stateEventFilters: [StateEventType] = [.roomCanonicalAlias,
-                                                   .roomGuestAccess,
-                                                   .roomHistoryVisibility,
-                                                   .roomJoinRules,
-                                                   .roomPinnedEvents,
-                                                   .roomPowerLevels,
-                                                   .roomServerAcl,
-                                                   .roomTombstone,
-                                                   .spaceChild,
-                                                   .spaceParent,
-                                                   .policyRuleRoom,
-                                                   .policyRuleServer,
-                                                   .policyRuleUser]
-        return .excludeEventTypes(eventTypes: stateEventFilters.map { FilterTimelineEventType.state(eventType: $0) })
+        var stateEventFilters: [TimelineEventType] = [.roomCanonicalAlias,
+                                                      .roomGuestAccess,
+                                                      .roomHistoryVisibility,
+                                                      .roomJoinRules,
+                                                      .roomPinnedEvents,
+                                                      .roomPowerLevels,
+                                                      .roomServerAcl,
+                                                      .roomTombstone,
+                                                      .spaceChild,
+                                                      .spaceParent,
+                                                      .policyRuleRoom,
+                                                      .policyRuleServer,
+                                                      .policyRuleUser]
+        return .exclude(stateEventFilters.map { TimelineEventCondition.eventType($0) })
     }()
 }

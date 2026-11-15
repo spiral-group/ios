@@ -20,7 +20,7 @@ struct PublicProfileScreenCoordinatorParameters {
     /// self-lookup short-circuit so we don't re-render the
     /// owner's own dashboard as a stranger view.
     let currentUserMXID: String
-    let agentPlatformService: any AgentPlatformServiceProtocol
+    let store: AgentsStore
 }
 
 enum PublicProfileScreenCoordinatorAction {
@@ -45,7 +45,7 @@ final class PublicProfileScreenCoordinator: CoordinatorProtocol {
     init(parameters: PublicProfileScreenCoordinatorParameters) {
         viewModel = PublicProfileScreenViewModel(targetMXID: parameters.targetMXID,
                                                  currentUserMXID: parameters.currentUserMXID,
-                                                 agentPlatformService: parameters.agentPlatformService)
+                                                 store: parameters.store)
     }
 
     func start() {

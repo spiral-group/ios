@@ -8,7 +8,7 @@
 // AGENT-PLATFORM: Brief 0073 / ADR-0008 — the invite screen.
 //
 
-@testable import ElementX
+@testable import Spiral
 import Testing
 
 @MainActor
@@ -46,6 +46,54 @@ struct InvitePeopleScreenViewModelTests {
         // A profile lookup that fails still lists the person by MXID.
         #expect(viewModel.context.viewState.joined[1].id == "@bob:spiral.md")
         #expect(viewModel.context.viewState.joined[1].displayName == nil)
+    }
+    
+    /// Brief 0083, question 359: the page has its shape before the link arrives.
+    @Test
+    func theLinksPlaceStandsWhileItLoads() async throws {
+        let read = HeldRead<MyInvite>(answer: .success(invite(used: 0)))
+        service.fetchMyInviteClosure = { await read.answer() }
+        service.fetchMyInviteJoinedReturnValue = .success([])
+        
+        let viewModel = makeViewModel()
+        #expect(viewModel.context.viewState.isLoadingInvite)
+        
+        let loaded = deferFulfillment(viewModel.context.observe(\.viewState.invite)) { $0 != nil }
+        read.release()
+        try await loaded.fulfill()
+        #expect(!viewModel.context.viewState.isLoadingInvite)
+    }
+    
+    /// A failed read is never a page still loading: the alert says so.
+    @Test
+    func aFailedLinkReadStopsLoading() async throws {
+        service.fetchMyInviteReturnValue = .failure(.serverError(status: 500))
+        
+        let viewModel = makeViewModel()
+        let failed = deferFulfillment(viewModel.context.observe(\.viewState.isLoading)) { !$0 }
+        try await failed.fulfill()
+        
+        #expect(!viewModel.context.viewState.isLoadingInvite)
+        #expect(viewModel.context.viewState.bindings.alertInfo?.id == .loadFailed)
+    }
+    
+    /// Brief 0083, question 359: the link counts who came through it, so their rows stand in that number.
+    @Test
+    func whoJoinedTakesItsCountFromTheLink() async throws {
+        let read = HeldRead<[InviteJoinedEntry]>(answer: .success([.init(userID: "@alice:spiral.md", joinedAt: .now)]))
+        service.fetchMyInviteReturnValue = .success(invite(used: 3))
+        service.fetchMyInviteJoinedClosure = { await read.answer() }
+        clientProxy.profileForClosure = { .success(UserProfile(userID: $0)) }
+        
+        let viewModel = makeViewModel()
+        let linked = deferFulfillment(viewModel.context.observe(\.viewState.invite)) { $0 != nil }
+        try await linked.fulfill()
+        #expect(viewModel.context.viewState.joinedPlaceholderCount == 3)
+        
+        let joined = deferFulfillment(viewModel.context.observe(\.viewState.joined)) { !$0.isEmpty }
+        read.release()
+        try await joined.fulfill()
+        #expect(viewModel.context.viewState.joinedPlaceholderCount == 0)
     }
     
     @Test

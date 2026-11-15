@@ -7,8 +7,8 @@
 //
 
 import AgentPlatformClient
-@testable import ElementX
 import Foundation
+@testable import Spiral
 import Synchronization
 import Testing
 
@@ -40,16 +40,6 @@ struct SpiralPersonalDataServiceTests {
         #expect(configuration.timeoutIntervalForResource == URLSession.shared.configuration.timeoutIntervalForResource)
     }
 
-    @Test
-    func theNotificationsStreamKeepsNoCopyEither() {
-        let stream = ApprovalsStreamService(agentPlatformService: AgentPlatformServiceMock(),
-                                            authProvider: StaticAuthTokenProvider(token: nil),
-                                            baseURL: "https://platform.test")
-
-        #expect(stream.urlSession.configuration.urlCache == nil)
-        #expect(stream.urlSession.configuration.requestCachePolicy == .reloadIgnoringLocalCacheData)
-    }
-
     // MARK: - Account export
 
     @Test
@@ -79,6 +69,33 @@ struct SpiralPersonalDataServiceTests {
             Issue.record("A failed export should be .serverError(500)")
             return
         }
+    }
+
+    // MARK: - Account deletion
+
+    /// The six feed counters are optional on the wire (backend f4ca9664): a
+    /// receipt from a server without them is still a deleted account.
+    @Test
+    func accountDeletionReadsAReceiptWithoutTheFeedCounters() async {
+        stub(status: 200, body: Data(#"""
+        {"status":"purged","counts":{"agents":1,"voice_sessions":0,"voice_transcripts":0,"voice_summaries":0,
+         "voice_consent_log":0,"approvals":0,"mas_deactivated":true,"agents_deactivated":1,"recordings_queued":0,
+         "login_links_deleted":0,"identity_erased":true,"bridge_logins_ended":0,"bridges_failed":0,
+         "ai_consent_decisions":0,"recording_publications":0,"push_devices":0,"notification_read_markers":0,
+         "organization_memberships":0,"queue_jobs_erased":0,"action_log_entries":0,"gdpr_audit_rows":0,
+         "as_contact":{"memory_entries":0,"relationships":0,"transcript_lines":0,"outreach_targets":0,
+                       "approvals":0,"key_relay_rows":0,"action_log_entries_scrubbed":0,"session_controls_scrubbed":0,
+                       "invite_redemptions_scrubbed":0,"verifications":0,"tool_scopes_rewritten":0,"tools_turned_off":0}}}
+        """#.utf8))
+
+        let result = await service.deleteAccount()
+
+        guard case .success = result else {
+            Issue.record("A receipt without the feed counters should be a deleted account, got \(result)")
+            return
+        }
+        #expect(lastRequest?.httpMethod == "DELETE")
+        #expect(lastRequest?.url?.path() == "/api/v1/me")
     }
 
     // MARK: - Calls

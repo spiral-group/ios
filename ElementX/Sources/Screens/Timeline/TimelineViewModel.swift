@@ -49,12 +49,18 @@ final class SpiralAppTeardown {
     }
 }
 
+// AGENT-PLATFORM: the Interactive Post and agent hooks push the upstream class over the 1000-line cap.
+// swiftlint:disable:next type_body_length
 class TimelineViewModel: TimelineViewModelType, TimelineViewModelProtocol {
     private enum Constants {
         static let paginationEventLimit: UInt16 = 20
+        static let openingPaginationEventLimit: UInt16 = 100
+        static let openingPageLimit = 5
+        static let openingLoadingIndicatorDelay = Duration.milliseconds(500)
         static let detachedTimelineSize: UInt16 = 100
         static let focusTimelineToastIndicatorID = "RoomScreenFocusTimelineToastIndicator"
         static let toastErrorID = "RoomScreenToastError"
+        static let selectionLimitIndicatorID = "RoomScreenSelectionLimitIndicator"
     }
     
     // AGENT-PLATFORM (Brief 0066): `TimelineViewModel+InteractiveDraft` is
@@ -66,7 +72,7 @@ class TimelineViewModel: TimelineViewModelType, TimelineViewModelProtocol {
     private let mediaPlayerProvider: MediaPlayerProviderProtocol
     let userIndicatorController: UserIndicatorControllerProtocol
     private let appMediator: AppMediatorProtocol
-    private let appSettings: AppSettings
+    private let userSettings: UserSettings
     private let analyticsService: AnalyticsServiceProtocol
     private let emojiProvider: EmojiProviderProtocol
     
@@ -86,6 +92,34 @@ class TimelineViewModel: TimelineViewModelType, TimelineViewModelProtocol {
     
     /// Takes this room's apps down when the timeline goes. See its own doc.
     private var spiralAppTeardown: SpiralAppTeardown?
+    
+    // AGENT-PLATFORM (Brief 0083, question 359): what "New" and the scroll button's dot go by.
+    private var seenRows: TimelineSeenRows
+    /// When the chat opened or the app last became active.
+    private var cameBackAt = Date.now
+    /// You've left the chat, so going to the background has no visit left to end.
+    private var hasStopped = false
+    /// The unread may reach further back than the loaded rows, as the chat opened with some or a limited sync left a gap. Writing ends that.
+    private var opensWithUnread: Bool
+    /// You wrote since these rows loaded, or read to the end once the app gave up on what's above, which ends what `m.fully_read` waits for.
+    private var mayPassUnloadedRows = false
+    /// The app went looking for the first unread and gave up, so the newest row reads the chat to the end, as in any chat, and
+    /// the count can't stick on rows it couldn't reach. The operator's call. A limited sync's gap isn't this: it holds, as the
+    /// next opening can still reach it.
+    private var hasGivenUpLoadingRows = false
+    /// The event `m.fully_read` was last requested for. One request each: a failed one waits for the next new row, or for leaving.
+    private var fullyReadRequestEventID: String?
+    /// When the event `m.fully_read` names was sent, known once one that isn't loaded has been looked up.
+    private var fullyReadDate: Date?
+    /// The event last looked up. One lookup each.
+    private var fullyReadLookupEventID: String?
+    /// That lookup failed, which says nothing of where the event is: a network fails as readily as an event goes for good.
+    private var hasFullyReadLookupFailed = false
+    
+    // AGENT-PLATFORM (Brief 0083, question 363): how long a chat will wait for the first unread before opening at the end.
+    private var openingPagesLeft = Constants.openingPageLimit
+    private var openingTimeLimitTask: Task<Void, Never>?
+    var openingTimeLimit = Duration.seconds(4)
 
     init(roomProxy: JoinedRoomProxyProtocol,
          focussedEventID: String? = nil,
@@ -94,7 +128,6 @@ class TimelineViewModel: TimelineViewModelType, TimelineViewModelProtocol {
          mediaPlayerProvider: MediaPlayerProviderProtocol,
          userIndicatorController: UserIndicatorControllerProtocol,
          appMediator: AppMediatorProtocol,
-         appSettings: AppSettings,
          analyticsService: AnalyticsServiceProtocol,
          emojiProvider: EmojiProviderProtocol,
          linkMetadataProvider: LinkMetadataProviderProtocol,
@@ -103,11 +136,13 @@ class TimelineViewModel: TimelineViewModelType, TimelineViewModelProtocol {
         self.timelineController = timelineController
         self.userSession = userSession
         self.mediaPlayerProvider = mediaPlayerProvider
-        self.appSettings = appSettings
+        userSettings = userSession.userSettings
         self.analyticsService = analyticsService
         self.userIndicatorController = userIndicatorController
         self.appMediator = appMediator
         self.emojiProvider = emojiProvider
+        seenRows = TimelineSeenRows(ownUserID: roomProxy.ownUserID)
+        opensWithUnread = roomProxy.infoPublisher.value.unreadMessagesCount > 0
         
         let voiceMessageRecorder = VoiceMessageRecorder(audioRecorder: AudioRecorder(), mediaPlayerProvider: mediaPlayerProvider)
         
@@ -118,7 +153,6 @@ class TimelineViewModel: TimelineViewModelType, TimelineViewModelProtocol {
                                                                 voiceMessageRecorder: voiceMessageRecorder,
                                                                 userIndicatorController: userIndicatorController,
                                                                 appMediator: appMediator,
-                                                                appSettings: appSettings,
                                                                 analyticsService: analyticsService,
                                                                 emojiProvider: emojiProvider,
                                                                 linkMetadataProvider: linkMetadataProvider,
@@ -139,15 +173,15 @@ class TimelineViewModel: TimelineViewModelType, TimelineViewModelProtocol {
                                                        timelineState: TimelineState(focussedEvent: focussedEventID.map { .init(eventID: $0, appearance: .immediate) }),
                                                        ownUserID: roomProxy.ownUserID,
                                                        hideTimelineMedia: hideTimelineMedia,
-                                                       isViewSourceEnabled: appSettings.viewSourceEnabled,
-                                                       areThreadsEnabled: appSettings.threadsEnabled,
-                                                       linkPreviewsEnabled: appSettings.linkPreviewsEnabled,
-                                                       jumpToReadMarkerEnabled: appSettings.jumpToReadMarkerEnabled,
+                                                       isViewSourceEnabled: userSettings.app.viewSourceEnabled,
+                                                       areThreadsEnabled: userSettings.app.threadsEnabled,
+                                                       linkPreviewsEnabled: userSettings.app.linkPreviewsEnabled,
+                                                       jumpToReadMarkerEnabled: userSettings.app.jumpToReadMarkerEnabled,
                                                        hasPredecessor: roomProxy.predecessorRoom != nil,
                                                        pinnedEventIDs: roomProxy.infoPublisher.value.pinnedEventIDs,
                                                        emojiProvider: emojiProvider,
                                                        linkMetadataProvider: hideTimelineMedia ? nil : linkMetadataProvider,
-                                                       mapTilerSettings: appSettings.mapTilerSettings.publisher.value,
+                                                       mapTilerConfiguration: userSettings.app.mapTilerConfiguration.publisher.value,
                                                        bindings: .init(reactionsCollapsed: [:])),
                    mediaProvider: userSession.mediaProvider,
                    contentScannerService: userSession.contentScannerService)
@@ -158,6 +192,7 @@ class TimelineViewModel: TimelineViewModelType, TimelineViewModelProtocol {
         }
         
         setupSubscriptions()
+        setupRowContextSubscription()
         setupDirectRoomSubscriptionsIfNeeded()
         
         // AGENT-PLATFORM (Brief 0066, step 7.4): one registry per timeline, so
@@ -215,9 +250,11 @@ class TimelineViewModel: TimelineViewModelType, TimelineViewModelProtocol {
         installSpiralAIConsentResolver() // AGENT-PLATFORM (decision 150)
         
         state.timelineState.paginationState = timelineController.paginationState
+        // AGENT-PLATFORM (Brief 0083, question 363): where the chat opens hangs on `m.fully_read`, and a link's target comes first.
+        state.timelineState.opening = focussedEventID == nil && state.timelineKind == .live ? .undecided : .settled
+        updateRoomInfo(roomProxy.infoPublisher.value)
         buildTimelineViews(timelineItems: timelineController.timelineItems)
         
-        updateRoomInfo(roomProxy.infoPublisher.value)
         updateMembers(roomProxy.membersPublisher.value)
         
         // Note: beware if we get to e.g. restore a reply / edit,
@@ -275,16 +312,26 @@ class TimelineViewModel: TimelineViewModelType, TimelineViewModelProtocol {
             }
         case .displayTimelineItemMenu(let itemID):
             timelineInteractionHandler.displayTimelineItemActionMenu(for: itemID)
+        case .handleTimelineItemMenuAction(let itemID, .forward) where state.canSelectMessages:
+            startSelection(itemID: itemID)
         case .handleTimelineItemMenuAction(let itemID, let action):
             timelineInteractionHandler.handleTimelineItemMenuAction(action, itemID: itemID)
+        case .redactConfirmed(let itemID, let reason):
+            state.bindings.redactConfirmationInfo = nil
+            // A blank reason is no reason at all, so don't send one.
+            timelineInteractionHandler.redact(itemID, reason: reason?.isBlank == false ? reason : nil)
+        case .toggleMessageSelection(let itemID):
+            toggleSelection(itemID: itemID)
+        case .clearMessageSelection:
+            clearMessageSelection()
+        case .forwardMessageSelection:
+            forwardSelection()
         case .tappedOnSenderDetails(let sender):
             handleTappedOnSenderDetails(sender: sender)
         case .displayEmojiPicker(let itemID):
             timelineInteractionHandler.displayEmojiPicker(for: itemID)
         case .displayReactionSummary(let itemID, let key):
             displayReactionSummary(for: itemID, selectedKey: key)
-        case .displayReadReceipts(let itemID):
-            displayReadReceipts(for: itemID)
         case .displayThread(let itemID):
             actionsSubject.send(.displayThread(itemID: itemID))
         case .handlePasteOrDrop(let providers):
@@ -302,6 +349,10 @@ class TimelineViewModel: TimelineViewModelType, TimelineViewModelProtocol {
             focusLive()
         case .scrolledToFocussedItem:
             didScrollToFocussedItem()
+        case .scrolledAwayFromFocussedItem:
+            didScrollAwayFromFocussedItem()
+        case .hasSettledOpening(let isAwayFromEnd):
+            Task { didSettleOpening(isAwayFromEnd: isAwayFromEnd) } // The table is in the middle of a view update.
         case .hasSwitchedTimeline:
             Task { state.timelineState.isSwitchingTimelines = false }
         case let .hasScrolled(direction):
@@ -345,7 +396,7 @@ class TimelineViewModel: TimelineViewModelType, TimelineViewModelProtocol {
         case .voiceMessage(let voiceMessageAction):
             processVoiceMessageAction(voiceMessageAction)
         case .contentChanged(let isEmpty):
-            guard appSettings.sharePresence else {
+            guard userSettings.account.sharePresence else {
                 return
             }
             
@@ -356,6 +407,11 @@ class TimelineViewModel: TimelineViewModelType, TimelineViewModelProtocol {
     }
     
     func focusOnEvent(eventID: String) async {
+        // AGENT-PLATFORM (Brief 0083, question 363): the target comes first.
+        if state.timelineState.opening != .settled {
+            settleOpening()
+        }
+        
         if state.timelineState.hasLoadedItem(with: eventID) {
             state.timelineState.focussedEvent = .init(eventID: eventID, appearance: .animated)
             return
@@ -381,15 +437,78 @@ class TimelineViewModel: TimelineViewModelType, TimelineViewModelProtocol {
     }
     
     func stopLiveLocationSharing() async {
-        await userSession.liveLocationManager.stopLiveLocation(roomID: roomProxy.id)
+        await userSession.liveLocationService.stopLiveLocation(roomID: roomProxy.id)
     }
     
-    func makeForwardingItem(for itemID: TimelineItemIdentifier) async -> MessageForwardingItem? {
-        guard let content = await timelineController.messageEventContent(for: itemID) else { return nil }
-        return .init(id: itemID, roomID: roomProxy.id, content: content)
+    /// AGENT-PLATFORM (Brief 0083, question 363): a page on its way keeps this view model alive after you've left, and the
+    /// table can outlast this on its way off screen. So the opening stops here rather than with them, or its toast stays
+    /// over the chat list, and a page landing now could open the way for the receipts of rows you never saw.
+    func stop() {
+        hasStopped = true
+        if state.timelineState.opening != .settled {
+            settleOpening(at: .abandoned)
+        }
+        markSeenRowsAsRead()
+    }
+    
+    /// AGENT-PLATFORM (Brief 0083, question 359): going to the background ends the visit, as leaving does (the operator,
+    /// 2026-11-12). The receipts go now, while the app still runs, so a launch after iOS ends it finds no "New" above what
+    /// you read and answered. "New" from before goes in the same pass, unseen, so coming back shows nothing jump: what
+    /// arrived meanwhile is marked afresh, and the SDK's own marker, once `m.fully_read` reaches it, lands in the same place.
+    /// Only the room's live timeline, and only once the chat has opened: an opening still on its way carries on. Internal for
+    /// the tests, which call it rather than post the notification every live view model in the process would hear.
+    func endVisit() {
+        guard !hasStopped, appMediator.appState != .active, state.timelineKind == .live, state.timelineState.opening == .settled else {
+            return
+        }
+        
+        seenRows.endVisit()
+        markSeenRowsAsRead()
+        if tracksSeenRows {
+            buildTimelineViews(timelineItems: timelineController.timelineItems)
+        }
     }
     
     // MARK: - Private
+    
+    /// AGENT-PLATFORM (Brief 0083, question 359): when a visit starts again, and when it ends without leaving the chat
+    /// (the operator, 2026-11-12, «Так, як вихід»).
+    private func setupAppStateSubscriptions() {
+        NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)
+            .sink { [weak self] _ in
+                self?.cameBackAt = .now
+            }
+            .store(in: &cancellables)
+        
+        NotificationCenter.default.publisher(for: UIApplication.didEnterBackgroundNotification)
+            .sink { [weak self] _ in
+                self?.endVisit()
+            }
+            .store(in: &cancellables)
+    }
+    
+    /// AGENT-PLATFORM (Brief 0083, question 364): both receipts name the newest row you've seen, so "New" is where you stopped
+    /// next time and the room list counts what you left. Each is sent by event, never as "the latest", which could pass rows
+    /// that were never loaded. Having seen nothing new sends nothing. The room's own read state is the live timeline's, so
+    /// this doesn't apply to any other kind.
+    private func markSeenRowsAsRead() {
+        guard state.timelineKind == .live, let seenRow = seenRows.newestSeenRow else { return }
+        
+        let isLive = state.timelineState.isLive
+        let fullyReadEventID = isFullyReadHeld ? nil : fullyReadTarget
+        if let fullyReadEventID {
+            fullyReadRequestEventID = fullyReadEventID
+        }
+        Task { [roomProxy, timelineController] in
+            if isLive {
+                await timelineController.sendReadReceipt(for: seenRow)
+            }
+            // This is the one request that ends a visit, so a failed one is tried once more.
+            if let fullyReadEventID, case .failure = await roomProxy.timeline.sendReadReceipt(for: fullyReadEventID, type: .fullyRead) {
+                _ = await roomProxy.timeline.sendReadReceipt(for: fullyReadEventID, type: .fullyRead)
+            }
+        }
+    }
     
     private func handleTappedOnSenderDetails(sender: TimelineItemSender) {
         let memberDetails: ManageRoomMemberDetails = if let memberProxy = roomProxy.membersPublisher.value.first(where: { $0.userID == sender.id }) {
@@ -425,6 +544,13 @@ class TimelineViewModel: TimelineViewModelType, TimelineViewModelProtocol {
         timelineController.focusLive()
     }
     
+    // AGENT-PLATFORM (Brief 0083, question 359): a loaded message never leaves the live timeline, so the highlight
+    // would stay until the chat is left. A newer focus still on its way keeps its highlight.
+    private func didScrollAwayFromFocussedItem() {
+        guard state.timelineState.focussedEvent?.appearance == .hasAppeared else { return }
+        state.timelineState.focussedEvent = nil
+    }
+    
     private func didScrollToFocussedItem() {
         if var focussedEvent = state.timelineState.focussedEvent {
             focussedEvent.appearance = .hasAppeared
@@ -451,6 +577,11 @@ class TimelineViewModel: TimelineViewModelType, TimelineViewModelProtocol {
     private func attach(_ attachment: ComposerAttachmentType) {
         switch attachment {
         case .camera:
+            guard appMediator.isCameraAvailable else {
+                MXLog.info("Camera unavailable, not presenting the picker.")
+                displayErrorToast(L10n.errorCameraUnavailable)
+                return
+            }
             actionsSubject.send(.displayCameraPicker)
         case .photoLibrary:
             actionsSubject.send(.displayMediaPicker)
@@ -512,7 +643,7 @@ class TimelineViewModel: TimelineViewModelType, TimelineViewModelProtocol {
     }
     
     private func updateMembers(_ members: [RoomMemberProxyProtocol]) {
-        state.members = members.reduce(into: [String: RoomMemberState]()) { dictionary, member in
+        let memberStates = members.reduce(into: [String: RoomMemberState]()) { dictionary, member in
             dictionary[member.userID] = RoomMemberState(displayName: member.displayName,
                                                         avatarURL: member.avatarURL,
                                                         status: member.status)
@@ -520,20 +651,37 @@ class TimelineViewModel: TimelineViewModelType, TimelineViewModelProtocol {
                 currentUserProxy = member
             }
         }
+        // AGENT-PLATFORM (Brief 0083, question 359): the quotes redraw with their mentions when this moves.
+        if state.members != memberStates {
+            state.members = memberStates
+        }
     }
     
     private func updateRoomInfo(_ roomInfo: RoomInfoProxyProtocol) {
-        state.pinnedEventIDs = roomInfo.pinnedEventIDs
-        state.isDM = roomInfo.isDM
-        state.timelineState.fullyReadEventID = roomInfo.fullyReadEventID
+        updateState(\.pinnedEventIDs, to: roomInfo.pinnedEventIDs)
+        updateState(\.isDM, to: roomInfo.isDM)
+        if state.timelineState.fullyReadEventID != roomInfo.fullyReadEventID {
+            state.timelineState.fullyReadEventID = roomInfo.fullyReadEventID
+            fullyReadDate = nil
+            hasFullyReadLookupFailed = false
+            updateFullyReadLocation()
+        }
+        updateReadOwnItems(dmUserID: roomInfo.dmUserID)
         
         if let powerLevels = roomInfo.powerLevels {
-            state.canCurrentUserSendMessage = powerLevels.canOwnUser(sendMessage: .roomMessage)
-            state.canCurrentUserRedactOthers = powerLevels.canOwnUserRedactOther()
-            state.canCurrentUserRedactSelf = powerLevels.canOwnUserRedactOwn()
-            state.canCurrentUserPin = powerLevels.canOwnUserPinOrUnpin()
-            state.canCurrentUserKick = powerLevels.canOwnUserKick()
-            state.canCurrentUserBan = powerLevels.canOwnUserBan()
+            updateState(\.canCurrentUserSendMessage, to: powerLevels.canOwnUser(sendMessage: .roomMessage))
+            updateState(\.canCurrentUserRedactOthers, to: powerLevels.canOwnUserRedactOther())
+            updateState(\.canCurrentUserRedactSelf, to: powerLevels.canOwnUserRedactOwn())
+            updateState(\.canCurrentUserPin, to: powerLevels.canOwnUserPinOrUnpin())
+            updateState(\.canCurrentUserKick, to: powerLevels.canOwnUserKick())
+            updateState(\.canCurrentUserBan, to: powerLevels.canOwnUserBan())
+        }
+    }
+    
+    /// AGENT-PLATFORM (Brief 0083, question 359): any write to the state redraws the room around the timeline, equal or not.
+    private func updateState<Value: Equatable>(_ keyPath: WritableKeyPath<TimelineViewState, Value>, to value: Value) {
+        if state[keyPath: keyPath] != value {
+            state[keyPath: keyPath] = value
         }
     }
     
@@ -546,6 +694,7 @@ class TimelineViewModel: TimelineViewModelType, TimelineViewModelProtocol {
                 switch callback {
                 case .updatedTimelineItems(let updatedItems, let isSwitchingTimelines):
                     buildTimelineViews(timelineItems: updatedItems, isSwitchingTimelines: isSwitchingTimelines)
+                    reconcileSelection(with: updatedItems, isSwitchingTimelines: isSwitchingTimelines)
                     
                     if !updatedItems.isEmpty {
                         analyticsService.signpost.finishTransaction(.openRoom)
@@ -553,10 +702,15 @@ class TimelineViewModel: TimelineViewModelType, TimelineViewModelProtocol {
                 case .paginationState(let paginationState):
                     if state.timelineState.paginationState != paginationState {
                         state.timelineState.paginationState = paginationState
+                        if paginationState.backward == .endReached {
+                            hasReachedTimelineStart()
+                        }
                     }
                 case .isLive(let isLive):
                     if state.timelineState.isLive != isLive {
                         state.timelineState.isLive = isLive
+                        // AGENT-PLATFORM (Brief 0083, question 359): a detached timeline has no dot, and coming back lands at the end.
+                        state.bindings.hasNewMessagesAtBottom = false
                         
                         // Remove the event highlight *only* when transitioning from non-live to live.
                         if isLive, state.timelineState.focussedEvent != nil {
@@ -569,6 +723,8 @@ class TimelineViewModel: TimelineViewModelType, TimelineViewModelProtocol {
             }
             .store(in: &cancellables)
         
+        setupAppStateSubscriptions() // AGENT-PLATFORM (Brief 0083, question 359)
+        
         roomProxy.infoPublisher
             .receive(on: DispatchQueue.main)
             .sink { [weak self] roomInfo in
@@ -576,7 +732,7 @@ class TimelineViewModel: TimelineViewModelType, TimelineViewModelProtocol {
             }
             .store(in: &cancellables)
         
-        setupAppSettingsSubscriptions()
+        setupUserSettingsSubscriptions()
         
         roomProxy.membersPublisher
             .receive(on: DispatchQueue.main)
@@ -585,8 +741,8 @@ class TimelineViewModel: TimelineViewModelType, TimelineViewModelProtocol {
         
         roomProxy.typingMembersPublisher
             .receive(on: DispatchQueue.main)
-            .filter { [weak self] _ in self?.appSettings.sharePresence ?? false }
-            .weakAssign(to: \.state.typingMembers, on: self)
+            .filter { [weak self] _ in self?.userSettings.account.sharePresence ?? false }
+            .sink { [weak self] in self?.updateState(\.typingMembers, to: $0) } // AGENT-PLATFORM (Brief 0083, question 359)
             .store(in: &cancellables)
         
         timelineInteractionHandler.actions
@@ -618,8 +774,12 @@ class TimelineViewModel: TimelineViewModelType, TimelineViewModelProtocol {
                     } else {
                         self.state.bindings.actionMenuInfo = actionMenuInfo
                     }
+                case .showRedactConfirmation(let itemID):
+                    state.bindings.redactConfirmationInfo = .init(id: itemID)
                 case .showDebugInfo(let debugInfo):
                     state.bindings.debugInfo = debugInfo
+                case .showReadReceipts(let itemID):
+                    displayReadReceipts(for: itemID)
                 case .showDraftCode(let code):
                     state.bindings.draftCode = code
                 case .editInteractivePost(let eventID, let post, let title):
@@ -639,7 +799,7 @@ class TimelineViewModel: TimelineViewModelType, TimelineViewModelProtocol {
     func viewInRoomTimeline(eventID: String) async {
         switch await roomProxy.loadOrFetchEventDetails(for: eventID) {
         case .success(let event):
-            let threadRootEventID: String? = if appSettings.threadsEnabled {
+            let threadRootEventID: String? = if userSettings.app.threadsEnabled {
                 event.threadRootEventId()
             } else {
                 nil
@@ -650,20 +810,31 @@ class TimelineViewModel: TimelineViewModelType, TimelineViewModelProtocol {
         }
     }
     
-    private func setupAppSettingsSubscriptions() {
-        appSettings.sharePresencePublisher
+    /// AGENT-PLATFORM (Brief 0083, question 359): a change to the state reaches the rows it's for, in the same update.
+    private func setupRowContextSubscription() {
+        context.$viewState
+            .map(TimelineRowContextInputs.init)
+            .removeDuplicates()
+            .sink { [weak self] inputs in
+                self?.updateRowContexts(inputs)
+            }
+            .store(in: &cancellables)
+    }
+    
+    private func setupUserSettingsSubscriptions() {
+        userSettings.account.sharePresencePublisher
             .weakAssign(to: \.state.showReadReceipts, on: self)
             .store(in: &cancellables)
         
-        appSettings.viewSourceEnabledPublisher
+        userSettings.app.viewSourceEnabledPublisher
             .weakAssign(to: \.state.isViewSourceEnabled, on: self)
             .store(in: &cancellables)
         
-        appSettings.threadsEnabledPublisher
+        userSettings.app.threadsEnabledPublisher
             .weakAssign(to: \.state.areThreadsEnabled, on: self)
             .store(in: &cancellables)
         
-        appSettings.jumpToReadMarkerEnabledPublisher
+        userSettings.app.jumpToReadMarkerEnabledPublisher
             .weakAssign(to: \.state.jumpToReadMarkerEnabled, on: self)
             .store(in: &cancellables)
         
@@ -720,13 +891,14 @@ class TimelineViewModel: TimelineViewModelType, TimelineViewModelProtocol {
                 return
             }
             
-            switch await timelineController.paginateBackwards(requestSize: Constants.paginationEventLimit) {
-            case .failure:
+            let isOpening = state.timelineState.opening == .loadingRows
+            let result = await timelineController.paginateBackwards(requestSize: isOpening ? Constants.openingPaginationEventLimit : Constants.paginationEventLimit)
+            // AGENT-PLATFORM (Brief 0083, question 363): the app went looking on its own, so nothing you asked for failed.
+            if case .failure = result, !isOpening {
                 displayErrorToast(L10n.errorFailedLoadingMessages)
-            default:
-                break
             }
             paginateBackwardsTask = nil
+            continueLoadingRows(after: result)
         }
     }
     
@@ -784,15 +956,86 @@ class TimelineViewModel: TimelineViewModelType, TimelineViewModelProtocol {
         }
     }
     
-    private func sendReadReceiptIfNeeded(for lastVisibleItemID: TimelineItemIdentifier) async {
-        guard appMediator.appState == .active else { return }
+    func sendReadReceiptIfNeeded(for lastVisibleItemID: TimelineItemIdentifier) async {
+        guard appMediator.appState == .active, state.timelineState.opening == .settled else { return }
+        
+        // AGENT-PLATFORM (Brief 0083, question 364): the read receipt follows what you've seen, as `m.fully_read` does.
+        if tracksSeenRows {
+            if hasGivenUpLoadingRows, seenRows.isNewestRow(lastVisibleItemID) {
+                allowPassingUnloadedRows()
+            }
+            guard !isUnreadAboveLoadedRows, !isFocusAheadOfUnread else { return }
+            seenRows.noteOnScreen(lastVisibleItemID)
+        }
         
         await timelineController.sendReadReceipt(for: lastVisibleItemID)
+        await moveFullyReadIfNeeded()
+    }
+    
+    /// AGENT-PLATFORM (Brief 0083, question 359): at the end with nothing marked "New", the SDK's marker comes along, so
+    /// that a row arriving later finds it in the right place. Not with "New" showing, as this would take it away. By event
+    /// rather than `markAsRead`, which could land on a reaction, an event with no item for the SDK to place its marker after.
+    /// Never a public receipt, whatever the read receipt setting: `m.fully_read` is the account's own, as on leaving the chat.
+    /// This runs after the receipt's round trip, so it asks again whether the app is still active.
+    private func moveFullyReadIfNeeded() async {
+        guard appMediator.appState == .active,
+              state.timelineKind == .live,
+              state.isAtBottomAndLive,
+              !isNewShowing,
+              !isFullyReadHeld,
+              let eventID = fullyReadTarget,
+              eventID != fullyReadRequestEventID else {
+            return
+        }
+        
+        fullyReadRequestEventID = eventID
+        _ = await roomProxy.timeline.sendReadReceipt(for: eventID, type: .fullyRead)
+    }
+    
+    /// AGENT-PLATFORM (Brief 0083, question 359): with `m.fully_read` on an event above the loaded rows, moving it to the
+    /// newest row would pass all that lies between, on every device, unread. So it waits until they're loaded, you write, or
+    /// the app gives up on them. This goes by the rows and not by the unread count, which is stale on a cold start and leaves
+    /// out Spiral's own rows.
+    private var isFullyReadHeld: Bool {
+        guard let eventID = state.timelineState.fullyReadEventID, !state.timelineState.isFullyReadWithoutRow else { return false }
+        return !mayPassUnloadedRows && seenRows.hasRows && !seenRows.hasRow(eventID: eventID)
+    }
+    
+    /// AGENT-PLATFORM (Brief 0083, question 359): "New" above the loaded rows counts, as it's still there to scroll up to.
+    private var isNewShowing: Bool {
+        state.timelineState.readMarkerUniqueID != nil || isUnreadAboveLoadedRows
+    }
+    
+    /// AGENT-PLATFORM (Brief 0083, question 363): rows that were never on screen lie above the loaded ones. Neither receipt
+    /// may pass them, so the room stays unread until they're loaded, you write, or the app gives up on them.
+    private var isUnreadAboveLoadedRows: Bool {
+        opensWithUnread && state.timelineState.isReadMarkerAboveLoadedRows
+    }
+    
+    /// AGENT-PLATFORM (Brief 0083, question 364): a push or a link landed below "New", and what lies between wasn't read.
+    private var isFocusAheadOfUnread: Bool {
+        state.timelineState.focussedEvent != nil && state.timelineState.readMarkerUniqueID != nil && !state.bindings.isReadMarkerVisible
+    }
+    
+    private var fullyReadTarget: String? {
+        seenRows.fullyReadTarget(from: state.timelineState.fullyReadEventID, sentAt: fullyReadDate)
+    }
+    
+    /// Only the room's live timeline has seen rows: threads, pinned and detached timelines stay as they were.
+    private var tracksSeenRows: Bool {
+        state.timelineKind == .live && state.timelineState.isLive
     }
     
     private func handleMediaTapped(with itemID: TimelineItemIdentifier, galleryIndex: Int? = nil) async {
-        state.showLoading = true
+        // Building the media timeline takes ~100ms from the event cache, however its possible that
+        // a focussed timeline may hit /context so we need to show a spinner when it's actually slow.
+        let spinner = Task {
+            try? await Task.sleep(for: .milliseconds(300))
+            guard !Task.isCancelled else { return }
+            state.showLoading = true
+        }
         let action = await timelineInteractionHandler.processItemTap(itemID)
+        spinner.cancel()
         
         switch action {
         case .displayMediaPreview(let item, let timelineViewModelKind):
@@ -827,8 +1070,9 @@ class TimelineViewModel: TimelineViewModelType, TimelineViewModelProtocol {
             fatalError("Only events can have send info.")
         }
         
-        if case .sendingFailed(.unknown) = eventTimelineItem.properties.deliveryStatus {
-            displayAlert(.sendingFailed)
+        if case let .sendingFailed(.unknown(reason)) = eventTimelineItem.properties.deliveryStatus {
+            // A missing target only costs the retry/remove actions, the reason is still worth showing.
+            displayAlert(.sendingFailed(reason: reason, itemID: itemID, target: timelineController.pendingSendTarget(for: itemID)))
         } else if case let .sendingFailed(.verifiedUser(failure)) = eventTimelineItem.properties.deliveryStatus {
             guard let sendHandle = timelineController.sendHandle(for: itemID) else {
                 MXLog.error("Cannot find send handle for \(itemID).")
@@ -843,6 +1087,14 @@ class TimelineViewModel: TimelineViewModelType, TimelineViewModelProtocol {
         } else if let authenticityMessage = eventTimelineItem.properties.encryptionAuthenticity?.message {
             displayAlert(.encryptionAuthenticity(authenticityMessage))
         }
+    }
+    
+    private func retrySending(_ itemID: TimelineItemIdentifier, target: SendTarget) {
+        Task { await timelineController.retrySend(itemID, target: target) }
+    }
+    
+    private func abortSending(_ itemID: TimelineItemIdentifier, target: SendTarget) {
+        Task { await timelineController.abortSend(itemID, target: target) }
     }
     
     private func slashCommand(message: String) -> SlashCommand? {
@@ -896,7 +1148,8 @@ class TimelineViewModel: TimelineViewModelType, TimelineViewModelProtocol {
                                                      intentionalMentions: intentionalMentions)
             }
         case .recordVoiceMessage, .previewVoiceMessage:
-            fatalError("invalid composer mode.")
+            MXLog.error("Ignoring sendCurrentMessage with invalid composer mode: \(mode)")
+            return
         }
         
         scrollToBottom()
@@ -924,7 +1177,8 @@ class TimelineViewModel: TimelineViewModelType, TimelineViewModelProtocol {
                                       mediaProvider: userSession.mediaProvider,
                                       photoLibraryManager: PhotoLibraryManager(),
                                       userIndicatorController: userIndicatorController,
-                                      appMediator: appMediator)
+                                      appMediator: appMediator,
+                                      replyHandler: mediaPreviewReplyHandler)
     }
     
     private func makeGalleryPreviewViewModel(galleryItem: GalleryRoomTimelineItem,
@@ -936,7 +1190,19 @@ class TimelineViewModel: TimelineViewModelType, TimelineViewModelProtocol {
                                       mediaProvider: userSession.mediaProvider,
                                       photoLibraryManager: PhotoLibraryManager(),
                                       userIndicatorController: userIndicatorController,
-                                      appMediator: appMediator)
+                                      appMediator: appMediator,
+                                      replyHandler: mediaPreviewReplyHandler)
+    }
+    
+    // AGENT-PLATFORM (Brief 0083, question 413): the viewer's Reply puts this timeline's composer into reply mode.
+    /// Only timelines shown above a composer can reply; the pinned and media-files screens have none.
+    private var mediaPreviewReplyHandler: ((EventBasedMessageTimelineItemProtocol) -> Void)? {
+        switch state.timelineKind {
+        case .live, .detached, .thread:
+            { [weak self] item in self?.timelineInteractionHandler.reply(to: item) }
+        case .pinned, .media:
+            nil
+        }
     }
     
     private func timelineViewModel(for kind: TimelineControllerAction.TimelineViewModelKind) -> TimelineViewModel {
@@ -949,9 +1215,36 @@ class TimelineViewModel: TimelineViewModelType, TimelineViewModelProtocol {
     // MARK: - Timeline Item Building
     
     private func buildTimelineViews(timelineItems: [RoomTimelineItemProtocol], isSwitchingTimelines: Bool = false) {
+        let signpost = TimelineSignposts.beginInterval("Build views", count: timelineItems.count) // AGENT-PLATFORM (Brief 0083, question 359)
+        defer { TimelineSignposts.endInterval("Build views", signpost) }
+        
+        let timelineItems = applySeenRows(to: timelineItems, isSwitchingTimelines: isSwitchingTimelines)
         var timelineItemsDictionary = OrderedDictionary<TimelineItemIdentifier.UniqueID, RoomTimelineItemViewState>()
         
         updateSpiralLivePost(timelineItems) // AGENT-PLATFORM (§ 5.55)
+        updateReadProgress() // AGENT-PLATFORM (Brief 0083, question 359): before the rows, which take their ticks from it.
+        
+        // AGENT-PLATFORM (Brief 0083, question 359): read once, as `state` is a copy of the whole view state.
+        let currentRows = state.timelineState.itemsDictionary
+        let rowContextInputs = TimelineRowContextInputs(state)
+        let isPinnedTimeline = state.timelineKind == .pinned
+        var hasChangedRows = false
+        
+        if !isSwitchingTimelines, let newestRow = currentRows.keys.last, timelineItems.last?.id.uniqueID != newestRow {
+            state.rowMotion.noteArrival() // Before the rows, which regroup as the new one slides in.
+        }
+        
+        func updateViewState(item: RoomTimelineItemProtocol, groupStyle: TimelineGroupStyle) -> RoomTimelineItemViewState {
+            let rowContext = rowContextInputs.rowContext(for: item.id)
+            guard let viewState = currentRows[item.id.uniqueID] else {
+                return RoomTimelineItemViewState(item: item, groupStyle: groupStyle, rowContext: rowContext)
+            }
+            if viewState.update(item: item, groupStyle: groupStyle) {
+                hasChangedRows = true
+            }
+            viewState.update(rowContext: rowContext)
+            return viewState
+        }
         
         timelineItems.filter { $0 is RedactedRoomTimelineItem }.forEach { timelineItem in
             // Stops the audio player when a voice message is redacted.
@@ -983,13 +1276,13 @@ class TimelineViewModel: TimelineViewModelType, TimelineViewModelProtocol {
             } else {
                 for (index, item) in itemGroup.enumerated() {
                     if index == 0 {
-                        timelineItemsDictionary.updateValue(updateViewState(item: item, groupStyle: state.timelineKind == .pinned ? .single : .first),
+                        timelineItemsDictionary.updateValue(updateViewState(item: item, groupStyle: isPinnedTimeline ? .single : .first),
                                                             forKey: item.id.uniqueID)
                     } else if index == itemGroup.count - 1 {
-                        timelineItemsDictionary.updateValue(updateViewState(item: item, groupStyle: state.timelineKind == .pinned ? .single : .last),
+                        timelineItemsDictionary.updateValue(updateViewState(item: item, groupStyle: isPinnedTimeline ? .single : .last),
                                                             forKey: item.id.uniqueID)
                     } else {
-                        timelineItemsDictionary.updateValue(updateViewState(item: item, groupStyle: state.timelineKind == .pinned ? .single : .middle),
+                        timelineItemsDictionary.updateValue(updateViewState(item: item, groupStyle: isPinnedTimeline ? .single : .middle),
                                                             forKey: item.id.uniqueID)
                     }
                 }
@@ -1000,19 +1293,40 @@ class TimelineViewModel: TimelineViewModelType, TimelineViewModelProtocol {
             state.timelineState.isSwitchingTimelines = true
         }
         
-        updateHasNewMessagesAtBottom(with: timelineItemsDictionary)
-        
-        state.timelineState.itemsDictionary = timelineItemsDictionary
-        state.timelineState.recomputeReadMarkerUniqueID()
+        // AGENT-PLATFORM (Brief 0083, question 359): most builds change a row or two, and many change nothing, as a build runs
+        // for everything the SDK reports. Whatever's written here redraws the room around the timeline.
+        if hasChangedRows || timelineItemsDictionary.keys != currentRows.keys {
+            var timelineState = state.timelineState
+            timelineState.itemsDictionary = timelineItemsDictionary
+            timelineState.recomputeReadMarkerUniqueID()
+            state.timelineState = timelineState
+        }
+        updateOpening()
     }
     
-    private func updateViewState(item: RoomTimelineItemProtocol, groupStyle: TimelineGroupStyle) -> RoomTimelineItemViewState {
-        if let timelineItemViewState = state.timelineState.itemsDictionary[item.id.uniqueID] {
-            timelineItemViewState.groupStyle = groupStyle
-            timelineItemViewState.type = .init(item: item)
-            return timelineItemViewState
-        } else {
-            return RoomTimelineItemViewState(item: item, groupStyle: groupStyle)
+    // AGENT-PLATFORM (Brief 0083, question 359): the room's read progress changes far less often than the timeline does.
+    private func updateReadProgress() {
+        let readProgress = timelineController.readProgress
+        if state.timelineState.readProgress != readProgress {
+            state.timelineState.readProgress = readProgress
+        }
+        updateReadOwnItems(dmUserID: roomProxy.infoPublisher.value.dmUserID)
+    }
+    
+    // AGENT-PLATFORM (Brief 0083, question 357): once per update, so a row only looks itself up.
+    private func updateReadOwnItems(dmUserID: String?) {
+        let ownUserID = roomProxy.ownUserID
+        let readOwnItemIDs = state.timelineState.readProgress.readOwnMessages { userID in
+            TimelineReadProgress.isCounted(userID, ownUserID: ownUserID, dmUserID: dmUserID)
+        }
+        if state.timelineState.readOwnItemIDs != readOwnItemIDs {
+            state.timelineState.readOwnItemIDs = readOwnItemIDs
+        }
+    }
+    
+    private func updateRowContexts(_ inputs: TimelineRowContextInputs) {
+        for viewState in state.timelineState.itemViewStates {
+            viewState.update(rowContext: inputs.rowContext(for: viewState.identifier))
         }
     }
     
@@ -1036,25 +1350,161 @@ class TimelineViewModel: TimelineViewModelType, TimelineViewModelProtocol {
             && otherEventTimelineItem.timestamp.timeIntervalSince(eventTimelineItem.timestamp) < 5 * 60 // As does the passage of time.
     }
     
-    /// Sets `hasNewMessagesAtBottom` to `true` when newer items arrive while the user is scrolled
-    /// up in a live timeline. Skips initial load and timeline switches.
-    private func updateHasNewMessagesAtBottom(with newTimelineItems: OrderedDictionary<TimelineItemIdentifier.UniqueID, RoomTimelineItemViewState>) {
-        guard state.jumpToReadMarkerEnabled,
-              state.timelineState.isLive,
-              !state.timelineState.isSwitchingTimelines,
-              !state.bindings.isScrolledToBottom,
-              !state.bindings.hasNewMessagesAtBottom else {
+    /// AGENT-PLATFORM (Brief 0083, question 359): the room's live timeline only. Threads, pinned and detached timelines stay as they were.
+    private func applySeenRows(to timelineItems: [RoomTimelineItemProtocol], isSwitchingTimelines: Bool) -> [RoomTimelineItemProtocol] {
+        guard tracksSeenRows else { return timelineItems }
+        
+        let moment = TimelineSeenRows.Moment(isAtEnd: state.bindings.isScrolledToBottom,
+                                             isWatching: state.bindings.isScrolledToBottom && appMediator.appState == .active,
+                                             cameBackAt: cameBackAt,
+                                             isNewShowing: isNewShowing)
+        let arrivals = seenRows.noteArrivals(in: timelineItems,
+                                             isSwitchingTimelines: isSwitchingTimelines || state.timelineState.isSwitchingTimelines,
+                                             moment: moment)
+        
+        if arrivals.hasOwnRow {
+            allowPassingUnloadedRows()
+        }
+        if arrivals.isTimelineReplaced {
+            mayPassUnloadedRows = false
+            opensWithUnread = true
+            hasGivenUpLoadingRows = false
+        }
+        if arrivals.hasRowFromOthers, !state.bindings.isScrolledToBottom {
+            state.bindings.hasNewMessagesAtBottom = true
+        }
+        
+        updateFullyReadLocation()
+        let items = seenRows.placingReadMarker(in: timelineItems, afterRowLessEventSentAt: state.timelineState.isFullyReadWithoutRow ? fullyReadDate : nil)
+        
+        // AGENT-PLATFORM (Brief 0083, question 363): you came back to the chat as you left it, at the end. The table would run
+        // past what arrived meanwhile, so that opens as a chat with unread does. A "New" from before stays where it is.
+        if let firstRowMissed = arrivals.firstRowMissedAtEnd, !arrivals.hasOwnRow, state.timelineState.opening == .settled {
+            let readMarkerID = items.first { $0 is ReadMarkerRoomTimelineItem }?.id.uniqueID
+            state.timelineState.opening = .atRow(moment.isNewShowing ? firstRowMissed : readMarkerID ?? firstRowMissed)
+        }
+        
+        return items
+    }
+    
+    private func allowPassingUnloadedRows() {
+        opensWithUnread = false
+        mayPassUnloadedRows = true
+    }
+    
+    /// AGENT-PLATFORM (Brief 0083, question 364): a `m.fully_read` that isn't loaded is either above the rows, or on an event
+    /// that has none. Only when it was sent can tell them apart, and until then it's above, the side that passes nothing.
+    /// At the timeline's start nothing's left above to pass, so a failed lookup counts there and nowhere else: the event is
+    /// from before you joined, or purged, and it would hold this chat's receipts for good.
+    private func updateFullyReadLocation() {
+        guard tracksSeenRows, seenRows.hasRows, let eventID = state.timelineState.fullyReadEventID, !seenRows.hasRow(eventID: eventID) else {
+            updateState(\.timelineState.isFullyReadWithoutRow, to: false)
             return
         }
         
-        let oldDictionary = state.timelineState.itemsDictionary
-        guard !oldDictionary.isEmpty,
-              !newTimelineItems.isEmpty,
-              oldDictionary.keys.last != newTimelineItems.keys.last else {
+        let hasReachedStart = state.timelineState.paginationState.backward == .endReached
+        if let fullyReadDate {
+            updateState(\.timelineState.isFullyReadWithoutRow, to: seenRows.isEventAmongRows(sentAt: fullyReadDate, hasReachedStart: hasReachedStart))
             return
         }
         
-        state.bindings.hasNewMessagesAtBottom = true
+        updateState(\.timelineState.isFullyReadWithoutRow, to: hasReachedStart && hasFullyReadLookupFailed)
+        if eventID != fullyReadLookupEventID {
+            fullyReadLookupEventID = eventID
+            Task { await lookUpFullyRead(eventID: eventID) }
+        }
+    }
+    
+    private func lookUpFullyRead(eventID: String) async {
+        let result = await roomProxy.loadOrFetchEventDetails(for: eventID)
+        guard state.timelineState.fullyReadEventID == eventID else { return }
+        
+        switch result {
+        case .success(let event):
+            fullyReadDate = Date(timeIntervalSince1970: TimeInterval(event.timestamp()) / 1000)
+        case .failure:
+            hasFullyReadLookupFailed = true
+        }
+        buildTimelineViews(timelineItems: timelineController.timelineItems)
+    }
+    
+    /// A lookup that's still running has this to come, in its own build, and the chat waits for it to open.
+    private func hasReachedTimelineStart() {
+        if tracksSeenRows, fullyReadDate != nil || hasFullyReadLookupFailed {
+            buildTimelineViews(timelineItems: timelineController.timelineItems)
+        }
+    }
+    
+    // MARK: - Opening at the first unread
+    
+    /// AGENT-PLATFORM (Brief 0083, question 363): "New" is where the chat opens. With the unread above the loaded rows, the rows
+    /// come first. This goes by the rows, and leaves the count only to say whether to go looking.
+    private func updateOpening() {
+        switch state.timelineState.opening {
+        case .undecided where seenRows.hasRows, .loadingRows:
+            if let readMarkerID = state.timelineState.readMarkerUniqueID {
+                settleOpening(at: .atRow(readMarkerID))
+            } else if isUnreadAboveLoadedRows {
+                startLoadingRows()
+            } else {
+                settleOpening()
+            }
+        default:
+            break
+        }
+    }
+    
+    private func startLoadingRows() {
+        guard state.timelineState.opening != .loadingRows else { return }
+        
+        state.timelineState.opening = .loadingRows
+        paginateBackwards()
+        
+        openingTimeLimitTask = Task { [weak self, openingTimeLimit] in
+            try? await Task.sleep(for: Constants.openingLoadingIndicatorDelay)
+            guard !Task.isCancelled else { return }
+            self?.showFocusLoadingIndicator()
+            
+            try? await Task.sleep(for: openingTimeLimit)
+            guard !Task.isCancelled else { return }
+            self?.giveUpLoadingRows()
+        }
+    }
+    
+    /// One more page, while there's a reason to go on. Giving up opens the chat at the end, and the newest row there reads it.
+    private func continueLoadingRows(after result: Result<Void, TimelineControllerError>) {
+        guard state.timelineState.opening == .loadingRows, state.timelineState.paginationState.backward != .endReached else { return }
+        
+        openingPagesLeft -= 1
+        if case .success = result, openingPagesLeft > 0 {
+            paginateBackwards()
+        } else {
+            giveUpLoadingRows()
+        }
+    }
+    
+    private func didSettleOpening(isAwayFromEnd: Bool) {
+        guard case .atRow = state.timelineState.opening else { return }
+        
+        state.timelineState.opening = .settled
+        if isAwayFromEnd {
+            state.bindings.hasNewMessagesAtBottom = true
+        }
+    }
+    
+    private func giveUpLoadingRows() {
+        guard state.timelineState.opening == .loadingRows else { return }
+        
+        MXLog.info("Opening \(roomProxy.id) at the end, as the first unread wasn't reached with \(openingPagesLeft) pages left")
+        hasGivenUpLoadingRows = true
+        settleOpening()
+    }
+    
+    private func settleOpening(at opening: TimelineState.Opening = .settled) {
+        openingTimeLimitTask?.cancel()
+        openingTimeLimitTask = nil
+        hideFocusLoadingIndicator()
+        state.timelineState.opening = opening
     }
     
     // MARK: - Direct chats logics
@@ -1105,19 +1555,10 @@ class TimelineViewModel: TimelineViewModelType, TimelineViewModelProtocol {
     // MARK: - Read Receipts
     
     private func displayReadReceipts(for itemID: TimelineItemIdentifier) {
-        guard let timelineItem = timelineController.timelineItems.firstUsingStableID(itemID),
-              let eventTimelineItem = timelineItem as? EventBasedTimelineItemProtocol else {
-            return
-        }
-        
-        state.bindings.readReceiptsSummaryInfo = .init(orderedReceipts: eventTimelineItem.properties.orderedReadReceipts, id: eventTimelineItem.id)
-    }
-    
-    // MARK: - Message forwarding
-    
-    private func forwardMessage(itemID: TimelineItemIdentifier) async {
-        guard let forwardingItem = await makeForwardingItem(for: itemID) else { return }
-        actionsSubject.send(.displayMessageForwarding(forwardingItem: forwardingItem))
+        // A rename doesn't reach `state.members` by itself, and the sheet reads names from it.
+        Task { await roomProxy.updateMembers() }
+        // AGENT-PLATFORM (Brief 0083, question 357): everyone who reached this message, not only whose receipt sits on it.
+        state.bindings.readReceiptsSummaryInfo = .init(orderedReceipts: state.timelineState.readProgress.readers(of: itemID.uniqueID), id: itemID)
     }
     
     // MARK: Pills
@@ -1193,10 +1634,17 @@ class TimelineViewModel: TimelineViewModelType, TimelineViewModelProtocol {
                                              message: L10n.commonPollEndConfirmation,
                                              primaryButton: .init(title: L10n.actionCancel, role: .cancel, action: nil),
                                              secondaryButton: .init(title: L10n.actionOk) { self.timelineInteractionHandler.endPoll(pollStartID: pollStartID) })
-        case .sendingFailed:
+        case .sendingFailed(let reason, let itemID, let target):
             state.bindings.alertInfo = .init(id: type,
                                              title: L10n.commonSendingFailed,
-                                             primaryButton: .init(title: L10n.actionOk, action: nil))
+                                             message: reason,
+                                             primaryButton: .init(title: target == nil ? L10n.actionOk : L10n.actionCancel, role: .cancel, action: nil),
+                                             verticalButtons: target.map { target in
+                                                 [.init(title: L10n.actionRetry) { [weak self] in self?.retrySending(itemID, target: target) },
+                                                  .init(title: target == .event ? L10n.actionRemoveMessage : L10n.actionDiscard, role: .destructive) { [weak self] in
+                                                      self?.abortSending(itemID, target: target)
+                                                  }]
+                                             })
         case .encryptionAuthenticity(let message):
             state.bindings.alertInfo = .init(id: type,
                                              title: message,
@@ -1207,7 +1655,7 @@ class TimelineViewModel: TimelineViewModelType, TimelineViewModelProtocol {
                                              primaryButton: .init(title: L10n.actionOk, action: nil),
                                              secondaryButton: .init(title: L10n.actionLearnMore) { [weak self] in
                                                  guard let self else { return }
-                                                 appMediator.open(appSettings.historySharingDetailsURL)
+                                                 appMediator.open(userSettings.app.historySharingDetailsURL)
                                              })
         case .inviteAgain:
             state.bindings.alertInfo = .init(id: .inviteAgain,
@@ -1232,6 +1680,109 @@ class TimelineViewModel: TimelineViewModelType, TimelineViewModelProtocol {
     }
 }
 
+// MARK: - Message forwarding
+
+extension TimelineViewModel {
+    func makeForwardingPayload(for itemIDs: [TimelineItemIdentifier]) async -> MessageForwardingPayload? {
+        var ids = [TimelineItemIdentifier]()
+        var contents = [RoomMessageEventContentWithoutRelation]()
+        for itemID in itemIDs {
+            guard let content = await timelineController.messageEventContent(for: itemID) else { continue }
+            ids.append(itemID)
+            contents.append(content)
+        }
+        
+        guard !contents.isEmpty else { return nil }
+        return .init(ids: ids, roomID: roomProxy.id, contents: contents)
+    }
+    
+    private func forwardMessage(itemID: TimelineItemIdentifier) async {
+        guard let forwardingPayload = await makeForwardingPayload(for: [itemID]) else { return }
+        actionsSubject.send(.displayMessageForwarding(forwardingPayload: forwardingPayload))
+    }
+}
+
+// MARK: - Selection
+
+extension TimelineViewModel {
+    private func startSelection(itemID: TimelineItemIdentifier) {
+        guard let eventID = selectableEventID(for: itemID) else { return }
+        
+        // The composer is collapsed while selecting, so don't leave the microphone open behind it.
+        Task { await timelineInteractionHandler.stopRecordingVoiceMessageIfNeeded() }
+        actionsSubject.send(.composer(action: .removeFocus))
+        
+        guard !state.messageSelection.isAtLimit || state.messageSelection.selectedEventIDs.contains(eventID) else {
+            showSelectionLimitToast()
+            return
+        }
+        
+        state.messageSelection.isActive = true
+        state.messageSelection.selectedEventIDs.insert(eventID)
+    }
+    
+    private func toggleSelection(itemID: TimelineItemIdentifier) {
+        guard state.messageSelection.isActive, let eventID = selectableEventID(for: itemID) else { return }
+        
+        if state.messageSelection.selectedEventIDs.contains(eventID) {
+            state.messageSelection.selectedEventIDs.remove(eventID)
+        } else if state.messageSelection.isAtLimit {
+            showSelectionLimitToast()
+        } else {
+            state.messageSelection.selectedEventIDs.insert(eventID)
+        }
+    }
+    
+    /// Drops selected items that are no longer selectable (e.g. redacted), or the whole selection
+    /// when the timeline is swapped, so the selection always refers to items that are on screen.
+    private func reconcileSelection(with timelineItems: [RoomTimelineItemProtocol], isSwitchingTimelines: Bool) {
+        guard state.messageSelection.isActive else { return }
+        
+        if isSwitchingTimelines {
+            state.messageSelection.end()
+            return
+        }
+        
+        let forwardableEventIDs = timelineItems.forwardableItems.compactMap(\.id.eventID)
+        state.messageSelection.selectedEventIDs.formIntersection(forwardableEventIDs)
+    }
+    
+    /// Ends the selection, either from the close button or once the selected messages have been forwarded.
+    func clearMessageSelection() {
+        state.messageSelection.end()
+    }
+    
+    /// Forwards the selection in timeline order, which is unrelated to the order the messages were selected in.
+    /// The selection is kept until the forwarding completes, so cancelling the picker returns to it.
+    private func forwardSelection() {
+        let itemIDs = timelineController.timelineItems.selectedItems(state.messageSelection.selectedEventIDs).map(\.id)
+        
+        Task {
+            guard let forwardingPayload = await makeForwardingPayload(for: itemIDs) else {
+                displayErrorToast(L10n.errorUnknown)
+                return
+            }
+            actionsSubject.send(.displayMessageForwarding(forwardingPayload: forwardingPayload))
+        }
+    }
+    
+    /// The event ID of the item, when it is part of this timeline and can be forwarded.
+    private func selectableEventID(for itemID: TimelineItemIdentifier) -> String? {
+        guard let item = timelineController.timelineItems.firstUsingStableID(itemID) as? EventBasedTimelineItemProtocol,
+              item.isForwardable else {
+            return nil
+        }
+        return item.id.eventID
+    }
+    
+    private func showSelectionLimitToast() {
+        userIndicatorController.submitIndicator(UserIndicator(id: Constants.selectionLimitIndicatorID,
+                                                              type: .toast,
+                                                              title: L10n.screenRoomMaximumMessagesSelected,
+                                                              icon: \.info))
+    }
+}
+
 // MARK: - Mocks
 
 extension TimelineViewModel {
@@ -1246,8 +1797,6 @@ extension TimelineViewModel {
         clientProxyMock.roomSummaryForIdentifierReturnValue = .mock(id: "!room:matrix.org", name: "Room", canonicalAlias: "#room:matrix.org")
         let roomProxy = JoinedRoomProxyMock(.init(name: "Preview room", predecessor: hasPredecessor ? .init(roomId: UUID().uuidString) : nil))
         
-        let appSettings = AppSettings.volatile()
-        
         return TimelineViewModel(roomProxy: roomProxy,
                                  focussedEventID: nil,
                                  timelineController: timelineController ?? TimelineControllerMock(.init(timelineKind: timelineKind)),
@@ -1255,9 +1804,8 @@ extension TimelineViewModel {
                                  mediaPlayerProvider: MediaPlayerProviderMock(),
                                  userIndicatorController: UserIndicatorControllerMock(),
                                  appMediator: AppMediatorMock(.init()),
-                                 appSettings: appSettings,
                                  analyticsService: AnalyticsServiceMock(.init()),
-                                 emojiProvider: EmojiProvider(appSettings: appSettings),
+                                 emojiProvider: EmojiProvider(userSettings: .mock()),
                                  linkMetadataProvider: LinkMetadataProvider(),
                                  timelineControllerFactory: TimelineControllerFactoryMock(.init()))
     }

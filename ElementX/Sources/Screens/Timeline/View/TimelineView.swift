@@ -29,6 +29,11 @@ struct TimelineView: View {
             .sheet(item: $timelineContext.debugInfo) { TimelineItemDebugView(info: $0) }
             // AGENT-PLATFORM (Brief 0066): a draft's «Code».
             .sheet(item: $timelineContext.draftCode) { InteractiveDraftCodeView(code: $0) }
+            .sheet(item: $timelineContext.redactConfirmationInfo) { info in
+                RedactConfirmationView { reason in
+                    timelineContext.send(viewAction: .redactConfirmed(itemID: info.id, reason: reason))
+                }
+            }
             .sheet(item: $timelineContext.actionMenuInfo) { info in
                 let actions = TimelineItemMenuActionProvider(timelineItem: info.item,
                                                              canCurrentUserSendMessage: timelineContext.viewState.canCurrentUserSendMessage,
@@ -39,7 +44,8 @@ struct TimelineView: View {
                                                              isViewSourceEnabled: timelineContext.viewState.isViewSourceEnabled,
                                                              areThreadsEnabled: timelineContext.viewState.areThreadsEnabled,
                                                              timelineKind: timelineContext.viewState.timelineKind,
-                                                             emojiProvider: timelineContext.viewState.emojiProvider)
+                                                             emojiProvider: timelineContext.viewState.emojiProvider,
+                                                             hasReaders: timelineContext.viewState.hasReaders(info.item))
                     .makeActions()
                 if let actions {
                     TimelineItemMenu(item: info.item, actions: actions)
@@ -80,6 +86,9 @@ struct TimelineView: View {
 /// A table view wrapper that displays the timeline of a room.
 struct TimelineViewRepresentable: UIViewControllerRepresentable {
     @EnvironmentObject private var viewModelContext: TimelineViewModel.Context
+    @Environment(\.timelineComposerBarHeight) private var composerBarHeight // AGENT-PLATFORM (Brief 0083, decision 334)
+    @Environment(\.timelineHeaderBlockHeight) private var headerBlockHeight // AGENT-PLATFORM (Brief 0083, decision 345)
+    @Environment(\.isChatBackgroundDrawn) private var isChatBackgroundDrawn // AGENT-PLATFORM (Brief 0083, question 357)
     
     func makeUIViewController(context: Context) -> TimelineTableViewController {
         TimelineTableViewController(coordinator: context.coordinator,
@@ -93,7 +102,16 @@ struct TimelineViewRepresentable: UIViewControllerRepresentable {
     }
     
     func updateUIViewController(_ uiViewController: TimelineTableViewController, context: Context) {
+        if uiViewController.isOnChatBackground != isChatBackgroundDrawn { // AGENT-PLATFORM (Brief 0083, question 357): before the rows
+            uiViewController.isOnChatBackground = isChatBackgroundDrawn
+        }
         context.coordinator.update(tableViewController: uiViewController)
+        if uiViewController.composerBarHeight != composerBarHeight { // AGENT-PLATFORM (Brief 0083, decision 334)
+            uiViewController.composerBarHeight = composerBarHeight
+        }
+        if uiViewController.headerBlockHeight != headerBlockHeight { // AGENT-PLATFORM (Brief 0083, decision 345)
+            uiViewController.headerBlockHeight = headerBlockHeight
+        }
     }
     
     func makeCoordinator() -> Coordinator {
@@ -111,32 +129,41 @@ struct TimelineViewRepresentable: UIViewControllerRepresentable {
         
         /// Updates the specified table view's properties from the current view state.
         func update(tableViewController: TimelineTableViewController) {
-            if tableViewController.isSwitchingTimelines != context.viewState.timelineState.isSwitchingTimelines {
-                // Must come before timelineItemsDictionary in order to disable animations.
-                tableViewController.isSwitchingTimelines = context.viewState.timelineState.isSwitchingTimelines
-            }
-            if tableViewController.timelineItemsDictionary != context.viewState.timelineState.itemsDictionary {
-                tableViewController.timelineItemsDictionary = context.viewState.timelineState.itemsDictionary
-            }
-            if tableViewController.paginationState != context.viewState.timelineState.paginationState {
-                tableViewController.paginationState = context.viewState.timelineState.paginationState
-            }
-            if tableViewController.isLive != context.viewState.timelineState.isLive {
-                tableViewController.isLive = context.viewState.timelineState.isLive
-            }
-            if tableViewController.focussedEvent != context.viewState.timelineState.focussedEvent {
-                tableViewController.focussedEvent = context.viewState.timelineState.focussedEvent
-            }
-            if tableViewController.hideTimelineMedia != context.viewState.hideTimelineMedia {
-                tableViewController.hideTimelineMedia = context.viewState.hideTimelineMedia
-            }
-            if tableViewController.readMarkerUniqueID != context.viewState.timelineState.readMarkerUniqueID {
-                tableViewController.readMarkerUniqueID = context.viewState.timelineState.readMarkerUniqueID
-            }
+            // AGENT-PLATFORM (Brief 0083, question 359)
+            let viewState = context.viewState
+            let timelineState = viewState.timelineState
+            let signpost = TimelineSignposts.beginInterval("Update table", count: timelineState.itemsDictionary.count)
+            defer { TimelineSignposts.endInterval("Update table", signpost) }
             
-            if tableViewController.typingMembers.members != context.viewState.typingMembers {
-                tableViewController.setTypingMembers(context.viewState.typingMembers)
+            if tableViewController.isSwitchingTimelines != timelineState.isSwitchingTimelines {
+                // Must come before timelineItemsDictionary in order to disable animations.
+                tableViewController.isSwitchingTimelines = timelineState.isSwitchingTimelines
             }
+            if tableViewController.opening != timelineState.opening {
+                // Also before timelineItemsDictionary, so the rows land in the place they open at.
+                tableViewController.opening = timelineState.opening
+            }
+            // AGENT-PLATFORM (Brief 0083, question 359): this runs on every update of the state, so it goes by the ID.
+            if tableViewController.timelineBuildID != timelineState.buildID {
+                tableViewController.timelineBuildID = timelineState.buildID
+                tableViewController.timelineItemsDictionary = timelineState.itemsDictionary
+            }
+            if tableViewController.paginationState != timelineState.paginationState {
+                tableViewController.paginationState = timelineState.paginationState
+            }
+            if tableViewController.isLive != timelineState.isLive {
+                tableViewController.isLive = timelineState.isLive
+            }
+            if tableViewController.focussedEvent != timelineState.focussedEvent {
+                tableViewController.focussedEvent = timelineState.focussedEvent
+            }
+            if tableViewController.hideTimelineMedia != viewState.hideTimelineMedia {
+                tableViewController.hideTimelineMedia = viewState.hideTimelineMedia
+            }
+            if tableViewController.readMarkerUniqueID != timelineState.readMarkerUniqueID {
+                tableViewController.readMarkerUniqueID = timelineState.readMarkerUniqueID
+            }
+            tableViewController.settleOpeningIfNeeded()
         }
         
         func send(viewAction: TimelineViewAction) {
@@ -152,21 +179,16 @@ struct TimelineView_Previews: PreviewProvider { // Not testable as this preview 
                                                          name: "Preview room"))
     static let roomViewModel = RoomScreenViewModel.mock(roomProxyMock: roomProxyMock)
     static let composerViewModel = ComposerToolbarViewModel.mock()
-    static let timelineViewModel = {
-        let appSettings = AppSettings.volatile()
-        
-        return TimelineViewModel(roomProxy: roomProxyMock,
-                                 timelineController: TimelineControllerMock(.init()),
-                                 userSession: UserSessionMock(.init()),
-                                 mediaPlayerProvider: MediaPlayerProviderMock(),
-                                 userIndicatorController: UserIndicatorControllerMock(),
-                                 appMediator: AppMediatorMock(.init()),
-                                 appSettings: appSettings,
-                                 analyticsService: AnalyticsServiceMock(.init()),
-                                 emojiProvider: EmojiProvider(appSettings: appSettings),
-                                 linkMetadataProvider: LinkMetadataProvider(),
-                                 timelineControllerFactory: TimelineControllerFactoryMock(.init()))
-    }()
+    static let timelineViewModel = TimelineViewModel(roomProxy: roomProxyMock,
+                                                     timelineController: TimelineControllerMock(.init()),
+                                                     userSession: UserSessionMock(.init()),
+                                                     mediaPlayerProvider: MediaPlayerProviderMock(),
+                                                     userIndicatorController: UserIndicatorControllerMock(),
+                                                     appMediator: AppMediatorMock(.init()),
+                                                     analyticsService: AnalyticsServiceMock(.init()),
+                                                     emojiProvider: EmojiProvider(userSettings: .mock()),
+                                                     linkMetadataProvider: LinkMetadataProvider(),
+                                                     timelineControllerFactory: TimelineControllerFactoryMock(.init()))
     
     static var previews: some View {
         ElementNavigationStack {

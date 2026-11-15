@@ -49,6 +49,14 @@ final class SpiralAppInstance {
 
     private var viewportMode: SpiralAppViewportMode = .row
 
+    /// `setViewport`, sent before this returns: what is asked of the page next
+    /// runs after the app has heard it.
+    func applyViewport(_ mode: SpiralAppViewportMode) async {
+        guard mode != viewportMode else { return }
+        viewportMode = mode
+        await host.push(["kind": "viewport.changed", "mode": mode.rawValue])
+    }
+
     /// Called when the running app asks for the whole screen (`ui.expand`).
     ///
     /// Owned by the row, because only it knows where "full screen" is. An
@@ -57,13 +65,6 @@ final class SpiralAppInstance {
     var onExpandRequested: (() -> Void)? {
         get { session.onExpandRequested }
         set { session.onExpandRequested = newValue }
-    }
-
-    /// State as the room agrees it is. For a caller that wants to react — the
-    /// timeline's quiet card, the harness's readout — never for forwarding,
-    /// which is done here.
-    var snapshots: AnyPublisher<SpiralAppStateReader.Snapshot, Never> {
-        session.snapshotPublisher
     }
 
     /// Called when the system kills this app's web content process. The app is
@@ -76,6 +77,10 @@ final class SpiralAppInstance {
     private var session: SpiralAppSessionProtocol
     private let pool: SpiralAppHostPool
     private var host: SpiralAppHostProtocol
+    /// The reader's touches on this app's view (H2). Per instance, not per
+    /// host: a pooled host's last touch belonged to somebody else's post.
+    let activation: SpiralAppActivation
+    private let touchRecorder: SpiralAppTouchRecorder
     private var forwarding: AnyCancellable?
     private var membersForwarding: AnyCancellable?
     /// Whether this app has already been taken down.
@@ -96,22 +101,33 @@ final class SpiralAppInstance {
     /// the state of the post it is mounted on. The host may have served
     /// another app a moment ago — that is the point of the pool — and it
     /// arrives unbound, answering `gone`, until this line.
-    init(session: SpiralAppSessionProtocol, pool: SpiralAppHostPool) {
+    init(session: SpiralAppSessionProtocol,
+         pool: SpiralAppHostPool,
+         activation: SpiralAppActivation = SpiralAppActivation()) {
         self.session = session
         self.pool = pool
+        self.activation = activation
+        touchRecorder = SpiralAppTouchRecorder(activation: activation)
         host = pool.acquire()
+        host.containerView.addGestureRecognizer(touchRecorder)
+        // The frame's `userActivation` is dropped here on purpose: it is the
+        // post's own word for whether the reader asked.
         host.bind { [weak session] method, args, _ in
             guard let session else {
                 return SpiralAppBridge.failure(code: "gone", message: "this app is no longer mounted")
             }
-            return await session.answer(method: method, args: args)
+            return await session.answer(method: method, args: args, activation: activation)
         }
 
         // Subscribed before anything is mounted, deliberately. A push to an
         // unmounted host is dropped harmlessly, whereas subscribing after the
         // mount would leave a window between the app's own first read and this
         // subscription in which someone else's action could be lost for good.
+        //
+        // Only what was vouched for: the SDK takes any push as the state, so
+        // the empty fold of a read still running would draw an untouched post.
         forwarding = session.snapshotPublisher
+            .filter(\.readiness.isVouched)
             .sink { [weak host] snapshot in
                 Task {
                     await host?.push(["kind": "state.changed",
@@ -131,6 +147,18 @@ final class SpiralAppInstance {
             }
     }
 
+    func takeSnapshot(_ completion: @escaping (UIImage?) -> Void) {
+        host.takeSnapshot(completion)
+    }
+
+    func waitForPaint() async -> Bool {
+        await host.waitForPaint()
+    }
+
+    func waitForLayout(_ size: CGSize) async -> Bool {
+        await host.waitForLayout(size)
+    }
+
     /// How starting an app ended.
     ///
     /// Two failures that used to be one `false`, and the difference decides
@@ -147,9 +175,15 @@ final class SpiralAppInstance {
         case started
         case interrupted
         case refused
+        /// The app ran, but the post's state could not be read, so there is
+        /// nothing true for it to show.
+        case unreadable
+        /// The artifact needs a newer runtime than this build carries: the
+        /// card asks for an update, and no retry will change that.
+        case needsNewerApp
     }
 
-    /// Start listening, then run the artifact.
+    /// Run the artifact. The session is its owner's to start.
     func start(_ artifact: SpiralAppArtifact, instanceID: String) async -> Outcome {
         guard let capabilities = SpiralAppCapability.granted(requestedBy: artifact.manifest,
                                                              from: SpiralAppCapability.production) else {
@@ -160,15 +194,21 @@ final class SpiralAppInstance {
             return .refused
         }
 
-        await session.start()
-        await host.waitUntilReady()
-
         do {
+            try await host.waitUntilReady()
+            // A cold shell is a long wait, and a stop during it has given the
+            // host back: mounting now would run this app on the next one's.
+            guard !isStopped else { return .interrupted }
             try await host.mount(SpiralAppMount(instanceID: instanceID,
                                                 artifact: artifact,
                                                 capabilities: capabilities,
                                                 viewerID: session.context["userId"] as? String ?? ""))
-            return .started
+            // The read has been going on all this while, and usually got here
+            // first. The row's cover stays on an app that has only `{}` to draw.
+            return await session.hasReadableState() ? .started : .unreadable
+        } catch SpiralAppHostError.newerRuntime {
+            MXLog.info("[SpiralApp] \(instanceID) needs runtime \(artifact.runtimeVersion), newer than this build")
+            return .needsNewerApp
         } catch {
             MXLog.error("[SpiralApp] could not mount \(instanceID): \(error)")
             return SpiralAppInstance.isInterrupted(error) ? .interrupted : .refused
@@ -182,23 +222,22 @@ final class SpiralAppInstance {
     /// what there is to read. Brittle, and named here once so it is brittle in
     /// exactly one place.
     private static func isInterrupted(_ error: Error) -> Bool {
+        if case SpiralAppHostError.unmountedWhileWaiting = error { return true }
         let description = String(describing: error)
         return description.contains(SpiralAppShellContract.abandoned)
             || description.contains("no longer reachable")
     }
 
-    /// Take the app down and give the host back, then give up the session's
-    /// share of the room subscription — in that order, so nothing the app
-    /// does on its way out arrives after the session has stopped listening.
+    /// Take the app down and give the host back. The session is its owner's,
+    /// and outlives this.
     ///
     /// The host is not destroyed: the pool unbinds it and keeps its shell warm
     /// for the next app. Whether it is actually kept is the pool's call.
-    func stop() async {
-        guard !isStopped else { return }
-        isStopped = true
-        forwarding = nil
-        await pool.release(host)
-        session.stop()
+    @discardableResult
+    func stop() async -> SpiralAppUnmount {
+        guard !isStopped else { return .answered }
+        letGoOfSession()
+        return await pool.release(host)
     }
 
     /// Like `stop`, but the host is destroyed rather than given back.
@@ -208,10 +247,18 @@ final class SpiralAppInstance {
     /// app a web view that will never paint.
     func discard() async {
         guard !isStopped else { return }
+        letGoOfSession()
+        host.destroy()
+    }
+
+    /// The session goes on after this app, and the host may serve another
+    /// post's: nothing of one may reach the other.
+    private func letGoOfSession() {
         isStopped = true
         forwarding = nil
-        host.destroy()
-        session.stop()
+        membersForwarding = nil
+        session.onExpandRequested = nil
+        host.containerView.removeGestureRecognizer(touchRecorder)
     }
 }
 

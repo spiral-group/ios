@@ -4,7 +4,7 @@
 // AGENT-PLATFORM (Brief 0066 § 5.88).
 //
 
-@testable import ElementX
+@testable import Spiral
 import Testing
 
 struct SpiralAgentRoomGrantsTests {

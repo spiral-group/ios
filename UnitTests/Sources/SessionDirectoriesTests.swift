@@ -6,8 +6,8 @@
 // Please see LICENSE files in the repository root for full details.
 //
 
-@testable import ElementX
 import Foundation
+@testable import Spiral
 import Testing
 
 struct SessionDirectoriesTests {
@@ -55,11 +55,36 @@ struct SessionDirectoriesTests {
         #expect(fileManager.directoryExists(at: sessionDirectories.cacheDirectory))
         
         // When deleting the directories.
-        sessionDirectories.delete()
+        try? sessionDirectories.delete()
         
         // Then neither directory should exist on disk.
         #expect(!fileManager.directoryExists(at: sessionDirectories.dataDirectory))
         #expect(!fileManager.directoryExists(at: sessionDirectories.cacheDirectory))
+    }
+    
+    // AGENT-PLATFORM: a data directory that won't delete must not orphan the caches directory.
+    @Test
+    func deleteStillRemovesTheCachesWhenTheDataWontDelete() throws {
+        // Given session directories whose data directory has a read-only folder in it.
+        let sessionDirectories = SessionDirectories()
+        try fileManager.createDirectory(at: sessionDirectories.dataDirectory, withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: sessionDirectories.cacheDirectory, withIntermediateDirectories: true)
+        sessionDirectories.generateMockData()
+        let locked = sessionDirectories.dataDirectory.appending(component: "locked")
+        try fileManager.createDirectory(at: locked, withIntermediateDirectories: true)
+        try Data("x".utf8).write(to: locked.appending(component: "file"))
+        try fileManager.setAttributes([.posixPermissions: 0o555], ofItemAtPath: locked.path(percentEncoded: false))
+        defer {
+            try? fileManager.setAttributes([.posixPermissions: 0o755], ofItemAtPath: locked.path(percentEncoded: false))
+            try? sessionDirectories.delete()
+        }
+        
+        // When deleting the directories.
+        #expect(throws: (any Error).self) { try sessionDirectories.delete() }
+        
+        // Then the failure is reported but the caches are gone.
+        #expect(!fileManager.directoryExists(at: sessionDirectories.cacheDirectory))
+        #expect(fileManager.directoryExists(at: sessionDirectories.dataDirectory))
     }
     
     @Test
@@ -79,7 +104,7 @@ struct SessionDirectoriesTests {
         #expect(try fileManager.numberOfItems(at: sessionDirectories.cacheDirectory) == 3)
         
         // When deleting transient user data.
-        sessionDirectories.deleteTransientUserData()
+        try? sessionDirectories.deleteTransientUserData()
         
         // Then the data directory should only contain the crypto store and the cache directory should remain but be empty.
         #expect(fileManager.directoryExists(at: sessionDirectories.dataDirectory))
@@ -92,32 +117,6 @@ struct SessionDirectoriesTests {
         #expect(!fileManager.fileExists(atPath: sessionDirectories.mockEventCachePath))
         
         // The tests are done, tidy up these useless directories 🧹
-        sessionDirectories.delete()
-    }
-}
-
-private extension SessionDirectories {
-    var mockStateStorePath: String {
-        dataDirectory.appending(component: "matrix-sdk-state.sqlite3").path(percentEncoded: false)
-    }
-    
-    var mockCryptoStorePath: String {
-        dataDirectory.appending(component: "matrix-sdk-crypto.sqlite3").path(percentEncoded: false)
-    }
-    
-    var mockEventCachePath: String {
-        cacheDirectory.appending(component: "matrix-sdk-event-cache.sqlite3").path(percentEncoded: false)
-    }
-    
-    func generateMockData() {
-        generateMockDatabase(atPath: mockStateStorePath)
-        generateMockDatabase(atPath: mockCryptoStorePath)
-        generateMockDatabase(atPath: mockEventCachePath)
-    }
-    
-    private func generateMockDatabase(atPath path: String) {
-        FileManager.default.createFile(atPath: path, contents: nil)
-        FileManager.default.createFile(atPath: path + "-shm", contents: nil)
-        FileManager.default.createFile(atPath: path + "-wal", contents: nil)
+        try? sessionDirectories.delete()
     }
 }

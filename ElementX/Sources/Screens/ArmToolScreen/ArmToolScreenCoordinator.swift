@@ -19,18 +19,26 @@ struct ArmToolScreenCoordinatorParameters {
     /// Whether the form creates a new tool or edits an existing one.
     let mode: Mode
     let agentPlatformService: any RoomToolsServiceProtocol
+    let store: AgentsStore
 
     enum Mode {
-        /// Create a new tool for a capability (`active` enables the bulk "Turn
-        /// off" when that capability already has tools).
-        case create(capability: AgentCapability, active: ActiveCapabilityTool?)
+        /// A new tool of a kind.
+        case create(AgentToolKind)
         /// Edit an existing tool — the form is seeded from it, submit replaces it.
         case edit(ActiveToolDetail)
+
+        /// Call translation is personal (ADR-0094 D9, row 14): it has its own screen, never this form.
+        var isCallTranslation: Bool {
+            switch self {
+            case .create(let kind): kind == .liveTranslate
+            case .edit(let tool): if case .liveTranslate = tool.params { true } else { false }
+            }
+        }
     }
 }
 
 enum ArmToolScreenCoordinatorAction {
-    /// The arm/disable applied — dismiss + refresh the capabilities list.
+    /// The arm/disable applied — back to the tools, which read again.
     case finished
     /// Present the room-member picker for a member-carrying scope.
     case selectMembers(current: [String])
@@ -49,21 +57,26 @@ final class ArmToolScreenCoordinator: CoordinatorProtocol {
         actionsSubject.eraseToAnyPublisher()
     }
 
-    init(parameters: ArmToolScreenCoordinatorParameters) {
+    /// `nil` for a tool with no form here: of a kind this build doesn't know, or Call translation, which has its own
+    /// screen.
+    init?(parameters: ArmToolScreenCoordinatorParameters) {
+        guard !parameters.mode.isCallTranslation else { return nil }
         switch parameters.mode {
-        case .create(let capability, let active):
+        case .create(let kind):
             viewModel = ArmToolScreenViewModel(roomID: parameters.roomID,
                                                agentID: parameters.agentID,
                                                agentDisplayName: parameters.agentDisplayName,
-                                               capability: capability,
-                                               active: active,
-                                               agentPlatformService: parameters.agentPlatformService)
+                                               kind: kind,
+                                               agentPlatformService: parameters.agentPlatformService,
+                                               store: parameters.store)
         case .edit(let tool):
-            viewModel = ArmToolScreenViewModel(roomID: parameters.roomID,
-                                               agentID: parameters.agentID,
-                                               agentDisplayName: parameters.agentDisplayName,
-                                               editing: tool,
-                                               agentPlatformService: parameters.agentPlatformService)
+            guard let viewModel = ArmToolScreenViewModel(roomID: parameters.roomID,
+                                                         agentID: parameters.agentID,
+                                                         agentDisplayName: parameters.agentDisplayName,
+                                                         editing: tool,
+                                                         agentPlatformService: parameters.agentPlatformService,
+                                                         store: parameters.store) else { return nil }
+            self.viewModel = viewModel
         }
     }
 

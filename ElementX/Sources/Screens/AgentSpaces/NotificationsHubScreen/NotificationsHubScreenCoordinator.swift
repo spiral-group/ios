@@ -13,7 +13,7 @@ import Combine
 import SwiftUI
 
 struct NotificationsHubScreenCoordinatorParameters {
-    let approvalsStreamService: any ApprovalsStreamServiceProtocol
+    let store: AgentsStore
     let agentPlatformService: any AgentPlatformServiceProtocol
     /// Names the rooms rows and cards name by ID (coverage walk F9).
     let clientProxy: any ClientProxyProtocol
@@ -40,7 +40,7 @@ final class NotificationsHubScreenCoordinator: CoordinatorProtocol {
     }
 
     init(parameters: NotificationsHubScreenCoordinatorParameters) {
-        viewModel = NotificationsHubScreenViewModel(approvalsStreamService: parameters.approvalsStreamService,
+        viewModel = NotificationsHubScreenViewModel(store: parameters.store,
                                                     agentPlatformService: parameters.agentPlatformService,
                                                     clientProxy: parameters.clientProxy,
                                                     userIndicatorController: parameters.userIndicatorController)

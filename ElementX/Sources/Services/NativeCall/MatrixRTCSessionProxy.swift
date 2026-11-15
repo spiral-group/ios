@@ -42,13 +42,14 @@ class MatrixRTCSessionProxy: MatrixRTCSessionProtocol {
         subscriptionHandle?.cancel()
     }
     
-    func join(encryptMedia: Bool, notification: NativeCallNotification?, media: NativeCallMedia) async -> Result<Void, MatrixRTCSessionError> {
+    func join(encryptMedia: Bool, notification: NativeCallNotification?, media: NativeCallMedia, language: String?) async -> Result<Void, MatrixRTCSessionError> {
         do {
             let expiry = UInt64(Self.membershipExpiry.components.seconds * 1000)
             try await session.join(configuration: .init(membershipExpiryMs: expiry,
                                                         encryptMedia: encryptMedia,
                                                         notificationType: notification?.rustValue,
-                                                        callIntent: media.rustValue))
+                                                        callIntent: media.rustValue,
+                                                        language: language))
             return .success(())
         } catch {
             MXLog.error("Failed joining the MatrixRTC session: \(error)")
@@ -66,6 +67,16 @@ class MatrixRTCSessionProxy: MatrixRTCSessionProtocol {
         }
     }
     
+    func updateLanguage(_ language: String?) async -> Result<Void, MatrixRTCSessionError> {
+        do {
+            try await session.updateLanguage(language: language)
+            return .success(())
+        } catch {
+            MXLog.error("Failed publishing the call language: \(error)")
+            return .failure(.sdkError(error))
+        }
+    }
+
     func rtcNotificationEventID() async -> String? {
         await session.rtcNotificationEventId()
     }
@@ -139,7 +150,10 @@ private extension NativeCallMedia {
 
 private extension MatrixRTCParticipant {
     init(rustValue: MatrixRtcMembership) {
-        self.init(userID: rustValue.userId, deviceID: rustValue.deviceId, identity: rustValue.identity)
+        self.init(userID: rustValue.userId,
+                  deviceID: rustValue.deviceId,
+                  identity: rustValue.identity,
+                  language: rustValue.language.flatMap { $0.isEmpty ? nil : $0 })
     }
 }
 

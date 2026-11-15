@@ -13,8 +13,6 @@ typealias AuthenticationStartScreenViewModelType = StateStoreViewModelV2<Authent
 
 class AuthenticationStartScreenViewModel: AuthenticationStartScreenViewModelType, AuthenticationStartScreenViewModelProtocol {
     private let authenticationService: AuthenticationServiceProtocol
-    private let provisioningParameters: AccountProvisioningParameters?
-    private let appMediator: AppMediatorProtocol
     private let userIndicatorController: UserIndicatorControllerProtocol
     // AGENT-PLATFORM (Brief 0073 / ADR-0008).
     private let appSettings: AppSettings
@@ -28,57 +26,41 @@ class AuthenticationStartScreenViewModel: AuthenticationStartScreenViewModelType
         actionsSubject.eraseToAnyPublisher()
     }
     
+    // AGENT-PLATFORM (Brief 0083 L1b): no provisioningParameters (Element's provisioning links), and no
+    // appMediator, mediaProvider or notificationCenter: they opened, drew and refreshed the Element Classic account.
     init(authenticationService: AuthenticationServiceProtocol,
-         provisioningParameters: AccountProvisioningParameters?,
          isBugReportServiceEnabled: Bool,
-         appMediator: AppMediatorProtocol,
          appSettings: AppSettings,
-         mediaProvider: MediaProviderProtocol?,
-         notificationCenter: NotificationCenter = .default,
          userIndicatorController: UserIndicatorControllerProtocol,
          inviteLinkResolver: InviteLinkResolverProtocol = InviteLinkResolver()) {
         self.authenticationService = authenticationService
-        self.provisioningParameters = provisioningParameters
-        self.appMediator = appMediator
         self.userIndicatorController = userIndicatorController
         self.appSettings = appSettings
         self.inviteLinkResolver = inviteLinkResolver
         canReportProblem = isBugReportServiceEnabled
         
         let isQRCodeScanningSupported = !ProcessInfo.processInfo.isiOSAppOnMac
-        let classicAppAccountProvider = authenticationService.classicAppAccount?.serverName
-        let isClassicAppAccountAllowed = classicAppAccountProvider.map { appSettings.accountProviders.contains($0) } ?? false
         
         let initialViewState = if !appSettings.allowOtherAccountProviders {
             // AGENT-PLATFORM: closed-deployment branch still honours
             // appSettings.showCreateAccountButton instead of forcing false.
             // Our v1.0 SaaS only offers spiral.md but MAS allows open
             // signup, so the Create Account button must remain available.
-            AuthenticationStartScreenViewState(serverName: appSettings.accountProviders.count == 1 ? appSettings.accountProviders[0] : nil,
+            AuthenticationStartScreenViewState(serverNameOrBaseURL: appSettings.accountProviders.count == 1 ? appSettings.accountProviders[0].serverNameOrBaseURL : nil,
                                                showCreateAccountButton: appSettings.showCreateAccountButton,
                                                showQRCodeLoginButton: isQRCodeScanningSupported && appSettings.qrCodeLoginEnabled,
-                                               classicAppMode: isClassicAppAccountAllowed ? authenticationService.classicAppAccount.map { .welcomeBack($0) } : nil,
                                                hideBrandChrome: appSettings.hideBrandChrome,
                                                registrationRequiresInvite: appSettings.registrationRequiresInvite)
-        } else if let provisioningParameters {
-            // We only show the "Sign in to …" button when using a provisioning link.
-            AuthenticationStartScreenViewState(serverName: provisioningParameters.accountProvider,
-                                               showCreateAccountButton: false,
-                                               showQRCodeLoginButton: false,
-                                               classicAppMode: nil,
-                                               hideBrandChrome: appSettings.hideBrandChrome,
-                                               registrationRequiresInvite: appSettings.registrationRequiresInvite)
-        } else {
+        } else { // AGENT-PLATFORM (Brief 0083 L1b): no provisioning link branch
             // The default configuration.
-            AuthenticationStartScreenViewState(serverName: nil,
+            AuthenticationStartScreenViewState(serverNameOrBaseURL: nil,
                                                showCreateAccountButton: appSettings.showCreateAccountButton,
                                                showQRCodeLoginButton: isQRCodeScanningSupported && appSettings.qrCodeLoginEnabled,
-                                               classicAppMode: authenticationService.classicAppAccount.map { .welcomeBack($0) },
                                                hideBrandChrome: appSettings.hideBrandChrome,
                                                registrationRequiresInvite: appSettings.registrationRequiresInvite)
         }
         
-        super.init(initialViewState: initialViewState, mediaProvider: mediaProvider)
+        super.init(initialViewState: initialViewState)
         
         // AGENT-PLATFORM (Brief 0073): the invitation arrives through the
         // app coordinator (deep link) or the paste sheet; either way it
@@ -88,12 +70,6 @@ class AuthenticationStartScreenViewModel: AuthenticationStartScreenViewModelType
             .dropFirst()
             .receive(on: DispatchQueue.main)
             .weakAssign(to: \.state.pendingInvite, on: self)
-            .store(in: &cancellables)
-        
-        notificationCenter.publisher(for: UIApplication.didBecomeActiveNotification)
-            .sink { [weak self] _ in
-                self?.reloadClassicAppAccount()
-            }
             .store(in: &cancellables)
     }
     
@@ -131,16 +107,6 @@ class AuthenticationStartScreenViewModel: AuthenticationStartScreenViewModelType
             } else {
                 Task { await register() }
             }
-            
-        case .continueWithClassic(let account):
-            Task { await login(classicAppAccount: account) }
-        case .otherOptions(let account):
-            state.classicAppMode = .otherOptions(account)
-        case .closeOtherOptions(let account):
-            state.classicAppMode = .welcomeBack(account)
-        case .openClassicApp:
-            guard let classicAppDeepLinkURL = InfoPlistReader.main.classicAppDeepLinkURL else { return }
-            appMediator.open(classicAppDeepLinkURL)
             
         case .usePastedInvite:
             Task { await usePastedInvite() }
@@ -187,17 +153,9 @@ class AuthenticationStartScreenViewModel: AuthenticationStartScreenViewModelType
     
     // MARK: - Private
     
-    private func login(classicAppAccount: ClassicAppAccount? = nil) async {
-        if let classicAppAccount {
-            if classicAppAccount.state.availableSecrets == .requiresBackup {
-                state.bindings.showClassicAppBackupInstructions = true
-            } else {
-                await configureAccountProvider(classicAppAccount.serverName,
-                                               loginHint: "mxid:\(classicAppAccount.userID)",
-                                               fallbackHomeserverURL: classicAppAccount.homeserverURL)
-            }
-        } else if let serverName = state.serverName {
-            await configureAccountProvider(serverName, loginHint: provisioningParameters?.loginHint)
+    private func login() async { // AGENT-PLATFORM (Brief 0083 L1b): no Element Classic account
+        if let serverNameOrBaseURL = state.serverNameOrBaseURL {
+            await loginDirectly(using: serverNameOrBaseURL) // AGENT-PLATFORM (Brief 0083 L1b): no provisioning link's login hint
         } else {
             actionsSubject.send(.login) // No need to configure anything here, continue the flow.
         }
@@ -207,31 +165,24 @@ class AuthenticationStartScreenViewModel: AuthenticationStartScreenViewModelType
     // with the single fixed provider we configure it and jump straight to
     // OAuth; only a provider-less build falls through to the legacy flow.
     private func register() async {
-        if let serverName = state.serverName {
-            await configureAccountProvider(serverName, flow: .register)
+        if let serverNameOrBaseURL = state.serverNameOrBaseURL {
+            await loginDirectly(using: serverNameOrBaseURL, flow: .register)
         } else {
             actionsSubject.send(.register)
         }
     }
     
-    private func configureAccountProvider(_ accountProvider: String,
-                                          loginHint: String? = nil,
-                                          fallbackHomeserverURL: URL? = nil,
-                                          flow: AuthenticationFlow = .login) async {
+    // AGENT-PLATFORM (Brief 0083 L1b): no fallback URL, only the Classic account had one.
+    private func loginDirectly(using serverNameOrBaseURL: String,
+                               loginHint: String? = nil,
+                               flow: AuthenticationFlow = .login) async { // AGENT-PLATFORM (ADR-0005): `flow`
         startLoading()
         defer { stopLoading() }
         
-        if case .failure = await authenticationService.configure(for: accountProvider, flow: flow) {
-            // Try the fallback URL before showing an error.
-            if let fallbackHomeserverURL,
-               case .success = await authenticationService.configure(for: fallbackHomeserverURL.absoluteString, flow: flow) {
-                // Fallback succeeded, continue with the flow.
-            } else {
-                // As the server was provisioned, we don't worry about the specifics and show a generic error to the user.
-                // Element Classic accounts aren't shown for unsupported servers either, so nothing to do here.
-                displayError()
-                return
-            }
+        if case .failure = await authenticationService.configure(for: serverNameOrBaseURL, flow: flow) {
+            // As the server was provisioned, we don't worry about the specifics and show a generic error to the user.
+            displayError()
+            return
         }
         
         guard authenticationService.homeserver.value.loginMode.supportsOAuthFlow else {
@@ -249,21 +200,6 @@ class AuthenticationStartScreenViewModel: AuthenticationStartScreenViewModelType
             actionsSubject.send(.loginDirectlyWithOAuth(data: oAuthData, window: window))
         case .failure:
             displayError()
-        }
-    }
-    
-    @CancellableTask private var reloadClassicAppSecretsTask: Task<Void, Never>?
-    private func reloadClassicAppAccount() {
-        guard case let .welcomeBack(classicAppAccount) = state.classicAppMode else { return }
-        
-        reloadClassicAppSecretsTask = Task { [weak self] in
-            await self?.authenticationService.refreshClassicAppAccountState()
-            
-            guard !Task.isCancelled else { return }
-            
-            if let availableSecrets = classicAppAccount.state.availableSecrets, availableSecrets != .requiresBackup {
-                await MainActor.run { self?.state.bindings.showClassicAppBackupInstructions = false }
-            }
         }
     }
     

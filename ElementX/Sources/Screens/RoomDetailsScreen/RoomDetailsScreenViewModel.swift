@@ -40,6 +40,8 @@ class RoomDetailsScreenViewModel: RoomDetailsScreenViewModelType, RoomDetailsScr
     private var actionsSubject: PassthroughSubject<RoomDetailsScreenViewModelAction, Never> = .init()
     // AGENT-PLATFORM (Brief 0072, ADR-0083)
     private var dmPresenceObservation: PresenceObservation?
+    // AGENT-PLATFORM (Brief 0083, question 359)
+    private var dmAgentCardObservation: AgentCardObservation?
     // AGENT-PLATFORM (walk F2): the newest known block state of a person — a
     // block's result or the ignored list — which a later members or room info
     // update, built from a member read before it, must not undo.
@@ -64,14 +66,18 @@ class RoomDetailsScreenViewModel: RoomDetailsScreenViewModelType, RoomDetailsScr
         
         let topic = attributedStringBuilder.fromPlain(roomProxy.infoPublisher.value.topic)
         
-        super.init(initialViewState: .init(details: roomProxy.details,
-                                           isEncrypted: roomProxy.infoPublisher.value.isEncrypted,
-                                           isDirect: roomProxy.infoPublisher.value.isDirect,
-                                           topic: topic,
-                                           topicSummary: topic?.unattributedStringByReplacingNewlinesWithSpaces(),
-                                           joinedMembersCount: roomProxy.infoPublisher.value.joinedMembersCount,
-                                           notificationSettingsState: .loading,
-                                           bindings: .init()),
+        var viewState = RoomDetailsScreenViewState(details: roomProxy.details,
+                                                   isEncrypted: roomProxy.infoPublisher.value.isEncrypted,
+                                                   isDirect: roomProxy.infoPublisher.value.isDirect,
+                                                   topic: topic,
+                                                   topicSummary: topic?.unattributedStringByReplacingNewlinesWithSpaces(),
+                                                   joinedMembersCount: roomProxy.infoPublisher.value.joinedMembersCount,
+                                                   notificationSettingsState: .loading,
+                                                   isNativeCallingEnabled: userSession.userSettings.app.nativeCallEnabled,
+                                                   bindings: .init())
+        // AGENT-PLATFORM (Brief 0083, question 359)
+        viewState.dmUserID = roomProxy.infoPublisher.value.isDM ? roomProxy.infoPublisher.value.dmUserID : nil
+        super.init(initialViewState: userSession.userHooks.roomDetailsScreenHook.update(viewState),
                    mediaProvider: userSession.mediaProvider)
         
         Task {
@@ -93,6 +99,12 @@ class RoomDetailsScreenViewModel: RoomDetailsScreenViewModelType, RoomDetailsScr
                                      canonicalAlias: roomProxy.infoPublisher.value.canonicalAlias)?.webURL
         
         updateRoomInfo(roomProxy.infoPublisher.value)
+        observeDMAgent(state.dmUserID) // AGENT-PLATFORM (Brief 0083, question 359)
+        
+        // AGENT-PLATFORM (Brief 0083, decision 344): the same setting as the room's own threads button.
+        userSession.userSettings.app.threadsEnabledPublisher
+            .weakAssign(to: \.state.areThreadsEnabled, on: self)
+            .store(in: &cancellables)
         
         setupRoomSubscription()
         Task { await fetchMembersIfNeeded() }
@@ -101,12 +113,9 @@ class RoomDetailsScreenViewModel: RoomDetailsScreenViewModelType, RoomDetailsScr
         fetchNotificationSettings()
         
         // AGENT-PLATFORM (decision 192): the agents in this chat.
-        if let agentPlatformService = userSession.agentPlatformService, !roomProxy.infoPublisher.value.isSpace {
+        if let store = userSession.agentsStore, !roomProxy.infoPublisher.value.isSpace {
             state.showsAgentsRow = true
-            Task { [weak self] in
-                guard case .success(let roomTools) = await agentPlatformService.fetchRoomTools(roomID: roomProxy.id) else { return }
-                self?.state.agentsCount = roomTools.agents.count
-            }
+            showRoomTools(in: store)
         }
     }
     
@@ -118,6 +127,8 @@ class RoomDetailsScreenViewModel: RoomDetailsScreenViewModelType, RoomDetailsScr
         // AGENT-PLATFORM (Brief 0072, ADR-0083): kept, cancelled — a late room
         // info update must not start it again.
         dmPresenceObservation?.cancel()
+        dmAgentCardObservation?.cancel() // AGENT-PLATFORM (Brief 0083, question 359)
+        userSession.agentsStore?.stopShowing(roomToolsResource, by: self) // AGENT-PLATFORM (Brief 0083, question 359)
     }
     
     override func process(viewAction: RoomDetailsScreenViewAction) {
@@ -169,12 +180,21 @@ class RoomDetailsScreenViewModel: RoomDetailsScreenViewModelType, RoomDetailsScr
             actionsSubject.send(.displayPinnedEventsTimeline)
         case .processTapMediaEvents:
             actionsSubject.send(.displayMediaEventsTimeline)
+        case .processTapThreads: // AGENT-PLATFORM (Brief 0083, decision 344)
+            actionsSubject.send(.displayThreadList)
+        case .processTapAgentRow(let row): // AGENT-PLATFORM (Brief 0083, question 359)
+            guard let card = state.ownAgentCard else { return }
+            actionsSubject.send(.openAgentRow(row, card: card))
+        case .copyAgentHandle: // AGENT-PLATFORM (Brief 0083, question 359)
+            copyAgentHandle()
+        case .appeared: // AGENT-PLATFORM (Brief 0083, question 359)
+            dmAgentCardObservation?.readAgainIfUnknown()
         case .processTapRequestsToJoin:
             actionsSubject.send(.displayKnockingRequests)
         case .processTapSecurityAndPrivacy:
             actionsSubject.send(.displaySecurityAndPrivacy)
         case .processTapRecipientProfile:
-            guard let userID = state.dmRecipientInfo?.member.id else {
+            guard let userID = state.dmUserID else { // AGENT-PLATFORM (Brief 0083, question 359)
                 return
             }
             actionsSubject.send(.requestRecipientDetailsPresentation(userID: userID))
@@ -314,6 +334,10 @@ class RoomDetailsScreenViewModel: RoomDetailsScreenViewModelType, RoomDetailsScr
         state.details = roomProxy.details
         state.details.historySharingState = roomInfo.historySharingState
         
+        // AGENT-PLATFORM (Brief 0083, decision 344): the action row offers Join as the room's bar does.
+        state.hasOngoingCall = roomInfo.hasRoomCall
+        state.activeRoomCallIntent = roomInfo.activeRoomCallIntent
+        
         let topic = attributedStringBuilder.fromPlain(roomInfo.topic)
         state.topic = topic
         state.topicSummary = topic?.unattributedStringByReplacingNewlinesWithSpaces()
@@ -349,9 +373,46 @@ class RoomDetailsScreenViewModel: RoomDetailsScreenViewModelType, RoomDetailsScr
         state.dmRecipientPresence = nil
         dmPresenceObservation = PresenceObservation(userID: dmUserID,
                                                     ownUserID: roomProxy.ownUserID,
-                                                    service: userSession.presenceObserverService) { [weak self] presence in
+                                                    service: userSession.presenceObserverService,
+                                                    agentsStore: userSession.agentsStore) { [weak self] presence in
             self?.state.dmRecipientPresence = presence
         }
+    }
+    
+    // AGENT-PLATFORM (Brief 0083, question 359): whose the DM's other side is, from the store.
+    private func observeDMAgent(_ userID: String?) {
+        guard userID != dmAgentCardObservation?.userID else { return }
+        dmAgentCardObservation = nil
+        state.agentOwnership = .unknown(isReading: false)
+        dmAgentCardObservation = AgentCardObservation(userID: userID, store: userSession.agentsStore) { [weak self] ownership in
+            self?.state.agentOwnership = ownership
+        }
+    }
+    
+    private var roomToolsResource: AgentsResource {
+        .roomTools(roomID: roomProxy.id)
+    }
+    
+    // AGENT-PLATFORM (Brief 0083, question 359): others' agents never come on the owner's stream, so it's read again here.
+    private func showRoomTools(in store: AgentsStore) {
+        let resource = roomToolsResource
+        state.agentsCount = store.value(resource)?.roomTools?.agents.count
+        store.observe { [weak self] in
+            guard let self else { return false }
+            let count = store.value(resource)?.roomTools?.agents.count
+            if state.agentsCount != count {
+                state.agentsCount = count
+            }
+            return true
+        }
+        store.show(resource, by: self)
+        store.refresh(resource)
+    }
+    
+    private func copyAgentHandle() {
+        guard let handle = state.ownAgentCard?.matrixUserID else { return }
+        UIPasteboard.general.string = handle
+        userIndicatorController.submitIndicator(UserIndicator(title: L10n.commonCopiedToClipboard, icon: \.check))
     }
     
     private func fetchMembersIfNeeded() async {
@@ -365,16 +426,11 @@ class RoomDetailsScreenViewModel: RoomDetailsScreenViewModelType, RoomDetailsScr
                 
                 guard roomInfo.isDM else {
                     self.state.dmRecipientInfo = nil
+                    self.setDMUserID(nil) // AGENT-PLATFORM (Brief 0083, question 359)
                     return
                 }
                 
-                // AGENT-PLATFORM: Keep DM actions aligned with the hero shown in the room header.
-                // The SDK member iterator includes left members, including historical agents.
-                let activeRecipients = members.filter { $0.userID != ownUserID && $0.isActive }
-                let heroRecipient = roomInfo.heroes.count == 1
-                    ? activeRecipients.first { $0.userID == roomInfo.heroes[0].userId }
-                    : nil
-                let dmRecipient = heroRecipient ?? (activeRecipients.count == 1 ? activeRecipients[0] : nil)
+                let dmRecipient = Self.dmRecipient(among: members, ownUserID: ownUserID, roomInfo: roomInfo)
                 self.state.dmRecipientInfo = dmRecipient.map { recipient in
                     var member = RoomMemberDetails(withProxy: recipient)
                     // AGENT-PLATFORM (walk F2): the member may predate the last block.
@@ -383,14 +439,39 @@ class RoomDetailsScreenViewModel: RoomDetailsScreenViewModelType, RoomDetailsScr
                     }
                     return .init(member: member)
                 }
-
-                if dmRecipient != nil {
+                if let dmRecipient { // AGENT-PLATFORM (Brief 0083, question 359)
+                    self.setDMUserID(dmRecipient.userID)
                     Task { await self.updateMemberIdentityVerificationStates() }
                 }
             }
             .store(in: &cancellables)
         
         await roomProxy.updateMembers()
+        
+        // AGENT-PLATFORM (Brief 0083, question 359): the members have the last word over the room info, or a room whose
+        // other side has left would hold its Block placeholder for ever. An empty list is no answer: the read failed.
+        let members = roomProxy.membersPublisher.value
+        if !members.isEmpty, Self.dmRecipient(among: members, ownUserID: roomProxy.ownUserID, roomInfo: roomProxy.infoPublisher.value) == nil {
+            setDMUserID(nil)
+        }
+    }
+    
+    // AGENT-PLATFORM (Brief 0083, question 359)
+    private func setDMUserID(_ userID: String?) {
+        if state.dmUserID != userID {
+            state.dmUserID = userID
+        }
+        observeDMAgent(userID)
+    }
+    
+    // AGENT-PLATFORM: Keep DM actions aligned with the hero shown in the room header.
+    // The SDK member iterator includes left members, including historical agents.
+    private static func dmRecipient(among members: [RoomMemberProxyProtocol], ownUserID: String, roomInfo: RoomInfoProxyProtocol) -> RoomMemberProxyProtocol? {
+        let activeRecipients = members.filter { $0.userID != ownUserID && $0.isActive }
+        let heroRecipient = roomInfo.heroes.count == 1
+            ? activeRecipients.first { $0.userID == roomInfo.heroes[0].userId }
+            : nil
+        return heroRecipient ?? (activeRecipients.count == 1 ? activeRecipients[0] : nil)
     }
     
     private func updateMemberIdentityVerificationStates() async {
@@ -410,11 +491,10 @@ class RoomDetailsScreenViewModel: RoomDetailsScreenViewModelType, RoomDetailsScr
             }
         } else {
             for member in roomProxy.membersPublisher.value {
-                if case let .success(userIdentity) = await userSession.clientProxy.userIdentity(for: member.userID, fallBackToServer: false) {
-                    if userIdentity?.verificationState == .verificationViolation {
-                        state.hasMemberIdentityVerificationStateViolations = true
-                        return
-                    }
+                if case let .success(userIdentity) = await userSession.clientProxy.userIdentity(for: member.userID, fallBackToServer: false),
+                   userIdentity?.verificationState == .verificationViolation {
+                    state.hasMemberIdentityVerificationStateViolations = true
+                    return
                 }
             }
             
@@ -550,11 +630,7 @@ class RoomDetailsScreenViewModel: RoomDetailsScreenViewModelType, RoomDetailsScr
                 userIndicatorController.retractIndicatorWithId(loadingIndicatorIdentifier)
             }
             
-            // We don't actually know the mime type here, assume it's an image.
-            if let mediaSource = try? MediaSourceProxy(url: url, mimeType: "image/jpeg"),
-               case let .success(file) = await userSession.mediaProvider.loadFileFromSource(mediaSource) {
-                state.bindings.mediaPreviewItem = MediaPreviewItem(file: file, title: roomProxy.infoPublisher.value.displayName)
-            }
+            state.bindings.mediaPreviewItem = await MediaPreviewItem.load(from: url, title: roomProxy.infoPublisher.value.displayName, using: userSession.mediaProvider)
         }
     }
     

@@ -25,10 +25,20 @@ public struct ListRowButtonStyle: PrimitiveButtonStyle {
     
     /// Inner style used to set the pressed background colour.
     struct Style: ButtonStyle {
+        @Environment(\.listRowFill) private var fill // AGENT-PLATFORM (Brief 0083): `spiralGroupedList()` sets it.
+        
+        /// AGENT-PLATFORM: draws the pressed state, so the previews can show it.
+        fileprivate var isPressedInPreview = false
+        
         func makeBody(configuration: Configuration) -> some View {
             configuration.label
                 .contentShape(Rectangle())
-                .background(configuration.isPressed ? Color.compound.bgSubtlePrimary : .compound.bgCanvasDefaultLevel1)
+                // AGENT-PLATFORM: Spiral's bgSubtlePrimary is the row's own white in light mode, so the
+                // press darkens the row instead (bgActionSecondaryPressed is a translucent gray).
+                .background {
+                    fill // AGENT-PLATFORM (Brief 0083): was `Color.compound.bgCanvasDefaultLevel1`.
+                        .overlay(configuration.isPressed || isPressedInPreview ? Color.compound.bgActionSecondaryPressed : .clear)
+                }
         }
     }
 }
@@ -44,6 +54,9 @@ public struct ListRowButtonStyle_Previews: PreviewProvider, TestablePreview {
             Section {
                 Button("Title") { }
                     .buttonStyle(ListRowButtonStyle.Style())
+                // AGENT-PLATFORM: the pressed row.
+                Button("Pressed") { }
+                    .buttonStyle(ListRowButtonStyle.Style(isPressedInPreview: true))
             }
             .listRowInsets(EdgeInsets())
             

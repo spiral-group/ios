@@ -25,8 +25,9 @@ nonisolated struct EventTimelineItemSDKMockConfiguration {
     // AGENT-PLATFORM (Brief 0066 § 5.89): was a fixed `nil`; the agent-tools
     // fallback is recognised by its raw JSON.
     var originalJSON: String?
+    // AGENT-PLATFORM (Brief 0066): reactions moved off `MsgLikeContent` in the 26.10 SDK; the post tests set them.
+    var reactions: [Reaction] = []
     var content: TimelineItemContent = .msgLike(content: .init(kind: .redacted,
-                                                               reactions: [],
                                                                inReplyTo: nil,
                                                                threadRoot: nil,
                                                                threadSummary: nil))
@@ -47,9 +48,12 @@ nonisolated extension EventTimelineItem {
                   isOwn: configuration.isOwn,
                   isEditable: configuration.isEditable,
                   content: configuration.content,
+                  reactions: configuration.reactions,
                   eventTypeRaw: nil,
                   timestamp: UInt64(Date.mock.timeIntervalSince1970 * 1000),
                   localSendState: nil,
+                  editSendState: nil,
+                  redactionSendState: nil,
                   localCreatedAt: nil,
                   readReceipts: configuration.readReceipts,
                   origin: nil,
@@ -65,7 +69,6 @@ nonisolated extension EventTimelineItem {
                                                                                                body: body,
                                                                                                isEdited: false,
                                                                                                mentions: nil)),
-                                                                 reactions: [],
                                                                  inReplyTo: nil,
                                                                  threadRoot: nil,
                                                                  threadSummary: nil))
@@ -129,7 +132,6 @@ nonisolated extension EventTimelineItem {
                                                                                                body: title,
                                                                                                isEdited: isEdited,
                                                                                                mentions: nil)),
-                                                                 reactions: reactions,
                                                                  inReplyTo: nil,
                                                                  threadRoot: nil,
                                                                  threadSummary: nil))
@@ -138,6 +140,7 @@ nonisolated extension EventTimelineItem {
                                           isEditable: false,
                                           canBeRepliedTo: true,
                                           readReceipts: readReceipts,
+                                          reactions: reactions,
                                           content: content))
     }
     
@@ -152,7 +155,38 @@ nonisolated extension EventTimelineItem {
                                                                                                body: body,
                                                                                                isEdited: false,
                                                                                                mentions: nil)),
-                                                                 reactions: [],
+                                                                 inReplyTo: nil,
+                                                                 threadRoot: nil,
+                                                                 threadSummary: nil))
+        return .init(configuration: .init(sender: sender, content: content))
+    }
+    
+    // AGENT-PLATFORM (decision 371)
+    /// A call's summary as the SDK fork hands it over, its facts as written in `facts`.
+    static func mockCallSummary(sender: String, facts: String, body: String = "The whole summary") -> EventTimelineItem {
+        let messageType = MessageType.other(msgtype: SpiralNotice.msgtype,
+                                            body: body,
+                                            data: #"{"com.spiral.notice":\#(facts)}"#)
+        let content = TimelineItemContent.msgLike(content: .init(kind: .message(content: .init(msgType: messageType,
+                                                                                               body: body,
+                                                                                               isEdited: false,
+                                                                                               mentions: nil)),
+                                                                 inReplyTo: nil,
+                                                                 threadRoot: nil,
+                                                                 threadSummary: nil))
+        return .init(configuration: .init(sender: sender, content: content))
+    }
+    
+    // AGENT-PLATFORM (security pass 2, M1): a generated post's draft, as any
+    // sender may write it.
+    static func mockInteractiveDraft(sender: String, body: String = "Draft: Poll") -> EventTimelineItem {
+        let draft = InteractiveDraftContent(body: body, title: "Poll", aspect: "1:1",
+                                            manifestJson: "{}", source: "", sha256: String(repeating: "0", count: 64),
+                                            version: 1, generatedByAgentId: nil, targetRoomId: "!elsewhere:spiral.md")
+        let content = TimelineItemContent.msgLike(content: .init(kind: .message(content: .init(msgType: .interactiveDraft(content: draft),
+                                                                                               body: body,
+                                                                                               isEdited: false,
+                                                                                               mentions: nil)),
                                                                  inReplyTo: nil,
                                                                  threadRoot: nil,
                                                                  threadSummary: nil))
@@ -166,7 +200,6 @@ nonisolated extension EventTimelineItem {
     /// the raw JSON says what the event is — which is what the factory reads.
     static func mockOtherMessageLike(sender: String, originalJSON: String) -> EventTimelineItem {
         let content = TimelineItemContent.msgLike(content: .init(kind: .other(eventType: .roomMessage),
-                                                                 reactions: [],
                                                                  inReplyTo: nil,
                                                                  threadRoot: nil,
                                                                  threadSummary: nil))

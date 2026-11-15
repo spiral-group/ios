@@ -50,6 +50,8 @@ struct OutreachQueueListScreenViewState: BindableState {
     /// `nil` = "All" filter; otherwise filters the list to the
     /// chosen status.
     var statusFilter: OutreachTargetStatus?
+    /// The sync's state at the top while the stream is not live (decision 289).
+    var syncStatus: PlatformSyncStatus?
     var bindings: OutreachQueueListScreenViewStateBindings
 
     /// Helper for the empty-state copy: "All caught up" vs
@@ -70,8 +72,8 @@ enum OutreachQueueListScreenAlertType: Hashable {
 // MARK: - View → ViewModel actions
 
 enum OutreachQueueListScreenViewAction {
-    case appeared
-    case refresh
+    /// The retry of a failed read.
+    case retry
     case selectFilter(OutreachTargetStatus?)
     case openAddTargets
     case dismiss

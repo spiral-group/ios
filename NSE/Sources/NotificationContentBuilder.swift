@@ -15,7 +15,6 @@ import Version
 
 nonisolated struct NotificationContentBuilder {
     let messageEventStringBuilder: RoomMessageEventStringBuilder
-    let notificationSoundName: UNNotificationSoundName
     let userSession: NSEUserSessionProtocol
     
     /// Process the given notification item proxy
@@ -33,6 +32,7 @@ nonisolated struct NotificationContentBuilder {
         switch notificationItem.event {
         case .timeline(let event):
             notificationContent.eventID = event.eventId()
+            notificationContent.eventDate = Date(timeIntervalSince1970: TimeInterval(event.timestamp()) / 1000)
         case .invite, .none:
             notificationContent.eventID = nil
         }
@@ -49,7 +49,7 @@ nonisolated struct NotificationContentBuilder {
         notificationContent.threadIdentifier = threadIdentifier.replacingOccurrences(of: "@", with: "")
         
         MXLog.info("isNoisy: \(notificationItem.isNoisy)")
-        notificationContent.sound = notificationItem.isNoisy ? .init(named: notificationSoundName) : nil
+        notificationContent.sound = notificationItem.isNoisy ? userSession.userSettings.account.notificationSound : nil
         
         switch notificationItem.event {
         case .none:
@@ -345,7 +345,7 @@ nonisolated struct NotificationContentBuilder {
     @MainActor
     static func getPlaceholderAvatarImageData(name: String, id: String) async -> Data? {
         // The version value is used in case the design of the placeholder is updated to force a replacement
-        let prefix = "notification_placeholderV9"
+        let prefix = "notification_placeholderV10" // AGENT-PLATFORM (Brief 0083, decision 328): the monogram replaced Element's pastel letter.
         
         let fileName = "\(prefix)_\(name)_\(id).png"
         if let data = try? Data(contentsOf: URL.temporaryDirectory.appendingPathComponent(fileName)) {

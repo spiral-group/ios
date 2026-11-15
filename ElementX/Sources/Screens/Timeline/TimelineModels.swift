@@ -22,7 +22,7 @@ enum TimelineViewModelAction {
     case displayEditPollForm(eventID: String, poll: Poll)
     case displayMediaUploadPreviewScreen(mediaURLs: [URL])
     case displaySenderDetails(userID: String)
-    case displayMessageForwarding(forwardingItem: MessageForwardingItem)
+    case displayMessageForwarding(forwardingPayload: MessageForwardingPayload)
     case displayMediaPreview(TimelineMediaPreviewViewModel)
     case displayLocation(StaticLocationData)
     case displayLiveLocation(sender: TimelineItemSender, initialLiveLocationShare: LiveLocationShare)
@@ -80,11 +80,18 @@ enum TimelineViewAction {
     
     case displayTimelineItemMenu(itemID: TimelineItemIdentifier)
     case handleTimelineItemMenuAction(itemID: TimelineItemIdentifier, action: TimelineItemMenuAction)
+    /// The user has confirmed the removal of an item, optionally giving a reason.
+    case redactConfirmed(itemID: TimelineItemIdentifier, reason: String?)
+    
+    /// Add or remove an item from the active multi-selection.
+    case toggleMessageSelection(itemID: TimelineItemIdentifier)
+    case clearMessageSelection
+    /// Forward the selected messages, in timeline order.
+    case forwardMessageSelection
     
     case tappedOnSenderDetails(sender: TimelineItemSender)
     case displayReactionSummary(itemID: TimelineItemIdentifier, key: String)
     case displayEmojiPicker(itemID: TimelineItemIdentifier)
-    case displayReadReceipts(itemID: TimelineItemIdentifier)
     case displayThread(itemID: TimelineItemIdentifier)
     
     case handlePasteOrDrop(providers: [NSItemProvider])
@@ -99,8 +106,12 @@ enum TimelineViewAction {
     case focusLive
     /// The timeline scrolled to reveal the focussed item.
     case scrolledToFocussedItem
+    /// A person scrolled the focussed item off screen.
+    case scrolledAwayFromFocussedItem
     /// The table view has loaded the first items for a new timeline.
     case hasSwitchedTimeline
+    /// AGENT-PLATFORM (Brief 0083, question 363): the table has settled where the chat opens.
+    case hasSettledOpening(isAwayFromEnd: Bool)
     
     case hasScrolled(direction: ScrollDirection)
     
@@ -122,8 +133,16 @@ struct TimelineViewState: BindableState {
     /// The gallery attachments the timeline includes, or `nil` when it isn't filtered.
     let allowedGalleryItemTypes: [TimelineAllowedGalleryItemType]?
     var roomID: String
-    var members: [String: RoomMemberState] = [:]
+    var members: [String: RoomMemberState] = [:] {
+        didSet { membersRevision.value += 1 } // AGENT-PLATFORM (Brief 0083, question 359)
+    }
+    let membersRevision = TimelineMembersRevision()
+    let rowMotion = TimelineRowMotion() // AGENT-PLATFORM (Brief 0083, question 359)
     var typingMembers: [String] = []
+    var headerTyping: RoomHeaderView.Typing { // AGENT-PLATFORM (Brief 0083, question 359)
+        .init(members: typingMembers, isDM: isDM)
+    }
+    
     var showLoading = false
     var showReadReceipts = false
     var isDM = false
@@ -143,6 +162,8 @@ struct TimelineViewState: BindableState {
     var areThreadsEnabled: Bool
     var linkPreviewsEnabled: Bool
     var jumpToReadMarkerEnabled: Bool
+    
+    var messageSelection = TimelineMessageSelectionState()
     
     let hasPredecessor: Bool
     
@@ -202,7 +223,7 @@ struct TimelineViewState: BindableState {
     
     var linkMetadataProvider: LinkMetadataProviderProtocol?
     
-    var mapTilerSettings: MapTilerSettings
+    var mapTilerConfiguration: MapTilerConfiguration
     
     var stoppedLiveLocationIDs: Set<TimelineItemIdentifier> = []
     
@@ -216,9 +237,9 @@ struct TimelineViewStateBindings {
     /// Used to hide the jump-to-unread button once the user has scrolled to the read marker.
     var isReadMarkerVisible = false
     
-    /// Whether new messages have arrived while the user is scrolled away from the bottom of a
-    /// live timeline. Drives the presence dot on the scroll-to-bottom button and resets when the
-    /// user returns to the bottom.
+    /// Whether a new row from someone else has arrived while the user is scrolled away from the
+    /// bottom of a live timeline. Drives the presence dot on the scroll-to-bottom button and resets
+    /// when the user returns to the bottom.
     var hasNewMessagesAtBottom = false
     
     /// The timestamp of the topmost visible item, used to drive the floating date badge while scrolling.
@@ -227,6 +248,9 @@ struct TimelineViewStateBindings {
     /// The state of wether reactions listed on the timeline are expanded/collapsed.
     /// Key is itemID, value is the collapsed state.
     var reactionsCollapsed: [TimelineItemIdentifier: Bool]
+    
+    /// AGENT-PLATFORM (decision 371): the long call summaries the reader has opened.
+    var expandedCallSummaries = Set<TimelineItemIdentifier>()
     
     var alertInfo: AlertInfo<TimelineAlertInfoType>?
     
@@ -242,8 +266,37 @@ struct TimelineViewStateBindings {
     
     var manageMemberViewModel: ManageRoomMemberSheetViewModel?
     
+    var redactConfirmationInfo: TimelineRedactConfirmationInfo?
+    
     var showTranslation = false
     var textToBeTranslated: String?
+}
+
+/// The state of the multi-selection of messages.
+struct TimelineMessageSelectionState: Equatable {
+    static let limit = 10
+    
+    /// Stays on when every message is unselected, it only ends when closed or once the messages are forwarded.
+    var isActive = false
+    var selectedEventIDs: Set<String> = []
+    
+    var count: Int {
+        selectedEventIDs.count
+    }
+    
+    var isAtLimit: Bool {
+        count >= Self.limit
+    }
+    
+    func contains(_ eventID: String?) -> Bool {
+        guard let eventID else { return false }
+        return selectedEventIDs.contains(eventID)
+    }
+    
+    mutating func end() {
+        isActive = false
+        selectedEventIDs.removeAll()
+    }
 }
 
 struct TimelineItemActionMenuInfo: Equatable, Identifiable {
@@ -267,15 +320,27 @@ struct ReactionSummaryInfo: Identifiable {
     }
 }
 
+extension TimelineViewState {
+    /// Whether the message's menu offers "Seen by".
+    func hasReaders(_ timelineItem: RoomTimelineItemProtocol) -> Bool {
+        showReadReceipts && !timelineState.readProgress.readers(of: timelineItem.id.uniqueID).isEmpty
+    }
+}
+
 struct ReadReceiptSummaryInfo: Identifiable {
     let orderedReceipts: [ReadReceipt]
+    let id: TimelineItemIdentifier
+}
+
+/// The item that the user has asked to remove and must confirm, optionally giving a reason.
+struct TimelineRedactConfirmationInfo: Identifiable {
     let id: TimelineItemIdentifier
 }
 
 enum TimelineAlertInfoType: Hashable {
     case audioRecodingPermissionError
     case pollEndConfirmation(String)
-    case sendingFailed
+    case sendingFailed(reason: String?, itemID: TimelineItemIdentifier, target: SendTarget?)
     case encryptionAuthenticity(String)
     case encryptionForwarder(String)
     case inviteAgain
@@ -283,7 +348,7 @@ enum TimelineAlertInfoType: Hashable {
     case unknown
 }
 
-struct RoomMemberState {
+struct RoomMemberState: Equatable {
     let displayName: String?
     let avatarURL: URL?
     let status: UserStatus
@@ -297,6 +362,22 @@ struct TimelineState {
     
     /// The room is in the process of loading items from a new timeline (switching to/from a detached timeline).
     var isSwitchingTimelines = false
+    
+    /// AGENT-PLATFORM (Brief 0083, question 363): where the room's live timeline opens. Nothing counts as read until it's settled.
+    enum Opening: Equatable {
+        /// No rows yet.
+        case undecided
+        /// The unread starts above the loaded rows. The table shows nothing until they're in, so the end never flashes by.
+        case loadingRows
+        /// At this row, unless it's on screen from the end.
+        case atRow(TimelineItemIdentifier.UniqueID)
+        /// Left to the person.
+        case settled
+        /// You left before it settled. Nothing more loads, and nothing counts as read.
+        case abandoned
+    }
+    
+    var opening = Opening.settled
     
     struct FocussedEvent: Equatable {
         enum Appearance {
@@ -322,7 +403,12 @@ struct TimelineState {
     var scrollToFirstItemForDatePublisher = PassthroughSubject<Void, Never>()
     var scrollToReadMarkerPublisher = PassthroughSubject<TimelineItemIdentifier.UniqueID, Never>()
     
-    var itemsDictionary = OrderedDictionary<TimelineItemIdentifier.UniqueID, RoomTimelineItemViewState>()
+    var itemsDictionary = OrderedDictionary<TimelineItemIdentifier.UniqueID, RoomTimelineItemViewState>() {
+        didSet { buildID += 1 } // AGENT-PLATFORM (Brief 0083, question 359)
+    }
+    
+    /// Which build of ``itemsDictionary`` this is, so the table can tell without comparing the rows on every update of the state.
+    private(set) var buildID = 0
     
     var uniqueIDs: [TimelineItemIdentifier.UniqueID] {
         itemsDictionary.keys.elements
@@ -340,6 +426,14 @@ struct TimelineState {
     /// signal when ``readMarkerUniqueID`` is nil because the marker event isn't paginated
     /// into the loaded timeline window.
     var fullyReadEventID: String?
+    /// AGENT-PLATFORM (Brief 0083, question 364): `m.fully_read` is on an event that's among the rows but isn't one, such as a
+    /// reaction. It's not above them, so nothing need wait for a back-pagination to bring it in.
+    var isFullyReadWithoutRow = false
+    
+    /// AGENT-PLATFORM (Brief 0083, question 357): how far the room has read.
+    var readProgress = TimelineReadProgress()
+    /// The own messages that show two ticks, worked out once per update and not per row.
+    var readOwnItemIDs = Set<TimelineItemIdentifier.UniqueID>()
     
     /// Recomputes ``readMarkerUniqueID`` from ``itemsDictionary``. Call after assigning a new
     /// value to ``itemsDictionary``.
@@ -352,8 +446,21 @@ struct TimelineState {
         }?.key
     }
     
+    /// AGENT-PLATFORM (Brief 0083, question 359): whether the read marker lies above the loaded rows, so it's for a back-pagination
+    /// to bring it in. If the event is loaded and no virtual item was inserted, the user is caught up: there's no marker to find.
+    var isReadMarkerAboveLoadedRows: Bool {
+        guard let fullyReadEventID, !isFullyReadWithoutRow else { return false }
+        return !itemsDictionary.isEmpty && !hasLoadedItem(with: fullyReadEventID)
+    }
+    
     func hasLoadedItem(with eventID: String) -> Bool {
-        itemViewStates.contains { $0.identifier.eventID == eventID }
+        itemViewStates.contains { viewState in
+            // AGENT-PLATFORM (Brief 0083, question 359): a folded row is loaded too.
+            if case .group(let group) = viewState.type {
+                return group.itemIDs.contains { $0.eventID == eventID }
+            }
+            return viewState.identifier.eventID == eventID
+        }
     }
 }
 
@@ -363,6 +470,14 @@ enum ScrollDirection: Equatable {
 }
 
 extension TimelineViewState {
+    /// Multi-selection is offered everywhere but the media timelines.
+    var canSelectMessages: Bool {
+        switch timelineKind {
+        case .live, .detached, .thread, .pinned: true
+        case .media: false
+        }
+    }
+    
     /// The user is at the bottom of a live timeline (no jump-to-bottom button needed).
     var isAtBottomAndLive: Bool {
         bindings.isScrolledToBottom && timelineState.isLive
@@ -379,21 +494,26 @@ extension TimelineViewState {
     /// Primary path: the SDK has materialised a virtual `ReadMarker` item in the
     /// loaded timeline window. Show while it isn't visible in the viewport.
     ///
-    /// Fallback path: the marker event is older than the loaded window, so no
-    /// virtual item exists. Show only when items have actually loaded AND the
-    /// marker event isn't among them — if the marker IS loaded but no virtual
-    /// item was inserted, the user is caught up (no events newer than the marker)
-    /// and there's nothing to jump to.
+    /// Fallback path: the marker event is older than the loaded window, so no virtual item exists.
     var shouldShowJumpToReadMarker: Bool {
         guard jumpToReadMarkerEnabled else { return false }
         if timelineState.readMarkerUniqueID != nil {
             return !bindings.isReadMarkerVisible
         }
-        guard let fullyReadEventID = timelineState.fullyReadEventID else {
-            return false
-        }
-        return !timelineState.itemsDictionary.isEmpty
-            && !timelineState.hasLoadedItem(with: fullyReadEventID)
+        return timelineState.isReadMarkerAboveLoadedRows
+    }
+    
+    /// AGENT-PLATFORM (Brief 0083, question 359): whether the scroll-to-bottom button's long press offers "Mark as read". The
+    /// dot is for everyone, this isn't.
+    var offersMarkAsReadOnScrollToBottom: Bool {
+        jumpToReadMarkerEnabled && bindings.hasNewMessagesAtBottom
+    }
+    
+    /// AGENT-PLATFORM (Brief 0083, question 359): a member for a row to draw. The row isn't observing this state,
+    /// so reading `members` directly would keep what it found when it was built; the view asking this redraws when they change.
+    func member(_ userID: String) -> RoomMemberState? {
+        _ = membersRevision.value
+        return members[userID]
     }
     
     /// The string shown as the message preview.
@@ -410,7 +530,7 @@ extension TimelineViewState {
         let range = NSRange(location: 0, length: attributedString.length)
         attributedString.enumerateAttributes(in: range) { attributes, range, _ in
             if let userID = attributes[.MatrixUserID] as? String {
-                if let displayName = members[userID]?.displayName {
+                if let displayName = member(userID)?.displayName {
                     attributedString.replaceCharacters(in: range, with: "@\(displayName)")
                 } else {
                     attributedString.replaceCharacters(in: range, with: userID)

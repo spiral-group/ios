@@ -10,6 +10,7 @@
 //
 
 import Compound
+import SpiralComponents
 import SwiftUI
 
 struct LanguagePickerScreen: View {
@@ -70,11 +71,7 @@ struct LanguagePickerScreen: View {
 
     private var emptySection: some View {
         Section {
-            Text(UntranslatedL10n.screenLanguagePickerEmpty)
-                .font(.compound.bodyMD)
-                .foregroundStyle(.compound.textSecondary)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 40)
+            SpiralEmptyState(symbol: .magnifyingglass, title: L10n.commonNoResults, message: UntranslatedL10n.screenLanguagePickerEmpty)
                 .listRowBackground(Color.clear)
         }
     }
@@ -83,16 +80,26 @@ struct LanguagePickerScreen: View {
 // MARK: - Previews
 
 struct LanguagePickerScreen_Previews: PreviewProvider, TestablePreview {
-    static let viewModel = LanguagePickerScreenViewModel(languages: [AgentLanguage(code: "en", displayName: "English"),
-                                                                     AgentLanguage(code: "uk", displayName: "Українська"),
-                                                                     AgentLanguage(code: "ru", displayName: "Русский"),
-                                                                     AgentLanguage(code: "de", displayName: "Deutsch"),
-                                                                     AgentLanguage(code: "fr", displayName: "Français")],
-                                                         selectedCode: "uk")
+    static let languages = [AgentLanguage(code: "en", displayName: "English"),
+                            AgentLanguage(code: "uk", displayName: "Українська"),
+                            AgentLanguage(code: "ru", displayName: "Русский"),
+                            AgentLanguage(code: "de", displayName: "Deutsch"),
+                            AgentLanguage(code: "fr", displayName: "Français")]
+    static let viewModel = LanguagePickerScreenViewModel(languages: languages, selectedCode: "uk")
+    static let noResultsViewModel = {
+        let viewModel = LanguagePickerScreenViewModel(languages: languages, selectedCode: "uk")
+        viewModel.context.searchQuery = "Klingon"
+        return viewModel
+    }()
 
     static var previews: some View {
         ElementNavigationStack {
             LanguagePickerScreen(context: viewModel.context)
         }
+
+        ElementNavigationStack {
+            LanguagePickerScreen(context: noResultsViewModel.context)
+        }
+        .previewDisplayName("No results")
     }
 }

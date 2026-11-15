@@ -5,14 +5,44 @@
 // formatted text, the way an HTML message does.
 //
 
-@testable import ElementX
+import Foundation
 import MatrixRustSDK
+@testable import Spiral
 import Testing
 
 @MainActor
 struct SpiralAgentMarkdownTests {
     /// What `messenger.compose_structured_reply` posts for a heading, two bullets and a quote.
     static let structuredReply = "**Summary**\n\n• First point\n\n• Second point\n\n> Worth a look"
+    
+    // AGENT-PLATFORM (Brief 0083, question 359)
+    @Test
+    func aBodyAskedForAgainReadsTheSame() {
+        let body = "**Twice** \(UUID())"
+        
+        #expect(SpiralAgentMarkdown.html(fromBody: body) != nil)
+        #expect(SpiralAgentMarkdown.html(fromBody: body) == SpiralAgentMarkdown.html(fromBody: body))
+    }
+    
+    @Test
+    func aBodyWithNoMarkdownStaysPlainWhenAskedForAgain() {
+        let body = "Plain \(UUID())"
+        
+        #expect(SpiralAgentMarkdown.html(fromBody: body) == nil)
+        #expect(SpiralAgentMarkdown.html(fromBody: body) == nil)
+    }
+    
+    @Test
+    func aBodyIsRenderedOnce() {
+        let line = "**Heading**\n> a quote\n- an item with `code` in it\n"
+        let bodies = (0..<200).map { String(repeating: line, count: 20) + "\($0) \(UUID())" }
+        let clock = ContinuousClock()
+        
+        let first = clock.measure { bodies.forEach { _ = SpiralAgentMarkdown.html(fromBody: $0) } }
+        let again = clock.measure { bodies.forEach { _ = SpiralAgentMarkdown.html(fromBody: $0) } }
+        
+        #expect(again * 3 < first)
+    }
     
     @Test
     func aStructuredReplyBecomesHTML() throws {
@@ -51,7 +81,6 @@ struct SpiralAgentMarkdownTests {
                                                                                                body: body,
                                                                                                isEdited: false,
                                                                                                mentions: nil)),
-                                                                 reactions: [],
                                                                  inReplyTo: nil,
                                                                  threadRoot: nil,
                                                                  threadSummary: nil))

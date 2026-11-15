@@ -6,8 +6,8 @@
 // one post, and nothing bigger than a move needs.
 //
 
-@testable import ElementX
 import Foundation
+@testable import Spiral
 import Testing
 
 @MainActor
@@ -53,10 +53,11 @@ struct SpiralAppPrivateStoreTests {
         let session = SpiralAppPreviewSession(userID: "@a:x", members: [:])
 
         let write = await session.answer(method: "state.private.write",
-                                         args: Data(#"{"state":{"sealed":{"r1":{"v":"rock","s":"ab"}}}}"#.utf8))
+                                         args: Data(#"{"state":{"sealed":{"r1":{"v":"rock","s":"ab"}}}}"#.utf8),
+                                         activation: SpiralAppActivation())
         #expect(write.contains(#""ok":true"#))
 
-        let read = await session.answer(method: "state.private.read", args: Data("null".utf8))
+        let read = await session.answer(method: "state.private.read", args: Data("null".utf8), activation: SpiralAppActivation())
         #expect(read.contains("rock"))
     }
 
@@ -64,11 +65,12 @@ struct SpiralAppPrivateStoreTests {
     func theBridgeRefusesAnythingButASmallObject() async {
         let session = SpiralAppPreviewSession(userID: "@a:x", members: [:])
 
-        let list = await session.answer(method: "state.private.write", args: Data(#"{"state":[1,2]}"#.utf8))
+        let list = await session.answer(method: "state.private.write", args: Data(#"{"state":[1,2]}"#.utf8), activation: SpiralAppActivation())
         #expect(list.contains("rejected"))
 
         let big = String(repeating: "x", count: SpiralAppPrivateStore.maxBytes)
-        let tooBig = await session.answer(method: "state.private.write", args: Data(#"{"state":{"x":"\#(big)"}}"#.utf8))
+        let tooBig = await session.answer(method: "state.private.write", args: Data(#"{"state":{"x":"\#(big)"}}"#.utf8),
+                                          activation: SpiralAppActivation())
         #expect(tooBig.contains("rejected"))
     }
 }

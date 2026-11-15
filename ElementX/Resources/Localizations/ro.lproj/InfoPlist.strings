@@ -1,6 +1,4 @@
 "NSCameraUsageDescription" = "Pentru a efectua apeluri video, precum și pentru a face fotografii sau videoclipuri și a le trimite ca mesaje, Spiral are nevoie de acces la cameră.";
 "NSFaceIDUsageDescription" = "Face ID este utilizat pentru a accesa aplicația.";
-"NSLocationAlwaysAndWhenInUseUsageDescription" = "Pentru a partaja locația în timp real, Spiral are nevoie de acces la locație atunci când aplicația rulează în fundal.";
-"NSLocationWhenInUseUsageDescription" = "Acordați acces astfel încât Spiral să vă poată partaja locația.";
 "NSMicrophoneUsageDescription" = "Pentru a efectua apeluri, precum și pentru a înregistra și trimite mesaje audio, Spiral trebuie să acceseze microfonul.";
 "NSPhotoLibraryUsageDescription" = "Permiteți salvarea fotografiilor și videoclipurilor în biblioteca dumneavoastră.";

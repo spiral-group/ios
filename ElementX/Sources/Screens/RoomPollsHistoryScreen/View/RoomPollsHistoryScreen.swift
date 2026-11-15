@@ -97,7 +97,7 @@ struct RoomPollsHistoryScreen: View {
                 .padding(.horizontal, 12)
         }
         .accessibilityIdentifier(A11yIdentifiers.roomPollsHistoryScreen.loadMore)
-        .buttonStyle(.compound(.secondary))
+        .buttonStyle(.compound(.secondary, isRaised: true)) // AGENT-PLATFORM (Brief 0083, decision 329): on the list's grey.
         .fixedSize()
         .disabled(context.viewState.isBackPaginating)
     }

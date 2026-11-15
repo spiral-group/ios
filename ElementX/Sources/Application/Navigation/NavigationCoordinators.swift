@@ -309,10 +309,9 @@ import SwiftUI
     /// Manually process changes to the compact layout navigation stack and update embedded components
     /// We need to either: pop from the detail, nil the detail or pop from the sidebar
     private func processCompactLayoutStackModuleRemoval(_ module: NavigationModule) {
-        if let sidebarNavigationStackCoordinator = sidebarModule?.coordinator as? NavigationStackCoordinator {
-            if sidebarNavigationStackCoordinator.stackModules.contains(module) {
-                sidebarNavigationStackCoordinator.stackModules.removeAll { $0 == module }
-            }
+        if let sidebarNavigationStackCoordinator = sidebarModule?.coordinator as? NavigationStackCoordinator,
+           sidebarNavigationStackCoordinator.stackModules.contains(module) {
+            sidebarNavigationStackCoordinator.stackModules.removeAll { $0 == module }
         }
         
         if module == detailModule {
@@ -385,15 +384,19 @@ private struct NavigationSplitCoordinatorView: View {
     /// The NavigationSplitView that will be used in non-compact layouts
     var navigationSplitView: some View {
         NavigationSplitView(columnVisibility: $navigationSplitCoordinator.columnVisibility) {
-            if let sidebarModule = navigationSplitCoordinator.sidebarModule {
-                sidebarModule.coordinator?.toPresentable()
-                    .environment(\.isInSidebar, true)
-                    .id(sidebarModule.id)
-            } else {
-                navigationSplitCoordinator.placeholderModule.coordinator?.toPresentable()
-                    .environment(\.isInSidebar, true)
-                    .id(navigationSplitCoordinator.placeholderModule.id)
+            Group {
+                if let sidebarModule = navigationSplitCoordinator.sidebarModule {
+                    sidebarModule.coordinator?.toPresentable()
+                        .id(sidebarModule.id)
+                } else {
+                    navigationSplitCoordinator.placeholderModule.coordinator?.toPresentable()
+                        .id(navigationSplitCoordinator.placeholderModule.id)
+                }
             }
+            .environment(\.isInSidebar, true)
+            // The tab rail's background tracks the detail module, so exclude the sidebar's background value.
+            .transformPreference(CompoundBackgroundPreferenceKey.self) { $0 = nil }
+            .overlay(alignment: .trailing) { NavigationSidebarDivider() }
         } detail: {
             if let detailModule = navigationSplitCoordinator.detailModule {
                 detailModule.coordinator?.toPresentable()
@@ -410,6 +413,18 @@ private struct NavigationSplitCoordinatorView: View {
         }
         .animation(.elementDefault, value: navigationSplitCoordinator.sidebarModule)
         .animation(.noAnimation, value: navigationSplitCoordinator.detailModule) // Don't crossfade the detail transition on iPad.
+    }
+}
+
+/// The vertical divider that separates the sidebar from its neighbours on iOS 27, where the sidebar is no longer inset.
+struct NavigationSidebarDivider: View {
+    var body: some View {
+        if #available(iOS 27, *) {
+            HStack(spacing: 0) { // The stack is necessary for the divider's orientation.
+                Divider()
+            }
+            .ignoresSafeArea()
+        }
     }
 }
 
@@ -453,6 +468,10 @@ private struct NavigationSplitCoordinatorView: View {
     }
     
     var presentationDetents: Set<PresentationDetent> = []
+    
+    /// AGENT-PLATFORM (question 412): a stack presented as a sheet that only its own close button may dismiss, on every
+    /// page it pushes. The swipe closed the post catalogue while a post on it was being played with.
+    var isInteractiveDismissDisabled = false
     
     /// The currently presented sheet coordinator
     /// Sheets will be presented through the NavigationSplitCoordinator if provided
@@ -660,7 +679,8 @@ private struct NavigationSplitCoordinatorView: View {
     
     func toPresentable() -> AnyView {
         AnyView(NavigationStackCoordinatorView(navigationStackCoordinator: self)
-            .presentationDetents(presentationDetents))
+            .presentationDetents(presentationDetents)
+            .interactiveDismissDisabled(isInteractiveDismissDisabled)) // AGENT-PLATFORM (question 412)
     }
     
     /// The NavigationStack has a tendency to hold on to path items for longer than needed. We work around that by manually nilling the coordinator

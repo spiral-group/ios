@@ -21,7 +21,7 @@ struct DeactivateAccountScreen: View {
                 passwordSection
             }
         }
-        .compoundList()
+        .spiralGroupedList() // AGENT-PLATFORM (Brief 0083): Spiral's grouped list, was `compoundList()`.
         .safeAreaInset(edge: .bottom) {
             Button(L10n.actionDeleteAccount, role: .destructive) {
                 context.send(viewAction: .deactivate)
@@ -101,7 +101,8 @@ private struct InfoItem: View {
 
 // MARK: - Previews
 
-struct DeactivateAccountScreen_Previews: PreviewProvider, TestablePreview {
+// AGENT-PLATFORM (Brief 0083, lane settings): gated.
+struct DeactivateAccountScreen_Previews: PreviewProvider, TestablePreview, SpiralGatedPreview {
     static let viewModel = DeactivateAccountScreenViewModel(clientProxy: ClientProxyMock(.init()),
                                                             userIndicatorController: UserIndicatorControllerMock())
     // AGENT-PLATFORM (Brief 0078)

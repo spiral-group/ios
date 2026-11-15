@@ -26,10 +26,7 @@ nonisolated struct InfoPlistReader {
         static let bundleURLName = "CFBundleURLName"
         static let bundleURLSchemes = "CFBundleURLSchemes"
         
-        static let classicAppGroupIdentifier = "classicAppGroupIdentifier"
-        static let classicAppKeychainServiceIdentifier = "classicAppKeychainServiceIdentifier"
-        static let classicAppKeychainAccessGroupIdentifier = "classicAppKeychainAccessGroupIdentifier"
-        static let classicAppDeepLinkURL = "classicAppDeepLinkURL"
+        // AGENT-PLATFORM (Brief 0083 L1b): no classicApp* keys, Element Classic's import is gone.
     }
     
     private enum Values {
@@ -112,7 +109,14 @@ nonisolated struct InfoPlistReader {
     var appScheme: String {
         customSchemeForName("Application")
     }
-    
+
+    // AGENT-PLATFORM (security pass): `appScheme` is only the first scheme; `spiral` comes after it.
+    /// Every URL scheme the target registers in `CFBundleURLTypes`.
+    var urlSchemes: [String] {
+        let urlTypes: [[String: Any]] = infoPlistValue(forKey: Keys.bundleURLTypes) ?? []
+        return urlTypes.flatMap { $0[Keys.bundleURLSchemes] as? [String] ?? [] }
+    }
+
     // MARK: - Mention Pills
     
     /// Mention Pills UTType
@@ -130,24 +134,7 @@ nonisolated struct InfoPlistReader {
         return utType.lowercased()
     }
     
-    // MARK: - Sign in with Classic app
-    
-    var classicAppGroupIdentifier: String? {
-        infoPlistValue(forKey: Keys.classicAppGroupIdentifier)
-    }
-    
-    var classicAppKeychainServiceIdentifier: String? {
-        infoPlistValue(forKey: Keys.classicAppKeychainServiceIdentifier)
-    }
-    
-    var classicAppKeychainAccessGroupIdentifier: String? {
-        infoPlistValue(forKey: Keys.classicAppKeychainAccessGroupIdentifier)
-    }
-    
-    var classicAppDeepLinkURL: URL? {
-        let urlString: String? = infoPlistValue(forKey: Keys.classicAppDeepLinkURL)
-        return urlString.flatMap { URL(string: $0) }
-    }
+    // AGENT-PLATFORM (Brief 0083 L1b): no "Sign in with Classic app" section.
     
     // MARK: - Private
     

@@ -12,6 +12,7 @@ import MatrixRustSDK
 
 class UserSessionStore: UserSessionStoreProtocol {
     private let keychainController: KeychainControllerProtocol
+    private let clientFactory: ClientFactoryProtocol
     private let appSettings: AppSettings
     private let analyticsService: AnalyticsServiceProtocol
     private let networkMonitor: NetworkMonitorProtocol
@@ -32,11 +33,13 @@ class UserSessionStore: UserSessionStoreProtocol {
     }
     
     init(keychainController: KeychainControllerProtocol,
+         clientFactory: ClientFactoryProtocol = ClientFactory(),
          appSettings: AppSettings,
          analyticsService: AnalyticsServiceProtocol,
          appHooks: AppHooks,
          networkMonitor: NetworkMonitorProtocol) {
         self.keychainController = keychainController
+        self.clientFactory = clientFactory
         self.appSettings = appSettings
         self.analyticsService = analyticsService
         self.appHooks = appHooks
@@ -50,32 +53,36 @@ class UserSessionStore: UserSessionStoreProtocol {
         keychainController.removeAllRestorationTokens()
     }
     
-    func restoreUserSession() async -> Result<UserSessionProtocol, UserSessionStoreError> {
-        let availableCredentials = keychainController.restorationTokens()
-        
-        guard let credentials = availableCredentials.first else {
-            return .failure(.missingCredentials)
+    func restoreUserSession(userID: String) async -> Result<UserSessionProtocol, UserSessionStoreError> {
+        guard let credentials = keychainController.restorationTokens().first(where: { $0.userID == userID }) else {
+            return .failure(.unknownAccount)
         }
         
-        switch await restorePreviousLogin(credentials) {
+        let userSettings = appHooks.userSessionHook.configure(appSettings.userSettings(for: credentials.userID),
+                                                              forHomeserver: credentials.restorationToken.session.homeserverUrl)
+        
+        switch await restorePreviousLogin(credentials, userSettings: userSettings) {
         case .success(let clientProxy):
-            return await .success(buildUserSessionWithClient(clientProxy))
+            return await .success(buildUserSessionWithClient(clientProxy, userSettings: userSettings))
         case .failure(let error):
             MXLog.error("Failed restoring login with error: \(error)")
             
             // On any restoration failure reset the token and restart
             keychainController.removeRestorationTokenForUsername(credentials.userID)
-            credentials.restorationToken.sessionDirectories.delete()
+            // AGENT-PLATFORM (decision 96): a directory that won't delete must not crash the launch;
+            // `delete()` logs the error and the user reaches sign-in, as `logout(userSession:)` does.
+            try? credentials.restorationToken.sessionDirectories.delete()
             
             return .failure(error)
         }
     }
     
-    func userSession(for client: ClientProtocol, sessionDirectories: SessionDirectories, passphrase: String) async -> Result<UserSessionProtocol, UserSessionStoreError> {
+    func userSession(for client: ClientProtocol, sessionDirectories: SessionDirectories, passphrase: Data) async -> Result<UserSessionProtocol, UserSessionStoreError> {
         do {
             let session = try client.session()
             let userID = try client.userId()
-            let clientProxy = try await setupProxyForClient(client)
+            let userSettings = appHooks.userSessionHook.configure(appSettings.userSettings(for: userID), forHomeserver: client.homeserver())
+            let clientProxy = try await setupProxyForClient(client, userSettings: userSettings)
             
             keychainController.setRestorationToken(RestorationToken(session: session,
                                                                     sessionDirectories: sessionDirectories,
@@ -85,7 +92,7 @@ class UserSessionStore: UserSessionStoreProtocol {
             
             MXLog.info("Set up session for user \(userID) at: \(sessionDirectories)")
             
-            return await .success(buildUserSessionWithClient(clientProxy))
+            return await .success(buildUserSessionWithClient(clientProxy, userSettings: userSettings))
         } catch {
             MXLog.error("Failed creating user session with error: \(error)")
             return .failure(.failedSettingUpSession)
@@ -98,47 +105,44 @@ class UserSessionStore: UserSessionStoreProtocol {
         keychainController.removeRestorationTokenForUsername(userID)
         
         if let credentials {
-            credentials.restorationToken.sessionDirectories.delete()
+            try? credentials.restorationToken.sessionDirectories.delete()
         }
     }
     
     // MARK: - Private
     
-    private func buildUserSessionWithClient(_ clientProxy: ClientProxyProtocol) async -> UserSessionProtocol {
+    private func buildUserSessionWithClient(_ clientProxy: ClientProxyProtocol, userSettings: UserSettings) async -> UserSessionProtocol {
         let mediaProvider = MediaProvider(mediaLoader: clientProxy.mediaLoader,
                                           imageCache: .onlyInMemory,
                                           homeserverReachabilityPublisher: clientProxy.homeserverReachabilityPublisher)
         
         let voiceMessageMediaManager = VoiceMessageMediaManager(mediaProvider: mediaProvider)
         
-        let liveLocationManager = await MainActor.run {
-            LiveLocationManager(clientProxy: clientProxy,
-                                appSettings: appSettings)
-        }
-
+        let liveLocationService = LiveLocationService(clientProxy: clientProxy, userSettings: userSettings)
+        
         // AGENT-PLATFORM: build the typed REST client + service for
         // `/api/v1/*`. Failure here is non-blocking — login still
         // succeeds, the `agentPlatformService` field on UserSession
         // is just nil and dependent UI degrades gracefully.
         let agentPlatformService = await buildAgentPlatformService(clientProxy: clientProxy)
 
-        // AGENT-PLATFORM: build the SSE service for live approval
-        // events. Requires the REST service (for the reseed call)
-        // — if REST construction failed we skip the stream too, so
-        // both nil together or both present.
-        let approvalsStreamService = await buildApprovalsStreamService(clientProxy: clientProxy,
-                                                                       agentPlatformService: agentPlatformService)
-
+        // AGENT-PLATFORM (Brief 0043): the Spiral push registry rides on the pusher.
+        let notificationService = NotificationService(clientProxy: clientProxy,
+                                                      userSettings: userSettings,
+                                                      agentPlatformService: agentPlatformService)
+        
         return UserSession(clientProxy: clientProxy,
+                           userSettings: userSettings,
+                           userHooks: appHooks.userSessionHook.makeUserHooks(for: clientProxy),
                            mediaProvider: mediaProvider,
                            voiceMessageMediaManager: voiceMessageMediaManager,
-                           liveLocationManager: liveLocationManager,
+                           liveLocationService: liveLocationService,
+                           notificationService: notificationService,
                            agentPlatformService: agentPlatformService,
-                           approvalsStreamService: approvalsStreamService,
                            // AGENT-PLATFORM (Brief 0072, ADR-0083, ADR-0084)
                            presenceObserverService: PresenceObserverService(clientProxy: clientProxy),
                            sharePresenceSettingSync: SharePresenceSettingSync(clientProxy: clientProxy,
-                                                                              appSettings: appSettings),
+                                                                              accountSettings: userSettings.account),
                            // AGENT-PLATFORM (decision 98)
                            ownerBlocksSync: agentPlatformService.map { OwnerBlocksSync(clientProxy: clientProxy, agentPlatformService: $0) })
     }
@@ -156,64 +160,31 @@ class UserSessionStore: UserSessionStoreProtocol {
             let client = try AgentPlatformClient(serverURL: appSettings.agentPlatformBaseURL,
                                                  authProvider: bridge)
             MXLog.info("AgentPlatform: REST client constructed against \(appSettings.agentPlatformBaseURL)")
-            return AgentPlatformService(client: client)
+            // AGENT-PLATFORM: feed (Brief 0082) — the feed keeps its first page in the session's cache directory, deleted at sign-out.
+            let feedCacheDirectory = keychainController.restorationTokens().first { $0.userID == clientProxy.userID }?.restorationToken.sessionDirectories.cacheDirectory
+            return AgentPlatformService(client: client, feedCacheDirectory: feedCacheDirectory)
         } catch {
             MXLog.error("AgentPlatform: failed to build REST client: \(error)")
             return nil
         }
     }
 
-    // AGENT-PLATFORM: SSE service for `/approvals/stream`. Shares
-    // the bridge with the REST client so both use the same MAS
-    // token from the keychain. Returns nil if the REST service
-    // failed to build (no point streaming without a reseed path).
-    @MainActor
-    private func buildApprovalsStreamService(clientProxy: ClientProxyProtocol,
-                                             agentPlatformService: AgentPlatformServiceProtocol?) -> ApprovalsStreamServiceProtocol? {
-        guard let agentPlatformService else { return nil }
-        let bridge = MatrixSDKAuthBridge(clientProxy: clientProxy,
-                                         keychainController: keychainController)
-        let service = ApprovalsStreamService(agentPlatformService: agentPlatformService,
-                                             authProvider: bridge,
-                                             baseURL: appSettings.agentPlatformBaseURL)
-        MXLog.info("AgentPlatform: approvals stream service constructed")
-        return service
-    }
-    
-    private func restorePreviousLogin(_ credentials: KeychainCredentials) async -> Result<ClientProxyProtocol, UserSessionStoreError> {
+    private func restorePreviousLogin(_ credentials: KeychainCredentials, userSettings: UserSettings) async -> Result<ClientProxyProtocol, UserSessionStoreError> {
         guard credentials.restorationToken.sessionDirectories.isNonTransientUserDataValid() else {
             MXLog.error("Failed restoring login, missing non-transient user data")
             return .failure(.failedRestoringLogin)
         }
         
-        let homeserverURL = credentials.restorationToken.session.homeserverUrl
-        appHooks.remoteSettingsHook.loadCache(forHomeserver: homeserverURL, applyingTo: appSettings)
-        
-        let builder = ClientBuilder
-            .baseBuilder(httpProxy: URL(string: homeserverURL)?.globalProxy,
-                         slidingSync: .restored,
-                         sessionDelegate: keychainController,
-                         appHooks: appHooks,
-                         enableOnlySignedDeviceIsolationMode: appSettings.enableOnlySignedDeviceIsolationMode,
-                         threadsEnabled: appSettings.threadsEnabled)
-            .sqliteStore(config: .init(dataPath: credentials.restorationToken.sessionDirectories.dataPath,
-                                       cachePath: credentials.restorationToken.sessionDirectories.cachePath)
-                    .passphrase(passphrase: credentials.restorationToken.passphrase))
-            .withSearchIndexStore(path: credentials.restorationToken.sessionDirectories.dataPath,
-                                  password: credentials.restorationToken.passphrase)
-            .username(username: credentials.userID)
-            .homeserverUrl(url: homeserverURL)
-        
+        // AGENT-PLATFORM (Brief 0083 L1b): no remoteSettingsHook cache to load or update.
         do {
-            let client = try await builder.build()
-            try await client.restoreSession(session: credentials.restorationToken.session)
+            let client = try await clientFactory.makeAppClient(credentials: credentials,
+                                                               clientSessionDelegate: keychainController,
+                                                               appSettings: appSettings,
+                                                               appHooks: appHooks)
             
             MXLog.info("Set up session for user \(credentials.userID) at: \(credentials.restorationToken.sessionDirectories)")
             
-            Task(priority: .low) { await appHooks.remoteSettingsHook.updateCache(using: client) }
-            Task(priority: .low) { await client.updateMapTilerSettings(in: appSettings) }
-            
-            return try await .success(setupProxyForClient(client))
+            return try await .success(setupProxyForClient(client, userSettings: userSettings))
         } catch UserSessionStoreError.failedSettingUpClientProxy(let error) {
             // If this has failed, there is likely something wrong with the creation of the sync service
             // There is nothing we can do, but at the same time we don't want the user to the get logged out
@@ -225,11 +196,11 @@ class UserSessionStore: UserSessionStoreProtocol {
         }
     }
     
-    private func setupProxyForClient(_ client: ClientProtocol) async throws -> ClientProxyProtocol {
+    private func setupProxyForClient(_ client: ClientProtocol, userSettings: UserSettings) async throws -> ClientProxyProtocol {
         do {
             return try await ClientProxy(client: client,
                                          networkMonitor: networkMonitor,
-                                         appSettings: appSettings,
+                                         userSettings: userSettings,
                                          analyticsService: analyticsService)
         } catch {
             throw UserSessionStoreError.failedSettingUpClientProxy(error)

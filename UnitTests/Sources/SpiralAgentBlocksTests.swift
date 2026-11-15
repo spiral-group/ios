@@ -11,9 +11,9 @@
 //
 
 import Combine
-@testable import ElementX
 import Foundation
 import MatrixRustSDK
+@testable import Spiral
 import Testing
 
 @MainActor
@@ -90,13 +90,13 @@ struct SpiralAgentBlocksTests {
         #expect(!viewModel.context.viewState.showAgentBlocksSection)
     }
 
-    @Test(arguments: [SpiralAgentBlocksTests.ownAssistant, SpiralAgentBlocksTests.ownCompanyAgent])
+    @Test(arguments: SpiralAgentBlocksTests.ownAgents)
     func memberDetailsReadsNoBlocksOnYourOwnAgent(agentID: String) async throws {
         stubOwnAgents()
         let viewModel = makeMemberDetails(member: agentMember(agentID))
 
         // Both of the rule's inputs are known, and the identity is read after the member's.
-        let known = deferFulfillment(viewModel.context.$viewState) { $0.ownAgentMXIDs != nil && $0.verificationState != nil }
+        let known = deferFulfillment(viewModel.context.$viewState) { $0.agentProfile?.ownCard != nil && $0.verificationState != nil }
         try await known.fulfill()
         viewModel.context.send(viewAction: .appeared)
 
@@ -234,12 +234,12 @@ struct SpiralAgentBlocksTests {
         #expect(!service.listAgentBlocksOfContactCalled)
     }
 
-    @Test(arguments: [SpiralAgentBlocksTests.ownAssistant, SpiralAgentBlocksTests.ownCompanyAgent])
+    @Test(arguments: SpiralAgentBlocksTests.ownAgents)
     func userProfileReadsNoBlocksOnYourOwnAgent(agentID: String) async throws {
         stubOwnAgents()
         let viewModel = makeUserProfile(userID: agentID)
 
-        let known = deferFulfillment(viewModel.context.observe(\.viewState.ownAgentMXIDs)) { $0 != nil }
+        let known = deferFulfillment(viewModel.context.observe(\.viewState.agentProfile?.ownCard)) { $0 != nil }
         try await known.fulfill()
         let identified = deferFulfillment(viewModel.context.observe(\.viewState.isVerified)) { $0 != nil }
         try await identified.fulfill()
@@ -485,9 +485,8 @@ struct SpiralAgentBlocksTests {
     func memberDetailsRetriesAFailedOwnAgentsReadWhenTheScreenReappears() async throws {
         stubOwnAgents(failingFirst: true)
         let viewModel = makeMemberDetails(member: agentMember(Self.strangersAgent))
-        let failed = deferFulfillment(viewModel.context.$viewState) { $0.memberDetails != nil && !$0.isReadingOwnAgents }
+        let failed = deferFulfillment(viewModel.context.$viewState) { $0.memberDetails != nil && $0.agentOwnership == .unknown(isReading: false) }
         try await failed.fulfill()
-        #expect(viewModel.context.viewState.ownAgentMXIDs == nil)
         #expect(!viewModel.context.viewState.showEraseAssistantMemorySection)
 
         let shown = deferFulfillment(viewModel.context.$viewState) { $0.showAgentBlocksSection }
@@ -552,9 +551,8 @@ struct SpiralAgentBlocksTests {
         let viewModel = makeUserProfile(userID: Self.strangersAgent)
         let profile = deferFulfillment(viewModel.context.observe(\.viewState.userProfile)) { $0 != nil }
         try await profile.fulfill()
-        let failed = deferFulfillment(viewModel.context.observe(\.viewState.isReadingOwnAgents)) { !$0 }
+        let failed = deferFulfillment(viewModel.context.observe(\.viewState.agentOwnership)) { $0 == .unknown(isReading: false) }
         try await failed.fulfill()
-        #expect(viewModel.context.viewState.ownAgentMXIDs == nil)
         #expect(!viewModel.context.viewState.showEraseAssistantMemorySection)
 
         let shown = deferFulfillment(viewModel.context.observe(\.viewState.showAgentBlocksSection)) { $0 }
@@ -594,6 +592,8 @@ struct SpiralAgentBlocksTests {
     nonisolated static let ownAssistant = "@assistant-me:matrix.org"
     nonisolated static let ownCompanyAgent = "@agent-acme-1:matrix.org"
     nonisolated static let strangersAgent = "@assistant-bob:matrix.org"
+    /// The person's own agents as the app knows them: no company agent while companies are hidden (396).
+    nonisolated static let ownAgents = SpiralFeatures.companySpaces ? [ownAssistant, ownCompanyAgent] : [ownAssistant]
 
     /// The person's Personal space holds their assistant, their company space a company agent.
     private func stubOwnAgents(failingFirst: Bool = false) {
@@ -607,7 +607,7 @@ struct SpiralAgentBlocksTests {
             let mxid = orgID == "solo" ? Self.ownAssistant : Self.ownCompanyAgent
             let card = AgentSpaceAgentCard(agentID: "agent-\(orgID)", matrixUserID: mxid, displayName: "Agent", avatarMXC: nil,
                                            kind: orgID == "solo" ? "personal_assistant" : "sales", visibility: "public",
-                                           lifecycleState: "active", presence: .online, roomCount: 0, activeToolCount: 0)
+                                           lifecycleState: "active", roomCount: 0, activeToolCount: 0)
             return .success(.init(orgID: orgID, name: orgID, kind: orgID == "solo" ? .solo : .company,
                                   avatarMXC: nil, industry: nil, website: nil, agents: [card]))
         }
@@ -626,11 +626,12 @@ struct SpiralAgentBlocksTests {
         }
         let userSession = UserSessionMock(.init(clientProxy: clientProxy))
         userSession.agentPlatformService = service
+        userSession.agentsStore = AgentsStore(service: service)
         return RoomMemberDetailsScreenViewModel(userID: member.userID,
                                                 roomProxy: roomProxy,
                                                 userSession: userSession,
-                                                userIndicatorController: userIndicatorController,
-                                                analytics: AnalyticsServiceMock(.init()))
+                                                analytics: AnalyticsServiceMock(.init()),
+                                                userIndicatorController: userIndicatorController)
     }
 
     private func makeUserProfile(userID: String) -> UserProfileScreenViewModel {
@@ -638,11 +639,12 @@ struct SpiralAgentBlocksTests {
         clientProxy.profileForReturnValue = .success(UserProfile(userID: userID, displayName: userID == RoomMemberProxyMock.mockAlice.userID ? "Alice" : "Me"))
         let userSession = UserSessionMock(.init(clientProxy: clientProxy))
         userSession.agentPlatformService = service
+        userSession.agentsStore = AgentsStore(service: service)
         return UserProfileScreenViewModel(userID: userID,
                                           isPresentedModally: false,
                                           userSession: userSession,
-                                          userIndicatorController: userIndicatorController,
-                                          analytics: AnalyticsServiceMock(.init()))
+                                          analytics: AnalyticsServiceMock(.init()),
+                                          userIndicatorController: userIndicatorController)
     }
 
     /// Polls for up to three seconds.

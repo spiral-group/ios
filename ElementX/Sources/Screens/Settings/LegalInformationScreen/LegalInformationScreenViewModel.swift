@@ -14,8 +14,9 @@ typealias LegalInformationScreenViewModelType = StateStoreViewModelV2<LegalInfor
 class LegalInformationScreenViewModel: LegalInformationScreenViewModelType, LegalInformationScreenViewModelProtocol {
     private let appMediator: AppMediatorProtocol // AGENT-PLATFORM (Brief 0078)
     
-    init(appSettings: AppSettings, appMediator: AppMediatorProtocol) {
+    init(userSettings: UserSettings, appMediator: AppMediatorProtocol) {
         self.appMediator = appMediator
+        let appSettings = userSettings.app
         super.init(initialViewState: LegalInformationScreenViewState(copyrightURL: appSettings.copyrightURL,
                                                                      acceptableUseURL: appSettings.acceptableUseURL,
                                                                      privacyURL: appSettings.privacyURL,

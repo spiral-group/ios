@@ -6,7 +6,7 @@
 // Please see LICENSE files in the repository root for full details.
 //
 
-@testable import ElementX
+@testable import Spiral
 import Testing
 
 @MainActor
@@ -23,8 +23,8 @@ struct UserProfileScreenViewModelTests {
         let viewModel = UserProfileScreenViewModel(userID: profile.id,
                                                    isPresentedModally: false,
                                                    userSession: UserSessionMock(.init(clientProxy: clientProxy)),
-                                                   userIndicatorController: userIndicatorController,
-                                                   analytics: AnalyticsServiceMock(.init()))
+                                                   analytics: AnalyticsServiceMock(.init()),
+                                                   userIndicatorController: userIndicatorController)
         let context = viewModel.context
         
         let waitForMemberToLoad = deferFulfillment(context.observe(\.viewState.userProfile)) { $0 != nil }
@@ -48,8 +48,8 @@ struct UserProfileScreenViewModelTests {
         let viewModel = UserProfileScreenViewModel(userID: profile.id,
                                                    isPresentedModally: false,
                                                    userSession: UserSessionMock(.init(clientProxy: clientProxy)),
-                                                   userIndicatorController: userIndicatorController,
-                                                   analytics: AnalyticsServiceMock(.init()))
+                                                   analytics: AnalyticsServiceMock(.init()),
+                                                   userIndicatorController: userIndicatorController)
         let context = viewModel.context
         
         let waitForMemberToLoad = deferFulfillment(context.observe(\.viewState.userProfile)) { $0 != nil }
@@ -73,15 +73,15 @@ struct UserProfileScreenViewModelTests {
         let viewModel = UserProfileScreenViewModel(userID: profile.id,
                                                    isPresentedModally: false,
                                                    userSession: UserSessionMock(.init(clientProxy: clientProxy)),
-                                                   userIndicatorController: userIndicatorController,
-                                                   analytics: AnalyticsServiceMock(.init()))
+                                                   analytics: AnalyticsServiceMock(.init()),
+                                                   userIndicatorController: userIndicatorController)
         
         let context = viewModel.context
         
         let waitForMemberToLoad = deferFulfillment(context.observe(\.viewState.userProfile)) { $0 != nil }
         try await waitForMemberToLoad.fulfill()
         
-        let deferred = deferFulfillment(context.observe(\.viewState.bindings).compactMap(\.inviteConfirmationUser), timeout: .seconds(5)) { $0.isUnknown }
+        let deferred = deferFulfillment(context.observe(\.viewState.bindings.inviteConfirmationUser), timeout: .seconds(5)) { $0?.isUnknown == true }
         
         context.send(viewAction: .openDirectChat)
         try await deferred.fulfill()
@@ -99,8 +99,8 @@ struct UserProfileScreenViewModelTests {
         let viewModel = UserProfileScreenViewModel(userID: profile.id,
                                                    isPresentedModally: false,
                                                    userSession: UserSessionMock(.init(clientProxy: clientProxy)),
-                                                   userIndicatorController: UserIndicatorControllerMock(),
-                                                   analytics: AnalyticsServiceMock(.init()))
+                                                   analytics: AnalyticsServiceMock(.init()),
+                                                   userIndicatorController: UserIndicatorControllerMock())
         let context = viewModel.context
         
         let loaded = deferFulfillment(context.observe(\.viewState.userProfile)) { $0 != nil }

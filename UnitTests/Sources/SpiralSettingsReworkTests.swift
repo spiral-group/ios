@@ -6,7 +6,7 @@
 //
 
 import Combine
-@testable import ElementX
+@testable import Spiral
 import Testing
 
 @MainActor
@@ -37,13 +37,11 @@ struct PrivacySettingsTests {
         try await deferred.fulfill()
     }
     
-    private func makeViewModel(ignoredUsers: CurrentValueSubject<[String]?, Never>) -> AdvancedSettingsScreenViewModel {
+    private func makeViewModel(ignoredUsers: CurrentValueSubject<[String]?, Never>) -> ModerationAndSafetySettingsScreenViewModel {
         let clientProxy = ClientProxyMock(.init())
         clientProxy.ignoredUsersPublisher = ignoredUsers.asCurrentValuePublisher()
-        return AdvancedSettingsScreenViewModel(advancedSettings: AppSettings.volatile(),
-                                               clientProxy: clientProxy,
-                                               userIndicatorController: UserIndicatorControllerMock(),
-                                               agentPlatformService: nil)
+        return ModerationAndSafetySettingsScreenViewModel(userSession: UserSessionMock(.init(clientProxy: clientProxy)),
+                                                          userIndicatorController: UserIndicatorControllerMock())
     }
 }
 

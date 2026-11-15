@@ -165,9 +165,10 @@ extension DevE2ETestCase {
     func returnToRoom() throws {
         for _ in 0..<5 {
             if composer.exists, composer.isHittable { return }
-            let done = element(A11yIdentifiers.settingsScreen.done)
-            if done.exists, done.isHittable {
-                done.tap()
+            // Settings is a tab, hidden behind a room: the tab bar showing means the room is in Chats.
+            let chats = element(A11yIdentifiers.homeTabs.chats)
+            if chats.exists, chats.isHittable {
+                chats.tap()
             } else if let back = app.navigationBars.buttons.allElementsBoundByIndex.first(where: { $0.isHittable }) {
                 back.tap()
             }

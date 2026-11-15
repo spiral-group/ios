@@ -19,6 +19,7 @@ struct CallInviteRoomTimelineView: View {
         }
         .font(.compound.bodyMD)
         .foregroundColor(.compound.textSecondary)
+        .chatBackgroundChip() // AGENT-PLATFORM (Brief 0083, question 357)
         .frame(maxWidth: .infinity, alignment: .center)
         .padding()
     }

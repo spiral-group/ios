@@ -23,6 +23,7 @@ struct TimelineStartRoomTimelineView: View {
                 Text(title)
                     .font(.compound.bodySM)
                     .foregroundColor(.compound.textSecondary)
+                    .chatBackgroundChip() // AGENT-PLATFORM (Brief 0083, question 357)
                     .padding(.bottom, 24)
                     .padding(.top, context?.viewState.hasPredecessor == true ? 0 : 24)
                     .frame(maxWidth: .infinity)
@@ -48,6 +49,7 @@ struct TimelineStartRoomTimelineView: View {
         .padding(.bottom, 8)
         .padding(.horizontal, 16)
         .highlight(gradient: .compound.info, borderColor: .compound.borderInfoSubtle)
+        .chatBackgroundCard(cornerRadius: 0) // AGENT-PLATFORM (Brief 0083, question 357)
     }
     
     private var title: String {

@@ -6,8 +6,8 @@
 	<string>development</string>
 	<key>com.apple.developer.associated-domains</key>
 	<array>
-		<string>applinks:spiral.md</string>
-		<string>webcredentials:spiral.md</string>
+		<string>applinks:$(SPIRAL_ASSOCIATED_DOMAIN)</string>
+		<string>webcredentials:$(SPIRAL_ASSOCIATED_DOMAIN)</string>
 	</array>
 	<key>com.apple.developer.usernotifications.communication</key>
 	<true/>

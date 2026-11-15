@@ -7,10 +7,10 @@
 //
 
 import Combine
+import Foundation
 
 // AGENT-PLATFORM (Brief 0067): `CallKitServiceMock` replaces the retired `ElementCallServiceMock`.
-@testable import ElementX
-import Foundation
+@testable import Spiral
 import Testing
 
 @MainActor
@@ -19,8 +19,9 @@ struct ChatsTabFlowCoordinatorTests {
     var timelineControllerFactory: TimelineControllerFactoryMock!
     var chatsTabFlowCoordinator: ChatsTabFlowCoordinator!
     var splitCoordinator: NavigationSplitCoordinator!
-    var notificationManager: NotificationManagerMock!
+    var notificationService: NotificationServiceMock!
     var userIndicatorController: UserIndicatorControllerMock! // AGENT-PLATFORM (decision 111)
+    var userSession: UserSessionMock! // AGENT-PLATFORM: the agent platform is added per test
     let stateMachineFactory = PublishedStateMachineFactory()
     
     var detailCoordinator: CoordinatorProtocol? {
@@ -33,28 +34,27 @@ struct ChatsTabFlowCoordinatorTests {
     
     init() async throws {
         // AGENT-PLATFORM (decision 111): a catalogue on disk for the catalogue links.
-        let appSettings = try AppSettings.volatile(catalogURL: AppSettings.catalogueFixture(index: SpiralAppCatalogTests.index))
+        let userSettings = try AppSettings.volatile(catalogURL: AppSettings.catalogueFixture(index: SpiralAppCatalogTests.index)).userSettings(for: "hi@bob")
         
         clientProxy = ClientProxyMock(.init(userID: "hi@bob", roomSummaryProvider: RoomSummaryProviderMock(.init(state: .loaded(.mockRooms)))))
         timelineControllerFactory = TimelineControllerFactoryMock(.init())
         
         splitCoordinator = NavigationSplitCoordinator(placeholderCoordinator: PlaceholderScreenCoordinator(hideBrandChrome: false))
         
-        notificationManager = NotificationManagerMock()
+        notificationService = NotificationServiceMock(.init())
         userIndicatorController = UserIndicatorControllerMock()
         
-        let flowParameters = CommonFlowParameters(userSession: UserSessionMock(.init(clientProxy: clientProxy)),
+        userSession = UserSessionMock(.init(clientProxy: clientProxy, userSettings: userSettings, notificationService: notificationService))
+        let flowParameters = CommonFlowParameters(userSession: userSession,
+                                                  availableSessionsPublisher: .init([.init(userSession: userSession)]),
                                                   bugReportService: BugReportServiceMock(.init()),
                                                   callKitService: CallKitServiceMock(.init()),
                                                   timelineControllerFactory: timelineControllerFactory,
-                                                  emojiProvider: EmojiProvider(appSettings: appSettings),
+                                                  emojiProvider: EmojiProvider(userSettings: userSession.userSettings),
                                                   linkMetadataProvider: LinkMetadataProvider(),
                                                   appMediator: AppMediatorMock(.init()),
-                                                  appSettings: appSettings,
-                                                  appHooks: AppHooks(),
                                                   analytics: AnalyticsServiceMock(.init()),
                                                   userIndicatorController: userIndicatorController,
-                                                  notificationManager: notificationManager,
                                                   stateMachineFactory: stateMachineFactory)
         chatsTabFlowCoordinator = ChatsTabFlowCoordinator(navigationSplitCoordinator: splitCoordinator,
                                                           flowParameters: flowParameters)
@@ -86,7 +86,7 @@ struct ChatsTabFlowCoordinatorTests {
         #expect(detailNavigationStack?.rootCoordinator == nil)
         #expect(detailCoordinator == nil)
         
-        #expect(notificationManager.removeDeliveredMessageNotificationsForReceivedInvocations == ["1", "1", "2"])
+        #expect(notificationService.removeDeliveredMessageNotificationsForReceivedInvocations == ["1", "1", "2"])
     }
     
     @Test
@@ -115,7 +115,7 @@ struct ChatsTabFlowCoordinatorTests {
         #expect(detailNavigationStack?.rootCoordinator == nil)
         #expect(detailCoordinator == nil)
         
-        #expect(notificationManager.removeDeliveredMessageNotificationsForReceivedInvocations == ["1", "1", "2"])
+        #expect(notificationService.removeDeliveredMessageNotificationsForReceivedInvocations == ["1", "1", "2"])
     }
     
     @Test
@@ -343,6 +343,37 @@ struct ChatsTabFlowCoordinatorTests {
     mutating func aFailedAliasLookupIsAnError() async throws {
         clientProxy.resolveRoomAliasReturnValue = .failure(.sdkError(ClientProxyMockError.generic))
         try await processExpectingToast(route: .roomAlias("#room:spiral.md"), toast: L10n.errorUnknown)
+    }
+    
+    /// AGENT-PLATFORM (end-stage review, 2026-11-14): a chat asked for on an agent's page in a profile's sheet, by its
+    /// Message or an activity row, opens in Chats as the profile's own Message does; the sheet and the page's flow go.
+    @Test
+    mutating func aChatFromAnAgentsPageInAProfileOpensInChats() async throws {
+        try await process(route: .userProfile(userID: "alice"), expectedState: .userProfileScreen)
+        // The platform the agent's page needs, added once the profile has read the session.
+        let agentPlatformService = AgentPlatformServiceMock()
+        agentPlatformService.fetchAgentUsageAgentIDReturnValue = .failure(.serverError(status: 503))
+        agentPlatformService.listMyPersonalAgentsReturnValue = AgentsRead.agents(count: 1).result // the chat it opens
+        agentPlatformService.fetchRoomToolsRoomIDReturnValue = .success(.init(roomID: "1", agents: []))
+        userSession.agentPlatformService = agentPlatformService
+        userSession.agentsStore = AgentsStore(service: agentPlatformService, retryDelays: [])
+        let sheetStack = try #require(splitCoordinator.sheetCoordinator as? NavigationStackCoordinator)
+        let pushed = deferFulfillment(sheetStack.observe(\.stackCoordinators.count)) { $0 == 1 }
+        chatsTabFlowCoordinator.startAgentRowFlow(row: .usage, card: AgentProfileMock.assistant, on: sheetStack)
+        try await pushed.fulfill()
+        #expect(chatsTabFlowCoordinator.agentRowFlowCoordinator != nil)
+        
+        let selected = deferFulfillment(stateMachineFactory.chatsTabFlowStatePublisher) { $0 == .roomList(detailState: .room(roomID: "1")) }
+        #expect(chatsTabFlowCoordinator.showRoomFromProfile(roomID: "1"))
+        try await selected.fulfill()
+        
+        #expect(splitCoordinator.sheetCoordinator == nil)
+        #expect(!(sheetStack.stackCoordinators.last is RoomScreenCoordinator), "nothing pushed inside the sheet")
+        let end = Date().addingTimeInterval(1)
+        while chatsTabFlowCoordinator.agentRowFlowCoordinator != nil, Date() < end {
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        #expect(chatsTabFlowCoordinator.agentRowFlowCoordinator == nil)
     }
     
     private func processCatalogueLinkExpectingToast(templateID: String, toast: String) async throws {

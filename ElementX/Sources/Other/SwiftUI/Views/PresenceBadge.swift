@@ -21,7 +21,7 @@ struct PresenceBadge: View {
     }
 
     private var ringWidth: CGFloat {
-        max(1.5, (dotSize * 0.18).rounded(.up) / 2)
+        Self.ringWidth(around: dotSize)
     }
 
     /// How far to move the dot in from the frame's corner so that its centre
@@ -30,6 +30,11 @@ struct PresenceBadge: View {
     /// dot's layout box is `ringWidth` smaller than the dot on each side.
     var cornerInset: CGFloat {
         avatarSize * (1 - 1 / 2.squareRoot()) / 2 - (dotSize / 2 - ringWidth)
+    }
+    
+    /// The surface's ring cut round a mark on an avatar, `markSize` across: this dot's, and the agent badge's.
+    nonisolated static func ringWidth(around markSize: CGFloat) -> CGFloat {
+        max(1.5, (markSize * 0.18).rounded(.up) / 2)
     }
     
     var body: some View {
@@ -45,11 +50,14 @@ struct PresenceBadge: View {
 extension View {
     /// Overlays the online dot on an avatar when `isOnline`. Not `announced`
     /// where a status line next to it already says «online» to VoiceOver.
-    func presenceBadge(isOnline: Bool, avatarSize: CGFloat, ringColor: Color = .compound.bgCanvasDefault, announced: Bool = true) -> some View {
-        overlay(alignment: .bottomTrailing) {
+    /// `corner` is the bottom leading one beside an agent's badge.
+    func presenceBadge(isOnline: Bool, avatarSize: CGFloat, ringColor: Color = .compound.bgCanvasDefault, announced: Bool = true, corner: Alignment = .bottomTrailing) -> some View {
+        overlay(alignment: corner) {
             if isOnline {
                 let badge = PresenceBadge(avatarSize: avatarSize, ringColor: ringColor)
-                badge.offset(x: -max(0, badge.cornerInset), y: -max(0, badge.cornerInset))
+                // Padding rather than an offset, which doesn't mirror in a right-to-left layout.
+                badge.padding(.horizontal, max(0, badge.cornerInset))
+                    .padding(.bottom, max(0, badge.cornerInset))
                     .accessibilityHidden(!announced)
             }
         }

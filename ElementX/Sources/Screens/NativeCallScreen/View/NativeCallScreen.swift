@@ -8,6 +8,7 @@
 
 import Combine
 import Compound
+import SpiralTokens // AGENT-PLATFORM (Brief 0083)
 import SwiftUI
 
 // AGENT-PLATFORM (Brief 0063)
@@ -35,6 +36,14 @@ struct NativeCallScreen: View {
     /// G9 — the overlay minimized: the whole screen renders as the call
     /// bar, and everything underneath stays tappable.
     @Environment(\.isOverlayMinimized) private var isOverlayMinimized
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion // AGENT-PLATFORM (Brief 0083)
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize // AGENT-PLATFORM (Brief 0083, question 383)
+    /// The corner tile's corner, held here so it stays put when a swap changes what is in it (question 383).
+    @State private var cornerTileCorner: Alignment = .topTrailing // AGENT-PLATFORM (Brief 0083)
+    // AGENT-PLATFORM (Brief 0083, question 383): the group filmstrip's smallest tiles, larger with the text.
+    @ScaledMetric(relativeTo: .caption) private var filmstripTileWidth: CGFloat = 80
+    @ScaledMetric(relativeTo: .caption) private var filmstripTileHeight: CGFloat = 60
+    @Environment(\.accessibilityVoiceOverEnabled) private var isVoiceOverEnabled // AGENT-PLATFORM (Brief 0083)
 
     var body: some View {
         Group {
@@ -63,6 +72,10 @@ struct NativeCallScreen: View {
         }
         .onAppear { applyPictureInPictureContent() }
         .onChange(of: pictureInPictureContent) { _, _ in applyPictureInPictureContent() }
+        // AGENT-PLATFORM (Brief 0083, question 383): a group's stage holds still while VoiceOver reads it.
+        .onChange(of: isVoiceOverEnabled, initial: true) { _, isRunning in
+            context.send(viewAction: .voiceOverStatusChanged(isRunning: isRunning))
+        }
     }
 
     /// What the floating window should show: the speaking remote tile with
@@ -78,7 +91,9 @@ struct NativeCallScreen: View {
         // The person talking beats the person first in userID order
         // (critic-2 N4): a group window pinned to an arbitrary silent
         // participant reads as broken.
-        if let tile = remoteVideoTiles.first(where: \.participant.isSpeaking) ?? remoteVideoTiles.first {
+        // A group's window shows whoever its stage shows (question 383): the same sustained-turn rule, no flicker.
+        let staged = remoteVideoTiles.first { $0.participant.userID == context.viewState.groupFocusUserID }
+        if let tile = staged ?? remoteVideoTiles.first(where: \.participant.isSpeaking) ?? remoteVideoTiles.first {
             return .init(source: tile.source, identityKey: tile.participant.userID)
         }
 
@@ -111,103 +126,34 @@ struct NativeCallScreen: View {
                     NativeCallLetterAvatar(userID: content.identityKey,
                                            profile: profile,
                                            fallbackName: roomName,
-                                           size: 96,
+                                           size: SpiralAvatarSize.large, // AGENT-PLATFORM (Brief 0083, decision 300b)
                                            mediaProvider: mediaProvider)
                 } else {
                     RoomAvatarImage(avatar: roomAvatar,
-                                    avatarSize: .custom(96),
+                                    avatarSize: .custom(SpiralAvatarSize.large), // AGENT-PLATFORM (Brief 0083, decision 300b)
                                     mediaProvider: mediaProvider)
                 }
             })
         }
     }
 
-    /// `02`/`03`/`04`'s quiet gradient: a breath of the brand at the top
-    /// of the 1:1 audio canvas, fading into the system background. The
-    /// group roster keeps the flat canvas — its information lives in
-    /// white cards that need the plain contrast.
-    @ViewBuilder
-    private var canvasBackground: some View {
-        if !context.viewState.isVideoCall, !isGroupAudioLayout {
-            LinearGradient(colors: [colorScheme == .dark ? Color(red: 0.063, green: 0.063, blue: 0.102) : Color(red: 0.906, green: 0.929, blue: 0.984),
-                                    Color(.systemGroupedBackground)],
-                           startPoint: .top,
-                           endPoint: .center)
-                .background(Color(.systemGroupedBackground))
-        } else {
-            Color(.systemGroupedBackground)
-        }
-    }
-
-    /// `05 · Group call` uses the nav-row header and the roster; everything
-    /// else centres on one person.
-    private var isGroupAudioLayout: Bool {
-        !context.viewState.isVideoCall && context.viewState.scope == .group
-    }
-
-    private var audioBody: some View {
-        VStack(spacing: 0) {
-            if isGroupAudioLayout {
-                groupHeader
-
-                groupRoster
-            } else {
-                directHeader
-
-                // The identity lives in the header (`02`/`03` share one
-                // composition) — below it is calm space.
-                Spacer(minLength: 0)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-            }
-
-            agentBlock
-
-            controls
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(canvasBackground.ignoresSafeArea())
-    }
-
     /// `06`: the picture IS the screen — edge to edge, under the status
-    /// bar and the home indicator. The header floats on a top scrim, the
-    /// capsule and the dock on a bottom one, and a tap on the picture
-    /// hides the dock for a clean view (the capsule stays: the agent is
-    /// never hidden).
+    /// bar and the home indicator. A tap on the picture hides the dock for a
+    /// clean view (the assistant stays: the agent is never hidden).
     private var videoBody: some View {
-        ZStack {
-            videoStage
-
-            VStack(spacing: 0) {
-                videoHeader
-                    .frame(maxWidth: .infinity)
-                    .background {
-                        LinearGradient(colors: [.black.opacity(0.45), .clear],
-                                       startPoint: .top,
-                                       endPoint: .bottom)
-                            .ignoresSafeArea(edges: .top)
-                    }
-
-                Spacer(minLength: 0)
-
-                VStack(spacing: 0) {
-                    agentCapsule
-
-                    if !context.isVideoChromeHidden {
-                        controls
-                            .transition(.move(edge: .bottom).combined(with: .opacity))
-                    }
-                }
-                .padding(.bottom, context.isVideoChromeHidden ? 10 : 0)
-                .frame(maxWidth: .infinity)
-                .background {
-                    LinearGradient(colors: [.clear, .black.opacity(0.55)],
-                                   startPoint: .top,
-                                   endPoint: .bottom)
-                        .ignoresSafeArea(edges: .bottom)
-                }
+        Group {
+            if context.viewState.scope.isOneToOne {
+                oneToOneVideoBody
+            } else {
+                groupVideoBody
             }
-            .animation(.easeInOut(duration: 0.25), value: context.isVideoChromeHidden)
         }
+        // AGENT-PLATFORM (Brief 0083, decision 340): the one animation of the dock's hide and show. State-driven, so a
+        // tap midway reverses it from where it is.
+        .animation(reduceMotion ? .easeInOut(duration: 0.2) : .spring(duration: 0.32, bounce: 0),
+                   value: context.isVideoChromeHidden)
+        // Question 383: the header, the pill and the dock float over a live picture here.
+        .environment(\.nativeCallIsOverPicture, true)
         .background(Color.black.ignoresSafeArea())
         .onChange(of: context.viewState.isVideoCall) {
             // Falling back to the audio stage always brings the dock back.
@@ -215,58 +161,102 @@ struct NativeCallScreen: View {
         }
     }
 
-    private func heldCallPill(_ heldCall: CallKitHeldCall) -> some View {
-        Button {
-            context.send(viewAction: .swapCalls)
-        } label: {
-            HStack(spacing: 6) {
-                CompoundIcon(\.pause, size: .xSmall, relativeTo: .compound.bodySM)
-                Text(UntranslatedL10n.screenNativeCallHeldCallPill(heldCall.displayName))
-                    .font(.compound.bodySM)
-                    .lineLimit(1)
-                Text(UntranslatedL10n.screenNativeCallSwap)
-                    .font(.compound.bodySMSemibold)
+    // AGENT-PLATFORM (Brief 0083, decisions 339 and 340): the portrait's 1:1 video. The header, the pill and the dock
+    // float over the picture on shades, and the small tile's corners lie between them.
+    private var oneToOneVideoBody: some View {
+        ZStack {
+            oneToOneVideoStage
+                // The person comes after the name and before the corner tile, not last behind the dock.
+                .accessibilitySortPriority(context.viewState.isPersonOnStage ? 1 : 0)
+
+            VStack(spacing: 0) {
+                videoHeader(onGlass: !context.viewState.isPersonOnStage)
+                    .accessibilitySortPriority(context.viewState.isPersonOnStage ? 2 : 0)
+
+                // The room stays when there is no small tile: the header and the dock keep to their edges.
+                Spacer(minLength: 0)
+                    .frame(maxWidth: .infinity)
+                    .overlay { videoSmallTile }
+                    .transaction(stillUnderReduceMotion)
+
+                videoChrome
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
-            .background(Capsule().fill(Color.compound.bgSubtleSecondary))
         }
-        .buttonStyle(.plain)
-        .accessibilityLabel(UntranslatedL10n.a11yNativeCallSwapToHeldCall(heldCall.displayName))
+    }
+
+    // AGENT-PLATFORM (Brief 0083, decisions 339 and 340): the portrait's group video. The room's field behind rounded
+    // tiles that fill everything between the header and the dock; hiding the dock gives its space to the tiles.
+    private var groupVideoBody: some View {
+        VStack(spacing: CompoundDesignTokens.space3X) {
+            videoHeader(onGlass: false)
+
+            // Question 383, the operator's pick (Focus): whoever has held the floor fills the stage, everyone else in
+            // a filmstrip under it. Agents never: they ride the pill.
+            groupVideoFocus
+                .frame(maxHeight: .infinity)
+                .transaction(stillUnderReduceMotion)
+
+            videoChrome
+        }
+        .background {
+            NativeCallBackdrop(photoURL: context.viewState.backdropPhotoURL,
+                               contentID: context.viewState.backdropContentID,
+                               mediaProvider: context.mediaProvider,
+                               tone: .wash)
+                .ignoresSafeArea()
+        }
+    }
+
+    // AGENT-PLATFORM (Brief 0083, decisions 339 and 340): the assistant's pill, and the dock until a tap hides it. The
+    // dock slides down a little and fades; the pill is never hidden, so it glides down into the room. Under Reduce
+    // Motion the two arrangements cross-fade instead (the `id`), and nothing moves.
+    private var videoChrome: some View {
+        VStack(spacing: CompoundDesignTokens.space3X) {
+            if let line = context.viewState.limitLine {
+                NativeCallLimitLine(text: line)
+                    .padding(.horizontal, CompoundDesignTokens.space4X)
+            }
+
+            NativeCallAgentCapsule(context: context)
+                .padding(.horizontal, CompoundDesignTokens.space4X)
+
+            if !context.isVideoChromeHidden {
+                NativeCallGlassDock(controls: controls, showsCaptions: false)
+                    .transition(.offset(y: CompoundDesignTokens.space6X).combined(with: .opacity))
+            }
+        }
+        .padding(.bottom, context.isVideoChromeHidden ? 10 : 0)
+        .frame(maxWidth: .infinity)
+        .id(reduceMotion && context.isVideoChromeHidden)
+        .transition(.opacity)
+    }
+
+    /// What the dock's hide or show re-lays out jumps under Reduce Motion, behind the cross-fade, rather than move.
+    private func stillUnderReduceMotion(_ transaction: inout Transaction) {
+        if reduceMotion {
+            transaction.animation = nil
+        }
     }
 
     private var fullScreenBody: some View {
         Group {
-            if context.viewState.isVideoCall {
+            if context.viewState.isVideoCall, !context.viewState.isAssistantPage {
                 videoBody
+            } else if context.viewState.isVideoCall {
+                assistantVideoBody
             } else {
-                audioBody
-            }
-        }
-        // G13 — the way back to the chat that is not a hang-up. The call
-        // keeps running behind the bar the user lands on. The group header
-        // carries its own inline chevron, matching `05`.
-        .overlay(alignment: .topLeading) {
-            if !isGroupAudioLayout {
-                backButton
-                    .padding(.horizontal, 12)
-                    .padding(.top, 2)
-            }
-        }
-        // Brief 0068 Slice 2 — the call parked behind this one, one tap to
-        // swap. Top-trailing so it never covers the header's name.
-        .overlay(alignment: .topTrailing) {
-            if let heldCall = context.viewState.heldCall {
-                heldCallPill(heldCall)
-                    .padding(.horizontal, 12)
-                    .padding(.top, 6)
+                NativeCallPortraitLayout(context: context, controls: controls) // AGENT-PLATFORM (Brief 0083, decision 340)
             }
         }
         .alert(item: $context.alertInfo)
-        .sheet(isPresented: $context.isAgentCenterPresented) {
-            NativeCallAgentCenterSheet(context: context)
-                .presentationDragIndicator(.visible)
-        }
+        // L8: the Assistants sheet's resting height, measured here before it opens.
+        .background { NativeCallAssistantsDetentMeasurer() }
+        .sheet(isPresented: $context.isAgentCenterPresented,
+               onDismiss: { context.send(viewAction: .dismissAgentCenter) },
+               content: {
+                   NativeCallAgentCenterSheet(context: context)
+                       .presentationDragIndicator(.visible)
+               })
         .sheet(isPresented: $context.isAudioRoutePickerPresented) {
             NativeCallAudioRoutePicker(context: context)
                 .presentationDetents([.medium])
@@ -279,359 +269,252 @@ struct NativeCallScreen: View {
         .environment(\.colorScheme, context.viewState.isVideoCall ? .dark : colorScheme)
     }
 
-    private var backButton: some View {
-        Button { context.send(viewAction: .minimize) } label: {
-            Image(systemName: "chevron.down")
-                .font(.body.weight(.semibold))
-                .foregroundStyle(context.viewState.isVideoCall ? AnyShapeStyle(.white) : AnyShapeStyle(.compound.textActionAccent))
-                .frame(width: 44, height: 44)
-                .background(context.viewState.isVideoCall ? AnyShapeStyle(.white.opacity(0.16)) : AnyShapeStyle(.clear), in: Circle())
-        }
-        .accessibilityLabel(UntranslatedL10n.a11yNativeCallMinimize)
-    }
+    /// The assistant's page carries a video call too (question 383): it stays the assistant's, with your picture in the
+    /// corner. A tap on the corner swaps them: your picture fills the screen, with no shades (the header on its capsule,
+    /// the controls on the dark material over a live picture), and the assistant, its avatar in its Aura, takes the
+    /// corner. Another tap swaps back.
+    private var assistantVideoBody: some View {
+        let ownTile = context.viewState.videoTiles.first(where: \.participant.isLocal)
+        let isOwnPictureLarge = context.isSelfVideoLarge && ownTile != nil
+        return ZStack {
+            if isOwnPictureLarge, let ownTile {
+                NativeCallVideoTileView(tile: ownTile,
+                                        renderer: videoRenderer,
+                                        displayName: displayName(for: ownTile.participant),
+                                        profile: context.viewState.memberProfiles[ownTile.participant.userID],
+                                        mediaProvider: context.mediaProvider,
+                                        avatarSize: SpiralAvatarSize.xLarge,
+                                        showsSpeakingRing: false,
+                                        // No caption and its shade over your own full-screen picture.
+                                        showsCaption: false,
+                                        // swiftlint:disable:next spiral_raw_corner_radius - the picture fills the screen, edge to edge
+                                        cornerRadius: 0)
+                    .ignoresSafeArea()
+                    .transition(.opacity)
 
-    // MARK: - Headers
-
-    /// `02 · Outgoing` / `03 · Call 1:1`: ONE composition for the whole
-    /// life of the call — avatar, name, then the meta line. Ringing and
-    /// connected differ only in what the meta line says ("Calling…"
-    /// becomes the lock · bars · timer · REC), so answering morphs the
-    /// screen instead of rebuilding it (the avatar used to teleport from
-    /// the upper block to the centre of an empty stage).
-    private var directHeader: some View {
-        VStack(spacing: 8) {
-            if isPlacingCall {
-                Text(context.viewState.isVideoCall
-                    ? UntranslatedL10n.screenNativeCallIncomingVideo
-                    : UntranslatedL10n.screenNativeCallIncomingVoice)
-                    .font(.subheadline)
-                    .foregroundStyle(Color(.tertiaryLabel))
-            }
-
-            directAvatar
-
-            VStack(spacing: 6) {
-                Text(context.viewState.roomName)
-                    .font(.title.weight(.semibold))
-                    .foregroundStyle(.primary)
-                    .lineLimit(1)
-                    .padding(.horizontal, 60)
-
-                metaLine
-
-                statusDetailLine
-            }
-        }
-        .padding(.top, 14)
-        .padding(.bottom, 8)
-    }
-
-    private var isPlacingCall: Bool {
-        switch context.viewState.callState {
-        case .connecting, .ringing: true
-        default: false
-        }
-    }
-
-    /// The 104pt avatar with the design's glow: the peer's live voice
-    /// level breathes a soft accent halo — the same "sound airs now"
-    /// mark the agent slot draws, at person scale.
-    @ViewBuilder
-    private var directAvatar: some View {
-        if context.viewState.scope == .group {
-            RoomAvatarImage(avatar: context.viewState.roomAvatar,
-                            avatarSize: .custom(104),
-                            mediaProvider: context.mediaProvider)
-                .accessibilityHidden(true)
-        } else if let peer = context.viewState.stagePeer {
-            NativeCallLetterAvatar(userID: peer.userID,
-                                   profile: context.viewState.memberProfiles[peer.userID],
-                                   fallbackName: context.viewState.roomName,
-                                   size: 104,
-                                   mediaProvider: context.mediaProvider)
-                .overlay {
-                    if peer.isSpeaking {
-                        Circle()
-                            .strokeBorder(Color.compound.iconAccentPrimary, lineWidth: 3)
-                            .padding(-5)
+                VStack(spacing: 0) {
+                    videoHeader(onGlass: true)
+                    // What the page's line says (an error, a recording) stays in sight here too; the interpreter's badge
+                    // (L12) too, as the avatar it marks is out of sight.
+                    if let event = context.viewState.agentBlock?.event, NativeCallAgentStatusCopy.assistantPageLine(event) != nil {
+                        NativeCallAssistantStateLine(event: event)
+                            .padding(.horizontal, CompoundDesignTokens.space4X)
+                            .padding(.vertical, CompoundDesignTokens.space1_5X)
+                            .nativeCallSurface(in: Capsule())
+                            .padding(.top, CompoundDesignTokens.space1X)
+                    } else if let badge = context.viewState.interpreterBadge {
+                        NativeCallTranslationBadge(badge: badge)
+                            .padding(.top, CompoundDesignTokens.space1X)
                     }
+                    Spacer(minLength: 0)
+                        .frame(maxWidth: .infinity)
+                        .overlay { assistantCornerTile }
+                    NativeCallGlassDock(controls: controls, showsCaptions: false)
                 }
-                .background {
-                    if peer.isSpeaking {
-                        if let reader = voiceLevels {
-                            SwiftUI.TimelineView(.animation(minimumInterval: 1.0 / 20.0)) { _ in
-                                Circle()
-                                    .fill(Color.compound.iconAccentPrimary
-                                        .opacity(0.12 + 0.25 * reader.voiceLevel(forUserID: peer.userID)))
-                                    .padding(-10)
-                                    .blur(radius: 14)
-                            }
-                        } else {
-                            Circle()
-                                .fill(Color.compound.iconAccentPrimary.opacity(0.22))
-                                .padding(-10)
-                                .blur(radius: 14)
-                        }
-                    }
-                }
-        } else {
-            // No live peer yet (dialing) or none any more (the lingering
-            // "Call ended" beat): identity comes from the ROOM — a DM's
-            // single hero carries the recipient's real picture — never from
-            // the call roster, which only knows who is connected right now.
-            // This was the letter placeholder flashing before and after the
-            // remote's presence.
-            RoomAvatarImage(avatar: context.viewState.roomAvatar,
-                            avatarSize: .custom(104),
-                            mediaProvider: context.mediaProvider)
-                .accessibilityHidden(true)
-        }
-    }
-
-    /// `05 · Group call`: inline back chevron, room title with the counts
-    /// under it, the REC pill on the right.
-    private var groupHeader: some View {
-        HStack(spacing: 10) {
-            Button { context.send(viewAction: .minimize) } label: {
-                Image(systemName: "chevron.down")
-                    .font(.body.weight(.semibold))
-                    .foregroundStyle(.compound.textActionAccent)
-                    .frame(width: 34, height: 44)
-            }
-            .accessibilityLabel(UntranslatedL10n.a11yNativeCallMinimize)
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(context.viewState.roomName)
-                    .font(.headline)
-                    .foregroundStyle(.primary)
-                    .lineLimit(1)
-
-                HStack(spacing: 5) {
-                    if context.viewState.isRoomEncrypted {
-                        Image(systemName: "lock.fill")
-                            .font(.caption2)
-                            .foregroundStyle(Color(.tertiaryLabel))
-                    }
-
-                    Text(context.viewState.statusText)
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-
-                    if let connectedAt = context.viewState.callConnectedAt, context.viewState.callState == .connected {
-                        Text("·").font(.footnote).foregroundStyle(Color(.tertiaryLabel))
-                        Text(connectedAt, style: .timer)
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
-                            .monospacedDigit()
-                    }
-                }
-            }
-
-            Spacer()
-
-            if context.viewState.isRecording {
-                recordingPill
-            }
-        }
-        .padding(.horizontal, 12)
-        .padding(.top, 8)
-        .padding(.bottom, 6)
-    }
-
-    /// `06 · Video call`: name over the top scrim with the meta line under.
-    private var videoHeader: some View {
-        VStack(spacing: 4) {
-            Text(context.viewState.roomName)
-                .font(.title3.weight(.semibold))
-                .foregroundStyle(.white)
-                .lineLimit(1)
-
-            metaLine
-
-            statusDetailLine
-        }
-        .padding(.top, 10)
-        .padding(.bottom, 4)
-    }
-
-    /// The one quiet line about the call itself: lock, the live timer once
-    /// connected (the call state before that) and REC. Recording is a
-    /// property of the CALL, so this is its only home on the screen (G2).
-    private var metaLine: some View {
-        HStack(spacing: 6) {
-            if context.viewState.isRoomEncrypted {
-                Image(systemName: "lock.fill")
-                    .font(.caption2)
-                    .foregroundStyle(Color(.tertiaryLabel))
-                    .accessibilityHidden(true)
-            }
-
-            if context.viewState.callState == .connected, context.viewState.connectionQuality != .unknown {
-                NativeCallSignalBars(quality: context.viewState.connectionQuality)
-            }
-
-            if let connectedAt = context.viewState.callConnectedAt, context.viewState.callState == .connected {
-                Text(connectedAt, style: .timer)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .monospacedDigit()
+                .environment(\.nativeCallIsOverPicture, true)
+                .transition(.opacity)
             } else {
-                Text(context.viewState.statusText)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-            }
-
-            if context.viewState.isRecording {
-                Text("·")
-                    .font(.subheadline)
-                    .foregroundStyle(Color(.tertiaryLabel))
-
-                recordingBadge
+                // The corner tile keeps to the page's stage, between the way back and the dock, as on the 1:1 video.
+                NativeCallPortraitLayout(context: context, controls: controls, cornerTile: ownTile.map { ownTile in
+                    AnyView(NativeCallDraggableTile(tile: ownTile,
+                                                    renderer: videoRenderer,
+                                                    displayName: displayName(for: ownTile.participant),
+                                                    profile: context.viewState.memberProfiles[ownTile.participant.userID],
+                                                    mediaProvider: context.mediaProvider,
+                                                    corner: $cornerTileCorner) {
+                            context.send(viewAction: .swapVideos)
+                        })
+                })
+                .transition(.opacity)
             }
         }
+        .animation(reduceMotion ? .easeInOut(duration: 0.2) : .spring(duration: 0.35, bounce: 0), value: isOwnPictureLarge)
+        .background(Color.black.ignoresSafeArea())
     }
 
-    /// Phase 4 — what the call is doing, or how long it ran once it ended
-    /// (`18 · Call states`).
+    /// The assistant in the corner while your picture is large: its avatar in its Aura on its own field.
     @ViewBuilder
-    private var statusDetailLine: some View {
-        if let statusDetail = context.viewState.statusDetail {
-            Text(statusDetail)
-                .font(.footnote)
-                .foregroundStyle(context.viewState.statusDetailIsDegraded
-                    ? AnyShapeStyle(.compound.textInfoPrimary)
-                    : AnyShapeStyle(.secondary))
+    private var assistantCornerTile: some View {
+        if let assistant = context.viewState.stagePeer {
+            NativeCallDraggableTile(corner: $cornerTileCorner, onSwap: { context.send(viewAction: .swapVideos) }) {
+                NativeCallSpeakingRing(userID: assistant.userID, diameter: SpiralAvatarSize.medium) {
+                    NativeCallLetterAvatar(userID: assistant.userID,
+                                           profile: context.viewState.memberProfiles[assistant.userID],
+                                           fallbackName: context.viewState.roomName,
+                                           size: SpiralAvatarSize.medium,
+                                           mediaProvider: context.mediaProvider)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background {
+                    NativeCallBackdrop(photoURL: context.viewState.backdropPhotoURL,
+                                       contentID: context.viewState.backdropContentID,
+                                       mediaProvider: context.mediaProvider,
+                                       tone: .deep)
+                }
+                .clipShape(RoundedRectangle(cornerRadius: SpiralRadius.bubble, style: .continuous))
+                .accessibilityLabel(displayName(for: assistant) ?? context.viewState.roomName)
+            }
         }
     }
 
-    /// A dot and the word, as `03 · Call 1:1` draws it. Presentational: the
-    /// label below is what VoiceOver reads.
-    private var recordingBadge: some View {
-        HStack(spacing: 4) {
-            Circle()
-                .fill(.compound.iconCriticalPrimary)
-                .frame(width: 6, height: 6)
+    /// `06 · Video call`: the name with the meta line under it, the way back beside them. Over a picture they sit on the
+    /// system's glass instead of a shade (question 383, decision 346), so the picture stays uncovered.
+    private func videoHeader(onGlass: Bool) -> some View {
+        VStack(spacing: CompoundDesignTokens.space1X) {
+            if onGlass {
+                // The words are the glass's own content in the primary style, which glass keeps legible over any picture.
+                videoTitle(onGlass: true)
+                    .padding(.horizontal, CompoundDesignTokens.space5X)
+                    .padding(.vertical, CompoundDesignTokens.space2X)
+                    .nativeCallSurface(in: Capsule())
+                    .padding(.horizontal, CompoundDesignTokens.space14X)
+            } else {
+                videoTitle(onGlass: false)
+                    .padding(.horizontal, CompoundDesignTokens.space14X)
+            }
 
-            Text(UntranslatedL10n.screenNativeCallRecordingBadge)
-                .font(.caption.weight(.bold))
-                .foregroundStyle(.compound.textCriticalPrimary)
+            NativeCallHeldCallPill(context: context)
+                .padding(.top, CompoundDesignTokens.space1X)
         }
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(UntranslatedL10n.a11yNativeCallRecording)
+        .padding(.vertical, CompoundDesignTokens.space1X)
+        .frame(maxWidth: .infinity)
+        .overlay(alignment: .topLeading) {
+            NativeCallBackButton(context: context)
+                .padding(.horizontal, CompoundDesignTokens.space3X)
+        }
+        // Brief 0085: what you hear, top right.
+        .overlay(alignment: .topTrailing) {
+            NativeCallTranslateButton(context: context)
+                .padding(.horizontal, CompoundDesignTokens.space3X)
+        }
     }
 
-    /// `05` puts REC in a soft critical pill on the nav row.
-    private var recordingPill: some View {
-        recordingBadge
-            .padding(.horizontal, 10)
-            .padding(.vertical, 6)
-            .background(.compound.bgCriticalSubtle, in: Capsule())
+    private func videoTitle(onGlass: Bool) -> some View {
+        VStack(spacing: CompoundDesignTokens.space1X) {
+            Text(context.viewState.roomName)
+                .font(.compound.headingSMSemibold)
+                .foregroundStyle(onGlass ? AnyShapeStyle(.primary) : AnyShapeStyle(Color.compound.textOnSolidPrimary))
+                .multilineTextAlignment(.center)
+                .lineLimit(onGlass && !dynamicTypeSize.isAccessibilitySize ? 1 : 2)
+                .minimumScaleFactor(onGlass ? 0.8 : 1)
+
+            NativeCallMetaLine(context: context, isOverVideo: !onGlass, isOnGlass: onGlass)
+        }
     }
 
     // MARK: - Stages
 
-    /// `03` / `02`: the other person, large and centred — the layout every
-    /// phone call has trained users on.
-    /// `05`: white person cards. G1 — agents are never listed among humans;
-    /// they live in the block and in the Agent Center instead.
-    private var groupRoster: some View {
-        ScrollView {
-            LazyVStack(spacing: 6) {
-                ForEach(context.viewState.humanParticipants) { participant in
-                    NativeCallParticipantRow(participant: participant,
-                                             profile: context.viewState.memberProfiles[participant.userID],
-                                             coveredLanguage: coveredLanguageName(for: participant),
-                                             mediaProvider: context.mediaProvider)
+    /// A 1:1 video call gives the picture the screen: one party fills it
+    /// and the other sits in a draggable corner tile.
+    @ViewBuilder
+    private var oneToOneVideoStage: some View {
+        if let largeTile = context.viewState.videoStage.large {
+            // The header already names the 1:1 peer — the full-bleed
+            // stage carries neither a ring, a caption nor corners
+            // (`06`): the picture IS the screen.
+            NativeCallVideoTileView(tile: largeTile,
+                                    renderer: videoRenderer,
+                                    displayName: displayName(for: largeTile.participant),
+                                    profile: context.viewState.memberProfiles[largeTile.participant.userID],
+                                    mediaProvider: context.mediaProvider,
+                                    avatarSize: SpiralAvatarSize.xLarge, // AGENT-PLATFORM (Brief 0083, decisions 300b and 340)
+                                    showsSpeakingRing: false,
+                                    showsCaption: false,
+                                    // swiftlint:disable:next spiral_raw_corner_radius - the stage has no corners
+                                    cornerRadius: 0,
+                                    portrait: largeTile.participant.isLocal ? nil : context) // AGENT-PLATFORM (Brief 0083, decision 342)
+                .ignoresSafeArea()
+                .onTapGesture {
+                    context.isVideoChromeHidden.toggle()
                 }
-            }
-            .padding(.horizontal, 20)
-            .padding(.top, 10)
+                .accessibilityActions { showControlsAction }
+        } else {
+            Color(.systemFill).ignoresSafeArea()
         }
-        .frame(maxHeight: .infinity)
     }
 
-    /// A video call gives the picture the screen: one party fills it and
-    /// the other sits in a draggable corner tile. G14: a TAP on the small
-    /// tile swaps who is large, a DRAG moves it to any corner, and a
-    /// double-tap on our own picture flips the camera.
-    private var videoStage: some View {
-        ZStack {
-            let remoteTiles = context.viewState.videoTiles.filter { !$0.participant.isLocal }
-            let localTile = context.viewState.videoTiles.first(where: \.participant.isLocal)
+    /// G14: a TAP on the small tile swaps who is large, a DRAG moves it to any corner.
+    @ViewBuilder
+    private var videoSmallTile: some View {
+        if let smallTile = context.viewState.videoStage.small {
+            let hasRemoteTile = context.viewState.videoTiles.contains { !$0.participant.isLocal }
+            // Decision 341: a tap swaps the pictures, never flips the camera (that is the Camera control's alone).
+            NativeCallDraggableTile(tile: smallTile,
+                                    renderer: videoRenderer,
+                                    displayName: displayName(for: smallTile.participant),
+                                    profile: context.viewState.memberProfiles[smallTile.participant.userID],
+                                    mediaProvider: context.mediaProvider,
+                                    corner: $cornerTileCorner,
+                                    onSwap: hasRemoteTile ? { context.send(viewAction: .swapVideos) } : nil)
+        }
+    }
 
-            if context.viewState.scope.isOneToOne {
-                let stage = NativeCallVideoStage.tiles(remote: remoteTiles.first,
-                                                       local: localTile,
-                                                       isSelfVideoLarge: context.isSelfVideoLarge)
+    /// The group's Focus: the stage is `groupFocusUserID`'s tile (moved only by a sustained turn), the filmstrip the
+    /// others, ourselves last. Portrait puts the strip under the stage, landscape beside it, so the stage keeps most
+    /// of the screen either way. A change of speaker crossfades on a spring; under Reduce Motion it fades.
+    private var groupVideoFocus: some View {
+        let tiles = context.viewState.videoTiles.filter { !$0.participant.isLocal }
+            + context.viewState.videoTiles.filter(\.participant.isLocal)
+        let stage = tiles.first { $0.participant.userID == context.viewState.groupFocusUserID } ?? tiles.first
+        let strip = tiles.filter { $0.id != stage?.id }
 
-                if let largeTile = stage.large {
-                    // The header already names the 1:1 peer — the full-bleed
-                    // stage carries neither a ring, a caption nor corners
-                    // (`06`): the picture IS the screen.
-                    NativeCallVideoTileView(tile: largeTile,
-                                            renderer: videoRenderer,
-                                            displayName: displayName(for: largeTile.participant),
-                                            profile: context.viewState.memberProfiles[largeTile.participant.userID],
-                                            mediaProvider: context.mediaProvider,
-                                            avatarSize: 104,
-                                            showsSpeakingRing: false,
-                                            showsCaption: false,
-                                            cornerRadius: 0)
-                        .ignoresSafeArea()
-                        .onTapGesture(count: 2) {
-                            if largeTile.participant.isLocal {
-                                context.send(viewAction: .switchCamera)
-                            }
-                        }
-                        .onTapGesture {
-                            context.isVideoChromeHidden.toggle()
-                        }
-                } else {
-                    Color(.systemFill).ignoresSafeArea()
+        return GeometryReader { proxy in
+            let isWide = proxy.size.width > proxy.size.height
+            let layout = isWide
+                ? AnyLayout(HStackLayout(spacing: CompoundDesignTokens.space2X))
+                : AnyLayout(VStackLayout(spacing: CompoundDesignTokens.space2X))
+
+            layout {
+                if let stage {
+                    groupTile(stage, cornerRadius: SpiralRadius.listCard, avatarSize: SpiralAvatarSize.large)
+                        .id(stage.id)
+                        .transition(.opacity)
                 }
 
-                if let smallTile = stage.small {
-                    NativeCallDraggableTile(tile: smallTile,
-                                            renderer: videoRenderer,
-                                            displayName: displayName(for: smallTile.participant),
-                                            profile: context.viewState.memberProfiles[smallTile.participant.userID],
-                                            mediaProvider: context.mediaProvider,
-                                            onTap: remoteTiles.isEmpty
-                                                ? (smallTile.participant.isLocal ? { context.send(viewAction: .switchCamera) } : nil)
-                                                : { context.isSelfVideoLarge.toggle() },
-                                            onDoubleTap: smallTile.participant.isLocal
-                                                ? { context.send(viewAction: .switchCamera) }
-                                                : nil)
-                }
-            } else {
-                // Small groups (`07`): a grid that stays legible on a
-                // phone, EVERYONE in it — the design has no floating self
-                // tile in a group. ADR-0076 caps the native group at
-                // eight. Agents are never tiles; they ride the capsule.
-                //
-                // Sized by NativeCallGridLayout from BOTH axes (audit
-                // A7-8): the old width-derived 3:4 tiles overflowed an
-                // iPad by a full row, and the ScrollView answer was
-                // reverted because scrolling a call hides participants.
-                let gridTiles = remoteTiles + (localTile.map { [$0] } ?? [])
-                NativeCallGrid(spacing: 8, topInset: 96, bottomInset: 168) {
-                    ForEach(gridTiles) { tile in
-                        NativeCallVideoTileView(tile: tile,
-                                                renderer: videoRenderer,
-                                                displayName: displayName(for: tile.participant),
-                                                profile: context.viewState.memberProfiles[tile.participant.userID],
-                                                mediaProvider: context.mediaProvider,
-                                                avatarSize: 56)
-                            .onTapGesture(count: 2) {
-                                if tile.participant.isLocal {
-                                    context.send(viewAction: .switchCamera)
-                                }
-                            }
-                            .onTapGesture {
-                                context.isVideoChromeHidden.toggle()
-                            }
+                if !strip.isEmpty {
+                    NativeCallTileStrip(items: strip,
+                                        axis: isWide ? .vertical : .horizontal,
+                                        minimumTileLength: isWide ? filmstripTileHeight : filmstripTileWidth,
+                                        spacing: CompoundDesignTokens.space2X,
+                                        crossInset: NativeCallTileAuraEdge.reach) { tile, length in
+                        // Portrait thumbnails under a portrait stage, landscape ones beside a landscape stage.
+                        groupTile(tile, cornerRadius: SpiralRadius.block, avatarSize: SpiralAvatarSize.small, isCompact: true)
+                            .frame(width: isWide ? length * 4 / 3 : length, height: isWide ? length : length * 4 / 3)
                     }
+                    .frame(maxHeight: isWide ? .infinity : nil)
                 }
+            }
+        }
+        .padding(.horizontal, CompoundDesignTokens.space3X)
+        .animation(reduceMotion ? .easeInOut(duration: 0.2) : .spring(duration: 0.45, bounce: 0), value: stage?.id)
+    }
+
+    /// One of the group's pictures, its edge bending while its person speaks (the Aura edge).
+    private func groupTile(_ tile: NativeCallVideoTile, cornerRadius: CGFloat, avatarSize: CGFloat, isCompact: Bool = false) -> some View {
+        NativeCallVideoTileView(tile: tile,
+                                renderer: videoRenderer,
+                                displayName: displayName(for: tile.participant),
+                                profile: context.viewState.memberProfiles[tile.participant.userID],
+                                mediaProvider: context.mediaProvider,
+                                avatarSize: avatarSize,
+                                showsSpeakingRing: false,
+                                isCaptionCompact: isCompact,
+                                cornerRadius: cornerRadius)
+            .overlay {
+                NativeCallTileAuraEdge(userID: tile.participant.userID, cornerRadius: cornerRadius)
+            }
+            .onTapGesture {
+                context.isVideoChromeHidden.toggle()
+            }
+            .accessibilityActions { showControlsAction }
+    }
+
+    // AGENT-PLATFORM (Brief 0083, decision 340): with the dock hidden VoiceOver has nothing to reach it by but this.
+    @ViewBuilder
+    private var showControlsAction: some View {
+        if context.isVideoChromeHidden {
+            Button(UntranslatedL10n.a11yNativeCallShowControls) {
+                context.isVideoChromeHidden = false
             }
         }
     }
@@ -640,210 +523,192 @@ struct NativeCallScreen: View {
         context.viewState.memberProfiles[participant.userID]?.displayName
     }
 
-    /// The language a covered speaker is heard in — the Live agent's
-    /// document names it per speaker (`05`'s `Covered in English`).
-    private func coveredLanguageName(for participant: NativeCallParticipant) -> String? {
-        guard let language = context.viewState.agents.coveredSpeakers[participant.userID] else { return nil }
-        return NativeCallAgentStatusCopy.languageName(language)
-    }
+    // MARK: - Controls
 
-    // MARK: - Agent block
-
-    /// G1: the full-width band above the controls. It exists only while an
-    /// agent is in the call, and it is one tap from the same Agent Center
-    /// the control row opens.
-    @ViewBuilder
-    private var agentBlock: some View {
-        if let block = context.viewState.agentBlock {
-            NativeCallAgentBlock(state: block,
-                                 action: { context.send(viewAction: .showAgentCenter) })
-                .padding(.horizontal, 20)
-                .padding(.bottom, 12)
-        }
-    }
-
-    /// Phase 3 (G5): the same block state dressed as a floating capsule
-    /// over the video stage — one fact, one place, two dressings.
-    @ViewBuilder
-    private var agentCapsule: some View {
-        if let block = context.viewState.agentBlock {
-            NativeCallAgentBlock(state: block,
-                                 action: { context.send(viewAction: .showAgentCenter) },
-                                 style: .capsule)
-                .padding(.bottom, 12)
-        }
-    }
-
-    // MARK: - Dock
-
-    /// The circular call controls (`03`: mic, speaker, agent, end — the
-    /// audio call has no camera in the dock; `06` adds it for video).
-    /// Personal listening lives in the Agent Center's WHAT YOU HEAR section
-    /// (Phase 2, operator decision — the dock shortcut is dropped).
-    /// ONE dock for the one call (`02`–`07`): `Agent · Mute · Video ·
-    /// Sound/Flip · End`, identical in both states. The fourth slot is
-    /// contextual — Sound in audio (long-press: the routes sheet), the
-    /// camera Flip once video is live (the speaker is automatic then).
-    /// Equal flexible slots keep five circles on any phone.
-    private var controls: some View {
-        HStack(spacing: 0) {
-            agentButton
-            dockSlot(microphoneButton)
-            dockSlot(cameraButton)
-            if context.viewState.isVideoCall {
-                dockSlot(flipButton)
-            } else {
-                dockSlot(speakerButton)
-            }
-            dockSlot(endButton)
-        }
-        .padding(.horizontal, 8)
-        .padding(.top, 8)
-        .padding(.bottom, 12)
-    }
-
-    private func dockSlot(_ button: some View) -> some View {
-        button.frame(maxWidth: .infinity)
-    }
-
-    @ViewBuilder
-    private var agentButton: some View {
-        if context.viewState.agents.panel.isAvailable {
-            dockSlot(NativeCallControlButton(systemName: "sparkles",
-                                             title: UntranslatedL10n.screenNativeCallControlAgent,
-                                             style: .accent,
-                                             titleColor: dockTitleColor,
-                                             accessibilityLabel: UntranslatedL10n.screenNativeCallAgentCenterOpen) {
+    // AGENT-PLATFORM (Brief 0083, decisions 300d and 340): the controls as one model the glass dock draws. ONE dock
+    // for the one call (`02`–`07`): `Assistant · Mute · Video · Sound/Flip · End`. The fourth slot is contextual —
+    // Sound in audio (long-press: the routes sheet), the camera Flip once video is live (the speaker is automatic
+    // then). Personal listening lives in the Agent Center's WHAT YOU HEAR section.
+    private var controls: [NativeCallControl] {
+        var controls = [NativeCallControl]()
+        // From the first frame: waiting for the platform's answer made the dock jump from three buttons to four
+        // (question 401, remark 4). Until it answers, the sheet says it is loading, or unavailable.
+        if context.viewState.agents.panel.isConfigured {
+            controls.append(.init(id: "assistant",
+                                  symbol: .spiral("spiral.peek.layers"),
+                                  title: UntranslatedL10n.screenNativeCallControlAgent,
+                                  kind: .assistant(isInCall: context.viewState.agentBlock != nil),
+                                  accessibilityLabel: UntranslatedL10n.screenNativeCallAgentCenterOpen) {
                     context.send(viewAction: .showAgentCenter)
                 })
         }
-    }
-
-    private var microphoneButton: some View {
-        NativeCallControlButton(systemName: context.viewState.isMicrophoneEnabled ? "mic.fill" : "mic.slash.fill",
-                                title: UntranslatedL10n.screenNativeCallControlMute,
-                                style: dockStyle(isEngaged: !context.viewState.isMicrophoneEnabled),
-                                titleColor: dockTitleColor,
-                                accessibilityLabel: context.viewState.isMicrophoneEnabled
-                                    ? UntranslatedL10n.a11yNativeCallMuteMicrophone
-                                    : UntranslatedL10n.a11yNativeCallUnmuteMicrophone) {
-            context.send(viewAction: .toggleMicrophone)
-        }
-    }
-
-    private var cameraButton: some View {
+        controls.append(.init(id: "microphone",
+                              symbol: .system(context.viewState.isMicrophoneEnabled ? "mic.fill" : "mic.slash.fill"),
+                              title: UntranslatedL10n.screenNativeCallControlMute,
+                              kind: .toggle(isOn: !context.viewState.isMicrophoneEnabled),
+                              accessibilityLabel: context.viewState.isMicrophoneEnabled
+                                  ? UntranslatedL10n.a11yNativeCallMuteMicrophone
+                                  : UntranslatedL10n.a11yNativeCallUnmuteMicrophone) {
+                context.send(viewAction: .toggleMicrophone)
+            })
         // The slashed glyph alone carries the off state — inverting the
-        // circle made the DEFAULT state the loudest thing in the dock.
-        NativeCallControlButton(systemName: context.viewState.isCameraEnabled ? "video.fill" : "video.slash.fill",
-                                title: UntranslatedL10n.screenNativeCallControlVideo,
-                                style: dockStyle(isEngaged: false),
-                                titleColor: dockTitleColor,
-                                accessibilityLabel: context.viewState.isCameraEnabled
-                                    ? UntranslatedL10n.a11yNativeCallCameraOff
-                                    : UntranslatedL10n.a11yNativeCallCameraOn) {
-            context.send(viewAction: .toggleCamera)
-        }
-    }
-
-    private var speakerButton: some View {
-        NativeCallControlButton(systemName: context.viewState.isSpeakerEnabled ? "speaker.wave.2.fill" : "speaker.wave.2",
-                                title: UntranslatedL10n.screenNativeCallControlSound,
-                                style: dockStyle(isEngaged: context.viewState.isSpeakerEnabled),
-                                titleColor: dockTitleColor,
-                                accessibilityLabel: context.viewState.isSpeakerEnabled
-                                    ? UntranslatedL10n.a11yNativeCallDisableSpeaker
-                                    : UntranslatedL10n.a11yNativeCallEnableSpeaker,
-                                accessibilityHint: UntranslatedL10n.a11yNativeCallAudioRoutes) {
-            context.send(viewAction: .toggleSpeaker)
-        }
-        // G8 — the long-press always reaches the route picker, even
-        // when only the phone's own outputs exist right now.
-        .simultaneousGesture(LongPressGesture().onEnded { _ in
-            context.send(viewAction: .showAudioRoutes)
-        })
-    }
-
-    /// `06`/`07`'s fourth slot: flip the capture device. The double-tap
-    /// on the self tile stays as the shortcut gesture.
-    private var flipButton: some View {
-        NativeCallControlButton(systemName: "arrow.triangle.2.circlepath.camera",
-                                title: UntranslatedL10n.screenNativeCallControlFlip,
-                                style: dockStyle(isEngaged: false),
-                                titleColor: dockTitleColor,
-                                accessibilityLabel: UntranslatedL10n.a11yNativeCallSwitchCamera) {
-            context.send(viewAction: .switchCamera)
-        }
-    }
-
-    private var endButton: some View {
-        NativeCallControlButton(systemName: "phone.down.fill",
-                                title: UntranslatedL10n.screenNativeCallControlEnd,
-                                style: .critical,
-                                titleColor: dockTitleColor,
-                                accessibilityLabel: UntranslatedL10n.a11yNativeCallEnd) {
-            context.send(viewAction: .hangUp)
-        }
-    }
-
-    /// The dock captions read quietly on both canvases.
-    private var dockTitleColor: Color {
-        context.viewState.isVideoCall ? .white.opacity(0.7) : Color(.secondaryLabel)
-    }
-
-    private func dockStyle(isEngaged: Bool) -> NativeCallControlButton.Style {
+        // control made the DEFAULT state the loudest thing in the dock.
+        controls.append(.init(id: "camera",
+                              symbol: .system(context.viewState.isCameraEnabled ? "video.fill" : "video.slash.fill"),
+                              title: UntranslatedL10n.screenNativeCallControlVideo,
+                              kind: .toggle(isOn: false),
+                              accessibilityLabel: context.viewState.isCameraEnabled
+                                  ? UntranslatedL10n.a11yNativeCallCameraOff
+                                  : UntranslatedL10n.a11yNativeCallCameraOn) {
+                context.send(viewAction: .toggleCamera)
+            })
         if context.viewState.isVideoCall {
-            return isEngaged ? .videoEngaged : .video
+            controls.append(.init(id: "flip",
+                                  symbol: .system("arrow.triangle.2.circlepath.camera"),
+                                  title: UntranslatedL10n.screenNativeCallControlFlip,
+                                  kind: .toggle(isOn: false),
+                                  accessibilityLabel: UntranslatedL10n.a11yNativeCallSwitchCamera) {
+                    context.send(viewAction: .switchCamera)
+                })
+        } else {
+            // G8 — the long-press always reaches the route picker, even
+            // when only the phone's own outputs exist right now.
+            controls.append(.init(id: "speaker",
+                                  symbol: .system(context.viewState.isSpeakerEnabled ? "speaker.wave.2.fill" : "speaker.wave.2"),
+                                  title: UntranslatedL10n.screenNativeCallControlSound,
+                                  kind: .toggle(isOn: context.viewState.isSpeakerEnabled),
+                                  accessibilityLabel: context.viewState.isSpeakerEnabled
+                                      ? UntranslatedL10n.a11yNativeCallDisableSpeaker
+                                      : UntranslatedL10n.a11yNativeCallEnableSpeaker,
+                                  accessibilityHint: UntranslatedL10n.a11yNativeCallAudioRoutes,
+                                  longPressAction: { context.send(viewAction: .showAudioRoutes) }) {
+                    context.send(viewAction: .toggleSpeaker)
+                })
         }
-        return isEngaged ? .audioEngaged : .audio
+        controls.append(.init(id: "end",
+                              symbol: .system("phone.down.fill"),
+                              title: UntranslatedL10n.screenNativeCallControlEnd,
+                              kind: .end,
+                              accessibilityLabel: UntranslatedL10n.a11yNativeCallEnd) {
+                context.send(viewAction: .hangUp)
+            })
+        return controls
     }
 }
 
 // MARK: - Previews
 
-struct NativeCallScreen_Previews: PreviewProvider, TestablePreview {
+struct NativeCallScreen_Previews: PreviewProvider, TestablePreview, SpiralGatedPreview {
     static let viewModel = makeViewModel()
     /// G1/G2/G4 in context: an agent airing a translation, a live recording
-    /// and a mixed roster, so the block, the REC badge and `4 people · 2
-    /// agents` are all snapshotted on the real screen rather than in
-    /// isolation — and with them the light-first audio theme.
+    /// and a mixed roster, so the pill, REC and `4 people · 2 agents` are
+    /// all snapshotted on the real screen rather than in isolation.
     static let agentViewModel = makeAgentViewModel()
-    /// The same screen with no agent attached: the block must be ABSENT and
+    /// The same screen with no agent attached: the pill must be ABSENT and
     /// the status line must fall back to people alone.
     static let noAgentViewModel = makeNoAgentViewModel()
-    /// Phase 3 (G5): the same airing agent over the video stage — the
-    /// block dresses as a floating dark capsule instead of the band.
-    static let videoAgentViewModel = makeVideoAgentViewModel()
+    /// Still pictures in place of live video (Brief 0083, decision 340).
+    static let videoRenderer = NativeCallPreviewVideoRenderer()
 
     static var previews: some View {
         NativeCallScreen(context: viewModel.context, videoRenderer: nil)
             .previewDisplayName("Connecting")
 
-        NativeCallScreen(context: agentViewModel.context, videoRenderer: nil)
-            .previewDisplayName("Agent airing · recording")
+        NativeCallScreen(context: makeRingingViewModel().context, videoRenderer: nil)
+            .previewDisplayName("Outgoing ringing")
 
         NativeCallScreen(context: noAgentViewModel.context, videoRenderer: nil)
             .previewDisplayName("No agent")
 
-        NativeCallScreen(context: videoAgentViewModel.context, videoRenderer: nil)
-            .previewDisplayName("Video call · agent capsule")
+        NativeCallScreen(context: makeLimitStopViewModel().context, videoRenderer: nil)
+            .previewDisplayName("Translation paused by the AI limit")
 
-        NativeCallScreen(context: makeGroupVideoViewModel().context, videoRenderer: nil)
-            .previewDisplayName("Video call · group grid")
+        NativeCallScreen(context: makePhotoViewModel().context, videoRenderer: nil)
+            .previewDisplayName("1-1 with a photo")
 
-        NativeCallScreen(context: makeChromeHiddenViewModel().context, videoRenderer: nil)
-            .previewDisplayName("Video call · chrome hidden")
-
-        NativeCallScreen(context: makeRingingViewModel().context, videoRenderer: nil)
-            .previewDisplayName("Outgoing ringing")
-
-        // `04 · Call 1:1 · dark` comes for free from the semantic colours —
-        // this snapshot is the proof.
-        NativeCallScreen(context: noAgentViewModel.context, videoRenderer: nil)
-            .environment(\.colorScheme, .dark)
-            .previewDisplayName("Dark 1-1")
+        NativeCallScreen(context: makeTranslatingViewModel().context, videoRenderer: nil)
+            .previewDisplayName("1-1 with the assistant translating and recording")
 
         NativeCallScreen(context: makeAssistantCallViewModel().context, videoRenderer: nil)
             .previewDisplayName("Assistant call")
+
+        NativeCallScreen(context: makeHeldCallViewModel().context, videoRenderer: nil)
+            .previewDisplayName("Held call")
+
+        NativeCallScreen(context: agentViewModel.context, videoRenderer: nil)
+            .previewDisplayName("Agent airing · recording")
+
+        NativeCallScreen(context: makeVideoViewModel().context, videoRenderer: videoRenderer)
+            .previewDisplayName("Video call · agent capsule")
+
+        NativeCallScreen(context: makeVideoViewModel(remoteFrame: nil).context, videoRenderer: videoRenderer)
+            .previewDisplayName("Video call · peer's camera off")
+
+        NativeCallScreen(context: makeVideoViewModel(remoteFrame: nil, hasPeerPhoto: true).context, videoRenderer: videoRenderer)
+            .previewDisplayName("Video call · peer's camera off with a photo")
+
+        NativeCallScreen(context: makeVideoViewModel(remoteFrame: nil, isPeerOnHold: true).context, videoRenderer: videoRenderer)
+            .previewDisplayName("Video call · peer on hold")
+
+        NativeCallScreen(context: makeVideoViewModel(isChromeHidden: true).context, videoRenderer: videoRenderer)
+            .previewDisplayName("Video call · chrome hidden")
+
+        NativeCallScreen(context: makeGroupVideoViewModel(people: 2).context, videoRenderer: videoRenderer)
+            .previewDisplayName("Video call · group of 2")
+
+        NativeCallScreen(context: makeGroupVideoViewModel(people: 3).context, videoRenderer: videoRenderer)
+            .previewDisplayName("Video call · group of 3")
+
+        NativeCallScreen(context: makeGroupVideoViewModel(people: 4).context, videoRenderer: videoRenderer)
+            .previewDisplayName("Video call · group grid")
+
+        NativeCallScreen(context: makeGroupVideoViewModel(people: 4, hasCamerasOff: true).context, videoRenderer: videoRenderer)
+            .previewDisplayName("Video call · group with cameras off")
+
+        NativeCallScreen(context: makeGroupVideoViewModel(people: 6).context, videoRenderer: videoRenderer)
+            .previewDisplayName("Video call · group of 6")
+
+        NativeCallScreen(context: makeGroupVideoViewModel(people: 8).context, videoRenderer: videoRenderer)
+            .previewDisplayName("Video call · group of 8")
+    }
+
+    /// A 1:1 with another call parked behind it: the pill under the header swaps them.
+    static func makeHeldCallViewModel() -> NativeCallScreenViewModel {
+        let viewModel = makeNoAgentViewModel()
+        viewModel.state.heldCall = CallKitHeldCall(roomID: "!held:matrix.org", displayName: "Marta Illienko")
+        return viewModel
+    }
+
+    /// A connected 1:1 with the peer's photo, which the backdrop is made of.
+    static func makePhotoViewModel() -> NativeCallScreenViewModel {
+        let viewModel = makeViewModel(mediaProvider: MediaProviderMock(.init()))
+        viewModel.state.callState = .connected
+        viewModel.state.agentCenter.isAvailable = true
+        viewModel.state.agentCenter.isConfigured = true
+        viewModel.state.participants = [participant("@alice:matrix.org", isLocal: true),
+                                        participant("@bob:matrix.org", isSpeaking: true)]
+        viewModel.state.memberProfiles = ["@bob:matrix.org": .init(displayName: "Mira Testova", avatarURL: .mockMXCUserAvatar)]
+        return viewModel
+    }
+
+    /// A 1:1 with one's assistant in it, translating everyone into Ukrainian and recording.
+    static func makeTranslatingViewModel() -> NativeCallScreenViewModel {
+        let viewModel = makeViewModel()
+        viewModel.state.callState = .connected
+        viewModel.state.participants = [participant("@alice:matrix.org", isLocal: true),
+                                        participant("@bob:matrix.org"),
+                                        participant("@assistant-alice:matrix.org", role: .agent, isSpeaking: true)]
+        viewModel.state.memberProfiles = ["@alice:matrix.org": .init(displayName: "Alice Kovalenko"),
+                                          "@bob:matrix.org": .init(displayName: "Mira Testova"),
+                                          "@assistant-alice:matrix.org": .init(displayName: "Alice's Assistant")]
+        viewModel.state.agentClaims.documents = ["@assistant-alice:matrix.org": .make(translation: .producing("uk", speakers: ["@bob:matrix.org"]), recording: true)]
+        viewModel.state.agentClaims.speaking = ["@assistant-alice:matrix.org"]
+        viewModel.state.agentCenter.isAvailable = true
+        viewModel.state.agentCenter.isConfigured = true
+        viewModel.state.agentCenter.sessions = [session(agentMxid: "@assistant-alice:matrix.org",
+                                                        sessionID: "session-1",
+                                                        isRecording: true)]
+        return viewModel
     }
 
     /// A call WITH one's own assistant: the agent is the peer on the stage,
@@ -854,6 +719,7 @@ struct NativeCallScreen_Previews: PreviewProvider, TestablePreview {
         viewModel.state.callState = .connected
         viewModel.state.roomName = "Alice's assistant"
         viewModel.state.agentCenter.isAvailable = true
+        viewModel.state.agentCenter.isConfigured = true
         viewModel.state.participants = [participant("@alice:matrix.org", isLocal: true),
                                         participant("@assistant-alice:matrix.org", role: .agent, isSpeaking: true)]
         viewModel.state.memberProfiles = ["@assistant-alice:matrix.org": .init(displayName: "Alice's assistant")]
@@ -874,43 +740,41 @@ struct NativeCallScreen_Previews: PreviewProvider, TestablePreview {
                                            avatarURL: nil)
     }
 
-    /// `06b`: a tap hid the dock — the capsule alone above the picture.
-    static func makeChromeHiddenViewModel() -> NativeCallScreenViewModel {
-        let viewModel = makeVideoAgentViewModel()
-        viewModel.state.bindings.isVideoChromeHidden = true
-        return viewModel
-    }
-
     /// `02 · Outgoing call`: the callee named large, `Calling…` under it.
     static func makeRingingViewModel() -> NativeCallScreenViewModel {
         let viewModel = makeViewModel()
         viewModel.state.callState = .ringing
         viewModel.state.agentCenter.isAvailable = true
+        viewModel.state.agentCenter.isConfigured = true
         viewModel.state.participants = [participant("@alice:matrix.org", isLocal: true)]
         return viewModel
     }
 
-    /// `07 · Video call · group`: four people in the 2×2 grid — the local
-    /// preview is IN the grid, not floating.
-    static func makeGroupVideoViewModel() -> NativeCallScreenViewModel {
-        let viewModel = makeViewModel(isVideoCall: true)
+    /// `07 · Video call · group`: the local picture is IN the grid, not
+    /// floating; every other camera off when asked, the first with a photo.
+    static func makeGroupVideoViewModel(people count: Int, hasCamerasOff: Bool = false) -> NativeCallScreenViewModel {
+        let names = ["Alice Kovalenko", "Mira Testova", "Marta Illienko", "Yurii Tkach",
+                     "Olena Shevchuk", "Taras Melnyk", "Iryna Bondar", "Dmytro Savchenko"]
+        let viewModel = makeViewModel(isVideoCall: true, mediaProvider: MediaProviderMock(.init()))
         viewModel.state.scope = .group
         applyGroupRoomIdentity(to: viewModel)
         viewModel.state.callState = .connected
-        let local = participant("@alice:matrix.org", isLocal: true)
-        let remotes = [participant("@bob:matrix.org", isSpeaking: true),
-                       participant("@carol:matrix.org"),
-                       participant("@dave:matrix.org", isMuted: true)]
-        viewModel.state.participants = [local] + remotes + [participant("@assistant-alice:matrix.org", role: .agent)]
-        viewModel.state.memberProfiles = ["@alice:matrix.org": .init(displayName: "Alice Kovalenko"),
-                                          "@bob:matrix.org": .init(displayName: "Bohdan Serhiienko"),
-                                          "@carol:matrix.org": .init(displayName: "Marta Illienko"),
-                                          "@dave:matrix.org": .init(displayName: "Yurii Tkach"),
-                                          "@assistant-alice:matrix.org": .init(displayName: "Alice's Assistant")]
-        viewModel.state.videoTiles = (remotes + [local]).map { NativeCallVideoTile(participant: $0, source: nil) }
-        viewModel.state.agentClaims.documents = ["@assistant-alice:matrix.org": .make(languages: ["en"])]
+        viewModel.state.isCameraEnabled = true
+
+        let people = (0..<count).map { participant("@person\($0):matrix.org", isSpeaking: $0 == 1, isLocal: $0 == 0, isMuted: $0 == 2) }
+        viewModel.state.memberProfiles["@assistant-alice:matrix.org"] = .init(displayName: "Alice's Assistant")
+        for (index, person) in people.enumerated() {
+            viewModel.state.memberProfiles[person.userID] = .init(displayName: names[index],
+                                                                  avatarURL: hasCamerasOff && index == 1 ? .mockMXCUserAvatar : nil)
+        }
+        viewModel.state.participants = people + [participant("@assistant-alice:matrix.org", role: .agent)]
+        viewModel.state.videoTiles = people.enumerated().map { index, person in
+            NativeCallVideoTile(participant: person, source: hasCamerasOff && index % 2 == 1 ? nil : videoSource(frame: index))
+        }
+        viewModel.state.agentClaims.documents = ["@assistant-alice:matrix.org": .make(translation: .producing("uk", speakers: ["@bob:matrix.org"]), recording: true)]
         viewModel.state.agentClaims.speaking = ["@assistant-alice:matrix.org"]
         viewModel.state.agentCenter.isAvailable = true
+        viewModel.state.agentCenter.isConfigured = true
         return viewModel
     }
 
@@ -928,16 +792,17 @@ struct NativeCallScreen_Previews: PreviewProvider, TestablePreview {
                                         participant("@assistant-alice:matrix.org", role: .agent),
                                         participant("@notetaker-bob:matrix.org", role: .agent)]
         viewModel.state.memberProfiles = ["@alice:matrix.org": .init(displayName: "Alice Kovalenko"),
-                                          "@bob:matrix.org": .init(displayName: "Bohdan Serhiienko"),
+                                          "@bob:matrix.org": .init(displayName: "Mira Testova"),
                                           "@carol:matrix.org": .init(displayName: "Marta Illienko"),
                                           "@dave:matrix.org": .init(displayName: "Yurii Tkach"),
                                           "@assistant-alice:matrix.org": .init(displayName: "Alice's Assistant")]
         // The wave is the agent's document claim confirmed by the speaking
         // signal (the SpiralAgentDock rule), never a timer. REC is the
         // recorder's DOCUMENT claim — the REST session below is control.
-        viewModel.state.agentClaims.documents = ["@assistant-alice:matrix.org": .make(languages: ["de"], recording: true)]
+        viewModel.state.agentClaims.documents = ["@assistant-alice:matrix.org": .make(translation: .producing("de", speakers: ["@bob:matrix.org"]), recording: true)]
         viewModel.state.agentClaims.speaking = ["@assistant-alice:matrix.org"]
         viewModel.state.agentCenter.isAvailable = true
+        viewModel.state.agentCenter.isConfigured = true
         viewModel.state.agentCenter.sessions = [session(agentMxid: "@assistant-alice:matrix.org",
                                                         sessionID: "session-1",
                                                         isRecording: true),
@@ -947,18 +812,35 @@ struct NativeCallScreen_Previews: PreviewProvider, TestablePreview {
         return viewModel
     }
 
-    static func makeVideoAgentViewModel() -> NativeCallScreenViewModel {
-        let viewModel = makeViewModel(isVideoCall: true)
+    /// `06 · Video call`: the peer's picture with ours in the corner, the assistant translating and recording. With
+    /// the peer's camera off, the person fills the screen and ours stays in the corner.
+    static func makeVideoViewModel(remoteFrame: Int? = 0,
+                                   isChromeHidden: Bool = false,
+                                   hasPeerPhoto: Bool = false,
+                                   isPeerOnHold: Bool = false) -> NativeCallScreenViewModel {
+        let viewModel = makeViewModel(isVideoCall: true, mediaProvider: hasPeerPhoto ? MediaProviderMock(.init()) : nil)
         viewModel.state.callState = .connected
-        let remote = participant("@bob:matrix.org", isSpeaking: true)
-        viewModel.state.participants = [participant("@alice:matrix.org", isLocal: true),
-                                        remote,
-                                        participant("@assistant-alice:matrix.org", role: .agent)]
-        viewModel.state.videoTiles = [NativeCallVideoTile(participant: remote, source: nil)]
-        viewModel.state.agentClaims.documents = ["@assistant-alice:matrix.org": .make(languages: ["en"])]
+        viewModel.state.isCameraEnabled = true
+        let local = participant("@alice:matrix.org", isLocal: true)
+        var remote = participant("@bob:matrix.org", isSpeaking: !isPeerOnHold)
+        remote.isOnHold = isPeerOnHold
+        viewModel.state.participants = [local, remote, participant("@assistant-alice:matrix.org", role: .agent)]
+        viewModel.state.memberProfiles = ["@bob:matrix.org": .init(displayName: "Mira Testova",
+                                                                   avatarURL: hasPeerPhoto ? .mockMXCUserAvatar : nil),
+                                          "@assistant-alice:matrix.org": .init(displayName: "Alice's Assistant")]
+        viewModel.state.videoTiles = [NativeCallVideoTile(participant: remote, source: remoteFrame.map(videoSource)),
+                                      NativeCallVideoTile(participant: local, source: videoSource(frame: 2))]
+        viewModel.state.isPeerSettled = true
+        viewModel.state.agentClaims.documents = ["@assistant-alice:matrix.org": .make(translation: .producing("en", speakers: ["@bob:matrix.org"]), recording: true)]
         viewModel.state.agentClaims.speaking = ["@assistant-alice:matrix.org"]
         viewModel.state.agentCenter.isAvailable = true
+        viewModel.state.agentCenter.isConfigured = true
+        viewModel.state.bindings.isVideoChromeHidden = isChromeHidden
         return viewModel
+    }
+
+    static func videoSource(frame: Int) -> NativeCallVideoSource {
+        NativeCallVideoSource(identity: "\(frame)", trackID: "\(frame)", isLocal: false)
     }
 
     /// A connected 1:1: the big centred avatar of `03 · Call 1:1`.
@@ -966,9 +848,34 @@ struct NativeCallScreen_Previews: PreviewProvider, TestablePreview {
         let viewModel = makeViewModel()
         viewModel.state.callState = .connected
         viewModel.state.agentCenter.isAvailable = true
+        viewModel.state.agentCenter.isConfigured = true
         viewModel.state.participants = [participant("@alice:matrix.org", isLocal: true),
                                         participant("@bob:matrix.org", isSpeaking: true)]
-        viewModel.state.memberProfiles = ["@bob:matrix.org": .init(displayName: "Bohdan Serhiienko")]
+        viewModel.state.memberProfiles = ["@bob:matrix.org": .init(displayName: "Mira Testova")]
+        return viewModel
+    }
+
+    /// D7, D10, question 395: the call translation cap paused the owner's assistant's translation; it stays for its
+    /// notes, and only the owner's screen says so.
+    static func makeLimitStopViewModel() -> NativeCallScreenViewModel {
+        let viewModel = makeNoAgentViewModel()
+        let assistant = "@assistant-alice:matrix.org"
+        viewModel.state.participants.append(participant(assistant, role: .agent))
+        viewModel.state.memberProfiles[assistant] = .init(displayName: "Alice's Assistant")
+        viewModel.state.agentClaims.documents = [assistant: .make(summaryArmed: true)]
+        var paused = NativeAgentCenterTranslation.unknown
+        paused.effective.forLanguage = "uk"
+        paused.effective.stoppedReason = .translationPaused
+        paused.effective.pause = .untilChanged
+        viewModel.state.agentCenter.ownAgentMxids = [assistant]
+        viewModel.state.agentCenter.sessions = [NativeAgentCenterSession(sessionID: "session-1",
+                                                                         agentMxid: assistant,
+                                                                         canControl: true,
+                                                                         isEnding: false,
+                                                                         recording: .init(isEnabled: false, revision: 1, delivery: .notArmed, isStopped: false),
+                                                                         summary: .init(isEnabled: true, revision: 1, delivery: .notArmed, isStopped: false),
+                                                                         translation: paused,
+                                                                         conversation: .unknown)]
         return viewModel
     }
 
@@ -1009,12 +916,14 @@ struct NativeCallScreen_Previews: PreviewProvider, TestablePreview {
         transport.underlyingLocalConnectionQuality = .unknown
         transport.underlyingIsMicrophoneEnabled = true
         transport.underlyingIsCameraEnabled = false
-        transport.setSubscriptionsAuthorizedIdentitiesIsTrackExcludedClosure = { _, _ in true }
+        transport.setSubscriptionsAuthorizedIdentitiesStagedVideoIdentitiesIsTrackExcludedClosure = { _, _, _ in true }
         transport.setEncryptionKeyIndexIdentityClosure = { _, _, _ in }
         return transport
     }
 
-    static func makeViewModel(isVideoCall: Bool = false, scope: NativeCallScope = .direct) -> NativeCallScreenViewModel {
+    static func makeViewModel(isVideoCall: Bool = false,
+                              scope: NativeCallScope = .direct,
+                              mediaProvider: MediaProviderProtocol? = nil) -> NativeCallScreenViewModel { // AGENT-PLATFORM (Brief 0083)
         let rtcSession = MatrixRTCSessionMock()
         rtcSession.underlyingOwnIdentity = "@alice:matrix.org:DEVICE"
         rtcSession.updates = Empty().eraseToAnyPublisher()
@@ -1030,14 +939,47 @@ struct NativeCallScreen_Previews: PreviewProvider, TestablePreview {
                                                                                   roomMemberMxids: { [] },
                                                                                   inviteAgent: { _ in false }),
                                          appMediator: AppMediatorMock(.init()),
+                                         audioRouting: .inert, // AGENT-PLATFORM (407)
+                                         mediaProvider: mediaProvider, // AGENT-PLATFORM (Brief 0083)
                                          isVideoCall: isVideoCall,
                                          roomID: "!room:matrix.org",
-                                         roomName: "Bohdan Serhiienko",
+                                         roomName: "Mira Testova",
                                          scope: scope,
                                          // What a real DM's coordinator feeds: the single
                                          // hero. The dialing/ended header renders identity
                                          // from this, not from the (empty) call roster.
-                                         roomAvatar: .heroes([UserProfile(userID: "@bohdan:matrix.org",
-                                                                          displayName: "Bohdan Serhiienko")]))
+                                         roomAvatar: .heroes([UserProfile(userID: "@mira:matrix.org",
+                                                                          displayName: "Mira Testova")]))
     }
+}
+
+/// Stills from the development assets in place of live video.
+final class NativeCallPreviewVideoRenderer: NativeCallVideoRendering {
+    private static let frames = ["preview_video", "portrait_test_image", "preview_image", "test_rotated_image",
+                                 "landscape_test_image", "preview_avatar_room"]
+
+    func videoView(for source: NativeCallVideoSource) -> AnyView? {
+        let frame = Self.frames[(Int(source.identity) ?? 0) % Self.frames.count]
+        guard let url = Bundle.main.url(forResource: frame, withExtension: "jpg"),
+              let image = UIImage(contentsOfFile: url.path)?.preparingThumbnail(of: CGSize(width: 900, height: 900)) else {
+            return nil
+        }
+        return AnyView(Color.clear
+            .overlay {
+                Image(uiImage: image)
+                    .resizable()
+                    .scaledToFill()
+            }
+            .clipped())
+    }
+
+    func canRenderPictureInPictureVideo(for source: NativeCallVideoSource) -> Bool {
+        false
+    }
+
+    func pictureInPictureVideoView(for source: NativeCallVideoSource) -> UIView? {
+        nil
+    }
+
+    func tearDownPictureInPictureVideoView(_ view: UIView) { }
 }

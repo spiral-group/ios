@@ -14,6 +14,7 @@ class RoomThreadListScreenViewModel: RoomThreadListScreenViewModelType, RoomThre
     private let threadListServiceProxy: RoomThreadListServiceProxyProtocol
     
     private var isOldestItemVisible = false
+    private var isReading = false // AGENT-PLATFORM (Brief 0083, decision 357)
     
     private let actionsSubject: PassthroughSubject<RoomThreadListScreenViewModelAction, Never> = .init()
     var actionsPublisher: AnyPublisher<RoomThreadListScreenViewModelAction, Never> {
@@ -23,7 +24,8 @@ class RoomThreadListScreenViewModel: RoomThreadListScreenViewModelType, RoomThre
     init(threadListServiceProxy: RoomThreadListServiceProxyProtocol, mediaProvider: MediaProviderProtocol) {
         self.threadListServiceProxy = threadListServiceProxy
         
-        super.init(initialViewState: .init(bindings: .init()), mediaProvider: mediaProvider)
+        super.init(initialViewState: .init(paginationState: threadListServiceProxy.paginationStatePublisher.value, bindings: .init()),
+                   mediaProvider: mediaProvider)
         
         updateItems(self.threadListServiceProxy.itemsPublisher.value)
         
@@ -38,8 +40,8 @@ class RoomThreadListScreenViewModel: RoomThreadListScreenViewModelType, RoomThre
             .receive(on: DispatchQueue.main)
             .sink { [weak self] paginationState in
                 guard let self else { return }
-                state.isPaginating = paginationState == .loading
-                Task { await self.paginateIfNecessary(paginationState: paginationState) }
+                state.paginationState = paginationState
+                Task { await self.paginateIfNecessary() }
             }
             .store(in: &cancellables)
     }
@@ -54,20 +56,41 @@ class RoomThreadListScreenViewModel: RoomThreadListScreenViewModelType, RoomThre
             isOldestItemVisible = true
             
             Task {
-                await paginateIfNecessary(paginationState: threadListServiceProxy.paginationStatePublisher.value)
+                await paginateIfNecessary()
             }
         case .oldestItemDidDisappear:
             isOldestItemVisible = false
         case .tappedThread(let threadRootEventID):
             actionsSubject.send(.presentThread(threadRootEventID: threadRootEventID))
+        case .retry: // AGENT-PLATFORM (Brief 0083, decision 357)
+            state.hasFailedToLoad = false
+            
+            Task {
+                await paginateIfNecessary()
+            }
         }
     }
     
     // MARK: - Private
     
-    private func paginateIfNecessary(paginationState: RoomThreadListPaginationState) async {
-        if isOldestItemVisible, case .idle(endReached: false) = paginationState {
-            _ = await threadListServiceProxy.paginate()
+    // AGENT-PLATFORM (Brief 0083, decision 357): an empty page has no oldest item to appear, so it reads its first
+    // page itself. A failed read waits for Retry: the SDK's state goes back to idle, which used to read again at once.
+    private func paginateIfNecessary() async {
+        guard !state.hasFailedToLoad, !isReading,
+              isOldestItemVisible || state.items.isEmpty,
+              case .idle(endReached: false) = threadListServiceProxy.paginationStatePublisher.value else {
+            return
+        }
+        
+        isReading = true
+        let result = await threadListServiceProxy.paginate()
+        isReading = false
+        
+        switch result {
+        case .success:
+            await paginateIfNecessary() // The state's update may have come while this read was running.
+        case .failure:
+            state.hasFailedToLoad = true
         }
     }
     

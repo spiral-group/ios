@@ -8,6 +8,8 @@
 import SwiftUI
 
 struct PlaybackSpeedButton: View {
+    @Environment(\.ownBubbleInk) private var ownBubbleInk // AGENT-PLATFORM (Brief 0083)
+    
     let speed: AudioPlaybackSpeed
     let onTap: () -> Void
     
@@ -20,11 +22,11 @@ struct PlaybackSpeedButton: View {
                 
                 Text(speed.label)
                     .font(.compound.bodyXSSemibold)
-                    .foregroundColor(.compound.iconSecondary)
+                    .foregroundColor(ownBubbleInk?.onChipFill ?? .compound.iconSecondary)
             }
             .padding(.horizontal, 8)
             .padding(.vertical, 2)
-            .background(.compound.bgCanvasDefault, in: RoundedRectangle(cornerRadius: 12))
+            .background(ownBubbleInk?.chipFill ?? .compound.bgCanvasDefault, in: RoundedRectangle(cornerRadius: 12))
         }
         .buttonStyle(.plain)
         .accessibilityLabel(L10n.a11yPlaybackSpeed)

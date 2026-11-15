@@ -5,8 +5,8 @@
 // AGENT-PLATFORM: where a tap on a Spiral push goes, from the payload the
 // orchestrator sends (`adapters/spiral_push.rs`) to the app route.
 
-@testable import ElementX
 import Foundation
+@testable import Spiral
 import Testing
 import UserNotifications
 
@@ -47,11 +47,50 @@ struct AgentPlatformNotificationRouteTests {
         #expect(message.agentPlatformRoute == nil)
     }
 
+    // MARK: - Feed (Brief 0082, decision 266)
+
+    /// A notice push carries the notice id only: the tap opens the notices.
+    @Test
+    func aFeedNoticePushOpensTheNotices() throws {
+        let content = try Self.builtContent(kind: "feed_notice", id: "0199d0a1-0000-7000-8000-00000000a001")
+
+        #expect(content.agentPlatformRoute == .feedNotices)
+    }
+
+    /// A comment push opens its post; a removed one then reads "This post isn't available".
+    @Test
+    func aFeedCommentPushOpensItsPost() throws {
+        let content = try Self.builtContent(kind: "feed_comment", id: "0199d0a1-0000-7000-8000-00000000c001",
+                                            post: "0199D0A1-0000-7000-8000-00000000B001")
+
+        #expect(content.agentPlatformRoute == .feedPost(postID: "0199d0a1-0000-7000-8000-00000000b001"))
+    }
+
+    /// Lane I5: a like push names the post as its id, a reply its post: both open it.
+    @Test(arguments: [("feed_like", "0199D0A1-0000-7000-8000-00000000B001", nil as String?),
+                      ("feed_reply", "0199d0a1-0000-7000-8000-00000000c002", "0199D0A1-0000-7000-8000-00000000B001")])
+    func aLikeOrReplyPushOpensItsPost(kind: String, id: String, post: String?) throws {
+        let content = try Self.builtContent(kind: kind, id: id, post: post)
+
+        #expect(content.agentPlatformRoute == .feedPost(postID: "0199d0a1-0000-7000-8000-00000000b001"))
+    }
+
+    /// A comment push without its post opens nothing, and says to update.
+    @Test
+    func aFeedCommentPushWithoutAPostOpensNothing() throws {
+        let content = try Self.builtContent(kind: "feed_comment", id: "0199d0a1-0000-7000-8000-00000000c001")
+
+        #expect(content.agentPlatformRoute == nil)
+        #expect(content.body == UntranslatedL10n.notificationSpiralNeedsUpdateBody)
+    }
+
     /// What the NSE hands the system for this payload.
-    private static func builtContent(kind: String, id: String) throws -> UNNotificationContent {
+    private static func builtContent(kind: String, id: String, post: String? = nil) throws -> UNNotificationContent {
         let base = UNMutableNotificationContent()
-        base.userInfo = ["spiral": ["version": 1, "kind": kind, "id": id], "aps": ["mutable-content": 1]]
+        var spiral: [String: Any] = ["version": 1, "kind": kind, "id": id]
+        spiral["post"] = post
+        base.userInfo = ["spiral": spiral, "aps": ["mutable-content": 1]]
         let subject = try #require(SpiralPushContentBuilder.extractSubject(from: base.userInfo))
-        return try #require(SpiralPushContentBuilder.build(kind: subject.kind, subjectID: subject.id, baseContent: base))
+        return try #require(SpiralPushContentBuilder.build(kind: subject.kind, subjectID: subject.id, baseContent: base, post: subject.post))
     }
 }

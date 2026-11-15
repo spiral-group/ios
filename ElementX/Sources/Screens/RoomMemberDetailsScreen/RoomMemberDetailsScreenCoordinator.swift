@@ -13,8 +13,8 @@ struct RoomMemberDetailsScreenCoordinatorParameters {
     let userID: String
     let roomProxy: JoinedRoomProxyProtocol
     let userSession: UserSessionProtocol
-    let userIndicatorController: UserIndicatorControllerProtocol
     let analytics: AnalyticsServiceProtocol
+    let userIndicatorController: UserIndicatorControllerProtocol
 }
 
 enum RoomMemberDetailsScreenCoordinatorAction {
@@ -22,6 +22,7 @@ enum RoomMemberDetailsScreenCoordinatorAction {
     case openDirectChat(roomID: String)
     case startCall(roomProxy: JoinedRoomProxyProtocol, isVoiceCall: Bool)
     case verifyUser(userID: String)
+    case openAgentRow(AgentPageRow, card: AgentSpaceAgentCard) // AGENT-PLATFORM (Brief 0083, question 359)
 }
 
 final class RoomMemberDetailsScreenCoordinator: CoordinatorProtocol {
@@ -38,8 +39,8 @@ final class RoomMemberDetailsScreenCoordinator: CoordinatorProtocol {
         viewModel = RoomMemberDetailsScreenViewModel(userID: parameters.userID,
                                                      roomProxy: parameters.roomProxy,
                                                      userSession: parameters.userSession,
-                                                     userIndicatorController: parameters.userIndicatorController,
-                                                     analytics: parameters.analytics)
+                                                     analytics: parameters.analytics,
+                                                     userIndicatorController: parameters.userIndicatorController)
     }
     
     func start() {
@@ -55,6 +56,8 @@ final class RoomMemberDetailsScreenCoordinator: CoordinatorProtocol {
                 actionsSubject.send(.startCall(roomProxy: roomProxy, isVoiceCall: isVoiceCall))
             case .verifyUser(let userID):
                 actionsSubject.send(.verifyUser(userID: userID))
+            case .openAgentRow(let row, let card): // AGENT-PLATFORM (Brief 0083, question 359)
+                actionsSubject.send(.openAgentRow(row, card: card))
             }
         }
         .store(in: &cancellables)

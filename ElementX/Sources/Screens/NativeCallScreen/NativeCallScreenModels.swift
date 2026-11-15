@@ -20,6 +20,8 @@ enum NativeCallScreenViewModelAction {
     case minimize
     /// G9 — the call bar was tapped; the full screen returns.
     case expand
+    /// The assistant's "…" menu (question 401, settings concept A): its profile, over the call's bar.
+    case showProfile(userID: String)
 }
 
 enum NativeCallScreenViewAction {
@@ -39,28 +41,54 @@ enum NativeCallScreenViewAction {
     case hangUp
     /// Slice 5 — publish or mute our own camera.
     case toggleCamera
-    /// Slice 5 — flip the capture device. Bound to a tap on the local
-    /// preview: the control row is full, and the gesture is the one users
-    /// already know from every other video app.
+    /// Slice 5 — flip the capture device: the dock's Camera control only, never a tap on a tile (decision 341).
     case switchCamera
-    /// Slice 4 — personal listening: the user picked what to hear.
+    /// A tap on the corner tile: the large picture and the corner one change places, and back (question 383).
+    case swapVideos
+    /// VoiceOver started or stopped: while it runs, a group's stage holds still so focus isn't reset (question 383).
+    case voiceOverStatusChanged(isRunning: Bool)
+    /// Brief 0085 — the 文A menu: the language to hear the call in, or the original.
     case setListeningChoice(NativeCallListeningChoice)
+    /// The 文A menu opened: its new languages are seen, and the dot goes.
+    case translateMenuOpened
+    /// "Start translation" / "Continue": your own assistant produces your language; a language someone else already
+    /// translates is heard instead, free (L4.3).
+    case produceTranslation
+    /// The 文A menu's "+ Add your translation" (L4): the Assistants sheet opens right at creating one, or at your
+    /// assistant's translation when it already runs.
+    case addOwnTranslation
+    /// The language you hear and speak (L1): nil is the phone's. What your assistant produces follows it.
+    case setMyLanguage(String?)
+    /// Question 409: the 文A menu's «Я говорю: … ›» — the language list, as the capsule's «Змінити» opens it.
+    case showSpokenLanguage
+    /// The capsule's event button; elsewhere on the capsule opens the sheet.
+    case runCapsuleAction
+    /// A stopped track in the 文A menu: «Продолжить», as the capsule's event offers it.
+    case continueTranslation(language: String)
+    /// Scenario 8.2: the pocket interpreter's other side.
+    case setNeighbourLanguage(String)
+    /// The own assistant's four buttons (scenario 2): in the call, on or off; with none in it, the tap brings one.
+    case toggleAssistantJob(NativeCallAssistantJob)
+    /// A tap on one of the Assistants sheet's four buttons: recording asks first, or explains whose recording covers
+    /// the call (question 404); the rest toggle.
+    case tapAssistantJob(NativeCallAssistantJob)
+    /// Scenario 9.3: which own assistant comes, remembered for this chat.
+    case pickAssistant(agentID: String, job: NativeCallAssistantJob)
+    /// Scenario 5: this chat's tool "Call translation".
+    case setTranslationTool(NativeCallTranslationTool)
     // Slice 3 — the native Agent Center.
-    /// Brief 0062 parity — owner translation writes edit the FULL booth
-    /// list; the flat languages write is gone (it erased per-speaker
-    /// configuration on every Apply).
+    /// An enabling translation write (ADR-0094 A.2): `for_language`, or the pocket interpreter.
     case applyAgentTranslation(sessionID: String, params: VoiceTranslationParams)
     case disableAgentTranslation(sessionID: String)
-    case clearAgentTranslationOverride(sessionID: String)
-    case saveAgentTranslationAsRoomDefault(sessionID: String)
-    /// One-tap "translate me": attach with a single `owner_only` booth
-    /// in the simultaneous style (per-speaker lanes; every listener
-    /// hears the lane, the speaker never hears their own).
-    case attachAgentTranslateMe(agentID: String, language: String)
-    /// `11 · Add an agent` — attach with the composed starting functions
-    /// (translation / recording / summary toggles).
+    /// Brings an own assistant with its jobs, translation as its intent.
     case attachAgentConfigured(agentID: String, params: VoiceAttachParams)
     case showAgentCenter
+    /// The agent pill: someone else's agent on it opens the sheet on "In the call" (question 401, remark 15).
+    case showAgentCenterFromPill
+    /// "My limit" beside a limit's refusal: the agent's weekly Limit page (question 401, board A).
+    case showAgentLimit(agentMxid: String)
+    /// The assistant's "…" menu: its profile, with the call minimised to its bar.
+    case showAgentProfile(agentMxid: String)
     case dismissAgentCenter
     /// `19 · Failure states` — the error card's recovery: drop the stale
     /// snapshot and read the platform again.
@@ -68,6 +96,15 @@ enum NativeCallScreenViewAction {
     case removeAgent(sessionID: String)
     /// Recording / summary / conversation: every on/off control shares one write.
     case setAgentSwitch(sessionID: String, control: VoiceSessionSwitch, enabled: Bool)
+    /// N8: let go of a join that takes too long.
+    case cancelAgentJoin(sessionID: String)
+    /// F3a: take the owner's pause off.
+    case resumeAgent(agentID: String)
+    /// F3b: show the AI consent prompt; and its answer came back.
+    case allowAI
+    case aiConsentAnswered
+    /// D6: a moderator removes someone else's assistant from the chat.
+    case removeAgentFromChat(agentMxid: String)
 }
 
 /// One rendered participant in a video call: who it is, and which stream
@@ -125,18 +162,76 @@ struct NativeCallScreenViewState: BindableState {
     /// What to render, derived. Empty in an audio call and while nobody has
     /// their camera on, which is what keeps an audio call looking like one.
     var videoTiles: [NativeCallVideoTile] = []
+    /// The 1:1 stage is the peer's until they leave: they had a picture, or their camera stayed off long enough to
+    /// count as off (decision 342). From here on a track or a key coming and going doesn't move the stage.
+    var isPeerSettled = false
     /// Public agent state, kept beside the human tiles rather than mixed into
     /// them (Brief 0063 Slice 3).
     var agentCenter = NativeAgentCenterSnapshot()
     /// An action is in flight; the panel disables its controls rather than
     /// letting a second write race the first.
-    var isAgentActionInFlight = false
+    var agentActionsInFlight: Set<NativeCallAgentAction> = []
+    var isAgentActionInFlight: Bool {
+        !agentActionsInFlight.isEmpty
+    }
+
+    /// The add each own agent was last sent with, by its MXID: its group holds those rows while it joins (board A).
+    var attachesSent: [String: VoiceAttachParams] = [:]
+
+    // MARK: Brief 0085 — translation for everyone
+
+    /// What this person hears the call in; the original until they pick (model point 1).
+    var listeningChoice = NativeCallListeningChoice.original
+    /// D10: your own assistant's lanes in the language you hear just went; a standby may take them over in a moment, so
+    /// the language stays chosen until `NativeCallScreenViewModel.takeoverWindow` runs out.
+    var takeoverLanguage: String?
+    /// The languages whose lane you listened to stopped, until continued, carried again, or the call ends: the 文A menu
+    /// keeps «Продолжить» for each after the capsule's event is gone.
+    var stoppedTrackLanguages: [String] = []
+    /// "My language": the language they hear and speak, as the screens name it.
+    var myLanguage = "en"
+    /// The same as a catalog code, the only form ever published or asked for (ADR-0094 D1); nil while the catalog is
+    /// unknown or has no such language.
+    var myLanguageCode: String? = "en"
+    /// Nil: as on the phone.
+    var chosenLanguage: String?
+    /// The person picked «Моя мова» — "As on the phone" too — rather than living with the default (question 409).
+    var isMyLanguageChosen = false
+    /// The catalog the device kept, until the platform answers.
+    var cachedLanguageCodes: [String] = []
+
+    /// The catalog's codes: the platform's, or the kept one before it answers, so a list has its languages at once.
+    var languageCodes: [String] {
+        let live = agents.panel.catalog.map(\.code)
+        return live.isEmpty ? cachedLanguageCodes : live
+    }
+    /// The app's language as a catalog code, what "As on the phone" means; nil while the catalog has none.
+    var phoneLanguage: String?
+    /// The languages the 文A menu already showed: the rest get the dot.
+    var seenTranslationLanguages: Set<String> = []
+    /// A translation your assistant was asked for: heard as soon as its lanes run.
+    var pendingListenLanguage: String?
+    /// The capsule's events, one at a time.
+    var capsule = NativeCallCapsuleQueue()
+    /// Question 404: someone else's assistant records the call, or did and stopped, while yours doesn't.
+    var recordingCover: NativeCallRecordingCover?
+    /// The pocket interpreter's other side (scenario 8.2).
+    var neighbourLanguage: String?
+    /// L11, the private call: the job a one-tap switch between talking and translating is turning on, ringed until
+    /// its two writes are done.
+    var switchingAssistantJob: NativeCallAssistantJob?
+    /// The own assistant chosen for this chat, when there are several (scenario 9.3).
+    var pickedAssistantID: String?
+
     /// What the call's agents claim and audibly do — the live register
     /// every device shares (`spiral.agent.state` + the speaking signal).
     /// Drives the block (`claimed ∧ speaking` is the wave), the paused
     /// state, and the call-wide REC truth the owner-scoped REST list
     /// cannot provide.
     var agentClaims = NativeCallAgentClaims()
+    /// A group's stage (question 383): whoever has held the floor, the others in a strip. Moved only by a sustained
+    /// turn (`NativeCallGroupFocus`).
+    var groupFocusUserID: String?
     /// Phase 5 (G8) — the selectable audio routes, refreshed when the
     /// picker opens and on every system route change while it is up.
     var audioRoutes: [NativeCallAudioRoute] = []
@@ -170,14 +265,36 @@ struct NativeCallScreenViewState: BindableState {
         participants.filter { $0.role == .agent }
     }
 
+    /// Who fills the 1:1 video stage and who floats in the corner.
+    var videoStage: (large: NativeCallVideoTile?, small: NativeCallVideoTile?) {
+        NativeCallVideoStage.tiles(remote: videoTiles.first { !$0.participant.isLocal },
+                                   local: videoTiles.first(where: \.participant.isLocal),
+                                   isPeerSettled: isPeerSettled,
+                                   isSelfVideoLarge: bindings.isSelfVideoLarge)
+    }
+
+    /// The peer fills the 1:1 stage with no picture: their field, which needs no shades, as white already reads on it.
+    var isPersonOnStage: Bool {
+        guard let largeTile = videoStage.large else { return false }
+        return !largeTile.participant.isLocal && largeTile.source == nil
+    }
+
     /// The one face a 1:1 call centres on: the human peer of a direct call,
     /// the agent of a call with one's own assistant. Nil for a group.
     var stagePeer: NativeCallParticipant? {
         switch scope {
         case .direct: humanParticipants.first { !$0.isLocal }
-        case .assistant: agentParticipants.first
+        // Once a person joins a call with one's assistant, the page ends and the person takes the stage.
+        case .assistant: isAssistantPage ? agentParticipants.first : humanParticipants.first { !$0.isLocal }
         case .group: nil
         }
+    }
+
+    /// A call with one's own assistant and nobody else is the assistant's page (question 383). It holds from the ring,
+    /// before anyone has joined, so nothing jumps when the assistant answers; a person joining turns it back into a call
+    /// with them, their face and their camera.
+    var isAssistantPage: Bool {
+        scope == .assistant && humanParticipants.allSatisfy(\.isLocal)
     }
 
     /// THE agent register every surface reads — the block, the header REC,
@@ -189,7 +306,6 @@ struct NativeCallScreenViewState: BindableState {
     var agents: NativeCallAgentPresentation {
         NativeCallAgentPresentation.derive(live: .init(participants: participants,
                                                        claims: agentClaims,
-                                                       coveredSpeakers: listening.translatedSpeakers,
                                                        isCallConnected: callState == .connected,
                                                        falteredAgents: listening.falteredAgents,
                                                        memberProfiles: memberProfiles,
@@ -205,8 +321,93 @@ struct NativeCallScreenViewState: BindableState {
 
     /// G1: the block exists only when an agent is in the call, and it shows
     /// the ACTIVE one — every agent is still named in the Agent Center.
+    /// While you hear a translation it is the assistant that produces it (403, L2): the capsule says what you hear.
     var agentBlock: NativeCallAgentBlockState? {
-        agents.activeAgent.map(NativeCallAgentBlockState.init)
+        let presentation = agents
+        let heard = heardProducer.flatMap { producer in presentation.agents.first { $0.mxid == producer } }
+        return (heard ?? presentation.activeAgent).map { NativeCallAgentBlockState($0, among: presentation.agents) }
+    }
+
+    /// The assistant producing the language you hear: yours when it is yours, else the first other one.
+    private var heardProducer: String? {
+        let translation = translation
+        guard let language = translation.listeningLanguage,
+              let option = translation.options.first(where: { $0.language == language }) else { return nil }
+        if option.isYours, let own = agents.ownAgents.first?.mxid { return own }
+        return option.producers.first
+    }
+
+    /// Brief 0085 — the call's translation for this person: the 文A button, its menu, the capsule's events, the badges.
+    var translation: NativeCallTranslationState {
+        let presentation = agents
+        let facts = presentation.translationFacts
+        let speakers = humanParticipants.filter { !$0.isLocal }.map(\.userID)
+        var languages = facts.languages
+        if let ownUserID {
+            languages[ownUserID] = myLanguage
+        }
+        let ownAgents = presentation.panel.ownAgentMxids
+        let lanes = NativeCallTranslationLane.lanes(documents: presentation.documents)
+        return NativeCallTranslationState(.init(ownUserID: ownUserID,
+                                                myLanguage: myLanguage,
+                                                speakers: speakers,
+                                                languages: languages,
+                                                lanes: lanes,
+                                                ownAgents: ownAgents,
+                                                choice: listeningChoice,
+                                                heldLanguage: takeoverLanguage,
+                                                stoppedLanguages: stoppedTrackLanguages,
+                                                seenLanguages: seenTranslationLanguages,
+                                                block: NativeCallTranslationBlock.current(presentation, pickedAssistantID: pickedAssistantID),
+                                                isPrivateCall: scope == .assistant,
+                                                canProduceMyLanguage: myLanguageCode != nil,
+                                                isLanguageChosen: isMyLanguageChosen,
+                                                isOwnTranslating: presentation.ownAgents.first?.shown.isTranslating == true
+                                                    || (presentation.ownAgents.first?.control ?? presentation.joining.first(where: \.canControl))?.translation.isOn == true))
+    }
+
+    /// L12: the pocket interpreter's badge on the assistant's stage avatar, the neighbour's language only; nil outside
+    /// the private call and while it doesn't translate.
+    var interpreterBadge: NativeCallAvatarBadge? {
+        guard isAssistantPage else { return nil }
+        let presentation = agents
+        return (presentation.ownAgents.first ?? presentation.agents.first).flatMap { NativeCallAvatarBadge($0, myLanguage: myLanguage) }
+    }
+
+    /// L12, one visual everywhere: the badge on `userID`'s avatar — the stage's or a tile's. The interpreter's on the
+    /// assistant's page; elsewhere the language you hear that person in, while your translation covers them.
+    func avatarBadge(for userID: String) -> NativeCallAvatarBadge? {
+        if isAssistantPage {
+            return userID == stagePeer?.userID ? interpreterBadge : nil
+        }
+        return translation.badges[userID].map { NativeCallAvatarBadge(language: $0, isPending: false, kind: .heardIn) }
+    }
+
+    /// The agent capsule (Brief 0085): the active agent's block; your assistant's while it comes to a call that still
+    /// rings (scenario 9.4), or while an event about it shows before it is in.
+    var capsuleBlock: NativeCallAgentBlockState? {
+        if let agentBlock { return agentBlock }
+        let presentation = agents
+        let isRinging = callState == .ringing || callState == .connecting
+        let joining = presentation.joining.first(where: \.canControl)?.agentMxid
+            ?? presentation.panel.candidates.first { presentation.panel.acceptedAttaches.contains($0.id) }?.mxid
+        let own = joining ?? (capsule.current == nil ? nil : presentation.panel.candidates.first?.mxid)
+        guard let own, isRinging && joining != nil || capsule.current != nil else { return nil }
+        return NativeCallAgentBlockState(name: memberProfiles[own]?.displayName ?? UntranslatedL10n.screenNativeCallAgentPillYourAssistant,
+                                         event: .idle(role: nil, languages: []),
+                                         agentUserID: own,
+                                         isOwn: true,
+                                         joinsWhenAnswered: isRinging && joining != nil)
+    }
+
+    /// The chat's personal tool "Call translation", nil when not set up (scenario 5).
+    var translationTool: NativeCallTranslationTool? {
+        agents.translationFacts.tool
+    }
+
+    /// The AI limit stopped the owner's assistant mid-call (D7, D10): «Перевод на паузе до понедельника».
+    var limitLine: String? {
+        agents.limitStop?.line()
     }
 
     /// Phase 4 — the quiet second line under the status (`18 · Call
@@ -337,6 +538,20 @@ enum NativeCallScreenState: Equatable {
 struct NativeCallScreenViewStateBindings {
     var alertInfo: AlertInfo<NativeCallScreenAlertType>?
     var isAgentCenterPresented = false
+    /// The page the Assistants sheet opens on, over its root: "In the call" from someone else's agent on the pill.
+    var agentCenterPage: NativeCallAssistantsRoute?
+    /// The sheet's root creates a translation (L4.2): "New translation", opened by the 文A menu's "+".
+    var isCreatingTranslation = false
+    /// A question the sheet asks in place, never as a system alert (L5 1.5, 4.4).
+    var assistantConfirmation: NativeCallAssistantConfirmation?
+    /// The weekly Limit page pushed in the sheet.
+    var agentLimitPage: NativeCallAgentLimitPage?
+    /// Scenario 9.3: the sheet asks which own assistant comes, for this job.
+    var assistantPickerJob: NativeCallAssistantJob?
+    /// Scenario 8.2: the sheet asks the language of the person next to you.
+    var isNeighbourLanguagePresented = false
+    /// The AI consent prompt "Allow AI" opens over the sheet (question 387, F3b).
+    var aiConsentPrompt: NativeCallAIConsentPrompt?
     /// Phase 5 (G8) — the audio route sheet.
     var isAudioRoutePickerPresented = false
     /// G14 — in a 1:1 video call, our own picture takes the stage and the
@@ -347,6 +562,19 @@ struct NativeCallScreenViewStateBindings {
     /// gesture). The header and the agent capsule stay: identity and the
     /// agent disclosure are never hidden (operator decision 2026-08-21).
     var isVideoChromeHidden = false
+}
+
+/// A question the Assistants sheet asks in place (L5): recording concerns everyone, removing from the chat is
+/// beyond this call.
+enum NativeCallAssistantConfirmation: Equatable {
+    case recording
+    /// Question 404, layout C: not a question — whose recording already covers the call, after a tap on the covered
+    /// «Записує» or a start the platform refused as covered. «Зрозуміло» or the recording's end brings the buttons back.
+    case recordingCovered
+    /// Not a question either: everyone else already speaks the language «Translate into» names, so turning translation
+    /// on would translate nobody. Nothing is asked of the platform; «Got it» brings the buttons back, translation off.
+    case nothingToTranslate
+    case removeFromChat(agentMxid: String)
 }
 
 enum NativeCallScreenAlertType {
@@ -360,47 +588,31 @@ enum NativeCallScreenAlertType {
     case cameraUnavailable
 }
 
-/// `11 · Add an agent` — what the owner picked, as the one attach it becomes.
-/// Conversation and Translation exclude each other, as in the Agent Center:
-/// turning one on turns the other off (decision 180).
-struct NativeCallAddAgentForm: Equatable {
-    private(set) var conversation = false
-    private(set) var translation = false
-    /// Target languages for the one `anyone` booth, from the agent's catalog.
-    var languages: [String]
-    var recording = false
-    var summary = false
+/// Question 387 (F9): the control a running Agent Center write belongs to — only it shows progress.
+enum NativeCallAgentAction: Hashable {
+    case add(agentID: String)
+    case resume(agentID: String)
+    case session(String, NativeAgentCenterErrorScope.Row)
+    case removeFromChat(agentMxid: String)
+    case translationTool
+}
 
-    /// Seeds the language with the device locale when the catalog offers it.
-    init(catalog: [VoiceControlsCatalogLanguage]) {
-        languages = VoiceTranslationBooths.localeSeed(catalog: catalog).map { [$0] } ?? []
+/// The agent's weekly Limit page in the sheet: Brief 0079's own screen.
+struct NativeCallAgentLimitPage: Identifiable, Hashable {
+    let id = UUID()
+    let viewModel: AgentUsageScreenViewModel
+
+    static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.id == rhs.id
     }
 
-    mutating func setConversation(_ isOn: Bool) {
-        conversation = isOn
-        if isOn { translation = false }
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(id)
     }
+}
 
-    mutating func setTranslation(_ isOn: Bool) {
-        translation = isOn
-        if isOn { conversation = false }
-    }
-
-    /// Translation on needs a language to translate into.
-    var canAdd: Bool {
-        !translation || !languages.isEmpty
-    }
-
-    /// WYSIWYG: every toggle goes into the attach, off included.
-    var params: VoiceAttachParams {
-        VoiceAttachParams(translation: translation && !languages.isEmpty
-            ? .init(booths: [.init(speakerScope: VoiceSpeakerScope.anyone.rawValue,
-                                   speakerMembers: [],
-                                   targetLanguages: languages)],
-                    style: NativeCallTranslationStyleDefault.wire)
-            : nil,
-            recording: recording,
-            summary: summary,
-            conversation: conversation)
-    }
+/// The AI consent prompt over the sheet: Brief 0078's own screen.
+struct NativeCallAIConsentPrompt: Identifiable {
+    let id = UUID()
+    let viewModel: AIConsentPromptScreenViewModel
 }

@@ -10,8 +10,8 @@
 // The Spiral feature is built on Element's `TemplateScreenViewModelTests.swift`.
 
 import Combine
-@testable import ElementX
 import Foundation
+@testable import Spiral
 import Testing
 
 @MainActor
@@ -27,13 +27,12 @@ struct PublicProfileScreenViewModelTests {
 
         let viewModel = PublicProfileScreenViewModel(targetMXID: "@alice:spiral.md",
                                                      currentUserMXID: "@alice:spiral.md",
-                                                     agentPlatformService: service)
+                                                     store: AgentsStore(service: service))
 
         let deferred = deferFulfillment(viewModel.context.observe(\.viewState.detailState)) {
             if case .selfLookup = $0 { return true }
             return false
         }
-        viewModel.context.send(viewAction: .appeared)
         try await deferred.fulfill()
 
         #expect(service.fetchUserProfileMxidCallsCount == 0)
@@ -46,13 +45,12 @@ struct PublicProfileScreenViewModelTests {
 
         let viewModel = PublicProfileScreenViewModel(targetMXID: "@Alice:spiral.md",
                                                      currentUserMXID: "@alice:spiral.md",
-                                                     agentPlatformService: service)
+                                                     store: AgentsStore(service: service))
 
         let deferred = deferFulfillment(viewModel.context.observe(\.viewState.detailState)) {
             if case .selfLookup = $0 { return true }
             return false
         }
-        viewModel.context.send(viewAction: .appeared)
         try await deferred.fulfill()
 
         #expect(service.fetchUserProfileMxidCallsCount == 0)
@@ -67,13 +65,12 @@ struct PublicProfileScreenViewModelTests {
 
         let viewModel = PublicProfileScreenViewModel(targetMXID: "@alice:spiral.md",
                                                      currentUserMXID: "@viewer:spiral.md",
-                                                     agentPlatformService: service)
+                                                     store: AgentsStore(service: service))
 
         let deferred = deferFulfillment(viewModel.context.observe(\.viewState.detailState)) {
             if case .loaded = $0 { return true }
             return false
         }
-        viewModel.context.send(viewAction: .appeared)
         try await deferred.fulfill()
 
         if case .loaded(let profile) = viewModel.context.viewState.detailState {
@@ -92,13 +89,12 @@ struct PublicProfileScreenViewModelTests {
 
         let viewModel = PublicProfileScreenViewModel(targetMXID: "@charlie:spiral.md",
                                                      currentUserMXID: "@viewer:spiral.md",
-                                                     agentPlatformService: service)
+                                                     store: AgentsStore(service: service))
 
         let deferred = deferFulfillment(viewModel.context.observe(\.viewState.detailState)) {
             if case .loaded = $0 { return true }
             return false
         }
-        viewModel.context.send(viewAction: .appeared)
         try await deferred.fulfill()
 
         if case .loaded(let profile) = viewModel.context.viewState.detailState {
@@ -117,13 +113,12 @@ struct PublicProfileScreenViewModelTests {
 
         let viewModel = PublicProfileScreenViewModel(targetMXID: "@ghost:spiral.md",
                                                      currentUserMXID: "@viewer:spiral.md",
-                                                     agentPlatformService: service)
+                                                     store: AgentsStore(service: service))
 
         let deferred = deferFulfillment(viewModel.context.observe(\.viewState.detailState)) {
             if case .notFound = $0 { return true }
             return false
         }
-        viewModel.context.send(viewAction: .appeared)
         try await deferred.fulfill()
 
         // No alert for .notFound — distinct UX from transport
@@ -132,25 +127,43 @@ struct PublicProfileScreenViewModelTests {
     }
 
     @Test
-    func appearedAction_transportFailureSurfacesFailedStateAndAlert() async throws {
+    func appearedAction_transportFailureSurfacesFailedState() async throws {
         let service = AgentPlatformServiceMock()
         service.fetchUserProfileMxidReturnValue = .failure(.serverError(status: 500))
 
         let viewModel = PublicProfileScreenViewModel(targetMXID: "@alice:spiral.md",
                                                      currentUserMXID: "@viewer:spiral.md",
-                                                     agentPlatformService: service)
+                                                     store: AgentsStore(service: service))
 
         let deferred = deferFulfillment(viewModel.context.observe(\.viewState.detailState)) {
             if case .failed = $0 { return true }
             return false
         }
-        viewModel.context.send(viewAction: .appeared)
         try await deferred.fulfill()
-
-        #expect(viewModel.context.viewState.bindings.alertInfo != nil)
     }
 
-    // MARK: - Refresh path
+    /// `profile.public` names an agent, not a person: an open profile reads again.
+    @Test
+    func anOpenProfileReadsAgainOnProfilePublic() async throws {
+        let service = AgentPlatformServiceMock()
+        service.fetchUserProfileMxidReturnValue = .success(Self.emptyProfile)
+        let store = AgentsStore(service: service)
+        let viewModel = PublicProfileScreenViewModel(targetMXID: "@alice:spiral.md",
+                                                     currentUserMXID: "@viewer:spiral.md",
+                                                     store: store)
+        await store.settle()
+
+        service.fetchUserProfileMxidReturnValue = .success(Self.sampleProfile)
+        let updated = deferFulfillment(viewModel.context.observe(\.viewState.detailState)) {
+            if case .loaded(let profile) = $0 { return profile.publicAgents.count == 1 }
+            return false
+        }
+        store.apply([.profilePublic(agentID: "agent-anyone")])
+        try await updated.fulfill()
+        #expect(service.fetchUserProfileMxidCallsCount == 2)
+    }
+
+    // MARK: - Retry path
 
     @Test
     func refreshAction_refetchesEvenAfterTerminalFetchFailure() async throws {
@@ -167,20 +180,19 @@ struct PublicProfileScreenViewModelTests {
 
         let viewModel = PublicProfileScreenViewModel(targetMXID: "@alice:spiral.md",
                                                      currentUserMXID: "@viewer:spiral.md",
-                                                     agentPlatformService: service)
+                                                     store: AgentsStore(service: service))
 
         let failedDeferred = deferFulfillment(viewModel.context.observe(\.viewState.detailState)) {
             if case .failed = $0 { return true }
             return false
         }
-        viewModel.context.send(viewAction: .appeared)
         try await failedDeferred.fulfill()
 
         let loadedDeferred = deferFulfillment(viewModel.context.observe(\.viewState.detailState)) {
             if case .loaded = $0 { return true }
             return false
         }
-        viewModel.context.send(viewAction: .refresh)
+        viewModel.context.send(viewAction: .retry)
         try await loadedDeferred.fulfill()
 
         #expect(hits == 2)
@@ -195,7 +207,7 @@ struct PublicProfileScreenViewModelTests {
 
         let viewModel = PublicProfileScreenViewModel(targetMXID: "@alice:spiral.md",
                                                      currentUserMXID: "@viewer:spiral.md",
-                                                     agentPlatformService: service)
+                                                     store: AgentsStore(service: service))
 
         let deferred = deferFulfillment(viewModel.actionsPublisher) { action in
             if case .contactAgent(let mxid) = action {
@@ -214,7 +226,7 @@ struct PublicProfileScreenViewModelTests {
 
         let viewModel = PublicProfileScreenViewModel(targetMXID: "@alice:spiral.md",
                                                      currentUserMXID: "@viewer:spiral.md",
-                                                     agentPlatformService: service)
+                                                     store: AgentsStore(service: service))
 
         let deferred = deferFulfillment(viewModel.actionsPublisher) { action in
             if case .dismissed = action { return true }

@@ -15,12 +15,12 @@ import SwiftUI
 struct AddAgentPickerScreenCoordinatorParameters {
     let roomID: String
     let roomProxy: JoinedRoomProxyProtocol
-    let agentPlatformService: any RoomToolsServiceProtocol
+    let store: AgentsStore
     let mediaProvider: MediaProviderProtocol?
 }
 
 enum AddAgentPickerScreenCoordinatorAction {
-    /// An agent was invited — the flow opens its capabilities directly.
+    /// An agent was invited — the flow opens its tool kinds directly.
     case invited(AddAgentItem)
     case dismiss
 }
@@ -39,7 +39,7 @@ final class AddAgentPickerScreenCoordinator: CoordinatorProtocol {
     init(parameters: AddAgentPickerScreenCoordinatorParameters) {
         viewModel = AddAgentPickerScreenViewModel(roomID: parameters.roomID,
                                                   roomProxy: parameters.roomProxy,
-                                                  agentPlatformService: parameters.agentPlatformService)
+                                                  store: parameters.store)
         mediaProvider = parameters.mediaProvider
     }
 

@@ -14,59 +14,34 @@ import SwiftUI
 
 struct AgentSheetScreenCoordinatorParameters {
     let roomID: String
-    let agentPlatformService: any RoomToolsServiceProtocol
+    let roomProxy: JoinedRoomProxyProtocol
+    let store: AgentsStore
+    let agentPlatformService: any AgentPlatformServiceProtocol
+    let clientProxy: any ClientProxyProtocol
     /// Loads agent avatars for the rows.
     let mediaProvider: MediaProviderProtocol?
-}
-
-enum AgentSheetScreenCoordinatorAction {
-    /// User picked an agent already in the room.
-    case selectAgent(AgentSummary)
-    /// User tapped "Add agent".
-    case addAgent
-    /// User dismissed.
-    case dismiss
 }
 
 final class AgentSheetScreenCoordinator: CoordinatorProtocol {
     private let viewModel: AgentSheetScreenViewModel
     private let mediaProvider: MediaProviderProtocol?
 
-    private let actionsSubject: PassthroughSubject<AgentSheetScreenCoordinatorAction, Never> = .init()
-    private var cancellables = Set<AnyCancellable>()
-
-    var actionsPublisher: AnyPublisher<AgentSheetScreenCoordinatorAction, Never> {
-        actionsSubject.eraseToAnyPublisher()
+    var actionsPublisher: AnyPublisher<AgentSheetScreenViewModelAction, Never> {
+        viewModel.actionsPublisher
     }
 
     init(parameters: AgentSheetScreenCoordinatorParameters) {
         viewModel = AgentSheetScreenViewModel(roomID: parameters.roomID,
-                                              agentPlatformService: parameters.agentPlatformService)
+                                              roomProxy: parameters.roomProxy,
+                                              store: parameters.store,
+                                              agentPlatformService: parameters.agentPlatformService,
+                                              clientProxy: parameters.clientProxy)
         mediaProvider = parameters.mediaProvider
-    }
-
-    func start() {
-        viewModel.actionsPublisher.sink { [weak self] action in
-            guard let self else { return }
-            switch action {
-            case .selectAgent(let agent):
-                actionsSubject.send(.selectAgent(agent))
-            case .addAgent:
-                actionsSubject.send(.addAgent)
-            case .dismiss:
-                actionsSubject.send(.dismiss)
-            }
-        }
-        .store(in: &cancellables)
     }
 
     /// Re-pull the agents (after an add-agent invite or an arm/disable).
     func reload() {
         viewModel.reload()
-    }
-
-    func finishOpeningAgent() {
-        viewModel.finishOpeningAgent()
     }
 
     func toPresentable() -> AnyView {

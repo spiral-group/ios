@@ -194,7 +194,10 @@ protocol NativeCallTransportProtocol: AnyObject {
     /// false makes the caller retry — a failed unsubscribe of unauthorized
     /// media recorded as "applied" would keep playing it (fail-closed
     /// requires the retry, not the log line).
+    /// `stagedVideoIdentities` are a group stage's person (question 383): their video takes the top layer and every
+    /// other the lowest; empty, the layer follows how many videos are on screen.
     func setSubscriptions(authorizedIdentities: Set<String>,
+                          stagedVideoIdentities: Set<String>,
                           isTrackExcluded: @escaping @Sendable (NativeCallTransportTrack) -> Bool) async -> Bool
 
     /// Brief 0066 — the listener's ducking order: which raw microphones

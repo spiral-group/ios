@@ -69,7 +69,8 @@ struct AgentEditScreenViewState: BindableState {
     }
 }
 
-enum AgentEditScreenLoadState: Equatable {
+/// The name's limits. The form doesn't wait for them: its values come from the card and the store.
+nonisolated enum AgentEditScreenLoadState: Equatable {
     case loading
     case loaded(AgentEditSchema)
     case failure

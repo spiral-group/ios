@@ -6,8 +6,8 @@
 // on the backend; if one side changes, the other must change with it.
 //
 
-@testable import ElementX
 import Foundation
+@testable import Spiral
 import Testing
 
 struct SpiralLinkTests {

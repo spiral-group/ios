@@ -6,6 +6,8 @@
 // Please see LICENSE files in the repository root for full details.
 //
 
+import Compound
+import SpiralTokens // AGENT-PLATFORM (Brief 0083)
 import SwiftUI
 
 struct ReadReceiptCell: View {
@@ -24,6 +26,9 @@ struct ReadReceiptCell: View {
         return readReceipt.userID
     }
     
+    /// Where the text starts: the separator under a row is inset to it.
+    static let textInset = CompoundDesignTokens.space4X + SpiralAvatarSize.small + CompoundDesignTokens.space3X // AGENT-PLATFORM (Brief 0083)
+    
     var body: some View {
         HStack(spacing: 12) {
             LoadableAvatarImage(url: memberState?.avatarURL,
@@ -33,15 +38,16 @@ struct ReadReceiptCell: View {
                                 mediaProvider: mediaProvider)
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 0) {
-                HStack(spacing: 12) {
+                // AGENT-PLATFORM (Brief 0083): a list row's type, the name in body text, as the reactions' senders.
+                HStack(alignment: .firstTextBaseline, spacing: 12) {
                     Text(title)
-                        .font(.compound.bodyMDSemibold)
+                        .font(.compound.bodyLG)
                         .foregroundColor(.compound.textPrimary)
                         .lineLimit(1)
                         .frame(maxWidth: .infinity, alignment: .leading)
                     if let formattedTimestamp = readReceipt.formattedTimestamp {
                         Text(formattedTimestamp)
-                            .font(.compound.bodyXS)
+                            .font(.compound.bodySM)
                             .foregroundColor(.compound.textSecondary)
                             .lineLimit(1)
                     }
@@ -53,7 +59,7 @@ struct ReadReceiptCell: View {
             }
         }
         .accessibilityElement(children: .combine)
-        .padding(.vertical, 8)
+        .padding(.vertical, 12) // AGENT-PLATFORM (Brief 0083): a list row's height
         .padding(.horizontal, 16)
     }
 }

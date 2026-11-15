@@ -8,6 +8,7 @@
 
 import Compound
 import MatrixRustSDK
+import SpiralComponents // AGENT-PLATFORM (Brief 0083)
 import SwiftUI
 
 struct SessionVerificationScreen: View {
@@ -19,8 +20,9 @@ struct SessionVerificationScreen: View {
     @AccessibilityFocusState private var accessibilityFocus: AccessibilityFocus?
     
     var body: some View {
-        FullscreenDialog {
-            VStack(spacing: 32) {
+        // AGENT-PLATFORM (Brief 0083, decision 313): the identity path's margins and leading content.
+        FullscreenDialog(horizontalPadding: CompoundDesignTokens.space6X, bottomHorizontalPadding: CompoundDesignTokens.space6X) {
+            VStack(alignment: .leading, spacing: CompoundDesignTokens.space8X) {
                 screenHeader
                 mainContent
             }
@@ -33,7 +35,7 @@ struct SessionVerificationScreen: View {
         .navigationBarBackButtonHidden(context.viewState.verificationState == .verified)
         .toolbar { toolbar }
         .onAppear {
-            var announcement = AttributedString(L10n.a11ySessionVerificationTimeLimitedActionRequired)
+            var announcement = AttributedString(UntranslatedL10n.a11ySessionVerificationTimeLimitedActionRequiredSpiral) // AGENT-PLATFORM (Brief 0083, decision 314)
             announcement.accessibilitySpeechAnnouncementPriority = .high
             AccessibilityNotification.Announcement(announcement).post()
         }
@@ -54,27 +56,26 @@ struct SessionVerificationScreen: View {
         }
     }
     
+    // AGENT-PLATFORM (Brief 0083, decision 313): the identity path's leading header in place of Element's icon tile; the
+    // icon keeps its meaning through its colour.
     private var screenHeader: some View {
-        VStack(spacing: 0) {
-            BigIcon(icon: context.viewState.headerIcon.keyPath,
-                    style: context.viewState.headerIcon.style)
-                .padding(.bottom, 16)
-            
+        SpiralDialogHeader(icon: context.viewState.headerIcon.keyPath,
+                           tone: headerTone,
+                           message: context.viewState.message) {
             Text(context.viewState.title ?? "")
-                .font(.compound.headingMDBold)
-                .multilineTextAlignment(.center)
-                .foregroundColor(.compound.textPrimary)
-                .padding(.bottom, 8)
                 .accessibilityIdentifier(context.viewState.titleAccessibilityIdentifier)
                 .onChange(of: context.viewState.title) { _, _ in
                     accessibilityFocus = .title
                 }
                 .accessibilityFocused($accessibilityFocus, equals: .title)
-            
-            Text(context.viewState.message)
-                .font(.compound.bodyMD)
-                .multilineTextAlignment(.center)
-                .foregroundColor(.compound.textSecondary)
+        }
+    }
+    
+    private var headerTone: SpiralDialogTone {
+        switch context.viewState.headerIcon.style {
+        case .successSolid, .success: .success
+        case .alertSolid, .alert: .critical
+        case .defaultSolid, .default: .accent
         }
     }
     
@@ -95,7 +96,7 @@ struct SessionVerificationScreen: View {
                 Button(L10n.actionLearnMore) {
                     UIApplication.shared.open(context.viewState.learnMoreURL)
                 }
-                .buttonStyle(.compound(.tertiary, size: .small))
+                .buttonStyle(.spiralLink) // AGENT-PLATFORM (Brief 0083, decision 313): a link, as on identity confirmation
             default:
                 EmptyView()
             }
@@ -108,18 +109,23 @@ struct SessionVerificationScreen: View {
         }
     }
     
+    // AGENT-PLATFORM (Brief 0083, decision 313): the emoji in the identity path's card.
     private func emojisPanel(with emojis: [SessionVerificationEmoji]) -> some View {
-        VStack(spacing: 32) {
-            HStack(spacing: 16) {
-                ForEach(emojis.prefix(4), id: \.self) { emoji in
-                    EmojiView(emoji: emoji)
+        SpiralCard {
+            VStack(spacing: CompoundDesignTokens.space4X) {
+                HStack(spacing: CompoundDesignTokens.space4X) {
+                    ForEach(emojis.prefix(4), id: \.self) { emoji in
+                        EmojiView(emoji: emoji)
+                    }
+                }
+                HStack(spacing: CompoundDesignTokens.space4X) {
+                    ForEach(emojis.suffix(from: 4), id: \.self) { emoji in
+                        EmojiView(emoji: emoji)
+                    }
                 }
             }
-            HStack(spacing: 16) {
-                ForEach(emojis.suffix(from: 4), id: \.self) { emoji in
-                    EmojiView(emoji: emoji)
-                }
-            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, CompoundDesignTokens.space4X)
         }
     }
     
@@ -135,7 +141,7 @@ struct SessionVerificationScreen: View {
                     Button(L10n.actionIgnore) {
                         context.send(viewAction: .ignoreVerificationRequest)
                     }
-                    .buttonStyle(.compound(.tertiary))
+                    .buttonStyle(.compound(.secondary)) // AGENT-PLATFORM (Brief 0083, decision 313): a quiet secondary
                     .accessibilityIdentifier(A11yIdentifiers.sessionVerificationScreen.ignoreVerificationRequest)
                     .disabled(context.viewState.isWaiting)
                 }
@@ -155,17 +161,19 @@ struct SessionVerificationScreen: View {
             }
             
         case .showingChallenge:
-            VStack(spacing: 16) {
-                Button(L10n.screenSessionVerificationTheyMatch) {
+            // AGENT-PLATFORM (Brief 0083, decisions 313 and 314): the two answers as a primary and a quiet secondary,
+            // Spiral's copy.
+            VStack(spacing: CompoundDesignTokens.space4X) {
+                Button(UntranslatedL10n.screenSessionVerificationTheyMatchSpiral) {
                     context.send(viewAction: .accept)
                 }
                 .buttonStyle(.compound(.primary))
                 .accessibilityIdentifier(A11yIdentifiers.sessionVerificationScreen.acceptChallenge)
                 
-                Button(L10n.screenSessionVerificationTheyDontMatch) {
+                Button(UntranslatedL10n.screenSessionVerificationTheyDontMatchSpiral) {
                     context.send(viewAction: .decline)
                 }
-                .buttonStyle(.compound(.tertiary))
+                .buttonStyle(.compound(.secondary))
                 .accessibilityIdentifier(A11yIdentifiers.sessionVerificationScreen.declineChallenge)
             }
             
@@ -184,7 +192,7 @@ struct SessionVerificationScreen: View {
             }
         } label: {
             Label {
-                Text(L10n.actionStartVerification)
+                Text(UntranslatedL10n.screenSessionVerificationStartSpiral) // AGENT-PLATFORM (Brief 0083, decision 314)
             } icon: {
                 if context.viewState.isWaiting {
                     ProgressView()
@@ -210,7 +218,8 @@ struct SessionVerificationScreen: View {
         let emoji: SessionVerificationEmoji
         
         var body: some View {
-            VStack(spacing: 16.0) {
+            // AGENT-PLATFORM (Brief 0083, decision 313): the name closer under its emoji, in the card.
+            VStack(spacing: CompoundDesignTokens.space2X) {
                 Text(emoji.symbol)
                     .font(.compound.headingXLBold)
                     .accessibilityHidden(true)
@@ -224,7 +233,7 @@ struct SessionVerificationScreen: View {
     }
 }
 
-struct SessionVerification_Previews: PreviewProvider, TestablePreview {
+struct SessionVerification_Previews: PreviewProvider, TestablePreview, SpiralGatedPreview { // AGENT-PLATFORM (Brief 0083)
     static var previews: some View {
         sessionVerificationScreen(state: .initial, flow: .deviceInitiator)
             .previewDisplayName("Initial - Device Initiator")
@@ -289,8 +298,7 @@ struct SessionVerification_Previews: PreviewProvider, TestablePreview {
                                           flow: SessionVerificationScreenFlow = .deviceInitiator) -> some View {
         let viewModel = SessionVerificationScreenViewModel(sessionVerificationControllerProxy: SessionVerificationControllerProxyMock.configureMock(),
                                                            flow: flow,
-                                                           appSettings: .volatile(),
-                                                           mediaProvider: MediaProviderMock(.init()),
+                                                           userSession: UserSessionMock(.init()),
                                                            verificationState: state)
         
         return SessionVerificationScreen(context: viewModel.context)

@@ -68,15 +68,20 @@ extension DevE2ETestCase {
         let mxid = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH '@' AND label ENDSWITH ':localhost'")).firstMatch
         try require(mxid, "the account's MXID in Settings")
         let value = mxid.label
-        try tap(element(A11yIdentifiers.settingsScreen.done), "Settings › Done")
-        try require(homeAvatar, "the Chats list")
+        try closeSettings()
         return value
     }
 
     func openSettings() throws {
         try require(homeAvatar, timeout: 30, "the Chats list")
         homeAvatar.tap()
-        try require(element(A11yIdentifiers.settingsScreen.done), "Settings")
+        try require(element(A11yIdentifiers.settingsScreen.account), "Settings")
+    }
+
+    /// Settings is a tab: leaving it is going back to Chats.
+    func closeSettings() throws {
+        try tap(element(A11yIdentifiers.homeTabs.chats), "the Chats tab")
+        try require(element(A11yIdentifiers.homeScreen.startChat), "the Chats list")
     }
 
     func signOut() throws {
@@ -148,7 +153,8 @@ extension DevE2ETestCase {
         while Date() < end {
             for notNow in [app.buttons["Not Now"], springboard.buttons["Not Now"], webView.buttons["Not Now"]] where notNow.exists && notNow.isHittable {
                 settle(1) // the sheet animates up; a tap while it moves misses
-                notNow.tap()
+                // It may have gone meanwhile: a tap on a gone element fails the test.
+                if notNow.exists, notNow.isHittable { notNow.tap() }
             }
             if webView.state != .runningForeground || !webView.webViews.firstMatch.exists {
                 if app.wait(for: .runningForeground, timeout: 5) { return }
@@ -277,7 +283,7 @@ extension DevE2ETestCase {
         let continueButton = webView.buttons.matching(NSPredicate(format: "label == 'Continue'")).firstMatch
         if checkTermsRefusal {
             try tap(continueButton, "identity-login › Continue without the Terms")
-            let refusal = webView.staticTexts["Accept the Terms of Use and the Privacy Policy to continue."].firstMatch
+            let refusal = webView.staticTexts["Confirm you are 16 or older and accept the Terms of Use and the Privacy Policy to continue."].firstMatch
             guard refusal.waitForExistence(timeout: 10) else {
                 throw DevE2EError.flow("identity-login went on without the Terms ticked")
             }
@@ -343,16 +349,38 @@ extension DevE2ETestCase {
     }
 
     private func tickTerms() throws {
-        let predicate = NSPredicate(format: "label BEGINSWITH 'I agree to the'")
-        for query in [webView.switches, webView.checkBoxes] {
-            let box = query.matching(predicate).firstMatch
-            if box.exists {
-                box.tap()
-                return
-            }
+        // The checkbox's text holds the Terms and Privacy links, and since
+        // decision 205's «16 or older» it runs to two lines. WebKit may expose
+        // the box, or only the text, with the whole row's frame: a tap on its
+        // centre lands on a link and the sheet leaves the form. So tap the
+        // row's left edge, where the box is.
+        let predicate = NSPredicate(format: "label BEGINSWITH 'I am 16 or older and I agree to the'")
+        let candidates = [webView.switches, webView.checkBoxes, webView.staticTexts].map { $0.matching(predicate).firstMatch }
+        guard let row = firstAppearing(candidates, timeout: 20).map({ candidates[$0] }) else {
+            throw DevE2EError.flow("identity-login › the Terms checkbox did not appear within 20 s")
         }
-        // WebKit sometimes exposes the label's text but not the box: the text toggles it too.
-        try tap(webView.staticTexts.matching(predicate).firstMatch, "identity-login › the Terms checkbox")
+        // A coordinate tap skips XCUITest's own scrolling: bring the row into reach first.
+        try revealInWeb(row, "identity-login › the Terms checkbox")
+        let frame = row.frame
+        let origin = webView.coordinate(withNormalizedOffset: .zero)
+        // A box exposed on its own (a switch or checkbox narrower than its
+        // row) is tapped in its centre. A row is wide and the box sits at its
+        // left, first line; `app.css` gives it 1.2rem with a 0.6rem gap, so the
+        // text starts ~29 pt right of the box's edge: 22 pt left of the text
+        // is inside the box.
+        let isBoxAlone = row.elementType != .staticText && frame.width < 60
+        let point = isBoxAlone
+            ? CGVector(dx: frame.midX - webView.frame.minX, dy: frame.midY - webView.frame.minY)
+            : CGVector(dx: frame.minX - webView.frame.minX + (row.elementType == .staticText ? -22 : 12),
+                       dy: frame.minY - webView.frame.minY + 12)
+        origin.withOffset(point).tap()
+        // Still on the form — a link that took the tap would leave it.
+        let continueButton = webView.buttons.matching(NSPredicate(format: "label == 'Continue'")).firstMatch
+        let end = Date().addingTimeInterval(5)
+        while !(continueButton.exists && continueButton.isHittable), Date() < end { settle(0.3) }
+        guard continueButton.exists, webView.staticTexts.matching(predicate).firstMatch.exists else {
+            throw DevE2EError.flow("identity-login › ticking the Terms left the form (a link took the tap)")
+        }
     }
 
     /// The 12 words of the phrase plate, in order. They sit between the

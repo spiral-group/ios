@@ -9,14 +9,16 @@
 import XCTest
 
 enum Application {
-    static func launch(viewID: String) -> XCUIApplication {
+    static func launch(viewID: String, appearance: String? = nil) -> XCUIApplication {
         checkEnvironments()
         
         let app = XCUIApplication()
         
-        let launchEnvironment = [
+        var launchEnvironment = [
             "ACCESSIBILITY_VIEW": viewID
         ]
+        // AGENT-PLATFORM (Brief 0083 L1c): Spiral's gate audits a preview in light and in dark.
+        launchEnvironment["ACCESSIBILITY_APPEARANCE"] = appearance
         
         app.launchEnvironment = launchEnvironment
         app.launch()

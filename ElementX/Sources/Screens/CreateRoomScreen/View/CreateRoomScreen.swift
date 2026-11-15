@@ -113,9 +113,9 @@ struct CreateRoomScreen: View {
             if let avatarImage = context.viewState.avatarImage {
                 Image(uiImage: avatarImage)
                     .resizable()
-                    .aspectRatio(contentMode: .fill)
+                    .scaledToFill()
                     .scaledFrame(size: 70, relativeTo: .title)
-                    .avatarShape(context.viewState.isSpace ? .roundedRect : .circle, size: 70)
+                    .avatarShape(context.viewState.isSpace ? .roundedRect : .roundedSquare, size: 70)
                     .overlay(alignment: .bottomTrailing) {
                         EditAvatarBadge()
                             .scaledOffset(x: 8, y: 0, relativeTo: .title)
@@ -325,6 +325,8 @@ private struct CreateRoomAccessRow: View {
 struct CreateRoom_Previews: PreviewProvider, TestablePreview {
     static let viewModel = makeViewModel()
     
+    static let spacesHiddenViewModel = makeViewModel(isSpacesEnabled: false) // AGENT-PLATFORM (decision 301)
+    
     static let avatarViewModel = {
         let viewModel = makeViewModel()
         viewModel.updateAvatar(fileURL: Bundle.main.url(forResource: "preview_avatar_room", withExtension: "jpg") ?? .picturesDirectory)
@@ -392,6 +394,12 @@ struct CreateRoom_Previews: PreviewProvider, TestablePreview {
         }
         .previewDisplayName("Create Room")
         
+        // AGENT-PLATFORM (decision 301): Spiral's default, with no space picker.
+        ElementNavigationStack {
+            CreateRoomScreen(context: spacesHiddenViewModel.context)
+        }
+        .previewDisplayName("Create Room, spaces hidden")
+        
         ElementNavigationStack {
             CreateRoomScreen(context: avatarViewModel.context)
         }
@@ -448,25 +456,27 @@ struct CreateRoom_Previews: PreviewProvider, TestablePreview {
     }
     
     private static func makeViewModel(isKnockingEnabled: Bool = false,
+                                      isSpacesEnabled: Bool = true,
                                       isSpace: Bool = false,
                                       selectionMode: CreateRoomScreenSpaceSelectionMode = .editableSpacesList(preSelectedSpace: nil),
                                       isAliasAvailable: Bool = true) -> CreateRoomScreenViewModel {
-        let appSettings = AppSettings.volatile()
-        appSettings.knockingEnabled = isKnockingEnabled
+        let userSettings = UserSettings.mock()
+        userSettings.app.knockingEnabled = isKnockingEnabled
+        userSettings.app.spacesEnabled = isSpacesEnabled // AGENT-PLATFORM (decision 301): the other previews keep upstream's picker.
         
         let clientProxy = ClientProxyMock(.init(userIDServerName: "example.org",
                                                 userID: "@userid:example.com"))
         clientProxy.isAliasAvailableReturnValue = .success(isAliasAvailable)
         let spaces = [SpaceServiceRoom].mockJoinedSpaces2
         clientProxy.spaceService = SpaceServiceProxyMock(.init(editableSpaces: spaces))
-        let userSession = UserSessionMock(.init(clientProxy: clientProxy))
+        let userSession = UserSessionMock(.init(clientProxy: clientProxy, userSettings: userSettings))
         
         return CreateRoomScreenViewModel(isSpace: isSpace,
                                          spaceSelectionMode: selectionMode,
                                          shouldShowCancelButton: isSpace,
                                          userSession: userSession,
+                                         appMediator: AppMediatorMock(.init()),
                                          analytics: AnalyticsServiceMock(.init()),
-                                         userIndicatorController: UserIndicatorControllerMock(),
-                                         appSettings: appSettings)
+                                         userIndicatorController: UserIndicatorControllerMock())
     }
 }

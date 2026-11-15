@@ -5,14 +5,14 @@
 // SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial.
 // Please see LICENSE files in the repository root for full details.
 //
-// AGENT-PLATFORM: the agent's AI use against its daily limit (Brief 0079 3c).
+// AGENT-PLATFORM: the agent's AI use against its weekly limit (Brief 0079 3c, question 394).
 //
 
 import SwiftUI
 
 struct AgentUsageScreenCoordinatorParameters {
     let agentID: String
-    let agentPlatformService: any AgentPlatformServiceProtocol
+    let store: AgentsStore
 }
 
 final class AgentUsageScreenCoordinator: CoordinatorProtocol {
@@ -20,7 +20,7 @@ final class AgentUsageScreenCoordinator: CoordinatorProtocol {
 
     init(parameters: AgentUsageScreenCoordinatorParameters) {
         viewModel = AgentUsageScreenViewModel(agentID: parameters.agentID,
-                                              agentPlatformService: parameters.agentPlatformService)
+                                              store: parameters.store)
     }
 
     /// Read-only: the screen publishes nothing.

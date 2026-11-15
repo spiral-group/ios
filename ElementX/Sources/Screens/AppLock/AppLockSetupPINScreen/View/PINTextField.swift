@@ -15,10 +15,13 @@ struct PINTextField: View {
     var isSecure = false
     var maxLength = 4
     var size = PINDigitField.Size.medium
+    /// AGENT-PLATFORM: what an entered digit's square is filled with. It must differ from what the
+    /// field sits on: Spiral's bgSubtlePrimary is white, so on the canvas pass bgSubtleSecondary.
+    var digitFill = Color.compound.bgSubtlePrimary
     
     var body: some View {
         textField
-            .textFieldStyle(PINTextFieldStyle(pinCode: pinCode, isSecure: isSecure, maxLength: maxLength, size: size))
+            .textFieldStyle(PINTextFieldStyle(pinCode: pinCode, isSecure: isSecure, maxLength: maxLength, size: size, digitFill: digitFill)) // AGENT-PLATFORM
             .keyboardType(.numberPad)
             // Keep the label persistent: the field's title behaves as a placeholder and is only announced while empty.
             .accessibilityLabel(L10n.a11yPinField)
@@ -57,12 +60,13 @@ private struct PINTextFieldStyle: TextFieldStyle {
     let isSecure: Bool
     let maxLength: Int
     let size: PINDigitField.Size
+    let digitFill: Color // AGENT-PLATFORM
     
     // periphery:ignore - called by SwiftUI via the TextFieldStyle protocol
     func _body(configuration: TextField<_Label>) -> some View {
         HStack(spacing: 8) {
             ForEach(0..<maxLength, id: \.self) { index in
-                PINDigitField(digit: digit(index), size: size)
+                PINDigitField(digit: digit(index), size: size, fill: digitFill) // AGENT-PLATFORM
             }
         }
         .overlay {
@@ -90,6 +94,7 @@ struct PINDigitField: View {
     
     let digit: Character?
     let size: Size
+    let fill: Color // AGENT-PLATFORM
     
     private var cornerRadius: CGFloat {
         switch size {
@@ -109,7 +114,7 @@ struct PINDigitField: View {
         ZStack {
             if let digit {
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .fill(Color.compound.bgSubtlePrimary)
+                    .fill(fill) // AGENT-PLATFORM
                 Text(String(digit))
                     .font(.compound.headingMDBold)
             } else {
@@ -147,7 +152,8 @@ struct PINTextField_Previews: PreviewProvider, TestablePreview {
         var size: PINDigitField.Size = .medium
         
         var body: some View {
-            PINTextField(pinCode: $pinCode, isSecure: isSecure, maxLength: maxLength, size: size)
+            PINTextField(pinCode: $pinCode, isSecure: isSecure, maxLength: maxLength, size: size,
+                         digitFill: .compound.bgSubtleSecondary) // AGENT-PLATFORM: the preview sits on the canvas
         }
     }
 }

@@ -5,11 +5,14 @@
 // SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial
 // Please see LICENSE files in the repository root for full details.
 //
-// AGENT-PLATFORM (§ 5.56): your earlier posts are your generation threads.
+// AGENT-PLATFORM (§ 5.56, question 412): the catalogue's shelves, search and sections, the post
+// page's one running post, and your earlier posts, which are your generation threads.
 //
 
-@testable import ElementX
+import Combine
 import Foundation
+@testable import Spiral
+import SwiftUI
 import Testing
 
 @MainActor
@@ -87,145 +90,688 @@ struct InteractivePostCatalogScreenViewModelTests {
                           asks: asks, runtime: nil)
     }
 
-    /// The carousel: the chosen section's templates in the catalogue's
-    /// order, «Describe a new one» last; the first card is current until
-    /// the carousel moves; a section chip resets it (§ 5.63).
-    @Test
-    func theCarouselFollowsTheSectionAndRestsOnTheFirstCard() throws {
-        let json = #"{"version":1,"runtime":"1","sections":[{"id":"decide","title":"Вирішити","items":["dice","poll"]},{"id":"play","title":"Пограти","items":["chess"]}],"items":[{"id":"dice","title":"Кубик","description":"d6","aspect":"1:1","source":"d","manifest":"m"},{"id":"poll","title":"Голосування","description":"…","aspect":"4:3","source":"p","manifest":"m","asks":{"uk":"Яке питання?"}},{"id":"chess","title":"Шахи","description":"…","aspect":"1:1","source":"c","manifest":"m"}]}"#
-        let catalog = try JSONDecoder().decode(SpiralAppCatalog.self, from: Data(json.utf8))
-        var state = InteractivePostCatalogScreenViewState(roomName: "Група", catalogURL: URL.temporaryDirectory, ownUserID: "@a:h", loadMembers: { [:] })
-        state.catalog = catalog
+    // MARK: - Shelves (question 373)
 
-        #expect(state.cards.map(\.id) == ["dice", "poll", "chess", "describe-new"])
-        #expect(state.currentCard?.template?.id == "dice", "the first, until the carousel moves")
-        let chess = try #require(catalog.template("chess"))
-        #expect(state.sectionTitle(of: chess) == "Пограти")
-
-        state.bindings.currentCardID = "poll"
-        #expect(state.currentCard?.template?.localizedAsk != nil, "the action under the card follows it")
-
-        state.bindings.section = "play"
-        state.bindings.currentCardID = nil
-        #expect(state.cards.map(\.id) == ["chess", "describe-new"])
-        #expect(state.currentCard?.template?.id == "chess")
-
-        state.bindings.currentCardID = "describe-new"
-        #expect(state.currentCard?.template == nil, "nothing to publish under «Describe a new one»")
+    /// A room of two wants a game for two first; any other room, a way to
+    /// decide; the rest keep the catalogue's order.
+    @Test(arguments: [(2, ["two", "record", "decide"]),
+                      (3, ["decide", "record", "two"]),
+                      (1, ["decide", "record", "two"])])
+    func theFirstShelfFollowsTheRoom(people: Int, shelves: [String]) throws {
+        let catalog = try Self.catalog(sections: ["record": ["a"], "two": ["b"], "decide": ["c"]], order: ["record", "two", "decide"])
+        #expect(InteractivePostCatalogScreenViewState.shelves(of: catalog, peopleInRoom: people).map(\.id) == shelves)
     }
 
-    /// A section chip puts the carousel on the section's FIRST card and
-    /// rebuilds it, so it opens there rather than at the old offset — also
-    /// when the chip tapped is the one already on (§ 5.80). The actions go
-    /// out as they are (no dialog in between; § 5.63).
     @Test
-    func aChipOpensItsSectionAtTheFirstCardAndActionsGoStraightOut() async throws {
-        let base = try catalogue()
-        let index = #"{"version":1,"runtime":"1","sections":[{"id":"decide","title":"Вирішити","items":["dice"]},{"id":"play","title":"Пограти","items":["quiz","chess"]}],"items":[{"id":"dice","title":"Кубик","description":"d6","aspect":"1:1","source":"dice/app.jsx","manifest":"dice/manifest.json"},{"id":"quiz","title":"Вікторина","description":"…","aspect":"4:3","source":"q","manifest":"m"},{"id":"chess","title":"Шахи","description":"…","aspect":"1:1","source":"c","manifest":"m"}]}"#
-        try index.write(to: base.appending(path: "index.json"), atomically: true, encoding: .utf8)
-        let viewModel = InteractivePostCatalogScreenViewModel(roomName: "Група", catalogURL: base, dms: [])
-        let loaded = deferFulfillment(viewModel.context.observe(\.viewState.catalog)) { $0 != nil }
+    func unknownPeopleKeepTheCataloguesOrder() throws {
+        let catalog = try Self.catalog(sections: ["record": ["a"], "two": ["b"]], order: ["record", "two"])
+        #expect(InteractivePostCatalogScreenViewState.shelves(of: catalog, peopleInRoom: nil).map(\.id) == ["record", "two"])
+    }
+
+    /// The people counted first decide the order.
+    @Test
+    func aCountThatArrivesFirstOrdersTheShelves() async throws {
+        let catalog = try Self.catalog(sections: ["decide": ["a"], "two": ["b"]], order: ["decide", "two"])
+        let gate = Gate()
+        let viewModel = InteractivePostCatalogScreenViewModel(roomName: "Група", catalogURL: Self.base, dms: [],
+                                                              fetchCatalog: { _ in await gate.wait(); return .catalog(catalog) },
+                                                              fetchArtifact: { _, _ in nil },
+                                                              countPeople: { defer { gate.open() }; return 2 })
+        let loaded = deferFulfillment(viewModel.context.observe(\.viewState.catalogLoad)) { $0 == .loaded }
         try await loaded.fulfill()
 
-        var actions: [InteractivePostCatalogScreenViewModelAction] = []
-        let cancellable = viewModel.actionsPublisher.sink { actions.append($0) }
+        #expect(viewModel.context.viewState.shelves.map(\.id) == ["two", "decide"])
+    }
+
+    /// A count that arrives after the catalogue doesn't move what is on screen.
+    @Test
+    func aCountThatArrivesLateDoesNotReshuffle() async throws {
+        let catalog = try Self.catalog(sections: ["decide": ["a"], "two": ["b"]], order: ["decide", "two"])
+        let gate = Gate()
+        let read = Gate()
+        let viewModel = InteractivePostCatalogScreenViewModel(roomName: "Група", catalogURL: Self.base, dms: [],
+                                                              fetchCatalog: { _ in .catalog(catalog) },
+                                                              fetchArtifact: { _, _ in nil },
+                                                              countPeople: { await gate.wait(); read.open(); return 2 })
+        let loaded = deferFulfillment(viewModel.context.observe(\.viewState.catalogLoad)) { $0 == .loaded }
+        try await loaded.fulfill()
+        #expect(viewModel.context.viewState.shelves.map(\.id) == ["decide", "two"])
+
+        gate.open()
+        await read.wait()
+        try await Task.sleep(for: .milliseconds(50))
+        #expect(viewModel.context.viewState.shelves.map(\.id) == ["decide", "two"])
+    }
+
+    /// A card at rest has the catalogue's still before it has run (question
+    /// 376); a card with none keeps the quiet grey.
+    @Test
+    func cardsAtRestShowTheCataloguesStills() async throws {
+        let catalog = try Self.catalog(sections: ["two": ["a", "b"]], order: ["two"])
+        let picture = UIGraphicsImageRenderer(size: CGSize(width: 4, height: 4)).image { _ in }
+        let viewModel = InteractivePostCatalogScreenViewModel(roomName: "Група", catalogURL: Self.base, dms: [],
+                                                              fetchCatalog: { _ in .catalog(catalog) },
+                                                              fetchArtifact: { _, _ in nil },
+                                                              fetchStill: { template, _ in template.id == "b" ? picture : nil })
+        let stilled = deferFulfillment(viewModel.context.observe(\.viewState.catalogueStills)) { $0["b"] != nil }
+        try await stilled.fulfill()
+
+        #expect(viewModel.context.viewState.catalogueStills["b"] === picture)
+        #expect(viewModel.context.viewState.catalogueStills["a"] == nil)
+    }
+
+    // MARK: - The one running post (question 412)
+
+    /// The catalogue is stills only: opening it starts no web view.
+    @Test
+    func nothingRunsOnTheCatalogue() async throws {
+        let world = try await World.open()
+        try await world.waitUntil { world.state.artifacts.count == 5 }
+        await world.settle()
+
+        #expect(world.state.runningTemplateID == nil)
+        #expect(world.hosts.made == 0)
+    }
+
+    /// A card pushes its page, which swipes through its section, and the page's post runs.
+    @Test
+    func aCardOpensItsPageAndThePostRuns() async throws {
+        let world = try await World.open()
+        let actions = world.recordActions()
+        defer { actions.cancel() }
+        try await world.waitUntil { world.state.artifacts["b"] != nil }
+
+        try await world.openPage("b")
+
+        #expect(actions.posts == 1)
+        #expect(world.state.page == InteractivePostCatalogPage(section: world.state.shelves[0], currentID: "b"))
+        #expect(world.hosts.mounted == ["tpl-b"])
+    }
+
+    /// A swipe hands the one post to the next page, and the last one keeps a picture of itself.
+    @Test
+    func aSwipeHandsThePostOnAndThePreviousOneFreezes() async throws {
+        let world = try await World.opened()
+
+        try await world.swipe(to: "b")
+
+        #expect(world.state.page?.currentID == "b")
+        #expect(world.state.page?.position == 2)
+        #expect(world.state.stills["a"] != nil, "what the page left behind")
+        #expect(world.hosts.mounted == ["tpl-a", "tpl-b"])
+    }
+
+    /// The page goes no further than its section: a post of another section, or
+    /// the same post again, changes nothing.
+    @Test
+    func aSwipeStaysInItsSection() async throws {
+        let world = try await World.opened()
+
+        world.context.send(viewAction: .showPage(templateID: "d"))
+        world.context.send(viewAction: .showPage(templateID: "a"))
+        await world.settle()
+
+        #expect(world.state.page?.currentID == "a")
+        #expect(world.state.page?.position == 1)
+        #expect(world.hosts.mounted == ["tpl-a"], "nothing restarted")
+    }
+
+    /// A post in two sections swipes through the one it was found in: the chosen chip's, else its first shelf's.
+    @Test
+    func aPageSwipesThroughTheSectionItWasFoundIn() async throws {
+        let world = try await World.open()
+        try await world.waitUntil { world.state.catalogLoad == .loaded }
+
+        world.context.send(viewAction: .openPost(templateID: "c"))
+        #expect(world.state.page?.section.id == "first")
+        #expect(world.state.page?.position == 3)
+
+        world.context.send(viewAction: .selectSection("second"))
+        world.context.send(viewAction: .openPost(templateID: "c"))
+        #expect(world.state.page?.section.id == "second")
+        #expect(world.state.page?.position == 1)
+    }
+
+    /// However fast the swipes, there is one web view and one post in it.
+    @Test
+    func onlyOnePostIsEverLive() async throws {
+        let world = try await World.opened()
+
+        for id in ["b", "c", "b", "a", "c"] {
+            world.context.send(viewAction: .showPage(templateID: id))
+            await Task.yield()
+        }
+        try await world.waitUntilRunning("c")
+
+        #expect(world.hosts.mostAtOnce == 1, "two posts ran at once")
+        #expect(world.hosts.made == 1, "the same web view moves from page to page, for a while")
+        #expect(world.hosts.mounted.last == "tpl-c")
+    }
+
+    /// A page whose files didn't come yet runs once they arrive.
+    @Test
+    func aPageBeforeItsFilesRunsWhenTheyArrive() async throws {
+        let gate = Gate()
+        let world = try await World.open(holding: "b", until: gate)
+        try await world.waitUntil { world.state.catalogLoad == .loaded }
+
+        world.context.send(viewAction: .openPost(templateID: "b"))
+        world.context.send(viewAction: .screenAppeared(.post))
+        await world.settle()
+        #expect(world.state.runningTemplateID == nil)
+        #expect(world.state.artifacts["b"] == nil, "Send stays disabled")
+
+        gate.open()
+        try await world.waitUntilRunning("b")
+    }
+
+    // MARK: - Going back, and what covers the page
+
+    /// Back to the catalogue stops the post; the catalogue runs nothing.
+    @Test
+    func backStopsThePost() async throws {
+        let world = try await World.opened()
+
+        world.context.send(viewAction: .screenDisappeared(.post))
+        try await world.waitUntilRunning(nil)
+
+        #expect(world.hosts.live == 0)
+    }
+
+    /// A thread pushed over the page covers it: nothing runs under it, and the
+    /// post comes back with the page.
+    @Test
+    func nothingRunsUnderAThread() async throws {
+        let world = try await World.opened()
+        try await world.swipe(to: "c")
+
+        world.context.send(viewAction: .screenDisappeared(.post))
+        try await world.waitUntilRunning(nil)
+        #expect(world.hosts.live == 0)
+
+        world.context.send(viewAction: .screenAppeared(.post))
+        try await world.waitUntilRunning("c")
+    }
+
+    /// An appearance reported twice doesn't leave a web view running behind
+    /// a screen that has gone: a count of them did, at 227 MB.
+    @Test
+    func aRepeatedAppearanceStillStopsThePost() async throws {
+        let world = try await World.opened()
+
+        world.context.send(viewAction: .screenAppeared(.post))
+        world.context.send(viewAction: .screenDisappeared(.post))
+
+        try await world.waitUntilRunning(nil)
+        #expect(world.hosts.live == 0)
+    }
+
+    /// The sheet going takes the post with it, whatever the views reported.
+    @Test
+    func stoppingTheScreenStopsThePost() async throws {
+        let world = try await World.opened()
+
+        world.viewModel.stop()
+
+        try await world.waitUntilRunning(nil)
+        #expect(world.hosts.live == 0)
+    }
+
+    /// One web view is kept warm for a few pages, then replaced: kept for
+    /// ever, its process only ever grows.
+    @Test
+    func aWebViewServesAFewPagesAndIsReplaced() async throws {
+        let world = try await World.opened()
+
+        for id in ["b", "c", "a", "b", "c", "a"] {
+            try await world.swipe(to: id)
+        }
+
+        #expect(world.hosts.made == 2)
+        #expect(world.hosts.mostAtOnce == 1)
+    }
+
+    /// A dismissal that comes while the last post is stopping has no next
+    /// post to keep the web view warm for.
+    @Test
+    func aDismissalDuringAStopKeepsNoWebView() async throws {
+        let world = try await World.opened()
+        let unmounting = Gate()
+        world.hosts.unmounting = unmounting
+
+        world.context.send(viewAction: .showPage(templateID: "b"))
+        try await world.waitUntil { world.hosts.unmountsWaiting == 1 }
+        world.viewModel.stop()
+        unmounting.open()
+        try await world.waitUntilRunning(nil)
+        await world.settle()
+
+        #expect(world.hosts.destroyed == world.hosts.made, "a web view stayed parked after the sheet")
+    }
+
+    /// In the background nothing runs, so there is nothing for the system to
+    /// kill and restart; the post comes back with the app.
+    @Test
+    func theBackgroundStopsThePostAndTheReturnResumesIt() async throws {
+        let world = try await World.opened()
+        try await world.swipe(to: "c")
+        let center = NotificationCenter.default
+
+        center.post(name: UIApplication.willResignActiveNotification, object: nil)
+        center.post(name: UIApplication.didEnterBackgroundNotification, object: nil)
+        try await world.waitUntilRunning(nil)
+        world.context.send(viewAction: .screenAppeared(.post))
+        await world.settle()
+
+        #expect(world.state.runningTemplateID == nil, "nothing starts in the background")
+        #expect(world.hosts.live == 0)
+        #expect(world.hosts.destroyed == world.hosts.made)
+        #expect(world.state.stills["c"] != nil, "a picture taken on the way out")
+
+        center.post(name: UIApplication.willEnterForegroundNotification, object: nil)
+        try await world.waitUntilRunning("c")
+    }
+
+    // MARK: - The page on screen (operator, 2026-11-15)
+
+    /// The pager's first frame is on the section's first post, reported before the page's: until the page's post has
+    /// been on screen, the pager goes back to it instead of making the first post the page's.
+    @Test
+    func aFirstFrameOnTheSectionsFirstPostScrollsBackToThePagesPost() {
+        var hold = InteractivePostCatalogPagerHold()
+
+        #expect(hold.postsOnScreen(["a"], pagePost: "b") == .scrollBack)
+        #expect(hold.postsOnScreen([], pagePost: "b") == .none)
+        #expect(hold.postsOnScreen(["b"], pagePost: "b") == .none)
+        #expect(hold.hasShownPage)
+    }
+
+    /// Once the page's post has been on screen, the post the pager shows is the page's post, whatever moved it: a
+    /// swipe, or VoiceOver, Full Keyboard Access or Switch Control, which may move it with no scroll phase.
+    @Test
+    func afterThePagesPostShowedThePagerIsTrusted() {
+        var hold = InteractivePostCatalogPagerHold()
+        _ = hold.postsOnScreen(["b"], pagePost: "b")
+
+        #expect(hold.postsOnScreen(["c"], pagePost: "b") == .show("c"))
+        #expect(hold.postsOnScreen(["c"], pagePost: "c") == .none)
+    }
+
+    /// A finger moving the pager always wins, even before the page's post showed, so a pager can't stick.
+    @Test
+    func aFingerWinsBeforeThePagesPostShowed() {
+        var hold = InteractivePostCatalogPagerHold()
+
+        hold.fingerMoved()
+
+        #expect(hold.postsOnScreen(["a"], pagePost: "b") == .show("a"))
+    }
+
+    /// A card tapped while the catalogue's stills and files are still arriving opens its own post, and keeps it as
+    /// they arrive.
+    @Test
+    func aCardTappedWhileTheCatalogueLoadsOpensItsOwnPost() async throws {
+        let pager = try await Pager.open(tapping: "b")
+        defer { pager.close() }
+        try await pager.waitUntil { pager.postOnScreen == "b" }
+
+        pager.finishLoading()
+        try await pager.waitUntil { pager.hasLoaded }
+
+        #expect(pager.postOnScreen == "b", "\(pager.diagnostics)")
+        #expect(pager.state.page?.currentID == "b")
+    }
+
+    /// The shelves re-sorted after a page opened (the member count arriving late, DEBT L1) don't touch the page: it
+    /// swipes through the section it was opened from, by id.
+    @Test
+    func shelvesReSortedAfterThePageOpenedLeaveItAlone() async throws {
+        let world = try await World.opened()
+        try await world.swipe(to: "b")
+        let page = world.state.page
+
+        world.viewModel.state.shelves.reverse()
+        world.context.send(viewAction: .showPage(templateID: "c"))
+
+        #expect(world.state.page?.section == page?.section)
+        #expect(world.state.page?.currentID == "c")
+        #expect(world.state.page?.position == 3)
+    }
+
+    // MARK: - Titles
+
+    /// A title that has to wrap breaks at the space nearest its middle, so its two lines are about as long
+    /// (question 412); a single word is left whole.
+    @Test
+    func aWrappedTitleBreaksAtTheSpaceNearestItsMiddle() {
+        #expect(InteractivePostCatalogTitle.balanced("Интерактивные посты") == "Интерактивные\nпосты")
+        #expect(InteractivePostCatalogTitle.balanced("Publicaciones de la sala") == "Publicaciones\nde la sala")
+        #expect(InteractivePostCatalogTitle.balanced("Интерактивы") == "Интерактивы")
+    }
+
+    // MARK: - Full screen
+
+    /// The running post asking for the whole screen (`ui.expand`) is heard, as in a chat, so the page opens its viewer
+    /// (question 412): «Открой, чтобы рисовать» opened nothing. The next post, after a swipe, is heard too.
+    @Test
+    func theRunningPostAskingForTheScreenIsHeard() async throws {
+        let world = try await World.opened()
+        let preview = world.state.livePreview
+
+        preview.instance?.onExpandRequested?()
+        #expect(preview.expandRequests == 1)
+
+        try await world.swipe(to: "b")
+        preview.instance?.onExpandRequested?()
+        #expect(preview.expandRequests == 2)
+    }
+
+    // MARK: - A post that won't run
+
+    enum Breakage {
+        case refuses
+        case crashes
+    }
+
+    /// Each failure tried the post again with a fresh count, so a template
+    /// that never runs made web views until the sheet closed.
+    @Test(arguments: [Breakage.refuses, .crashes])
+    func aPostThatWontRunIsTriedAFewTimes(breakage: Breakage) async throws {
+        let world = try await World.opened()
+        world.hosts.breaking["tpl-b"] = breakage
+        let attempts = { world.hosts.mounted.filter { $0 == "tpl-b" }.count }
+
+        world.context.send(viewAction: .showPage(templateID: "b"))
+        try await world.waitUntil { attempts() > DraftPreview.retries && world.state.runningTemplateID == nil }
+        await world.settle()
+        await world.settle()
+
+        #expect(attempts() == DraftPreview.retries + 1)
+        #expect(world.state.runningTemplateID == nil)
+
+        try await world.swipe(to: "c")
+        #expect(world.hosts.mostAtOnce == 1, "the next post still runs, alone")
+    }
+
+    /// A cold shell is a long wait. A post left during it never ran, so it
+    /// mustn't be mounted on the host the next post is waiting for.
+    @Test
+    func aPostLeftWhileTheShellWarmsNeverMounts() async throws {
+        let shell = Gate()
+        let world = try await World.open(shell: shell)
+        try await world.waitUntil { world.state.artifacts["a"] != nil }
+        world.context.send(viewAction: .openPost(templateID: "a"))
+        world.context.send(viewAction: .screenAppeared(.post))
+        try await world.waitUntil { world.hosts.waitingForShell == 1 }
+
+        world.context.send(viewAction: .showPage(templateID: "b"))
+        try await world.waitUntil { world.hosts.waitingForShell == 2 }
+        shell.open()
+        try await world.waitUntilRunning("b")
+        await world.settle()
+
+        #expect(world.hosts.mounted == ["tpl-b"])
+        #expect(world.hosts.live == 1)
+    }
+
+    // MARK: - What the page offers
+
+    /// A plain template is sent, and only someone with an agent changes it first.
+    @Test(arguments: [(InteractivePostCatalogAssistant.available, true), (.none, false), (.settingUp, false), (.unknown, false)])
+    func aPlainTemplateIsSent(assistant: InteractivePostCatalogAssistant, canChange: Bool) {
+        #expect(Self.state(assistant: assistant).choiceAction(for: template()) == .publish(canChange: canChange))
+    }
+
+    /// A template that asks is filled in with the agent; without one, the page leads to one: create it, wait for it
+    /// while it is set up, and never "create one" when the agents couldn't be read (question 412, decision 129).
+    @Test(arguments: [(InteractivePostCatalogAssistant.available, InteractivePostCatalogChoiceAction.fillIn(ask: "Яке питання?")),
+                      (.none, .createAgent),
+                      (.settingUp, .agentSettingUp),
+                      (.unknown, .agentUnknown)])
+    func aTemplateThatAsksGoesToTheAgent(assistant: InteractivePostCatalogAssistant, action: InteractivePostCatalogChoiceAction) {
+        let asks = template(asks: ["uk": "Яке питання?"])
+
+        #expect(Self.state(assistant: assistant).choiceAction(for: asks) == action)
+    }
+
+    /// When the agents couldn't be read, Retry asks for them again, back on the same post (1.0.2 critic polish).
+    @Test
+    func retryAgentsAsksToReadThemAgainOnThePost() {
+        let viewModel = InteractivePostCatalogScreenViewModel(previewState: Self.state(assistant: .unknown))
+        var asked: [String] = []
+        let cancellable = viewModel.actionsPublisher.sink { if case .retryAgents(let templateID) = $0 { asked.append(templateID) } }
         defer { cancellable.cancel() }
 
-        viewModel.context.currentCardID = "chess"
-        viewModel.context.send(viewAction: .selectSection("play"))
-        #expect(viewModel.context.viewState.bindings.section == "play")
-        #expect(viewModel.context.viewState.bindings.currentCardID == "quiz", "the section's first card, not where the carousel was")
-        #expect(viewModel.context.viewState.carouselGeneration == 1)
+        viewModel.context.send(viewAction: .retryAgents(templateID: "invite"))
 
-        viewModel.context.currentCardID = "chess"
-        viewModel.context.send(viewAction: .selectSection("play"))
-        #expect(viewModel.context.viewState.bindings.currentCardID == "quiz", "the chip already on goes back to the start too")
-        #expect(viewModel.context.viewState.carouselGeneration == 2)
+        #expect(asked == ["invite"])
+    }
 
-        viewModel.context.send(viewAction: .publishTemplate(template()))
-        viewModel.context.send(viewAction: .showAllThreads)
-        #expect(actions.count == 2)
-        guard case .publishTemplate(let published) = actions[0], case .showAllThreads = actions[1] else {
-            Issue.record("expected publish, then all threads")
-            return
+    /// «Create an agent» leaves for the Agents tab.
+    @Test
+    func createAgentAsksForTheAgentsTab() {
+        let viewModel = InteractivePostCatalogScreenViewModel(previewState: Self.state(assistant: .none))
+        var asked = 0
+        let cancellable = viewModel.actionsPublisher.sink { if case .showAgents = $0 { asked += 1 } }
+        defer { cancellable.cancel() }
+
+        viewModel.context.send(viewAction: .showAgents)
+
+        #expect(asked == 1)
+    }
+
+    /// Send only says «Send»; VoiceOver names the chat. A catalogue link opens on the chat its picker chose first,
+    /// so the page always has one to name (question 412, A1).
+    @Test
+    func sendNamesTheChatOnlyToVoiceOver() {
+        let viewModel = InteractivePostCatalogScreenViewModel(roomName: "Alice Example", catalogURL: Self.base, dms: [],
+                                                              initialTemplateID: "dice",
+                                                              fetchCatalog: { _ in .unavailable })
+
+        #expect(viewModel.context.viewState.sendAccessibilityLabel == UntranslatedL10n.a11yInteractivePostSendToChat("Alice Example"))
+        #expect(viewModel.context.viewState.sendAccessibilityLabel.contains("Alice Example"))
+        #expect(!L10n.actionSend.contains("Alice Example"))
+    }
+
+    /// Only someone with an agent has Yours to open.
+    @Test(arguments: [(InteractivePostCatalogAssistant.available, true), (.none, false), (.settingUp, false), (.unknown, false)])
+    func yoursNeedsAnAgent(assistant: InteractivePostCatalogAssistant, hasYours: Bool) {
+        #expect(Self.state(assistant: assistant).hasYours == hasYours)
+    }
+
+    // MARK: - Search and sections
+
+    /// Typing filters by a template's title, its line and its section's name,
+    /// whatever the case and accents, each template once.
+    @Test(arguments: [("WHEEL", ["wheel"]), ("names", ["wheel"]), ("for two", ["chess", "wheel"]), ("cafe", ["dice"]), ("  dice ", ["dice"])])
+    func searchFiltersAsItIsTyped(query: String, found: [String]) {
+        var state = Self.searchState()
+        state.bindings.searchQuery = query
+
+        #expect(state.content == .grid(found.compactMap { state.catalog?.template($0) }))
+    }
+
+    /// A chosen section narrows a search to itself.
+    @Test
+    func aSearchStaysInTheChosenSection() {
+        var state = Self.searchState()
+        state.bindings.searchQuery = "e"
+        state.bindings.sectionID = "two"
+
+        #expect(state.content == .grid(["chess", "wheel"].compactMap { state.catalog?.template($0) }))
+    }
+
+    /// Nothing found offers the agent the very words typed.
+    @Test
+    func aSearchThatFindsNothingOffersTheAgent() {
+        var state = Self.searchState()
+        state.bindings.searchQuery = " karaoke "
+        #expect(state.content == .noResults(query: "karaoke"))
+
+        let viewModel = InteractivePostCatalogScreenViewModel(previewState: state)
+        var described: String?
+        let cancellable = viewModel.actionsPublisher.sink { action in
+            if case .startNew(let description) = action { described = description }
         }
-        #expect(published.id == "dice")
+        defer { cancellable.cancel() }
+        viewModel.context.send(viewAction: .startNew(description: "karaoke"))
+
+        #expect(described == "karaoke")
+    }
+
+    /// The words go into the new thread as the person's first message there, and blank ones not at all.
+    @Test
+    func theAgentGetsTheWordsInTheThread() throws {
+        let json = try #require(RoomFlowCoordinator.descriptionContent(" karaoke night ", threadRootEventID: "$root"))
+        let content = try #require(try JSONSerialization.jsonObject(with: Data(json.utf8)) as? [String: Any])
+        let relation = try #require(content["m.relates_to"] as? [String: Any])
+
+        #expect(content["msgtype"] as? String == "m.text")
+        #expect(content["body"] as? String == "karaoke night")
+        #expect(relation["rel_type"] as? String == "m.thread")
+        #expect(relation["event_id"] as? String == "$root")
+        #expect(RoomFlowCoordinator.descriptionContent("  ", threadRootEventID: "$root") == nil)
+    }
+
+    /// A chip shows its section as a grid; «All» brings the shelves back.
+    @Test
+    func aSectionChipShowsItsSection() {
+        let viewModel = InteractivePostCatalogScreenViewModel(previewState: Self.searchState())
+        let context = viewModel.context
+        #expect(context.viewState.content == .shelves(context.viewState.shelves))
+
+        context.send(viewAction: .selectSection("decide"))
+        #expect(context.viewState.content == .grid(["dice", "wheel"].compactMap { context.viewState.catalog?.template($0) }))
+
+        context.send(viewAction: .selectSection(nil))
+        #expect(context.viewState.content == .shelves(context.viewState.shelves))
+    }
+
+    // MARK: - The introduction
+
+    /// The first opening starts with the introduction; finishing it is remembered, once.
+    @Test
+    func theIntroductionShowsOnceAndIsRemembered() {
+        var seen = 0
+        let viewModel = InteractivePostCatalogScreenViewModel(roomName: "Група", catalogURL: Self.base, dms: [],
+                                                              hasSeenIntroduction: false,
+                                                              introductionSeen: { seen += 1 },
+                                                              fetchCatalog: { _ in .unavailable })
+        #expect(!viewModel.context.viewState.hasSeenIntroduction)
+
+        viewModel.context.send(viewAction: .finishIntroduction)
+
+        #expect(viewModel.context.viewState.hasSeenIntroduction)
+        #expect(seen == 1)
+    }
+
+    /// A link names a post: it goes there, and the introduction is still to come.
+    @Test
+    func aLinkSkipsTheIntroductionWithoutSpendingIt() {
+        var seen = 0
+        let viewModel = InteractivePostCatalogScreenViewModel(roomName: "Група", catalogURL: Self.base, dms: [],
+                                                              initialTemplateID: "dice",
+                                                              hasSeenIntroduction: false,
+                                                              introductionSeen: { seen += 1 },
+                                                              fetchCatalog: { _ in .unavailable })
+
+        #expect(viewModel.context.viewState.hasSeenIntroduction)
+        #expect(seen == 0)
+    }
+
+    // MARK: - Failure
+
+    /// A failed read is no empty catalogue, and a retry reads again.
+    @Test
+    func aFailedIndexSaysSoAndRetries() async throws {
+        let catalog = try Self.catalog(sections: ["decide": ["a"]], order: ["decide"])
+        var answers: [SpiralAppCatalog.Fetched] = [.unavailable, .catalog(catalog)]
+        let viewModel = InteractivePostCatalogScreenViewModel(roomName: "Група", catalogURL: Self.base, dms: [],
+                                                              fetchCatalog: { _ in answers.removeFirst() },
+                                                              fetchArtifact: { _, _ in nil })
+        let failed = deferFulfillment(viewModel.context.observe(\.viewState.catalogLoad)) { $0 == .failed }
+        try await failed.fulfill()
+        #expect(viewModel.context.viewState.shelves.isEmpty)
+
+        let loaded = deferFulfillment(viewModel.context.observe(\.viewState.catalogLoad)) { $0 == .loaded }
+        viewModel.context.send(viewAction: .retryCatalog)
+        try await loaded.fulfill()
+        #expect(viewModel.context.viewState.shelves.map(\.id) == ["decide"])
+    }
+
+    /// A newer catalogue format asks for an update and offers no retry (decision 96).
+    @Test
+    func aNewerIndexAsksForAnUpdate() async throws {
+        let viewModel = InteractivePostCatalogScreenViewModel(roomName: "Група", catalogURL: Self.base, dms: [],
+                                                              fetchCatalog: { _ in .newerFormat },
+                                                              fetchArtifact: { _, _ in nil })
+        let needsUpdate = deferFulfillment(viewModel.context.observe(\.viewState.catalogLoad)) { $0 == .needsNewerApp }
+        try await needsUpdate.fulfill()
+    }
+
+    /// A failed read of the threads is not "nothing of yours yet".
+    @Test
+    func aFailedThreadReadIsNotAnEmptyList() async throws {
+        let list = RoomThreadListServiceProxyMock(.init(paginationState: .idle(endReached: false),
+                                                        paginateResult: .failure(.sdkError(ClientProxyMockError.generic))))
+        let dm = JoinedRoomProxyMock(.init(id: "!dm:spiral.md"))
+        dm.threadListServiceReturnValue = list
+        let viewModel = InteractivePostCatalogScreenViewModel(roomName: "Група", catalogURL: Self.base, dms: [dm],
+                                                              fetchCatalog: { _ in .unavailable },
+                                                              fetchArtifact: { _, _ in nil })
+
+        let failed = deferFulfillment(viewModel.context.observe(\.viewState.threadsLoad)) { $0 == .failed }
+        try await failed.fulfill()
     }
 
     // MARK: - A catalogue link (decision 111)
 
     private static let linkIndex = #"{"version":1,"runtime":"1","sections":[{"id":"decide","title":"Вирішити","items":["dice"]},{"id":"play","title":"Пограти","items":["quiz","chess"]}],"items":[{"id":"dice","title":"Кубик","description":"d6","aspect":"1:1","source":"dice/app.jsx","manifest":"dice/manifest.json"},{"id":"quiz","title":"Вікторина","description":"…","aspect":"4:3","source":"q","manifest":"m"},{"id":"chess","title":"Шахи","description":"…","aspect":"1:1","source":"c","manifest":"m"}]}"#
 
-    /// The link's template is the card the catalogue opens on, whatever
-    /// section it is in, and the carousel is rebuilt to start there.
+    /// The link's template opens on its own page over the catalogue, whatever shelf it is on.
     @Test
-    func aLinksTemplateIsTheCardTheCatalogueOpensOn() async throws {
+    func aLinksTemplateOpensItsPage() async throws {
         let base = try catalogue()
         try Self.linkIndex.write(to: base.appending(path: "index.json"), atomically: true, encoding: .utf8)
         let viewModel = InteractivePostCatalogScreenViewModel(roomName: "Група", catalogURL: base, dms: [], initialTemplateID: "chess")
+        var posts = 0
+        let cancellable = viewModel.actionsPublisher.sink { if case .showPost = $0 { posts += 1 } }
+        defer { cancellable.cancel() }
         let loaded = deferFulfillment(viewModel.context.observe(\.viewState.catalog)) { $0 != nil }
         try await loaded.fulfill()
 
-        #expect(viewModel.context.viewState.bindings.section == nil)
-        #expect(viewModel.context.viewState.bindings.currentCardID == "chess")
-        #expect(viewModel.context.viewState.currentCard?.template?.id == "chess")
-        #expect(viewModel.context.viewState.carouselGeneration == 1)
+        #expect(viewModel.context.viewState.page?.currentID == "chess")
+        #expect(viewModel.context.viewState.page?.section.id == "play")
+        #expect(posts == 1)
     }
 
-    /// An id the catalogue lacks leaves the carousel where it would be.
+    /// An id the catalogue lacks opens the catalogue as any other time.
     @Test
-    func anUnknownLinkRestsOnTheFirstCard() async throws {
+    func anUnknownLinkOpensTheCatalogue() async throws {
         let base = try catalogue()
         try Self.linkIndex.write(to: base.appending(path: "index.json"), atomically: true, encoding: .utf8)
         let viewModel = InteractivePostCatalogScreenViewModel(roomName: "Група", catalogURL: base, dms: [], initialTemplateID: "nosuch")
         let loaded = deferFulfillment(viewModel.context.observe(\.viewState.catalog)) { $0 != nil }
         try await loaded.fulfill()
 
-        #expect(viewModel.context.viewState.bindings.currentCardID == nil)
-        #expect(viewModel.context.viewState.currentCard?.template?.id == "dice")
-        #expect(viewModel.context.viewState.carouselGeneration == 0)
+        #expect(viewModel.context.viewState.page == nil)
     }
 
-    /// A template the items list but no section holds is no card: the link
-    /// rests on the first card rather than on a card the carousel lacks.
+    /// A template the items list but no section holds is on no shelf.
     @Test
-    func aLinkToATemplateInNoSectionRestsOnTheFirstCard() async throws {
+    func aLinkToATemplateInNoSectionOpensTheCatalogue() async throws {
         let base = try catalogue()
         let index = #"{"version":1,"runtime":"1","sections":[{"id":"decide","title":"Вирішити","items":["dice"]}],"items":[{"id":"dice","title":"Кубик","description":"d6","aspect":"1:1","source":"dice/app.jsx","manifest":"dice/manifest.json"},{"id":"loose","title":"Без розділу","description":"…","aspect":"1:1","source":"l","manifest":"m"}]}"#
         try index.write(to: base.appending(path: "index.json"), atomically: true, encoding: .utf8)
         let viewModel = InteractivePostCatalogScreenViewModel(roomName: "Група", catalogURL: base, dms: [], initialTemplateID: "loose")
         let loaded = deferFulfillment(viewModel.context.observe(\.viewState.catalog)) { $0 != nil }
         try await loaded.fulfill()
-        
-        #expect(viewModel.context.viewState.bindings.currentCardID == nil)
-        #expect(viewModel.context.viewState.currentCard?.template?.id == "dice")
-        #expect(viewModel.context.viewState.carouselGeneration == 0)
-    }
-    
-    /// Without an agent (decision 129) the carousel is the templates alone:
-    /// «Describe a new one» needs an agent.
-    @Test
-    func withoutAnAssistantTheCarouselIsTheTemplatesAlone() throws {
-        var state = InteractivePostCatalogScreenViewState(roomName: "Група", catalogURL: URL.temporaryDirectory, ownUserID: "@a:h", loadMembers: { [:] }, assistant: .none)
-        #expect(state.cards.isEmpty)
-        state.catalog = try JSONDecoder().decode(SpiralAppCatalog.self, from: Data(Self.linkIndex.utf8))
-        #expect(state.cards.map(\.id) == ["dice", "quiz", "chess"])
+
+        #expect(viewModel.context.viewState.page == nil)
     }
 
-    /// «Yours» on the main screen: three, the named ones first.
-    @Test
-    func yoursShowsThreeNamedFirst() {
-        func thread(_ id: String, title: String?) -> InteractivePostThreadItem {
-            InteractivePostThreadItem(id: id, dmRoomID: "!dm", madeForRoomName: "Група", lastActivity: .now, title: title, lastMessage: nil, replies: 1)
-        }
-        var state = InteractivePostCatalogScreenViewState(roomName: "Група", catalogURL: URL.temporaryDirectory, ownUserID: "@a:h", loadMembers: { [:] })
-        state.threads = [thread("a", title: nil), thread("b", title: "Кубик"), thread("c", title: nil), thread("d", title: "Табло"), thread("e", title: nil)]
-        #expect(state.recentThreads.map(\.id) == ["b", "d", "a"])
-    }
-
-    /// The catalogue's rows run the templates, so every template's files are
-    /// read once the catalogue is, and the preview of one opens at once
-    /// (§ 5.61). A catalogue from before § 5.61, with `row`, decodes too.
+    /// The page runs the template, so every template's files are read once the
+    /// catalogue is (§ 5.61). A catalogue from before § 5.61, with `row`, decodes too.
     @Test
     func theCatalogueBringsEveryTemplatesFilesWithIt() async throws {
         let base = try catalogue()
@@ -240,22 +786,452 @@ struct InteractivePostCatalogScreenViewModelTests {
         #expect(viewModel.context.viewState.artifacts["dice"]?.manifest.appID == "tpl-dice")
     }
 
-    /// The card shown and its two neighbours run, whichever cards the
-    /// carousel happened to build first (§ 5.80): a first-come budget gave
-    /// the slots to cards out of sight and left the middle one a picture.
+    // MARK: - Question 412: the «New» slider and a post's facts
+
     @Test
-    func theCardShownAndItsNeighboursRun() throws {
-        let json = #"{"version":1,"runtime":"1","sections":[{"id":"all","title":"Усі","items":["a","b","c","d","e"]}],"items":[{"id":"a","title":"A","description":"","aspect":"1:1","source":"a","manifest":"m"},{"id":"b","title":"B","description":"","aspect":"1:1","source":"b","manifest":"m"},{"id":"c","title":"C","description":"","aspect":"1:1","source":"c","manifest":"m"},{"id":"d","title":"D","description":"","aspect":"1:1","source":"d","manifest":"m"},{"id":"e","title":"E","description":"","aspect":"1:1","source":"e","manifest":"m"}]}"#
-        var state = InteractivePostCatalogScreenViewState(roomName: "Група", catalogURL: URL.temporaryDirectory, ownUserID: "@a:h", loadMembers: { [:] })
-        state.catalog = try JSONDecoder().decode(SpiralAppCatalog.self, from: Data(json.utf8))
-        func running() -> [String] {
-            state.cards.filter { state.distance(of: $0) <= InteractivePostCatalogTemplateCell.liveReach }.map(\.id)
+    func theNewSliderShowsEveryNewTemplateOverTheShelvesInTheCataloguesOrder() {
+        var state = Self.searchState(newIDs: ["gone", "chess", "dice"])
+        #expect(state.newCardTemplates.map(\.id) == ["chess", "dice"], "the catalogue's order, past an id it doesn't hold")
+        #expect(state.isNew("chess") && state.isNew("dice"))
+        #expect(!state.isNew("wheel"))
+
+        state.bindings.sectionID = "decide"
+        #expect(state.newCardTemplates.isEmpty, "a chosen section shows what was asked for")
+        state.bindings.sectionID = nil
+        state.bindings.searchQuery = "di"
+        #expect(state.newCardTemplates.isEmpty, "so does a search")
+        state.bindings.searchQuery = "  "
+        #expect(state.newCardTemplates.map(\.id) == ["chess", "dice"], "a blank search is no search")
+
+        state.shelves = state.shelves.filter { $0.id == "decide" }
+        #expect(state.newCardTemplates.map(\.id) == ["dice"], "only what a shelf holds, as a page swipes through its shelf")
+    }
+
+    @Test
+    func aCatalogueWithNothingNewHasNoNewSlider() {
+        let state = Self.searchState()
+        #expect(state.newCardTemplates.isEmpty)
+        #expect(!state.isNew("dice"))
+    }
+
+    /// Players first, then the traits in the catalogue's order, three at most.
+    @Test
+    func aPostShowsPlayersThenItsTraitsThreeAtMost() {
+        func template(players: SpiralAppTemplate.Players?, traits: [SpiralAppTemplate.Trait]) -> SpiralAppTemplate {
+            SpiralAppTemplate(id: "rps", title: "rps", titles: nil, description: "", descriptions: nil, aspect: "1:1",
+                              source: "rps.jsx", manifest: "rps.json", row: nil, asks: nil, runtime: nil, players: players, traits: traits)
+        }
+        let rps = InteractivePostCatalogFact.facts(of: template(players: .two, traits: [.sealed, .score]))
+        #expect(rps.map(\.id) == ["players", "sealed", "score"])
+        #expect(rps.map(\.text) == [UntranslatedL10n.screenInteractiveCatalogFactPlayersTwo,
+                                    UntranslatedL10n.screenInteractiveCatalogFactSealedTwo,
+                                    UntranslatedL10n.screenInteractiveCatalogFactScore])
+        #expect(rps.map(\.symbol.rawValue) == ["person.2", "eye.slash", "trophy"])
+
+        let group = InteractivePostCatalogFact.facts(of: template(players: .group, traits: [.sealed]))
+        #expect(group.map(\.text) == [UntranslatedL10n.screenInteractiveCatalogFactPlayersGroup, UntranslatedL10n.screenInteractiveCatalogFactSealed],
+                "hidden until everyone has chosen, not «both»")
+
+        let many = InteractivePostCatalogFact.facts(of: template(players: .solo, traits: [.score, .live, .names]))
+        #expect(many.map(\.id) == ["players", "score", "live"])
+
+        let noPlayers = InteractivePostCatalogFact.facts(of: template(players: nil, traits: [.score, .live, .names]))
+        #expect(noPlayers.map(\.id) == ["score", "live", "names"], "a catalogue without players still shows its traits")
+
+        #expect(InteractivePostCatalogFact.facts(of: template(players: nil, traits: [])).isEmpty, "a catalogue packed before them: no facts")
+    }
+
+    /// Introduction C fans three posts with little text; a catalogue without one takes the next it holds.
+    @Test
+    func theIntroductionFansDotsTheWheelAndSeaBattle() throws {
+        var state = Self.state(assistant: .available)
+        state.shelves = [.init(id: "decide", title: "Decide", titles: nil, items: ["who-wheel", "dice"]),
+                         .init(id: "two", title: "For two", titles: nil, items: ["dots", "sea-battle", "chess"])]
+        #expect(state.introductionTemplateIDs == ["dots", "who-wheel", "sea-battle"])
+
+        state.shelves = [.init(id: "decide", title: "Decide", titles: nil, items: ["who-wheel", "dice"]),
+                         .init(id: "two", title: "For two", titles: nil, items: ["chess"])]
+        #expect(state.introductionTemplateIDs == ["dice", "who-wheel", "chess"])
+
+        state.shelves = []
+        #expect(state.introductionTemplateIDs.isEmpty, "before the catalogue arrives: no stills, the fan keeps its size")
+    }
+
+    // MARK: - Helpers
+
+    private static let base: URL = "https://spiral.md/catalog/"
+
+    private static func state(assistant: InteractivePostCatalogAssistant) -> InteractivePostCatalogScreenViewState {
+        InteractivePostCatalogScreenViewState(roomName: "Група", catalogURL: base, ownUserID: "@a:h", assistant: assistant, livePreview: DraftPreview())
+    }
+
+    /// Two sections sharing one template, with words to search for.
+    private static func searchState(newIDs: [String] = []) -> InteractivePostCatalogScreenViewState {
+        func template(_ id: String, _ title: String, _ description: String) -> SpiralAppTemplate {
+            SpiralAppTemplate(id: id, title: title, titles: nil, description: description, descriptions: nil, aspect: "1:1",
+                              source: "\(id).jsx", manifest: "\(id).json", row: nil, asks: nil, runtime: nil)
+        }
+        let catalog = SpiralAppCatalog(runtime: "1",
+                                       sections: [.init(id: "decide", title: "Decide", titles: nil, items: ["dice", "wheel"]),
+                                                  .init(id: "two", title: "For two", titles: nil, items: ["chess", "wheel"])],
+                                       items: [template("dice", "Dice", "Who pays at the café"),
+                                               template("wheel", "Wheel", "Stops on one of the names"),
+                                               template("chess", "Chess", "The whole game")],
+                                       newIDs: newIDs)
+        var state = state(assistant: .available)
+        state.catalog = catalog
+        state.shelves = catalog.sections
+        return state
+    }
+
+    private static func catalog(sections: [String: [String]], order: [String]) throws -> SpiralAppCatalog {
+        let items = order.flatMap { sections[$0] ?? [] }.map {
+            SpiralAppTemplate(id: $0, title: $0, titles: nil, description: "", descriptions: nil, aspect: "1:1",
+                              source: "\($0).jsx", manifest: "\($0).json", row: nil, asks: nil, runtime: nil)
+        }
+        return SpiralAppCatalog(runtime: "1",
+                                sections: order.map { .init(id: $0, title: $0, titles: nil, items: sections[$0] ?? []) },
+                                items: items)
+    }
+
+    private static func artifact(_ id: String) -> SpiralAppArtifact? {
+        let manifest = #"{"app_id":"tpl-\#(id)","runtime":"1","entry":"app.jsx","aspect":"1:1","state_channel":"matrix","capabilities":["app.context.read"],"limits":{"max_state_bytes":16384}}"#
+        let packed = SpiralAppContainer.pack(manifestJSON: manifest, entry: "app.jsx", source: "export default () => null;")
+        return SpiralAppArtifact.verified(packed: packed, claimedDigest: SpiralAppArtifact.digest(of: packed))
+    }
+
+    /// A screen on a real preview and live card, with only WebKit replaced.
+    private struct World {
+        let viewModel: InteractivePostCatalogScreenViewModel
+        let hosts: Hosts
+
+        var context: InteractivePostCatalogScreenViewModel.Context {
+            viewModel.context
         }
 
-        #expect(running() == ["a", "b"], "at the start: the first card and the one after it")
-        state.bindings.currentCardID = "c"
-        #expect(running() == ["b", "c", "d"])
-        state.bindings.currentCardID = "describe-new"
-        #expect(running() == ["e", "describe-new"], "at the end: the last template and «Describe a new one»")
+        var state: InteractivePostCatalogScreenViewState {
+            viewModel.context.viewState
+        }
+
+        /// On the first post's page, with it running.
+        static func opened() async throws -> World {
+            let world = try await open()
+            try await world.waitUntil { world.state.artifacts["a"] != nil }
+            try await world.openPage("a")
+            return world
+        }
+
+        /// The catalogue on screen. `shell` holds every host's shell back, as a cold one is.
+        static func open(holding heldID: String? = nil, until gate: Gate? = nil, shell: Gate? = nil) async throws -> World {
+            let catalog = try catalog(sections: ["first": ["a", "b", "c"], "second": ["c", "d", "e"]], order: ["first", "second"])
+            let hosts = Hosts()
+            hosts.shell = shell
+            let viewModel = InteractivePostCatalogScreenViewModel(roomName: "Група", catalogURL: base, dms: [],
+                                                                  livePreview: DraftPreview { hosts.make() },
+                                                                  fetchCatalog: { _ in .catalog(catalog) },
+                                                                  fetchArtifact: { template, _ in
+                                                                      if template.id == heldID { await gate?.wait() }
+                                                                      return artifact(template.id)
+                                                                  })
+            viewModel.context.send(viewAction: .screenAppeared(.catalogue))
+            return World(viewModel: viewModel, hosts: hosts)
+        }
+
+        /// A card tapped: the page pushed over the catalogue, the post running on it.
+        func openPage(_ id: String) async throws {
+            context.send(viewAction: .openPost(templateID: id))
+            context.send(viewAction: .screenAppeared(.post))
+            context.send(viewAction: .screenDisappeared(.catalogue))
+            try await waitUntilRunning(id)
+        }
+
+        func swipe(to id: String) async throws {
+            context.send(viewAction: .showPage(templateID: id))
+            try await waitUntilRunning(id)
+        }
+
+        func waitUntilRunning(_ id: String?) async throws {
+            for _ in 0..<500 {
+                if state.runningTemplateID == id, id == nil || state.livePreview.isReady { return }
+                try await Task.sleep(for: .milliseconds(10))
+            }
+            Issue.record("\(id ?? "nothing") never ran; \(state.runningTemplateID ?? "nothing") did")
+        }
+
+        func waitUntil(_ condition: () -> Bool) async throws {
+            for _ in 0..<500 {
+                if condition() { return }
+                try await Task.sleep(for: .milliseconds(10))
+            }
+            Issue.record("waited in vain")
+        }
+
+        /// Long enough for a change the two screens' turn could have started.
+        func settle() async {
+            try? await Task.sleep(for: .milliseconds(100))
+        }
+
+        func recordActions() -> ActionRecord {
+            let record = ActionRecord()
+            record.cancellable = viewModel.actionsPublisher.sink { action in
+                if case .showPost = action { record.posts += 1 }
+            }
+            return record
+        }
+    }
+
+    /// The post page as the room's catalogue pushes it, on a navigation stack in a window. Stills and files wait
+    /// until `finishLoading()`; no post ever finishes starting, so the running one keeps its place on its page.
+    @MainActor
+    private final class Pager {
+        let viewModel: InteractivePostCatalogScreenViewModel
+        private let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 393, height: 852))
+        private let stack = NavigationStackCoordinator()
+        private let loading = MainGate()
+        private let hosts = Hosts()
+
+        var state: InteractivePostCatalogScreenViewState {
+            viewModel.context.viewState
+        }
+
+        private init() throws {
+            let catalog = try InteractivePostCatalogScreenViewModelTests.catalog(sections: ["record": ["a", "b", "c", "d", "e", "f", "g"], "two": ["h", "i"]],
+                                                                                order: ["record", "two"])
+            let picture = UIGraphicsImageRenderer(size: CGSize(width: 4, height: 4)).image { _ in }
+            hosts.shell = Gate()
+            let loading = loading
+            viewModel = InteractivePostCatalogScreenViewModel(roomName: "Група", catalogURL: InteractivePostCatalogScreenViewModelTests.base, dms: [],
+                                                              livePreview: DraftPreview { [hosts] in hosts.make() },
+                                                              fetchCatalog: { _ in .catalog(catalog) },
+                                                              fetchArtifact: { template, _ in
+                                                                  await loading.wait()
+                                                                  return InteractivePostCatalogScreenViewModelTests.artifact(template.id)
+                                                              },
+                                                              fetchStill: { _, _ in
+                                                                  await loading.wait()
+                                                                  return picture
+                                                              })
+        }
+
+        /// The catalogue up, its stills and files still on their way, and the card tapped.
+        static func open(tapping templateID: String) async throws -> Pager {
+            let pager = try Pager()
+            pager.showStack()
+            try await pager.waitUntil { pager.state.catalogLoad == .loaded }
+
+            pager.viewModel.context.send(viewAction: .openPost(templateID: templateID))
+            pager.stack.push(InteractivePostCatalogPostScreenCoordinator(viewModel: pager.viewModel), animated: false)
+            try await pager.waitUntil { pager.pagerScrollView != nil }
+            return pager
+        }
+
+        private func showStack() {
+            stack.setRootCoordinator(BlankFormCoordinator())
+            window.rootViewController = UIHostingController(rootView: stack.toPresentable())
+            window.isHidden = false
+        }
+
+        func close() {
+            viewModel.stop()
+            window.isHidden = true
+        }
+
+        func finishLoading() {
+            loading.open()
+        }
+
+        /// Every still and every post's files are in.
+        var hasLoaded: Bool {
+            state.catalogueStills.count == 9 && state.artifacts.count == 9
+        }
+
+        /// The section's post whose page fills the screen, read off where the pages are laid out in the pager.
+        var postOnScreen: String? {
+            window.layoutIfNeeded()
+            guard let pager = pagerScrollView, pager.bounds.width > 0, let section = state.page?.section else { return nil }
+            guard let page = pageOnScreen else { return nil }
+            let index = Int((page.convert(page.bounds, to: pager).minX / pager.bounds.width).rounded())
+            return section.items.indices.contains(index) ? section.items[index] : nil
+        }
+
+        /// The scroll view of the page that fills the screen.
+        private var pageOnScreen: UIScrollView? {
+            window.layoutIfNeeded()
+            guard let pager = pagerScrollView else { return nil }
+            return views(in: pager).dropFirst().compactMap { $0 as? UIScrollView }.first { page in
+                !page.isHidden && abs(page.convert(page.bounds, to: window).minX) < pager.bounds.width / 2
+            }
+        }
+
+        var diagnostics: String {
+            "on screen \(postOnScreen ?? "none"), running \(state.runningTemplateID ?? "none"), offset \(pagerScrollView.map { "\($0.contentOffset.x) of \($0.contentSize.width)" } ?? "no pager")"
+        }
+
+        func waitUntil(_ condition: () -> Bool, sourceLocation: SourceLocation = #_sourceLocation) async throws {
+            for _ in 0..<500 {
+                window.layoutIfNeeded()
+                if condition() { return }
+                try await Task.sleep(for: .milliseconds(10))
+            }
+            Issue.record("waited in vain: \(diagnostics), loaded \(hasLoaded)", sourceLocation: sourceLocation)
+        }
+
+        private var pagerScrollView: UIScrollView? {
+            views(in: window).lazy.compactMap { $0 as? UIScrollView }.first { $0.contentSize.width > $0.bounds.width * 1.5 }
+        }
+
+        private func views(in root: UIView) -> [UIView] {
+            [root] + root.subviews.flatMap(views)
+        }
+    }
+
+    /// A `Gate` for many waiters at once, each let go on the main actor.
+    @MainActor
+    private final class MainGate {
+        private var isOpen = false
+        private var waiting: [CheckedContinuation<Void, Never>] = []
+
+        func open() {
+            isOpen = true
+            waiting.forEach { $0.resume() }
+            waiting.removeAll()
+        }
+
+        func wait() async {
+            guard !isOpen else { return }
+            await withCheckedContinuation { waiting.append($0) }
+        }
+    }
+
+    private final class ActionRecord {
+        var posts = 0
+        var cancellable: AnyCancellable?
+
+        func cancel() {
+            cancellable?.cancel()
+        }
+    }
+
+    /// What `FakeHost`s did between them.
+    private final class Hosts {
+        private(set) var made = 0
+        private(set) var destroyed = 0
+        private(set) var live = 0
+        private(set) var mostAtOnce = 0
+        private(set) var mounted: [String] = []
+        /// Holds every shell back until opened.
+        var shell: Gate?
+        fileprivate var waitingForShell = 0
+        /// Holds every unmount back until opened.
+        var unmounting: Gate?
+        fileprivate var unmountsWaiting = 0
+        /// What goes wrong with each app, by its id.
+        var breaking: [String: Breakage] = [:]
+
+        func make() -> SpiralAppHostProtocol {
+            made += 1
+            return FakeHost(hosts: self)
+        }
+
+        fileprivate func didMount(_ appID: String) {
+            live += 1
+            mostAtOnce = max(mostAtOnce, live)
+            mounted.append(appID)
+        }
+
+        fileprivate func didUnmount() {
+            live -= 1
+        }
+
+        fileprivate func didDestroy() {
+            destroyed += 1
+        }
+    }
+
+    /// A host that does everything but touch WebKit.
+    private final class FakeHost: SpiralAppHostProtocol {
+        let containerView = UIView(frame: .zero)
+        var onContentProcessDied: (@MainActor () -> Void)?
+        private let hosts: Hosts
+        private var isMounted = false
+
+        init(hosts: Hosts) {
+            self.hosts = hosts
+        }
+
+        func bind(_ handler: @escaping SpiralAppMethodHandler) { }
+        func push(_ message: [String: Any]) async { }
+
+        func waitUntilReady() async {
+            guard let shell = hosts.shell else { return }
+            hosts.waitingForShell += 1
+            await shell.wait()
+        }
+
+        func destroy() {
+            if isMounted {
+                isMounted = false
+                hosts.didUnmount()
+            }
+            hosts.didDestroy()
+        }
+
+        func mount(_ mount: SpiralAppMount) async throws {
+            let appID = mount.artifact.manifest.appID
+            isMounted = true
+            hosts.didMount(appID)
+            // The time a real mount takes, so that a second one would overlap.
+            await Task.yield()
+            switch hosts.breaking[appID] {
+            case .refuses:
+                isMounted = false
+                hosts.didUnmount()
+                throw SpiralAppHostError.timedOut
+            case .crashes:
+                Task { self.onContentProcessDied?() }
+            case nil:
+                break
+            }
+        }
+
+        func unmount() async {
+            if let unmounting = hosts.unmounting {
+                hosts.unmountsWaiting += 1
+                await unmounting.wait()
+            }
+            guard isMounted else { return }
+            isMounted = false
+            hosts.didUnmount()
+        }
+
+        func takeSnapshot(_ completion: @escaping (UIImage?) -> Void) {
+            completion(UIImage(systemName: "circle"))
+        }
+
+        func waitForPaint() async -> Bool {
+            true
+        }
+
+        func waitForLayout(_ size: CGSize) async -> Bool {
+            true
+        }
+    }
+
+    /// Holds a closure back until the test lets it go. Deaf to cancellation,
+    /// as WebKit's waits are, and without spinning on a cancelled task.
+    private final class Gate {
+        private var isOpen = false
+        private var waiting: [CheckedContinuation<Void, Never>] = []
+
+        func open() {
+            isOpen = true
+            waiting.forEach { $0.resume() }
+            waiting.removeAll()
+        }
+
+        func wait() async {
+            guard !isOpen else { return }
+            await withCheckedContinuation { waiting.append($0) }
+        }
     }
 }

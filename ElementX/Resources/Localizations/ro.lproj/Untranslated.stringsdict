@@ -2,7 +2,7 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<key>screen_agent_detail_rooms_section</key>
+	<key>screen_native_call_assistants_count</key>
 	<dict>
 		<key>COUNT</key>
 		<dict>
@@ -11,84 +11,19 @@
 			<key>NSStringFormatValueTypeKey</key>
 			<string>d</string>
 			<key>few</key>
-			<string>%1$d camere</string>
+			<string>%1$d asistenți</string>
 			<key>one</key>
-			<string>%1$d cameră</string>
+			<string>%1$d asistent</string>
 			<key>other</key>
-			<string>%1$d de camere</string>
-		</dict>
-		<key>NSStringLocalizedFormatKey</key>
-		<string>Trăiește în %#@COUNT@</string>
-	</dict>
-	<key>screen_agent_detail_tool_count</key>
-	<dict>
-		<key>COUNT</key>
-		<dict>
-			<key>NSStringFormatSpecTypeKey</key>
-			<string>NSStringPluralRuleType</string>
-			<key>NSStringFormatValueTypeKey</key>
-			<string>d</string>
-			<key>few</key>
-			<string>%1$d instrumente</string>
-			<key>one</key>
-			<string>%1$d instrument</string>
-			<key>other</key>
-			<string>%1$d de instrumente</string>
-		</dict>
-		<key>NSStringLocalizedFormatKey</key>
-		<string>%#@COUNT@</string>
-	</dict>
-	<key>screen_agent_space_agent_status</key>
-	<dict>
-		<key>NSStringLocalizedFormatKey</key>
-		<string>În %#@ROOMS@ · %#@TOOLS@</string>
-		<key>ROOMS</key>
-		<dict>
-			<key>NSStringFormatSpecTypeKey</key>
-			<string>NSStringPluralRuleType</string>
-			<key>NSStringFormatValueTypeKey</key>
-			<string>d</string>
-			<key>few</key>
-			<string>%1$d camere</string>
-			<key>one</key>
-			<string>%1$d cameră</string>
-			<key>other</key>
-			<string>%1$d de camere</string>
-		</dict>
-		<key>TOOLS</key>
-		<dict>
-			<key>NSStringFormatSpecTypeKey</key>
-			<string>NSStringPluralRuleType</string>
-			<key>NSStringFormatValueTypeKey</key>
-			<string>d</string>
-			<key>few</key>
-			<string>%2$d instrumente active</string>
-			<key>one</key>
-			<string>%2$d instrument activ</string>
-			<key>other</key>
-			<string>%2$d de instrumente active</string>
-		</dict>
-	</dict>
-	<key>screen_agent_spaces_agent_count</key>
-	<dict>
-		<key>COUNT</key>
-		<dict>
-			<key>NSStringFormatSpecTypeKey</key>
-			<string>NSStringPluralRuleType</string>
-			<key>NSStringFormatValueTypeKey</key>
-			<string>d</string>
-			<key>few</key>
-			<string>%1$d agenți</string>
-			<key>one</key>
-			<string>%1$d agent</string>
-			<key>other</key>
-			<string>%1$d de agenți</string>
+			<string>%1$d de asistenți</string>
 		</dict>
 		<key>NSStringLocalizedFormatKey</key>
 		<string>%#@COUNT@</string>
 	</dict>
 	<key>screen_native_call_status_agent_count</key>
 	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@COUNT@</string>
 		<key>COUNT</key>
 		<dict>
 			<key>NSStringFormatSpecTypeKey</key>
@@ -97,13 +32,31 @@
 			<string>d</string>
 			<key>one</key>
 			<string>%1$d agent</string>
+			<key>few</key>
+			<string>%1$d agenți</string>
 			<key>other</key>
-			<string>%1$d agents</string>
+			<string>%1$d de agenți</string>
 		</dict>
-		<key>NSStringLocalizedFormatKey</key>
-		<string>%#@COUNT@</string>
 	</dict>
 	<key>screen_native_call_status_people_count</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@COUNT@</string>
+		<key>COUNT</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%1$d persoană</string>
+			<key>few</key>
+			<string>%1$d persoane</string>
+			<key>other</key>
+			<string>%1$d de persoane</string>
+		</dict>
+	</dict>
+	<key>screen_feed_new_posts</key>
 	<dict>
 		<key>COUNT</key>
 		<dict>
@@ -112,12 +65,405 @@
 			<key>NSStringFormatValueTypeKey</key>
 			<string>d</string>
 			<key>one</key>
-			<string>%1$d person</string>
+			<string>%1$d postare nouă</string>
+			<key>few</key>
+			<string>%1$d postări noi</string>
 			<key>other</key>
-			<string>%1$d people</string>
+			<string>%1$d de postări noi</string>
 		</dict>
 		<key>NSStringLocalizedFormatKey</key>
 		<string>%#@COUNT@</string>
+	</dict>
+	<key>a11y_feed_images</key>
+	<dict>
+		<key>COUNT</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%1$d imagine</string>
+			<key>few</key>
+			<string>%1$d imagini</string>
+			<key>other</key>
+			<string>%1$d de imagini</string>
+		</dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@COUNT@</string>
+	</dict>
+	<key>screen_feed_composer_characters_left</key>
+	<dict>
+		<key>COUNT</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>A mai rămas %1$d caracter</string>
+			<key>few</key>
+			<string>Au mai rămas %1$d caractere</string>
+			<key>other</key>
+			<string>Au mai rămas %1$d de caractere</string>
+		</dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@COUNT@</string>
+	</dict>
+	<key>screen_feed_composer_characters_over</key>
+	<dict>
+		<key>COUNT</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%1$d caracter peste limită</string>
+			<key>few</key>
+			<string>%1$d caractere peste limită</string>
+			<key>other</key>
+			<string>%1$d de caractere peste limită</string>
+		</dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@COUNT@</string>
+	</dict>
+	<key>screen_feed_composer_error_rate_limited_minutes</key>
+	<dict>
+		<key>COUNT</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>Încercați din nou peste %1$d minut.</string>
+			<key>few</key>
+			<string>Încercați din nou peste %1$d minute.</string>
+			<key>other</key>
+			<string>Încercați din nou peste %1$d de minute.</string>
+		</dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@COUNT@</string>
+	</dict>
+	<key>screen_feed_composer_daily_cap_notice</key>
+	<dict>
+		<key>COUNT</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>Ați făcut %1$d postare astăzi, limita zilnică. Puteți publica din nou după miezul nopții UTC.</string>
+			<key>few</key>
+			<string>Ați făcut toate cele %1$d postări de astăzi. Puteți publica din nou după miezul nopții UTC.</string>
+			<key>other</key>
+			<string>Ați făcut toate cele %1$d de postări de astăzi. Puteți publica din nou după miezul nopții UTC.</string>
+		</dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@COUNT@</string>
+	</dict>
+	<key>a11y_feed_likes</key>
+	<dict>
+		<key>COUNT</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%1$d apreciere</string>
+			<key>few</key>
+			<string>%1$d aprecieri</string>
+			<key>other</key>
+			<string>%1$d de aprecieri</string>
+		</dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@COUNT@</string>
+	</dict>
+	<key>a11y_feed_comments</key>
+	<dict>
+		<key>COUNT</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%1$d comentariu</string>
+			<key>few</key>
+			<string>%1$d comentarii</string>
+			<key>other</key>
+			<string>%1$d de comentarii</string>
+		</dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@COUNT@</string>
+	</dict>
+	<key>a11y_feed_shares</key>
+	<dict>
+		<key>COUNT</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%1$d partajare</string>
+			<key>few</key>
+			<string>%1$d partajări</string>
+			<key>other</key>
+			<string>%1$d de partajări</string>
+		</dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@COUNT@</string>
+	</dict>
+	<key>screen_feed_shared_partly</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@SENT@, %#@FAILED@</string>
+		<key>SENT</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>Partajată în %1$d conversație</string>
+			<key>few</key>
+			<string>Partajată în %1$d conversații</string>
+			<key>other</key>
+			<string>Partajată în %1$d de conversații</string>
+		</dict>
+		<key>FAILED</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>în %2$d nu a reușit</string>
+			<key>few</key>
+			<string>în %2$d nu a reușit</string>
+			<key>other</key>
+			<string>în %2$d nu a reușit</string>
+		</dict>
+	</dict>
+	<key>screen_feed_shared</key>
+	<dict>
+		<key>COUNT</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>Partajată în %1$d conversație</string>
+			<key>few</key>
+			<string>Partajată în %1$d conversații</string>
+			<key>other</key>
+			<string>Partajată în %1$d de conversații</string>
+		</dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@COUNT@</string>
+	</dict>
+	<key>screen_feed_comment_daily_cap_notice</key>
+	<dict>
+		<key>COUNT</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>Limita de astăzi este de %1$d comentariu. Puteți comenta din nou după miezul nopții UTC.</string>
+			<key>few</key>
+			<string>Limita de astăzi este de %1$d comentarii. Puteți comenta din nou după miezul nopții UTC.</string>
+			<key>other</key>
+			<string>Limita de astăzi este de %1$d de comentarii. Puteți comenta din nou după miezul nopții UTC.</string>
+		</dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@COUNT@</string>
+	</dict>
+	<key>screen_feed_comment_error_rate_limited_minutes</key>
+	<dict>
+		<key>COUNT</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>Încercați din nou peste %1$d minut.</string>
+			<key>few</key>
+			<string>Încercați din nou peste %1$d minute.</string>
+			<key>other</key>
+			<string>Încercați din nou peste %1$d de minute.</string>
+		</dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@COUNT@</string>
+	</dict>
+	<key>a11y_feed_notices_unread</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@COUNT@</string>
+		<key>COUNT</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%1$d necitită</string>
+			<key>few</key>
+			<string>%1$d necitite</string>
+			<key>other</key>
+			<string>%1$d necitite</string>
+		</dict>
+	</dict>
+	<key>screen_feed_report_rate_limited_message_hours</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@COUNT@</string>
+		<key>COUNT</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>Ați trimis 10 rapoarte astăzi. Puteți trimite mai multe în aproximativ %1$d oră.</string>
+			<key>few</key>
+			<string>Ați trimis 10 rapoarte astăzi. Puteți trimite mai multe în aproximativ %1$d ore.</string>
+			<key>other</key>
+			<string>Ați trimis 10 rapoarte astăzi. Puteți trimite mai multe în aproximativ %1$d de ore.</string>
+		</dict>
+	</dict>
+	<key>screen_feed_activity_others</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@COUNT@</string>
+		<key>COUNT</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>încă %1$d persoană</string>
+			<key>few</key>
+			<string>încă %1$d persoane</string>
+			<key>other</key>
+			<string>încă %1$d de persoane</string>
+		</dict>
+	</dict>
+	<key>a11y_feed_activity_unread</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@COUNT@</string>
+		<key>COUNT</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>Activitate, %1$d necitită</string>
+			<key>few</key>
+			<string>Activitate, %1$d necitite</string>
+			<key>other</key>
+			<string>Activitate, %1$d necitite</string>
+		</dict>
+	</dict>
+	<key>a11y_album_items</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@COUNT@</string>
+		<key>COUNT</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>Album, %1$d element</string>
+			<key>few</key>
+			<string>Album, %1$d elemente</string>
+			<key>other</key>
+			<string>Album, %1$d de elemente</string>
+		</dict>
+	</dict>
+	<key>a11y_tab_badge_count</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@COUNT@</string>
+		<key>COUNT</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%1$d în așteptare</string>
+			<key>few</key>
+			<string>%1$d în așteptare</string>
+			<key>other</key>
+			<string>%1$d în așteptare</string>
+		</dict>
+	</dict>
+	<key>screen_agents_chat_count</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@COUNT@</string>
+		<key>COUNT</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%1$d conversație</string>
+			<key>few</key>
+			<string>%1$d conversații</string>
+			<key>other</key>
+			<string>%1$d de conversații</string>
+		</dict>
+	</dict>
+	<key>screen_agents_tool_count</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@COUNT@</string>
+		<key>COUNT</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%1$d instrument</string>
+			<key>few</key>
+			<string>%1$d instrumente</string>
+			<key>other</key>
+			<string>%1$d de instrumente</string>
+		</dict>
+	</dict>
+	<key>screen_room_timeline_tool_changes</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@COUNT@</string>
+		<key>COUNT</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%1$d modificare a instrumentelor</string>
+			<key>few</key>
+			<string>%1$d modificări ale instrumentelor</string>
+			<key>other</key>
+			<string>%1$d de modificări ale instrumentelor</string>
+		</dict>
 	</dict>
 </dict>
 </plist>

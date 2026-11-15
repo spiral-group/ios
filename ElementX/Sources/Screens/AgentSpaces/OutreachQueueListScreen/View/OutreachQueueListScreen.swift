@@ -22,6 +22,7 @@
 // keeping muscle memory consistent.
 
 import Compound
+import SpiralComponents
 import SwiftUI
 
 struct OutreachQueueListScreen: View {
@@ -42,49 +43,40 @@ struct OutreachQueueListScreen: View {
                 failedSection
             }
         }
-        .compoundList()
+        .spiralGroupedList() // Brief 0083 (P4-D): iOS's grouped cards and plain grey glyphs (decision 337).
         .navigationTitle(UntranslatedL10n.screenOutreachQueueTitle)
         .navigationBarTitleDisplayMode(.inline)
         .alert(item: $context.alertInfo)
-        .refreshable { context.send(viewAction: .refresh) }
-        .onAppear { context.send(viewAction: .appeared) }
+        .feedSyncStatus(context.viewState.syncStatus) // AGENT-PLATFORM: platform sync (decision 289)
         .toolbar { toolbar }
     }
 
     // MARK: - Sections
 
-    // Canon §3 (operator ruling, CODEBASE/14): fast/rare data → a delayed
-    // spinner, never a skeleton (it only flickers).
+    // Decision 330: the queue's rows as placeholders, after a short delay.
     private var skeletonSection: some View {
         Section {
             ListRow(kind: .custom {
-                DelayedProgressView()
-                    .frame(minHeight: 80)
+                SpiralPreloader(label: L10n.commonLoading) {
+                    SpiralPlaceholderRows(count: 4)
+                }
             })
         }
-        .listRowBackground(Color.clear)
     }
 
     private var emptySection: some View {
         Section {
-            VStack(spacing: 12) {
-                BigIcon(icon: \.send)
-                Text(context.viewState.isFiltering
-                    ? UntranslatedL10n.screenOutreachQueueEmptyFilteredTitle
-                    : UntranslatedL10n.screenOutreachQueueEmptyTitle)
-                    .font(.compound.headingSMSemibold)
-                    .foregroundStyle(.compound.textPrimary)
-                    .multilineTextAlignment(.center)
-                Text(context.viewState.isFiltering
-                    ? UntranslatedL10n.screenOutreachQueueEmptyFilteredSubtitle
-                    : UntranslatedL10n.screenOutreachQueueEmptySubtitle)
-                    .font(.compound.bodyMD)
-                    .foregroundStyle(.compound.textSecondary)
-                    .multilineTextAlignment(.center)
+            if context.viewState.isFiltering {
+                SpiralEmptyState(symbol: .line3HorizontalDecrease,
+                                 title: UntranslatedL10n.screenOutreachQueueEmptyFilteredTitle,
+                                 message: UntranslatedL10n.screenOutreachQueueEmptyFilteredSubtitle)
+                    .listRowBackground(Color.clear)
+            } else {
+                SpiralEmptyState(symbol: .paperplane,
+                                 title: UntranslatedL10n.screenOutreachQueueEmptyTitle,
+                                 message: UntranslatedL10n.screenOutreachQueueEmptySubtitle)
+                    .listRowBackground(Color.clear)
             }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 40)
-            .listRowBackground(Color.clear)
         }
     }
 
@@ -159,26 +151,16 @@ struct OutreachQueueListScreen: View {
 
     private var unavailableSection: some View {
         Section {
-            VStack(spacing: 16) {
-                BigIcon(icon: \.send, style: .alertSolid)
-                Text(UntranslatedL10n.screenOutreachQueueUnavailableTitle)
-                    .font(.compound.headingSMSemibold)
-                    .foregroundStyle(.compound.textPrimary)
-                    .multilineTextAlignment(.center)
-                Text(UntranslatedL10n.screenOutreachQueueUnavailableSubtitle)
-                    .font(.compound.bodyMD)
-                    .foregroundStyle(.compound.textSecondary)
-                    .multilineTextAlignment(.center)
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 40)
-            .listRowBackground(Color.clear)
+            SpiralEmptyState(symbol: .paperplane,
+                             title: UntranslatedL10n.screenOutreachQueueUnavailableTitle,
+                             message: UntranslatedL10n.screenOutreachQueueUnavailableSubtitle)
+                .listRowBackground(Color.clear)
         }
     }
 
     private var failedSection: some View {
-        AgentSpacesRetryErrorSection {
-            context.send(viewAction: .refresh)
+        AgentSpacesRetryErrorSection(title: UntranslatedL10n.screenOutreachQueueLoadFailed) {
+            context.send(viewAction: .retry)
         }
     }
 
@@ -221,7 +203,7 @@ struct OutreachQueueListScreen: View {
 
 // MARK: - Previews
 
-struct OutreachQueueListScreen_Previews: PreviewProvider, TestablePreview {
+struct OutreachQueueListScreen_Previews: PreviewProvider, TestablePreview, SpiralGatedPreview {
     static let sample: [OutreachQueueEntry] = [
         OutreachQueueEntry(id: "row-1",
                            targetMXID: "@bob:spiral.md",
@@ -257,36 +239,61 @@ struct OutreachQueueListScreen_Previews: PreviewProvider, TestablePreview {
                            updatedAt: Date().addingTimeInterval(-1800))
     ]
 
+    // Held here: the screen's context does not keep its view model alive, and the snapshot waits on it.
+    static let loadingViewModel = makeViewModel(state: .loading)
+    static let loadedViewModel = makeViewModel(state: .loaded(sample))
+    static let emptyViewModel = makeViewModel(state: .loaded([]))
+    static let emptyFilteredViewModel = makeViewModel(state: .loaded([]), filter: .queued)
+    static let unavailableViewModel = makeViewModel(state: .unavailable(reason: "agent behaviour is not Outreach"))
+    static let failedViewModel = makeViewModel(state: .failed(reason: "transport error"))
+
     static var previews: some View {
-        ElementNavigationStack { screen(state: .loading) }
+        ElementNavigationStack { screen(loadingViewModel, waitsForLoading: true) }
+            .environment(\.spiralPreloaderDelay, .zero)
             .previewDisplayName("Loading")
 
-        ElementNavigationStack { screen(state: .loaded(sample)) }
+        ElementNavigationStack { screen(loadedViewModel) }
             .previewDisplayName("Loaded — mixed")
 
-        ElementNavigationStack { screen(state: .loaded([])) }
+        ElementNavigationStack { screen(emptyViewModel) }
             .previewDisplayName("Empty — no filter")
 
-        ElementNavigationStack { screen(state: .loaded([]), filter: .queued) }
+        ElementNavigationStack { screen(emptyFilteredViewModel) }
             .previewDisplayName("Empty — filtered")
 
-        ElementNavigationStack { screen(state: .unavailable(reason: "agent behaviour is not Outreach")) }
+        ElementNavigationStack { screen(unavailableViewModel) }
             .previewDisplayName("Unavailable (409)")
 
-        ElementNavigationStack { screen(state: .failed(reason: "transport error")) }
+        ElementNavigationStack { screen(failedViewModel) }
             .previewDisplayName("Failed")
     }
 
-    static func screen(state: OutreachQueueListState, filter: OutreachTargetStatus? = nil) -> some View {
+    /// The snapshot waits for the store's read, except while loading.
+    static func screen(_ viewModel: OutreachQueueListScreenViewModel, waitsForLoading: Bool = false) -> some View {
+        OutreachQueueListScreen(context: viewModel.context)
+            .snapshotPreferences(expect: viewModel.context.observe(\.viewState.listState).map {
+                if case .loading = $0 { waitsForLoading } else { !waitsForLoading }
+            })
+    }
+
+    /// The store reads what `state` names.
+    static func makeViewModel(state: OutreachQueueListState, filter: OutreachTargetStatus? = nil) -> OutreachQueueListScreenViewModel {
         let service = AgentPlatformServiceMock()
         service.listOutreachQueueAgentIDStatusLimitClosure = { _, _, _ in
-            try? await Task.sleep(for: .seconds(60))
-            return .failure(.serverError(status: 0))
+            switch state {
+            case .loading:
+                try? await Task.sleep(for: .seconds(60))
+                return .failure(.serverError(status: 0))
+            case .loaded(let entries):
+                return .success(entries)
+            case .unavailable(let reason):
+                return .failure(.conflict(detail: reason))
+            case .failed:
+                return .failure(.serverError(status: 500))
+            }
         }
-        let viewModel = OutreachQueueListScreenViewModel(agentID: "preview-agent",
-                                                         agentPlatformService: service,
-                                                         initialState: state,
-                                                         initialFilter: filter)
-        return OutreachQueueListScreen(context: viewModel.context)
+        return OutreachQueueListScreenViewModel(agentID: "preview-agent",
+                                                store: AgentsStore(service: service),
+                                                initialFilter: filter)
     }
 }

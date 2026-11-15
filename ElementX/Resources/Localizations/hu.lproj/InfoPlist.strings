@@ -1,6 +1,4 @@
 "NSCameraUsageDescription" = "A videohívásokhoz, valamint a képek vagy videók készítéséhez és üzenetként való elküldéséhez a Spiral számára hozzáférést kell biztosítania a kamerához.";
 "NSFaceIDUsageDescription" = "A Face ID védi a fiókja hozzáférését.";
-"NSLocationAlwaysAndWhenInUseUsageDescription" = "Az élő tartózkodási hely megosztásához a Spiral alkalmazásnak a háttérben futva is hozzáférésre van szüksége a helyadatokhoz.";
-"NSLocationWhenInUseUsageDescription" = "Ez lehetővé teszi, hogy a csevegésekben megossza aktuális tartózkodási helyét vagy a közelben található helyeket.";
 "NSMicrophoneUsageDescription" = "A hívásokhoz, valamint a hangüzenetek készítéséhez és elküldéséhez a Spiral számára hozzáférést kell biztosítania a mikrofonhoz.";
 "NSPhotoLibraryUsageDescription" = "Lehetővé teszi a fényképek és videók fényképtárba mentését.";

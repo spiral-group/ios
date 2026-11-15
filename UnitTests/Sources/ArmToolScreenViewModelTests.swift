@@ -9,8 +9,8 @@
 // The Spiral feature is built on Element's `TemplateScreenViewModelTests.swift`.
 //
 
-@testable import ElementX
 import Foundation
+@testable import Spiral
 import Testing
 
 @MainActor
@@ -20,7 +20,7 @@ struct ArmToolScreenViewModelTests {
         let service = AgentPlatformServiceMock()
         service.armToolAgentIDRoomIDParamsTriggerReplacesToolIDReturnValue = .success(Self.appliedResult)
 
-        let viewModel = Self.makeViewModel(service: service, capability: .translateMessages)
+        let viewModel = Self.makeViewModel(service: service, kind: .translate)
         viewModel.context.language = "English"
         viewModel.context.scope = .anyone
 
@@ -37,35 +37,12 @@ struct ArmToolScreenViewModelTests {
         #expect(received.trigger == .onMessage(senderScope: .anyone))
     }
 
-    @Test
-    func submitLiveTranslation_armsVoiceTriggerWithStyle() async throws {
-        let service = AgentPlatformServiceMock()
-        service.armToolAgentIDRoomIDParamsTriggerReplacesToolIDReturnValue = .success(Self.appliedResult)
-
-        let viewModel = Self.makeViewModel(service: service, capability: .liveCallTranslation)
-        viewModel.applyLanguageSelection("Ukrainian")
-        viewModel.applyLanguageSelection("German")
-        viewModel.context.liveStyle = .consecutive
-        viewModel.context.scope = .nonSelfNonOwner
-
-        let deferred = deferFulfillment(viewModel.actionsPublisher) { action in
-            if case .finished = action { return true }
-            return false
-        }
-        viewModel.context.send(viewAction: .submit)
-        try await deferred.fulfill()
-
-        let received = try #require(service.armToolAgentIDRoomIDParamsTriggerReplacesToolIDReceivedArguments)
-        #expect(received.params == .liveTranslate(targetLanguages: ["Ukrainian", "German"], style: .consecutive))
-        #expect(received.trigger == .onVoiceCall(speakerScope: .nonSelfNonOwner))
-    }
-
-    @Test(arguments: [(AgentCapability.callSummary, ToolParams.callSummary),
+    @Test(arguments: [(AgentToolKind.callSummary, ToolParams.callSummary),
                       (.callRecording, .callRecording)])
-    func submitCallCapability_usesFixedVoiceTrigger(capability: AgentCapability, params: ToolParams) async throws {
+    func submitCallTool_usesFixedVoiceTrigger(kind: AgentToolKind, params: ToolParams) async throws {
         let service = AgentPlatformServiceMock()
         service.armToolAgentIDRoomIDParamsTriggerReplacesToolIDReturnValue = .success(Self.appliedResult)
-        let viewModel = Self.makeViewModel(service: service, capability: capability)
+        let viewModel = Self.makeViewModel(service: service, kind: kind)
 
         #expect(!viewModel.context.viewState.showsScopeSelector)
         #expect(viewModel.context.viewState.canSubmit)
@@ -83,30 +60,11 @@ struct ArmToolScreenViewModelTests {
     }
 
     @Test
-    func liveTranslationLanguages_preserveOrderAndSupportRemoveAndMove() {
-        let viewModel = Self.makeViewModel(service: AgentPlatformServiceMock(), capability: .liveCallTranslation)
-        viewModel.applyLanguageSelection("en")
-        viewModel.applyLanguageSelection("de")
-        viewModel.applyLanguageSelection("uk")
-        viewModel.context.send(viewAction: .moveLanguages(fromOffsets: IndexSet(integer: 2), toOffset: 0))
-        viewModel.context.send(viewAction: .removeLanguage(index: 1))
-
-        #expect(viewModel.context.viewState.bindings.targetLanguages == ["uk", "de"])
-        #expect(viewModel.context.viewState.canSubmit)
-    }
-
-    @Test
-    func liveTranslationRequiresAtLeastOneLanguage() {
-        let viewModel = Self.makeViewModel(service: AgentPlatformServiceMock(), capability: .liveCallTranslation)
-        #expect(!viewModel.context.viewState.canSubmit)
-    }
-
-    @Test
     func submitSpecificSenders_carriesMembersInScope() async throws {
         let service = AgentPlatformServiceMock()
         service.armToolAgentIDRoomIDParamsTriggerReplacesToolIDReturnValue = .success(Self.appliedResult)
 
-        let viewModel = Self.makeViewModel(service: service, capability: .translateMessages)
+        let viewModel = Self.makeViewModel(service: service, kind: .translate)
         viewModel.context.language = "English"
         viewModel.context.scope = .specificSenders
         viewModel.applyMemberSelection(["@bob:host"])
@@ -124,7 +82,7 @@ struct ArmToolScreenViewModelTests {
 
     @Test
     func submitBlocked_whenTranslateLanguageEmpty() {
-        let viewModel = Self.makeViewModel(service: AgentPlatformServiceMock(), capability: .translateMessages)
+        let viewModel = Self.makeViewModel(service: AgentPlatformServiceMock(), kind: .translate)
         viewModel.context.scope = .anyone
         // No language typed.
         #expect(!viewModel.context.viewState.canSubmit)
@@ -132,7 +90,7 @@ struct ArmToolScreenViewModelTests {
 
     @Test
     func submitBlocked_whenSpecificSendersHasNoMembers() {
-        let viewModel = Self.makeViewModel(service: AgentPlatformServiceMock(), capability: .translateMessages)
+        let viewModel = Self.makeViewModel(service: AgentPlatformServiceMock(), kind: .translate)
         viewModel.context.language = "English"
         viewModel.context.scope = .specificSenders
         #expect(viewModel.context.viewState.isMissingMembers)
@@ -141,20 +99,30 @@ struct ArmToolScreenViewModelTests {
 
     @Test
     func simplify_needsNoParamsAndCanSubmit() {
-        let viewModel = Self.makeViewModel(service: AgentPlatformServiceMock(), capability: .translateMessages)
-        viewModel.context.kind = .simplify
+        let viewModel = Self.makeViewModel(service: AgentPlatformServiceMock(), kind: .simplify)
         viewModel.context.scope = .anyone
         #expect(viewModel.context.viewState.canSubmit)
     }
 
+    /// Board 2: a new tool opens the same form without "Turn off", which an edit has.
     @Test
-    func turnOff_disablesEveryActiveTool() async throws {
+    func aNewToolHasNoTurnOff() {
+        let viewModel = Self.makeViewModel(service: AgentPlatformServiceMock(), kind: .translate)
+        #expect(!viewModel.context.viewState.isEditing)
+
+        let edit = Self.editViewModel(params: .translate(targetLanguage: "German"),
+                                      trigger: .onMessage(senderScope: .anyone),
+                                      service: AgentPlatformServiceMock())
+        #expect(edit.context.viewState.isEditing)
+    }
+
+    @Test
+    func turnOff_disablesTheEditedTool() async throws {
         let service = AgentPlatformServiceMock()
         service.disableToolAgentIDRoomIDToolIDReturnValue = .success(Self.appliedResult)
-
-        let viewModel = Self.makeViewModel(service: service,
-                                           capability: .translateMessages,
-                                           active: ActiveCapabilityTool(toolIDs: ["t1", "t2"], summary: "x", count: 2))
+        let viewModel = Self.editViewModel(params: .translate(targetLanguage: "German"),
+                                           trigger: .onMessage(senderScope: .anyone),
+                                           service: service)
 
         let deferred = deferFulfillment(viewModel.actionsPublisher) { action in
             if case .finished = action { return true }
@@ -164,18 +132,19 @@ struct ArmToolScreenViewModelTests {
         try Self.confirmTurnOff(viewModel)
         try await deferred.fulfill()
 
-        #expect(service.disableToolAgentIDRoomIDToolIDCallsCount == 2)
+        #expect(service.disableToolAgentIDRoomIDToolIDCallsCount == 1)
+        #expect(service.disableToolAgentIDRoomIDToolIDReceivedArguments?.toolID == "old-1")
     }
 
-    /// Re-walk R5: a mistap on the bulk "Turn off" turned the room's tool off
-    /// at once. It asks first, and cancelling leaves the tools on.
+    /// Re-walk R5: a mistap on "Turn off" turned the room's tool off at once.
+    /// It asks first, and cancelling leaves the tool on.
     @Test
     func turnOff_asksFirstAndCancelLeavesToolsOn() async throws {
         let service = AgentPlatformServiceMock()
         service.disableToolAgentIDRoomIDToolIDReturnValue = .success(Self.appliedResult)
-        let viewModel = Self.makeViewModel(service: service,
-                                           capability: .translateMessages,
-                                           active: ActiveCapabilityTool(toolIDs: ["t1"], summary: "x", count: 1))
+        let viewModel = Self.editViewModel(params: .translate(targetLanguage: "German"),
+                                           trigger: .onMessage(senderScope: .anyone),
+                                           service: service)
 
         viewModel.context.send(viewAction: .turnOff)
 
@@ -185,24 +154,6 @@ struct ArmToolScreenViewModelTests {
         alert.primaryButton.action?()
         try? await Task.sleep(for: .milliseconds(50))
         #expect(!service.disableToolAgentIDRoomIDToolIDCalled)
-    }
-
-    /// Re-walk R5: every text kind keeps exactly one parameters row, so a
-    /// kind without a language no longer removes the section and slides the
-    /// rows below (and the bulk "Turn off") up under the finger.
-    @Test
-    func everyTextKindKeepsOneParamsRow() {
-        let viewModel = Self.makeViewModel(service: AgentPlatformServiceMock(),
-                                           capability: .translateMessages,
-                                           active: ActiveCapabilityTool(toolIDs: ["t1"], summary: "x", count: 1))
-        for kind in ArmToolKind.allCases {
-            viewModel.context.kind = kind
-            #expect(viewModel.context.viewState.textParamsRow != nil, "\(kind) drops the parameters section")
-        }
-        viewModel.context.kind = .simplify
-        #expect(viewModel.context.viewState.textParamsRow == .nothingToSet)
-        viewModel.context.kind = .custom
-        #expect(viewModel.context.viewState.textParamsRow == .instruction)
     }
 
     private static func confirmTurnOff(_ viewModel: ArmToolScreenViewModel) throws {
@@ -217,7 +168,7 @@ struct ArmToolScreenViewModelTests {
         let service = AgentPlatformServiceMock()
         service.armToolAgentIDRoomIDParamsTriggerReplacesToolIDReturnValue = .failure(.failed(.transport(underlying: URLError(.timedOut))))
 
-        let viewModel = Self.makeViewModel(service: service, capability: .translateMessages)
+        let viewModel = Self.makeViewModel(service: service, kind: .translate)
         viewModel.context.language = "English"
 
         var finished = false
@@ -242,7 +193,7 @@ struct ArmToolScreenViewModelTests {
         let service = AgentPlatformServiceMock()
         service.armToolAgentIDRoomIDParamsTriggerReplacesToolIDReturnValue = .failure(error)
 
-        let viewModel = Self.makeViewModel(service: service, capability: .translateMessages)
+        let viewModel = Self.makeViewModel(service: service, kind: .translate)
         viewModel.context.language = "English"
 
         let deferred = deferFulfillment(viewModel.context.observe(\.viewState.bindings.alertInfo)) { $0 != nil }
@@ -257,9 +208,9 @@ struct ArmToolScreenViewModelTests {
         let service = AgentPlatformServiceMock()
         service.disableToolAgentIDRoomIDToolIDReturnValue = .failure(.forbidden)
 
-        let viewModel = Self.makeViewModel(service: service,
-                                           capability: .translateMessages,
-                                           active: ActiveCapabilityTool(toolIDs: ["t1"], summary: "x", count: 1))
+        let viewModel = Self.editViewModel(params: .translate(targetLanguage: "German"),
+                                           trigger: .onMessage(senderScope: .anyone),
+                                           service: service)
 
         viewModel.context.send(viewAction: .turnOff)
         let deferred = deferFulfillment(viewModel.context.observe(\.viewState.bindings.alertInfo)) { $0?.id == .disableFailed }
@@ -279,7 +230,7 @@ struct ArmToolScreenViewModelTests {
         let service = AgentPlatformServiceMock()
         service.armToolAgentIDRoomIDParamsTriggerReplacesToolIDReturnValue = .failure(.refused(refusal))
 
-        let viewModel = Self.makeViewModel(service: service, capability: .translateMessages)
+        let viewModel = Self.makeViewModel(service: service, kind: .translate)
         viewModel.context.language = "English"
 
         let deferred = deferFulfillment(viewModel.context.observe(\.viewState.bindings.alertInfo)) { $0 != nil }
@@ -292,18 +243,14 @@ struct ArmToolScreenViewModelTests {
 
     /// Decision 168: the 422 for a call tool on a company agent says the agent
     /// doesn't join calls, not "doesn't work in this room". Told from the
-    /// capability and the catalogue, never from the refusal's English detail.
+    /// kind and the catalogue, never from the refusal's English detail.
     @Test(arguments: [
         // The call artifacts fire in every room for an agent that joins calls.
-        (AgentCapability.callSummary, nil as [String]?, UntranslatedL10n.screenArmToolErrorAgentDoesNotJoinCalls),
+        (AgentToolKind.callSummary, nil as [String]?, UntranslatedL10n.screenArmToolErrorAgentDoesNotJoinCalls),
         (.callRecording, nil, UntranslatedL10n.screenArmToolErrorAgentDoesNotJoinCalls),
-        // Live translation: a catalogue with no call tool is an agent that joins no call…
-        (.liveCallTranslation, ["translate", "summarize"], UntranslatedL10n.screenArmToolErrorAgentDoesNotJoinCalls),
-        // …one with the call artifacts is a 1:1 room, where only translation is refused.
-        (.liveCallTranslation, ["translate", "call_summary", "call_recording"], UntranslatedL10n.screenArmToolErrorDoesNotFireHere),
-        (.translateMessages, ["call_summary", "call_recording"], UntranslatedL10n.screenArmToolErrorDoesNotFireHere)
+        (.translate, ["call_summary", "call_recording"], UntranslatedL10n.screenArmToolErrorDoesNotFireHere)
     ])
-    func aCallToolRefusedForAnAgentThatJoinsNoCallsSaysSo(capability: AgentCapability, availableToolKinds: [String]?, message: String) async throws {
+    func aCallToolRefusedForAnAgentThatJoinsNoCallsSaysSo(kind: AgentToolKind, availableToolKinds: [String]?, message: String) async throws {
         let service = AgentPlatformServiceMock()
         service.armToolAgentIDRoomIDParamsTriggerReplacesToolIDReturnValue = .failure(.refused(.doesNotFireHere(reason: "the backend's own words")))
         if let availableToolKinds {
@@ -316,18 +263,12 @@ struct ArmToolScreenViewModelTests {
                                                                                           availableToolKinds: availableToolKinds))
         }
 
-        let viewModel = Self.makeViewModel(service: service, capability: capability)
-        if capability == .liveCallTranslation || capability == .translateMessages {
-            // The catalogue read the form starts with has answered.
-            for _ in 0..<100 where service.fetchToolsCatalogAgentIDRoomIDCallsCount < 1 {
-                try await Task.sleep(for: .milliseconds(5))
-            }
-            try await Task.sleep(for: .milliseconds(20))
-        }
-        if capability == .liveCallTranslation {
-            viewModel.context.targetLanguages = ["en"]
-        } else if capability == .translateMessages {
-            viewModel.context.language = "English"
+        let viewModel = Self.makeViewModel(service: service, kind: kind)
+        // The catalogue read the form starts with has answered.
+        let read = deferFulfillment(viewModel.context.observe(\.viewState.isLoadingLanguages)) { !$0 }
+        try await read.fulfill()
+        if kind.needsLanguage {
+            viewModel.context.language = "en"
         }
 
         let deferred = deferFulfillment(viewModel.context.observe(\.viewState.bindings.alertInfo)) { $0 != nil }
@@ -369,7 +310,7 @@ struct ArmToolScreenViewModelTests {
 
     @Test
     func selectMembers_emitsActionWithCurrentSelection() async throws {
-        let viewModel = Self.makeViewModel(service: AgentPlatformServiceMock(), capability: .translateMessages)
+        let viewModel = Self.makeViewModel(service: AgentPlatformServiceMock(), kind: .translate)
         viewModel.context.scope = .everyoneExcept
         viewModel.applyMemberSelection(["@a:host"])
 
@@ -386,7 +327,7 @@ struct ArmToolScreenViewModelTests {
         let service = AgentPlatformServiceMock()
         service.fetchToolsCatalogAgentIDRoomIDReturnValue = .success(Self.catalog)
 
-        let viewModel = Self.makeViewModel(service: service, capability: .translateMessages)
+        let viewModel = Self.makeViewModel(service: service, kind: .translate)
         // The catalog fetch is fired at init; wait until the text set lands.
         try await Self.waitForLanguages(viewModel, expected: Self.textLanguages)
         viewModel.applyLanguageSelection("uk")
@@ -399,45 +340,33 @@ struct ArmToolScreenViewModelTests {
             }
             return false
         }
-        viewModel.context.send(viewAction: .selectLanguage(index: nil))
+        viewModel.context.send(viewAction: .selectLanguage)
         try await deferred.fulfill()
     }
 
+    /// A failed read of the catalogue says so and reads again: an empty picker would read as "no languages".
     @Test
-    func selectLanguage_liveTranslation_offersVoiceCatalog() async throws {
-        let service = AgentPlatformServiceMock()
-        service.fetchToolsCatalogAgentIDRoomIDReturnValue = .success(Self.catalog)
-
-        let viewModel = Self.makeViewModel(service: service, capability: .liveCallTranslation)
-        try await Self.waitForLanguages(viewModel, expected: Self.voiceLanguages)
-
-        let deferred = deferFulfillment(viewModel.actionsPublisher) { action in
-            // A live_translate (voice) tool MUST offer only the voice
-            // allow-list — an off-list code crashes the runtime.
-            if case .selectLanguage(let languages, _) = action {
-                return languages == Self.voiceLanguages
-            }
-            return false
-        }
-        viewModel.context.send(viewAction: .selectLanguage(index: nil))
-        try await deferred.fulfill()
-    }
-
-    @Test
-    func selectLanguage_catalogFailure_offersNoLanguages() async throws {
+    func selectLanguage_catalogFailure_saysSoAndReadsAgain() async throws {
         let service = AgentPlatformServiceMock()
         service.fetchToolsCatalogAgentIDRoomIDReturnValue = .failure(.serverError(status: 500))
 
-        let viewModel = Self.makeViewModel(service: service, capability: .translateMessages)
+        let viewModel = Self.makeViewModel(service: service, kind: .translate)
+        let read = deferFulfillment(viewModel.context.observe(\.viewState.isLoadingLanguages)) { !$0 }
+        try await read.fulfill()
 
-        let deferred = deferFulfillment(viewModel.actionsPublisher) { action in
-            // A failed catalog fetch leaves the picker empty rather than
-            // falling back to the whole ISO catalogue.
-            if case .selectLanguage(let languages, _) = action { return languages.isEmpty }
-            return false
+        var opened = false
+        let cancellable = viewModel.actionsPublisher.sink { action in
+            if case .selectLanguage = action { opened = true }
         }
-        viewModel.context.send(viewAction: .selectLanguage(index: nil))
-        try await deferred.fulfill()
+        defer { cancellable.cancel() }
+        viewModel.context.send(viewAction: .selectLanguage)
+
+        #expect(viewModel.context.viewState.bindings.alertInfo?.id == .languagesFailed)
+        #expect(!opened)
+        for _ in 0..<100 where service.fetchToolsCatalogAgentIDRoomIDCallsCount < 2 {
+            try await Task.sleep(for: .milliseconds(5))
+        }
+        #expect(service.fetchToolsCatalogAgentIDRoomIDCallsCount >= 2)
     }
 
     @Test
@@ -445,7 +374,7 @@ struct ArmToolScreenViewModelTests {
         let service = AgentPlatformServiceMock()
         service.armToolAgentIDRoomIDParamsTriggerReplacesToolIDReturnValue = .success(Self.appliedResult)
 
-        let viewModel = Self.makeViewModel(service: service, capability: .translateMessages)
+        let viewModel = Self.makeViewModel(service: service, kind: .translate)
         viewModel.applyLanguageSelection("de")
         viewModel.context.scope = .anyone
 
@@ -468,7 +397,7 @@ struct ArmToolScreenViewModelTests {
                                            trigger: .onMessage(senderScope: .everyoneExcept(members: ["@bob:host"])),
                                            service: AgentPlatformServiceMock())
         #expect(viewModel.context.viewState.isEditing)
-        #expect(viewModel.context.kind == .rephrase)
+        #expect(viewModel.context.viewState.kind == .rephrase)
         #expect(viewModel.context.instruction == "more polite")
         #expect(viewModel.context.scope == .everyoneExcept)
         #expect(viewModel.context.viewState.bindings.members == ["@bob:host"])
@@ -479,19 +408,9 @@ struct ArmToolScreenViewModelTests {
         let viewModel = Self.editViewModel(params: .translate(targetLanguage: "German"),
                                            trigger: .onMessage(senderScope: .anyone),
                                            service: AgentPlatformServiceMock())
-        #expect(viewModel.context.kind == .translate)
+        #expect(viewModel.context.viewState.kind == .translate)
         #expect(viewModel.context.language == "German")
         #expect(viewModel.context.scope == .anyone)
-    }
-
-    @Test
-    func editInit_seedsAllLiveTranslationLanguagesInOrder() {
-        let viewModel = Self.editViewModel(capability: .liveCallTranslation,
-                                           params: .liveTranslate(targetLanguages: ["uk", "en", "de"], style: .consecutive),
-                                           trigger: .onVoiceCall(speakerScope: .anyone),
-                                           service: AgentPlatformServiceMock())
-        #expect(viewModel.context.viewState.bindings.targetLanguages == ["uk", "en", "de"])
-        #expect(viewModel.context.liveStyle == .consecutive)
     }
 
     /// ADR-0088: an edit is ONE arm carrying the replaced id; the backend
@@ -527,9 +446,7 @@ struct ArmToolScreenViewModelTests {
         let service = AgentPlatformServiceMock()
         service.armToolAgentIDRoomIDParamsTriggerReplacesToolIDReturnValue = .success(Self.appliedResult)
 
-        let viewModel = Self.makeViewModel(service: service,
-                                           capability: .translateMessages,
-                                           active: ActiveCapabilityTool(toolIDs: ["t1"], summary: "x", count: 1))
+        let viewModel = Self.makeViewModel(service: service, kind: .translate)
         viewModel.context.language = "French"
 
         let deferred = deferFulfillment(viewModel.actionsPublisher) { action in
@@ -539,10 +456,33 @@ struct ArmToolScreenViewModelTests {
         viewModel.context.send(viewAction: .submit)
         try await deferred.fulfill()
 
-        // Adding next to an active tool keeps it: several tools of a kind may be on.
+        // A new tool stands next to the others: several tools of a kind may be on.
         let armed = try #require(service.armToolAgentIDRoomIDParamsTriggerReplacesToolIDReceivedArguments)
         #expect(armed.replacesToolID == nil)
         #expect(!service.disableToolAgentIDRoomIDToolIDCalled)
+    }
+
+    /// ADR-0094 D9: Call translation is personal and has its own screen; this form never opens for it, new or edited,
+    /// whichever flow asks.
+    @Test
+    func theFormNeverOpensForCallTranslation() {
+        let service = AgentPlatformServiceMock()
+        Self.withDefaultCatalog(service)
+        let trigger = TriggerKind.onVoiceCall(speakerScope: .anyone)
+        let tool = RoomToolView(toolID: "old-1", toolKind: "live_translate", triggerKind: trigger.kind, targetLanguage: nil,
+                                params: .liveTranslate(language: "uk"), trigger: trigger, safeSliceSalt: "t", appliesToViewer: .yes)
+        func coordinator(_ mode: ArmToolScreenCoordinatorParameters.Mode) -> ArmToolScreenCoordinator? {
+            ArmToolScreenCoordinator(parameters: .init(roomID: "!room:example.com",
+                                                       agentID: "agent-1",
+                                                       agentDisplayName: "Aria",
+                                                       mode: mode,
+                                                       agentPlatformService: service,
+                                                       store: AgentsStore(service: service)))
+        }
+
+        #expect(coordinator(.create(.liveTranslate)) == nil)
+        #expect(ActiveToolDetail(tool).flatMap { coordinator(.edit($0)) } == nil)
+        #expect(coordinator(.create(.translate)) != nil)
     }
 
     // MARK: - Helpers
@@ -567,9 +507,8 @@ struct ArmToolScreenViewModelTests {
                          availableToolKinds: [])
     }
 
-    /// Poll until the view model has absorbed the catalog fetch fired at init.
-    /// The fetch is async and not observable, so probe it via the emitted
-    /// `selectLanguage` action; a bounded retry avoids racing the Task.
+    /// Poll until the store's read of the catalog has landed, by the emitted
+    /// `selectLanguage` action; a bounded retry avoids racing the read.
     private static func waitForLanguages(_ viewModel: ArmToolScreenViewModel,
                                          expected: [AgentLanguage]) async throws {
         for _ in 0..<50 {
@@ -577,50 +516,47 @@ struct ArmToolScreenViewModelTests {
             let cancellable = viewModel.actionsPublisher.sink { action in
                 if case .selectLanguage(let languages, _) = action { emitted = languages }
             }
-            viewModel.context.send(viewAction: .selectLanguage(index: nil))
+            viewModel.context.send(viewAction: .selectLanguage)
             cancellable.cancel()
             if emitted == expected { return }
             try await Task.sleep(for: .milliseconds(10))
         }
     }
 
-    /// Give any mock a default catalog so the init-time `fetchToolsCatalog`
-    /// (fired for translation capabilities) resolves instead of hitting the
-    /// mock's un-configured-method crash. Tests that assert on the catalog
-    /// set override this before constructing the view model.
-    private static func withDefaultCatalog(_ service: any AgentPlatformServiceProtocol) -> any AgentPlatformServiceProtocol {
-        if let mock = service as? AgentPlatformServiceMock,
-           mock.fetchToolsCatalogAgentIDRoomIDReturnValue == nil {
-            mock.fetchToolsCatalogAgentIDRoomIDReturnValue = .success(catalog)
+    /// Give any mock a default catalog so the store's read resolves instead of
+    /// hitting the mock's un-configured-method crash. Tests that assert on the
+    /// catalog set override this before constructing the view model.
+    private static func withDefaultCatalog(_ service: AgentPlatformServiceMock) {
+        if service.fetchToolsCatalogAgentIDRoomIDReturnValue == nil {
+            service.fetchToolsCatalogAgentIDRoomIDReturnValue = .success(catalog)
         }
-        return service
     }
 
-    private static func editViewModel(capability: AgentCapability = .translateMessages,
-                                      params: ToolParams,
+    private static func editViewModel(params: ToolParams,
                                       trigger: TriggerKind,
-                                      service: any AgentPlatformServiceProtocol) -> ArmToolScreenViewModel {
-        _ = withDefaultCatalog(service)
-        return ArmToolScreenViewModel(roomID: "!room:example.com",
-                                      agentID: "agent-1",
-                                      agentDisplayName: "Aria",
-                                      editing: ActiveToolDetail(toolID: "old-1",
-                                                                capability: capability,
-                                                                params: params,
-                                                                trigger: trigger,
-                                                                title: "t", subtitle: "s"),
-                                      agentPlatformService: service)
+                                      service: AgentPlatformServiceMock) -> ArmToolScreenViewModel {
+        withDefaultCatalog(service)
+        let tool = RoomToolView(toolID: "old-1", toolKind: params.kind, triggerKind: trigger.kind, targetLanguage: nil,
+                                params: params, trigger: trigger, safeSliceSalt: "t", appliesToViewer: .yes)
+        guard let detail = ActiveToolDetail(tool),
+              let viewModel = ArmToolScreenViewModel(roomID: "!room:example.com",
+                                                     agentID: "agent-1",
+                                                     agentDisplayName: "Aria",
+                                                     editing: detail,
+                                                     agentPlatformService: service,
+                                                     store: AgentsStore(service: service)) else {
+            fatalError("The test's tool is an own tool of a known kind")
+        }
+        return viewModel
     }
 
-    private static func makeViewModel(service: any AgentPlatformServiceProtocol,
-                                      capability: AgentCapability,
-                                      active: ActiveCapabilityTool? = nil) -> ArmToolScreenViewModel {
-        _ = withDefaultCatalog(service)
+    private static func makeViewModel(service: AgentPlatformServiceMock, kind: AgentToolKind) -> ArmToolScreenViewModel {
+        withDefaultCatalog(service)
         return ArmToolScreenViewModel(roomID: "!room:example.com",
                                       agentID: "agent-1",
                                       agentDisplayName: "Aria",
-                                      capability: capability,
-                                      active: active,
-                                      agentPlatformService: service)
+                                      kind: kind,
+                                      agentPlatformService: service,
+                                      store: AgentsStore(service: service))
     }
 }

@@ -88,24 +88,21 @@ enum NotificationsActivityState: Equatable {
     case failed
 }
 
-/// Connection-status banner state for the unified SSE stream.
-/// Identical shape to the retired approvals-inbox indicator.
-enum NotificationsHubConnectionIndicator: Equatable {
-    case hidden
-    case connecting
-    case reconnecting(attempt: Int)
-    case failed(reason: String)
-}
-
 struct NotificationsHubScreenViewState: BindableState {
-    /// Pinned section — mirrored live from the stream service.
+    /// Pinned section, from the session's store.
     var needsAction: [NeedsActionListItem] = []
+    /// What waits has been read: before that the hub knows nothing, not «nothing».
+    var isNeedsActionRead = false
+    /// What waits could not be read and nothing of it is shown.
+    var isNeedsActionFailed = false
+    /// The rows name their agents once the spaces are read.
+    var areAgentNamesRead = false
     /// What the assistants kept about people they don't answer.
     var visitorMessages: [VisitorMessageListItem] = []
-    /// Chronological feed — owned by the ViewModel (cursor pages).
+    /// Chronological feed, every agent's (cursor pages in the store).
     var activityState: NotificationsActivityState = .loading
-    var connectionIndicator: NotificationsHubConnectionIndicator = .hidden
-    var bindings: NotificationsHubScreenViewStateBindings
+    /// The sync's state at the top while the stream is not live (decision 289).
+    var syncStatus: PlatformSyncStatus?
 
     var activityItems: [AgentActivityListItem] {
         if case .loaded(let items, _) = activityState { return items }
@@ -115,7 +112,7 @@ struct NotificationsHubScreenViewState: BindableState {
     /// The whole-screen empty state: nothing needs action AND the
     /// activity feed resolved empty-exhausted.
     var isEmpty: Bool {
-        guard needsAction.isEmpty, visitorMessages.isEmpty else { return false }
+        guard isNeedsActionRead, needsAction.isEmpty, visitorMessages.isEmpty else { return false }
         if case .loaded(let items, let loadMore) = activityState,
            items.isEmpty,
            case .exhausted = loadMore {
@@ -136,21 +133,12 @@ struct NotificationsHubScreenViewState: BindableState {
     }
 }
 
-struct NotificationsHubScreenViewStateBindings {
-    var alertInfo: AlertInfo<NotificationsHubScreenAlertType>?
-}
-
-enum NotificationsHubScreenAlertType: Hashable {
-    case loadFailed
-}
-
 // MARK: - View → ViewModel actions
 
 enum NotificationsHubScreenViewAction {
-    /// SwiftUI `.onAppear`. Connects/reseeds the stream, PUTs the
-    /// last-seen marker, and fetches the first activity page.
+    /// SwiftUI `.onAppear`: PUTs the last-seen marker.
     case appeared
-    /// Pull-to-refresh / error retry. Re-fetches from page one.
+    /// The error retry.
     case retry
     /// The bottom sentinel appeared — fetch the next activity page.
     case loadMore

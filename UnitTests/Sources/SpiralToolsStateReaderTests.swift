@@ -5,8 +5,8 @@
 // AGENT-PLATFORM (Brief 0044): pins the com.spiral.tools raw-JSON
 // contract against backend `reply_dispatch_executor::emit_spiral_tools_state`.
 
-@testable import ElementX
 import Foundation
+@testable import Spiral
 import Testing
 
 struct SpiralToolsStateReaderTests {
@@ -142,7 +142,7 @@ struct SpiralToolsStateReaderTests {
 
     private static func restTool(_ kind: String, language: String?) -> RoomToolView {
         RoomToolView(toolID: nil, toolKind: kind, triggerKind: "on_message",
-                     targetLanguage: language, params: nil, trigger: nil, safeSliceSalt: kind)
+                     targetLanguage: language, params: nil, trigger: nil, safeSliceSalt: kind, appliesToViewer: .yes)
     }
 
     @Test
@@ -256,5 +256,91 @@ struct SpiralToolsStateReaderTests {
                 "a later fallback clears the state row")
         #expect(SpiralToolsStateReader.aggregate(rawEventJSONs: [cleared, armed, rearmed], seed: [], ownUserID: Self.owner).count == 1,
                 "a later state row re-arms over the fallback")
+    }
+
+    // MARK: - What an event changed (question 357)
+
+    private static func event(changes: String) -> String {
+        """
+        {"type":"com.spiral.tools","state_key":"@a:host","sender":"@a:host",
+         "content":{"version":1,"by":"@o:host","at":2,"tools":[],"changes":\(changes)}}
+        """
+    }
+
+    private static func tool(_ kind: String, language: String? = nil, trigger: String = "on_message") -> ToolsBannerEntry.Tool {
+        ToolsBannerEntry.Tool(toolID: nil, kind: kind, trigger: trigger, targetLanguage: language)
+    }
+
+    private func changes(_ json: String) -> [SpiralToolChange]? {
+        SpiralToolsStateReader.parseEvent(rawEventJSON: Self.event(changes: json))?.changes
+    }
+
+    @Test
+    func readsEachActionInOrder() {
+        let json = """
+        [{"action":"armed","tool":"call_recording","trigger":"on_voice_call","actor":"owner"},
+         {"action":"disabled","tool":"translate","trigger":"on_message","target_language":"uk","actor":"system"}]
+        """
+        #expect(changes(json) == [SpiralToolChange(action: .turnedOn, tool: Self.tool("call_recording", trigger: "on_voice_call"), actor: .owner),
+                                  SpiralToolChange(action: .turnedOff, tool: Self.tool("translate", language: "uk"), actor: .system)])
+    }
+
+    @Test
+    func anEditCarriesWhatTheToolWas() {
+        let json = """
+        [{"action":"edited","tool":"translate","trigger":"on_message","target_language":"en","actor":"owner",
+          "previous":{"tool":"translate","trigger":"on_message","target_language":"uk"}}]
+        """
+        #expect(changes(json) == [SpiralToolChange(action: .changed(from: Self.tool("translate", language: "uk")),
+                                                   tool: Self.tool("translate", language: "en"),
+                                                   actor: .owner)])
+    }
+
+    @Test
+    func anEmptyListIsNotAMissingOne() {
+        #expect(changes("[]") == [])
+        let withoutList = SpiralToolsStateReader.parseEvent(rawEventJSON: Self.event(stateKey: "@a:host", by: "@o:host", at: 1, tools: "[]"))
+        #expect(withoutList != nil)
+        #expect(withoutList?.changes == nil)
+    }
+
+    /// One entry this build can't read leaves the whole list unread, never a part of it, and never an empty list.
+    @Test
+    func aListThisBuildCantReadIsNoList() {
+        let armed = #"{"action":"armed","tool":"summarize","actor":"owner"}"#
+        let unreadable = ["[\(armed),{\"action\":\"paused\",\"tool\":\"summarize\",\"actor\":\"owner\"}]",
+                          "[\(armed),{\"action\":\"armed\",\"tool\":\"summarize\",\"actor\":\"schedule\"}]",
+                          #"[{"action":"armed","tool":"summarize"}]"#,
+                          #"[{"action":"armed","actor":"owner"}]"#,
+                          #"[{"action":"edited","tool":"summarize","actor":"owner"}]"#,
+                          #""armed""#,
+                          "null"]
+        for json in unreadable {
+            #expect(changes(json) == nil, "\(json)")
+        }
+    }
+
+    /// The comparison with the previous state is gone: the server's `prev_content` says nothing to the row.
+    @Test
+    func thePreviousStateIsNotRead() throws {
+        let json = """
+        {"type":"com.spiral.tools","state_key":"@a:host","sender":"@a:host",
+         "content":{"by":"@o:host","at":2,"tools":[]},
+         "unsigned":{"replaces_state":"$old",
+                     "prev_content":{"by":"@o:host","at":1,"tools":[{"tool_id":"t1","tool":"summarize","enabled":true}]}}}
+        """
+        let event = try #require(SpiralToolsStateReader.parseEvent(rawEventJSON: json))
+        #expect(event.changes == nil)
+    }
+
+    @Test
+    func theFallbackCarriesTheSameChanges() throws {
+        let json = """
+        {"type":"com.spiral.tools.changed","sender":"\(Self.agent)",
+         "content":{"by":"\(Self.owner)","at":1000,"tools":\(Self.czech),"fallback":true,
+                    "changes":[{"action":"armed","tool":"translate","target_language":"cs","actor":"owner"}]}}
+        """
+        let event = try #require(SpiralToolsStateReader.parseFallbackEvent(rawEventJSON: json, ownUserID: Self.owner))
+        #expect(event.changes == [SpiralToolChange(action: .turnedOn, tool: Self.tool("translate", language: "cs"), actor: .owner)])
     }
 }

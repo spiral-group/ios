@@ -6,7 +6,7 @@
 //
 
 import Combine
-@testable import ElementX
+@testable import Spiral
 import Testing
 
 @MainActor
@@ -109,7 +109,7 @@ struct IdentityConfirmationScreenViewModelTests {
         userSession.sessionSecurityStatePublisher = securityStateSubject.asCurrentValuePublisher()
         
         viewModel = IdentityConfirmationScreenViewModel(userSession: userSession,
-                                                        appSettings: .volatile(),
+                                                        userSettings: .mock(),
                                                         userIndicatorController: UserIndicatorControllerMock())
     }
 }

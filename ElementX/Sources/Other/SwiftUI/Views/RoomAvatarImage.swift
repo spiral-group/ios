@@ -12,6 +12,10 @@ import SwiftUI
 enum RoomAvatar: Equatable {
     /// An avatar generated from a Room's details.
     case room(id: String, name: String?, avatarURL: URL?)
+    // AGENT-PLATFORM (Brief 0083, decision 357): a DM that isn't drawn from its hero, such as a bridge's with a room
+    // avatar, is still one person, so it stays round.
+    /// An avatar generated from a DM's own details.
+    case direct(id: String, name: String?, avatarURL: URL?)
     /// An avatar generated from a collection of room heroes.
     case heroes([UserProfile])
     /// An avatar generated from a Space's details.
@@ -19,10 +23,26 @@ enum RoomAvatar: Equatable {
     /// A static avatar for a tombstoned room.
     case tombstoned
     
+    // AGENT-PLATFORM (Brief 0083, decision 357): the one rule for what a room's avatar is. A direct room with two or
+    // more heroes has more than one other person in it, so it is a group.
+    nonisolated static func make(id: String, name: String?, avatarURL: URL?, isDirect: Bool, isSpace: Bool, heroes: [UserProfile]) -> RoomAvatar {
+        if isSpace {
+            .space(id: id, name: name, avatarURL: avatarURL)
+        } else if isDirect, avatarURL == nil, heroes.count == 1 {
+            .heroes(heroes)
+        } else if isDirect, heroes.count <= 1 {
+            .direct(id: id, name: name, avatarURL: avatarURL)
+        } else {
+            .room(id: id, name: name, avatarURL: avatarURL)
+        }
+    }
+    
     var removingAvatar: RoomAvatar {
         switch self {
         case let .room(id, name, _):
             .room(id: id, name: name, avatarURL: nil)
+        case let .direct(id, name, _):
+            .direct(id: id, name: name, avatarURL: nil)
         case let .heroes(users):
             .heroes(users.map { .init(userID: $0.id, displayName: $0.displayName, avatarURL: nil) })
         case .space(let id, let name, _):
@@ -33,15 +53,36 @@ enum RoomAvatar: Equatable {
     }
     
     var hasURL: Bool {
+        url != nil
+    }
+    
+    // AGENT-PLATFORM (question 389's DEBT): the picture the avatar loads, which decides the agent badge on it.
+    var url: URL? {
         switch self {
         case let .room(_, _, url),
+             let .direct(_, _, url),
              let .space(_, _, url):
-            return url != nil
+            url
         case let .heroes(heroes):
-            return heroes.first?.avatarURL != nil
+            heroes.first?.avatarURL
         case .tombstoned:
-            return false
+            nil
         }
+    }
+    
+    // AGENT-PLATFORM (Brief 0083, decision 357): people are round, groups a rounded square, spaces keep theirs.
+    var shape: LoadableAvatarImage.Shape {
+        switch self {
+        case .room, .tombstoned: .roundedSquare
+        case .direct, .heroes: .circle
+        case .space: .roundedRect
+        }
+    }
+    
+    // AGENT-PLATFORM (Brief 0083, decision 357): the person a DM's avatar shows, for the badges on it.
+    var heroUserID: String? {
+        guard case let .heroes(heroes) = self, heroes.count == 1 else { return nil }
+        return heroes[0].id
     }
 }
 
@@ -59,10 +100,13 @@ struct RoomAvatarImage: View {
     
     var body: some View {
         switch avatar {
-        case .room(let id, let name, let avatarURL):
+        case .room(let id, let name, let avatarURL),
+             .direct(let id, let name, let avatarURL),
+             .space(let id, let name, let avatarURL):
             LoadableAvatarImage(url: avatarURL,
                                 name: name,
                                 contentID: id,
+                                shape: avatar.shape,
                                 avatarSize: avatarSize,
                                 mediaProvider: mediaProvider,
                                 onTap: onAvatarTap)
@@ -105,14 +149,6 @@ struct RoomAvatarImage: View {
                                     mediaProvider: mediaProvider,
                                     onTap: onAvatarTap)
             }
-        case .space(let id, let name, let avatarURL):
-            LoadableAvatarImage(url: avatarURL,
-                                name: name,
-                                contentID: id,
-                                shape: .roundedRect,
-                                avatarSize: avatarSize,
-                                mediaProvider: mediaProvider,
-                                onTap: onAvatarTap)
         case .tombstoned:
             TombstonedAvatarImage(avatarSize: avatarSize)
         }

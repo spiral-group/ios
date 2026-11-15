@@ -133,7 +133,7 @@ struct TimelineThreadSummaryView: View {
     }
     
     private struct ThreadView: View {
-        @EnvironmentObject private var context: TimelineViewModel.Context
+        @Environment(\.timelineContext) private var context
         
         let senderID: String
         let sender: TimelineItemSender?
@@ -141,38 +141,52 @@ struct TimelineThreadSummaryView: View {
         let formattedBody: AttributedString?
         let numberOfReplies: Int
         
+        @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+        
+        // AGENT-PLATFORM (Brief 0083, the room's timeline): a line under the bubble that reads as a link, the reply
+        // count in the accent, as Messages shows a message's replies. Element drew a grey card. At accessibility sizes
+        // the count sits above the replier, so it is never cut.
         var body: some View {
-            HStack(spacing: 4) {
-                CompoundIcon(\.threads, size: .xSmall, relativeTo: .compound.bodyXS)
-                    .foregroundColor(.compound.iconSecondary)
-                    .accessibilityLabel(L10n.commonThread)
+            layout {
+                HStack(spacing: 6) {
+                    CompoundIcon(\.threads, size: .xSmall, relativeTo: .compound.bodySM)
+                        .foregroundColor(.compound.iconAccentPrimary)
+                        .accessibilityLabel(L10n.commonThread)
+                    
+                    Text(L10n.commonReplies(numberOfReplies))
+                        .font(.compound.bodySMSemibold)
+                        .foregroundColor(.compound.textActionAccent)
+                        .fixedSize()
+                }
                 
-                Text(L10n.commonReplies(numberOfReplies))
-                    .font(.compound.bodyXSSemibold)
-                    .foregroundColor(.compound.textPrimary)
-                
-                LoadableAvatarImage(url: sender?.avatarURL,
-                                    name: sender?.displayName,
-                                    contentID: senderID,
-                                    avatarSize: .user(on: .threadSummary),
-                                    mediaProvider: context.mediaProvider)
-                    .accessibilityHidden(true)
-                
-                Text(sender?.disambiguatedDisplayName ?? senderID)
-                    .font(.compound.bodyXSSemibold)
-                    .foregroundColor(.compound.textPrimary)
-                    .accessibilityLabel(L10n.commonInReplyTo(sender?.disambiguatedDisplayName ?? senderID))
-                
-                Text(context.viewState.buildMessagePreview(formattedBody: formattedBody, plainBody: plainBody))
-                    .font(.compound.bodyXS)
-                    .foregroundColor(.compound.textSecondary)
+                HStack(spacing: 6) {
+                    LoadableAvatarImage(url: sender?.avatarURL,
+                                        name: sender?.displayName,
+                                        contentID: senderID,
+                                        avatarSize: .user(on: .threadSummary),
+                                        mediaProvider: context?.mediaProvider)
+                        .accessibilityHidden(true)
+                    
+                    Text(sender?.disambiguatedDisplayName ?? senderID)
+                        .font(.compound.bodySMSemibold)
+                        .foregroundColor(.compound.textPrimary)
+                        .accessibilityLabel(L10n.commonInReplyTo(sender?.disambiguatedDisplayName ?? senderID))
+                        .layoutPriority(1) // The name before the preview.
+                    
+                    Text(context?.viewState.buildMessagePreview(formattedBody: formattedBody, plainBody: plainBody) ?? plainBody)
+                        .font(.compound.bodySM)
+                        .foregroundColor(.compound.textSecondary)
+                }
             }
             .accessibilityElement(children: .combine)
             .lineLimit(1)
-            .padding(.vertical, 7.0)
-            .padding(.horizontal, 8.0)
-            .background(Color.compound.bgSubtlePrimary)
-            .cornerRadius(8)
+            .padding(.vertical, 4)
+            .padding(.horizontal, 6)
+            .contentShape(.rect)
+        }
+        
+        private var layout: AnyLayout {
+            dynamicTypeSize.isAccessibilitySize ? AnyLayout(VStackLayout(alignment: .leading, spacing: 4)) : AnyLayout(HStackLayout(spacing: 6))
         }
     }
 }
@@ -335,7 +349,7 @@ struct TimelineThreadSummaryView_Previews: PreviewProvider, TestablePreview {
             }
         }
         .padding()
-        .environmentObject(viewModel.context)
+        .environment(\.timelineContext, viewModel.context)
         .previewLayout(.sizeThatFits)
     }
 }

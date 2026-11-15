@@ -1,142 +1,212 @@
 //
 // Copyright 2026 the Spiral authors. AGPL-3.0-or-later.
 //
-// AGENT-PLATFORM (§ 5.61, § 5.63, § 5.80): a catalogue card IS the template,
-// running.
-//
-// Not a picture of it. A picture is one language and one roster, and a
-// catalogue of twelve would need thirty-six of them; the template itself,
-// in the row's box, speaks the viewer's language and shows the people of
-// the room it would go to, and the wheel spins right here. Its state is a
-// rehearsal in memory (`SpiralAppPreviewSession`); nothing leaves the phone.
-//
-// Each running template is a WebContent process (§ 5.25), so only the card
-// the carousel rests on and its two neighbours run; every other card shows
-// its quiet face and holds nothing (§ 5.80).
+// AGENT-PLATFORM (question 412 concept G, card A «Бульбашка», question 376): a
+// catalogue card is one block shaped like an incoming message — the room's own
+// bubble surface and corners — holding the template's still (drawn once at
+// `catalog:pack`, light, with sample names), its name and one line. It reads as
+// "this goes into the chat as a message", and the text no longer floats on Mist.
+// A still holds no web view, so the catalogue starts nothing however it is
+// scrolled; a tap opens the post's page, where the template itself runs.
 //
 
 import Compound
+import SpiralTokens
 import SwiftUI
 
-struct InteractivePostCatalogTemplateCell: View {
-    let template: SpiralAppTemplate
-    /// The template packed as the room would receive it; nil while loading.
-    let artifact: SpiralAppArtifact?
-    let viewerID: String
-    let loadMembers: @MainActor () async -> [String: Any]
-    /// How many cards away from the one the carousel rests on: 0 is the one
-    /// shown, 1 a neighbour at the edge, more is out of sight.
-    let distance: Int
+enum InteractivePostCatalogCardMetrics {
+    static let spacing: CGFloat = 12
+    /// The still's inset inside its bubble, and the corners that keep it concentric.
+    static let stillInset: CGFloat = 6
+    static let stillRadius: CGFloat = SpiralRadius.bubble - stillInset
+    static let screenMargin: CGFloat = 16
+    private static let widestShelfCard: CGFloat = 170
+    /// How many cards a shelf shows, the last one cut: a thumb knows there is more.
+    private static let cardsPerShelf: CGFloat = 2.35
 
-    @StateObject private var live = DraftPreview()
-    @State private var reclaimCount = 0
-    @State private var isOnScreen = false
-
-    /// The row's width in a conversation on this phone (§ 5.45); the card is
-    /// square so every shape rests in the same box and the carousel does not
-    /// change height as it turns.
-    static let side: CGFloat = 322
-
-    /// The card shown and its neighbours run; the rest do not.
-    ///
-    /// It used to be a budget of three taken first-come: `LazyHStack` builds
-    /// cards ahead of the scroll and `onAppear` fires for them off screen, so
-    /// the three slots went to whichever cards were BUILT first — a card out
-    /// of sight held one for six minutes while the card in the middle stayed
-    /// a picture (sim, 2026-09-30). Where a card stands is the only fair
-    /// question, so it is the one asked.
-    static let liveReach = 1
-
-    var body: some View {
-        VStack(spacing: 0) {
-            Spacer(minLength: 0)
-            frame
-            Spacer(minLength: 0)
-        }
-        .frame(width: Self.side, height: Self.side)
-        .background(Color.compound.bgCanvasDefault)
-        .clipShape(RoundedRectangle(cornerRadius: 16))
-        .onAppear { isOnScreen = true }
-        .onDisappear {
-            isOnScreen = false
-            stop()
-        }
-        // Started after a pause, so a card the carousel only passes on its way
-        // does not start at all; stopped at once when it is no longer wanted.
-        // A failure changes the key, and a card still wanted tries again.
-        .task(id: RunKey(wanted: wanted, delay: startDelay, failures: live.failures)) {
-            guard wanted else {
-                stop()
-                return
-            }
-            try? await Task.sleep(for: startDelay)
-            guard !Task.isCancelled, let artifact, live.instance == nil else { return }
-            MXLog.info("[SpiralApp] catalogue: start \(template.id) (\(distance == 0 ? "shown" : "neighbour"))")
-            live.start(artifact, viewerID: viewerID, members: loadMembers)
-        }
+    static func shelfSide(in width: CGFloat) -> CGFloat {
+        min(widestShelfCard, ((width - screenMargin - 2 * spacing) / cardsPerShelf).rounded(.down))
     }
 
-    // MARK: - Private
-
-    private struct RunKey: Equatable {
-        let wanted: Bool
-        let delay: Duration
-        let failures: Int
-    }
-
-    private var wanted: Bool {
-        isOnScreen && distance <= Self.liveReach && artifact != nil && live.failures <= DraftPreview.retries
-    }
-
-    /// The card in the middle first; its neighbours once the carousel has
-    /// plainly stopped there.
-    private var startDelay: Duration {
-        distance == 0 ? .milliseconds(100) : .milliseconds(300)
-    }
-
-    private var frame: some View {
-        SpiralAppPostFrame(aspectRatio: template.displayAspectRatio,
-                           isReady: live.isReady,
-                           isLoading: artifact == nil || (live.instance != nil && !live.isReady),
-                           cardTitle: template.localizedTitle,
-                           cardSubtitle: template.localizedDescription,
-                           accessibilityLabel: UntranslatedL10n.a11ySpiralAppPost(template.localizedTitle),
-                           onExpandedDismissed: {
-                               live.setViewport(.row)
-                               reclaimCount += 1
-                           }) {
-            surface
-        } expanded: {
-            SpiralAppExpandedView(title: template.localizedTitle) {
-                surface
-                    .onAppear { live.setViewport(.expanded) }
-            }
-        }
-    }
-
-    @ViewBuilder
-    private var surface: some View {
-        if let instance = live.instance {
-            DraftPreviewSurface(container: instance.containerView, reclaimCount: reclaimCount)
-        } else {
-            Color.clear
-        }
-    }
-
-    private func stop() {
-        guard live.instance != nil else { return }
-        MXLog.info("[SpiralApp] catalogue: stop \(template.id)")
-        live.stop()
+    static func gridSide(in width: CGFloat) -> CGFloat {
+        ((width - 2 * screenMargin - spacing) / 2).rounded(.down)
     }
 }
 
-extension SpiralAppTemplate {
-    /// `aspect` as a ratio, clamped as a post's row clamps it.
-    var displayAspectRatio: CGFloat {
-        let parts = aspect.split(separator: ":")
-        guard parts.count == 2, let w = Double(parts[0]), let h = Double(parts[1]), w > 0, h > 0 else {
-            return 4 / 3
+struct InteractivePostCatalogTemplateCell: View {
+    let template: SpiralAppTemplate
+    let side: CGFloat
+    let still: UIImage?
+    /// The catalogue names it new (question 412): a small badge on the still.
+    var isNew = false
+    let open: () -> Void
+
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    var body: some View {
+        Button(action: open) {
+            VStack(alignment: .leading, spacing: 8) {
+                InteractivePostCatalogStill(image: still)
+                    .frame(width: stillSide, height: stillSide)
+                    .overlay(alignment: .topLeading) {
+                        if isNew {
+                            InteractivePostCatalogNewBadge()
+                                .padding(6)
+                        }
+                    }
+                    .clipShape(RoundedRectangle(cornerRadius: InteractivePostCatalogCardMetrics.stillRadius, style: .continuous))
+                // Every card as tall as two lines of each, so a shelf never changes height as it scrolls,
+                // with the line straight under the name.
+                ZStack(alignment: .topLeading) {
+                    text(title: String(repeating: "\n", count: titleLineLimit - 1), description: "\n")
+                        .hidden()
+                    text(title: template.localizedTitle, description: template.localizedDescription)
+                }
+                .padding(.horizontal, 6)
+            }
+            .padding(InteractivePostCatalogCardMetrics.stillInset)
+            .padding(.bottom, 4)
+            .frame(width: side, alignment: .topLeading)
+            .background(Color.spiral.chatBackgroundSurface, in: RoundedRectangle(cornerRadius: SpiralRadius.bubble, style: .continuous))
+            .chatElevation(cornerRadius: SpiralRadius.bubble)
+            .contentShape(.rect)
         }
-        return min(max(CGFloat(w / h), SpiralAppPost.narrowestAspectRatio), SpiralAppPost.widestAspectRatio)
+        .buttonStyle(.plain)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(isNew ? UntranslatedL10n.a11yInteractiveCatalogNew(template.localizedTitle) : template.localizedTitle)
+        .accessibilityHint(template.localizedDescription)
+        .accessibilityAddTraits(.isButton)
+        .accessibilityIdentifier(A11yIdentifiers.interactivePostCatalogScreen.card(template.id))
+    }
+
+    private var stillSide: CGFloat {
+        side - 2 * InteractivePostCatalogCardMetrics.stillInset
+    }
+
+    /// A name takes up to 4 lines at accessibility sizes, where 2 cut most of them; the description stays at 2, read
+    /// whole as the card's hint.
+    private var titleLineLimit: Int {
+        dynamicTypeSize.isAccessibilitySize ? 4 : 2
+    }
+
+    private func text(title: String, description: String) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(title)
+                .font(.compound.bodyMDSemibold)
+                .foregroundStyle(.compound.textPrimary)
+                .lineLimit(titleLineLimit)
+            Text(description)
+                .font(.compound.bodySM)
+                .foregroundStyle(.compound.textSecondary)
+                .lineLimit(2)
+        }
+        .multilineTextAlignment(.leading)
+    }
+}
+
+/// A post that isn't running: what it last looked like, or the catalogue's
+/// still, or a quiet grey and glyph when there is neither.
+struct InteractivePostCatalogStill: View {
+    let image: UIImage?
+
+    var body: some View {
+        Color.compound.bgSubtleSecondary
+            .overlay {
+                if let image {
+                    Image(uiImage: image)
+                        .resizable()
+                        .scaledToFill()
+                } else {
+                    CompoundIcon(\.extensions, size: .medium, relativeTo: .compound.bodyMDSemibold)
+                        .foregroundStyle(.compound.iconTertiary)
+                }
+            }
+            .clipped()
+            .accessibilityHidden(true)
+    }
+}
+
+/// «New» on a card's still: the post's scene stays the colour, the badge a quiet white label.
+struct InteractivePostCatalogNewBadge: View {
+    var body: some View {
+        Text(UntranslatedL10n.screenInteractiveCatalogNewBadge)
+            .font(.compound.bodyXSSemibold)
+            .foregroundStyle(.compound.textActionAccent)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 3)
+            .background(Color.spiral.chatBackgroundSurface, in: .capsule)
+            .chatElevation()
+            .accessibilityHidden(true)
+    }
+}
+
+/// A card of the catalogue's «New» slider (question 412): a new template, its still,
+/// «NEW», its name and line, and «Try it», which opens its page.
+struct InteractivePostCatalogNewCard: View {
+    let template: SpiralAppTemplate
+    let still: UIImage?
+    /// A finger went down on the card, or lifted: the slider holds still under it.
+    var pressChanged: (Bool) -> Void = { _ in }
+    let open: () -> Void
+
+    private let side: CGFloat = 104
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    var body: some View {
+        Button(action: open) {
+            HStack(alignment: .center, spacing: 14) {
+                InteractivePostCatalogStill(image: still)
+                    .frame(width: side, height: side)
+                    .clipShape(RoundedRectangle(cornerRadius: SpiralRadius.bubble, style: .continuous))
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(UntranslatedL10n.screenInteractiveCatalogNewBadge)
+                        .textCase(.uppercase)
+                        .font(.compound.bodyXSSemibold)
+                        .tracking(0.6)
+                        .foregroundStyle(.compound.textActionAccent)
+                    Text(template.localizedTitle)
+                        .font(.compound.bodyLGSemibold)
+                        .foregroundStyle(.compound.textPrimary)
+                        .lineLimit(dynamicTypeSize.isAccessibilitySize ? 4 : 2)
+                    Text(template.localizedDescription)
+                        .font(.compound.bodySM)
+                        .foregroundStyle(.compound.textSecondary)
+                        .lineLimit(2)
+                    HStack(spacing: 2) {
+                        Text(UntranslatedL10n.screenInteractiveCatalogTry)
+                        CompoundIcon(\.chevronRight, size: .xSmall, relativeTo: .compound.bodyMDSemibold)
+                            .flipsForRightToLeftLayoutDirection(true)
+                    }
+                    .font(.compound.bodyMDSemibold)
+                    .foregroundStyle(.compound.textActionAccent)
+                    .padding(.top, 2)
+                }
+                .multilineTextAlignment(.leading)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            // As tall as the slider's tallest card, so the slider never changes height between them.
+            .frame(maxHeight: .infinity)
+            .padding(10)
+            .background(Color.spiral.chatBackgroundSurface, in: RoundedRectangle(cornerRadius: SpiralRadius.listCard, style: .continuous))
+            .chatElevation(cornerRadius: SpiralRadius.listCard)
+            .contentShape(.rect)
+        }
+        .buttonStyle(InteractivePostCatalogPressReportingButtonStyle(pressChanged: pressChanged))
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(UntranslatedL10n.a11yInteractiveCatalogNew(template.localizedTitle))
+        .accessibilityHint(template.localizedDescription)
+        .accessibilityAddTraits(.isButton)
+        .accessibilityIdentifier(A11yIdentifiers.interactivePostCatalogScreen.newCard)
+    }
+}
+
+/// A plain button that says when a finger goes down on it and when it lifts.
+private struct InteractivePostCatalogPressReportingButtonStyle: ButtonStyle {
+    let pressChanged: (Bool) -> Void
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .opacity(configuration.isPressed ? 0.7 : 1)
+            .onChange(of: configuration.isPressed) { _, isPressed in pressChanged(isPressed) }
     }
 }

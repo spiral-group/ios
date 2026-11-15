@@ -1,0 +1,14 @@
+// swiftlint:disable all{# Copyright 2026 the Spiral authors. AGPL-3.0-or-later. AGENT-PLATFORM (Brief 0083 L1c): the previews AccessibilityTests audits with Spiral's stricter gate. #}
+// swiftformat:disable all
+
+extension AccessibilityTests {
+    /// The previews that conform to `SpiralGatedPreview`.
+    static let spiralGatedPreviews: Set<String> = [
+        {% for type in types.types where type.implements.SpiralGatedPreview and type.implements.TestablePreview and type.kind != "protocol" %}
+        "{{ type.name }}",
+        {% endfor %}
+    ]
+}
+
+// swiftlint:enable all
+// swiftformat:enable all

@@ -15,7 +15,7 @@ struct AgentDetailScreenCoordinatorParameters {
     let clientProxy: ClientProxyProtocol
     let mediaProvider: MediaProviderProtocol
     let userIndicatorController: UserIndicatorControllerProtocol
-    let approvalsStreamService: ApprovalsStreamServiceProtocol?
+    let store: AgentsStore
 }
 
 enum AgentDetailScreenCoordinatorAction {
@@ -33,6 +33,8 @@ enum AgentDetailScreenCoordinatorAction {
     case showBlocked
     case changed
     case archived
+    /// The agent no longer exists (deleted elsewhere).
+    case gone
 }
 
 final class AgentDetailScreenCoordinator: CoordinatorProtocol {
@@ -50,7 +52,7 @@ final class AgentDetailScreenCoordinator: CoordinatorProtocol {
                                                clientProxy: parameters.clientProxy,
                                                mediaProvider: parameters.mediaProvider,
                                                userIndicatorController: parameters.userIndicatorController,
-                                               approvalsStreamService: parameters.approvalsStreamService)
+                                               store: parameters.store)
     }
     
     func start() {
@@ -84,6 +86,8 @@ final class AgentDetailScreenCoordinator: CoordinatorProtocol {
                 self?.actionsSubject.send(.changed)
             case .archived:
                 self?.actionsSubject.send(.archived)
+            case .gone:
+                self?.actionsSubject.send(.gone)
             }
         }
         .store(in: &cancellables)

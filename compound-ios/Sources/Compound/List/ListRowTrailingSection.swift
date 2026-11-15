@@ -6,6 +6,7 @@
 // Please see LICENSE files in the repository root for full details.
 //
 
+import SpiralTokens // AGENT-PLATFORM (Brief 0083)
 import SwiftUI
 
 /// The spacing used inside of a ListRow
@@ -71,7 +72,9 @@ public struct ListRowTrailingSection<Icon: View>: View {
                     .foregroundStyle(.compound.textOnSolidPrimary)
                     .padding(.horizontal, 8)
                     .padding(.vertical, 2)
-                    .background { Capsule().fill(isEnabled ? .compound.iconSuccessPrimary : .compound.iconDisabled) }
+                    // AGENT-PLATFORM (Brief 0083, decision 307): white needs the green fill, #2D8659 in both
+                    // themes; iconSuccessPrimary is #4DB87E in dark, 2.48:1.
+                    .background { Capsule().fill(isEnabled ? .spiral.successFill : .compound.iconDisabled) }
             }
             
             if let accessory, !hideAccessory {

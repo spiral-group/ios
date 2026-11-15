@@ -6,22 +6,22 @@
 // Please see LICENSE files in the repository root for full details.
 //
 
-@testable import ElementX
 import Foundation
+import MatrixRustSDK
 import MatrixRustSDKMocks
+@testable import Spiral
 import Testing
 
 @MainActor
 struct AuthenticationServiceTests {
     var client: ClientSDKMock!
-    var encryption: EncryptionSDKMock!
-    var userSessionStore: UserSessionStoreMock!
+    var userSessionManager: UserSessionManagerMock!
     var encryptionKeyProvider: MockEncryptionKeyProvider!
     var service: AuthenticationService!
     
     @Test
     mutating func passwordLogin() async throws {
-        try await setup(serverAddress: "example.com")
+        try await setup(serverNameOrBaseURL: "example.com")
         
         switch await service.configure(for: "example.com", flow: .login) {
         case .success:
@@ -36,9 +36,8 @@ struct AuthenticationServiceTests {
         switch await service.login(username: "alice", password: "12345678", initialDeviceName: nil, deviceID: nil) {
         case .success:
             #expect(client.loginUsernamePasswordInitialDeviceNameDeviceIdCallsCount == 1)
-            #expect(userSessionStore.userSessionForSessionDirectoriesPassphraseCallsCount == 1)
-            #expect(userSessionStore.userSessionForSessionDirectoriesPassphraseReceivedArguments?.passphrase ==
-                encryptionKeyProvider.generateKey().base64EncodedString())
+            #expect(userSessionManager.userSessionForSessionDirectoriesPassphraseCallsCount == 1)
+            #expect(userSessionManager.userSessionForSessionDirectoriesPassphraseReceivedArguments?.passphrase == encryptionKeyProvider.generateKey())
         case .failure(let error):
             Issue.record("Unexpected failure: \(error)")
         }
@@ -65,95 +64,49 @@ struct AuthenticationServiceTests {
     }
     
     @Test
-    @MainActor
     mutating func configureRegisterNoSupport() async throws {
-        let homeserverAddress = "example.com"
-        try await setup(serverAddress: homeserverAddress)
+        let serverNameOrBaseURL = "example.com"
+        try await setup(serverNameOrBaseURL: serverNameOrBaseURL)
         
         try await #require(throws: AuthenticationServiceError.registrationNotSupported) {
-            try await service.configure(for: homeserverAddress, flow: .register).get()
+            try await service.configure(for: serverNameOrBaseURL, flow: .register).get()
         }
         
         #expect(service.flow == .login)
-        #expect(service.homeserver.value == .init(address: "matrix.org", loginMode: .unknown))
+        #expect(service.homeserver.value == .init(accountProvider: .managed(serverName: "matrix.org", baseURL: "https://matrix-client.matrix.org"),
+                                                  loginMode: .unknown))
     }
     
-    @Test
-    @MainActor
-    mutating func classicAppAccountSecretsBundleIsUsed() async throws {
-        // Given an authentication service with an Element Classic account for Alice.
-        try await setup(classicAppAccounts: [.mockAlice])
-        try await service.configure(for: "matrix.org", flow: .login).get()
-        #expect(service.flow == .login)
-        #expect(service.classicAppAccount?.state.availableSecrets == .complete)
+    @Test(arguments: [("matrix.org", AuthenticationFlow.login, OAuthPrompt.consent),
+                      ("matrix.org", .register, .create),
+                      ("company.com", .register, .consent)])
+    mutating func oAuthPrompt(serverName: String, flow: AuthenticationFlow, expectedPrompt: OAuthPrompt) async throws {
+        try await setup(serverNameOrBaseURL: serverName)
+        try await service.configure(for: serverName, flow: flow).get()
         
-        // When logging in as Alice.
-        _ = try await service.login(username: "alice", password: "12345678", initialDeviceName: nil, deviceID: nil).get()
-        #expect(client.loginUsernamePasswordInitialDeviceNameDeviceIdCallsCount == 1)
+        _ = try await service.urlForOAuthLogin(loginHint: nil).get()
         
-        // Then Alice's secrets from Element Classic should be imported.
-        #expect(encryption.importSecretsBundleSecretsBundleCalled)
+        #expect(client.urlForOauthOauthConfigurationPromptLoginHintDeviceIdAdditionalScopesReceivedArguments?.prompt == expectedPrompt)
     }
     
-    @Test
-    @MainActor
-    mutating func classicAppAccountSecretsBundleIsIgnoredWhenUnavailable() async throws {
-        // Given an authentication service with an Element Classic account for Alice
-        // which isn't configured with any available secrets.
-        try await setup(classicAppAccounts: [.mockAlice], availableSecrets: .unavailable)
-        try await service.configure(for: "matrix.org", flow: .login).get()
-        #expect(service.flow == .login)
-        #expect(service.classicAppAccount?.state.availableSecrets == .unavailable)
-        
-        // When logging in as Alice.
-        _ = try await service.login(username: "alice", password: "12345678", initialDeviceName: nil, deviceID: nil).get()
-        #expect(client.loginUsernamePasswordInitialDeviceNameDeviceIdCallsCount == 1)
-        
-        // Then an attempt to import Alice's secrets from Element Classic must not be made.
-        #expect(!encryption.importSecretsBundleSecretsBundleCalled)
-    }
-    
-    @Test
-    @MainActor
-    mutating func classicAppAccountSecretsBundleIsIgnoredForDifferentUser() async throws {
-        // Given an authentication service with an Element Classic account for Dan.
-        try await setup(classicAppAccounts: [.mockDan])
-        try await service.configure(for: "matrix.org", flow: .login).get()
-        #expect(service.flow == .login)
-        #expect(service.classicAppAccount?.state.availableSecrets == .complete)
-        
-        // When logging in as Alice
-        _ = try await service.login(username: "alice", password: "12345678", initialDeviceName: nil, deviceID: nil).get()
-        #expect(client.loginUsernamePasswordInitialDeviceNameDeviceIdCallsCount == 1)
-        
-        // Then Dan's secrets from Element Calssic should not be imported into Alice's client.
-        #expect(!encryption.importSecretsBundleSecretsBundleCalled)
-    }
+    // AGENT-PLATFORM (Brief 0083 L1b): no classicAppAccountSecretsBundle* tests, Element Classic's import is gone.
     
     // MARK: - Helpers
     
-    private mutating func setup(serverAddress: String = "matrix.org",
-                                classicAppAccounts: [ClassicAppAccount] = [],
-                                availableSecrets: ClassicAppAccount.AvailableSecrets = .complete) async throws {
-        let configuration: AuthenticationClientFactoryMock.Configuration = .init()
-        let clientFactory = AuthenticationClientFactoryMock(configuration)
+    private mutating func setup(serverNameOrBaseURL: String = "matrix.org") async throws {
+        let configuration: ClientFactoryMock.Configuration = .init()
+        let clientFactory = ClientFactoryMock(configuration)
         
-        client = configuration.homeserverClients[serverAddress]
-        encryption = EncryptionSDKMock()
-        client.encryptionReturnValue = encryption
+        client = configuration.homeserverClients[serverNameOrBaseURL]
         
-        userSessionStore = UserSessionStoreMock(.init())
+        userSessionManager = UserSessionManagerMock(.init())
         encryptionKeyProvider = MockEncryptionKeyProvider()
-        
-        let classicAppManager = ClassicAppManagerMock(.init(accounts: classicAppAccounts,
-                                                            availableSecrets: availableSecrets,
-                                                            secretsBundle: SecretsBundleWithUserIdSDKMock()))
         
         // AGENT-PLATFORM: these tests exercise the UPSTREAM auth flows with
         // matrix.org fixtures; restore the open upstream provider shape since
         // the fork defaults to a single closed provider (spiral.md).
         let appSettings = AppSettings.volatile()
-        appSettings.override(accountProviders: ["matrix.org"],
+        appSettings.override(accountProviders: [.managed(serverName: "matrix.org", baseURL: "https://matrix-client.matrix.org")],
                              allowOtherAccountProviders: true,
                              hideBrandChrome: false,
                              pushGatewayBaseURL: appSettings.pushGatewayBaseURL,
@@ -168,24 +121,16 @@ struct AuthenticationServiceTests {
                              deviceVerificationURL: appSettings.deviceVerificationURL,
                              chatBackupDetailsURL: appSettings.chatBackupDetailsURL,
                              identityPinningViolationDetailsURL: appSettings.identityPinningViolationDetailsURL,
-                             historySharingDetailsURL: appSettings.historySharingDetailsURL,
-                             accountProvisioningHost: appSettings.accountProvisioningHost,
+                             historySharingDetailsURL: appSettings.historySharingDetailsURL, // AGENT-PLATFORM (Brief 0083 L1b): no accountProvisioningHost
                              bugReportApplicationID: appSettings.bugReportApplicationID,
                              analyticsTermsURL: appSettings.analyticsTermsURL,
                              mapTilerConfiguration: AppSettings.bundledMapTilerConfiguration)
         
-        service = AuthenticationService(userSessionStore: userSessionStore,
+        service = AuthenticationService(userSessionManager: userSessionManager,
                                         encryptionKeyProvider: encryptionKeyProvider,
-                                        classicAppManager: classicAppManager,
                                         clientFactory: clientFactory,
                                         appSettings: appSettings,
-                                        appHooks: AppHooks())
-        
-        if let classicAppAccount = service.classicAppAccount {
-            await service.setupClassicAppAccountState()
-            try #require(classicAppAccount.state.isServerSupported == true)
-            try #require(classicAppAccount.state.availableSecrets == availableSecrets)
-        }
+                                        appHooks: AppHooks()) // AGENT-PLATFORM (Brief 0083 L1b): no Classic app manager
     }
 }
 

@@ -10,6 +10,7 @@
 // The Spiral feature is built on Element's `TemplateScreen.swift`.
 
 import Compound
+import SpiralComponents
 import SwiftUI
 
 struct NotificationsHubScreen: View {
@@ -19,8 +20,11 @@ struct NotificationsHubScreen: View {
         // The times are relative («5 мин назад»), so they are read again while the hub is open.
         SwiftUI.TimelineView(AgentRelativeTime.refreshSchedule) { timeline in
             Form {
-                connectionSection
-
+                if context.viewState.isNeedsActionFailed {
+                    AgentSpacesRetryErrorSection(title: UntranslatedL10n.screenNotificationsHubNeedsActionLoadFailure) {
+                        context.send(viewAction: .retry)
+                    }
+                }
                 if context.viewState.isEmpty {
                     emptySection
                 } else {
@@ -33,74 +37,12 @@ struct NotificationsHubScreen: View {
                     activityContent(now: timeline.date)
                 }
             }
-            .compoundList()
+            .spiralGroupedList() // Brief 0083 (P4-D): iOS's grouped cards and plain grey glyphs (decision 337).
         }
         .navigationTitle(UntranslatedL10n.screenNotificationsHubTitle)
         .navigationBarTitleDisplayMode(.inline)
-        .alert(item: $context.alertInfo)
-        .refreshable { context.send(viewAction: .retry) }
+        .feedSyncStatus(context.viewState.syncStatus) // AGENT-PLATFORM: platform sync (decision 289)
         .onAppear { context.send(viewAction: .appeared) }
-    }
-
-    // MARK: - Connection banner
-
-    @ViewBuilder
-    private var connectionSection: some View {
-        switch context.viewState.connectionIndicator {
-        case .hidden:
-            EmptyView()
-        case .connecting:
-            connectionBanner(title: UntranslatedL10n.screenApprovalsListConnectingTitle,
-                             subtitle: UntranslatedL10n.screenNotificationsHubConnectingSubtitle,
-                             showsSpinner: true,
-                             isCritical: false)
-        case .reconnecting(let attempt):
-            connectionBanner(title: UntranslatedL10n.screenApprovalsListReconnectingTitle,
-                             subtitle: UntranslatedL10n.screenApprovalsListReconnectingSubtitleAttempt(attempt),
-                             showsSpinner: true,
-                             isCritical: false)
-        case .failed:
-            connectionBanner(title: UntranslatedL10n.screenApprovalsListOfflineTitle,
-                             subtitle: UntranslatedL10n.screenApprovalsListOfflineSubtitle,
-                             showsSpinner: false,
-                             isCritical: true)
-        }
-    }
-
-    private func connectionBanner(title: String, subtitle: String, showsSpinner: Bool, isCritical: Bool) -> some View {
-        Section {
-            ListRow(kind: .custom {
-                HStack(alignment: .top, spacing: 12) {
-                    if showsSpinner {
-                        ProgressView().controlSize(.small)
-                    } else {
-                        CompoundIcon(\.errorSolid,
-                                     size: .small,
-                                     relativeTo: .compound.bodyMD)
-                            .foregroundStyle(.compound.iconCriticalPrimary)
-                    }
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(title)
-                            .font(.compound.bodyMDSemibold)
-                            .foregroundStyle(.compound.textPrimary)
-                        Text(subtitle)
-                            .font(.compound.bodySM)
-                            .foregroundStyle(.compound.textSecondary)
-                    }
-                    Spacer(minLength: 0)
-                }
-                .padding(16)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                // The home screen's recovery banner anatomy: an inset card on
-                // the list, not a tinted row.
-                .background(isCritical
-                    ? Color.compound.bgCriticalSubtle
-                    : Color.compound.bgSubtleSecondary)
-                .cornerRadius(14)
-            })
-            .listRowBackground(Color.clear)
-            .listRowInsets(EdgeInsets())
-        }
     }
 
     // MARK: - Needs action (pinned)
@@ -123,20 +65,25 @@ struct NotificationsHubScreen: View {
         }
     }
 
+    /// Brief 0083 (P4-D): as a mail row, the kind as the title with the time beside it, then the agent and the
+    /// draft; the accent chip is gone.
     private func needsActionRow(_ item: NeedsActionListItem, now: Date) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 8) {
-                AgentStatusBadge(title: Self.kindLabel(item.kind), variant: .accent)
-                if let agentName = item.agentName {
-                    Text(agentName)
-                        .font(.compound.bodyXSSemibold)
-                        .foregroundStyle(.compound.textSecondary)
-                        .lineLimit(1)
-                }
-                Spacer()
+        VStack(alignment: .leading, spacing: CompoundDesignTokens.space1X) {
+            HStack(alignment: .firstTextBaseline, spacing: CompoundDesignTokens.space2X) {
+                Text(Self.kindLabel(item.kind))
+                    .font(.compound.bodyMDSemibold)
+                    .foregroundStyle(.compound.textPrimary)
+                Spacer(minLength: 0)
                 Text(relativeDate(item.createdAt, now: now))
-                    .font(.compound.bodyXS)
+                    .font(.compound.bodySM)
                     .foregroundStyle(.compound.textSecondary)
+            }
+
+            if let agentName = item.agentName {
+                Text(agentName)
+                    .font(.compound.bodySM)
+                    .foregroundStyle(.compound.textSecondary)
+                    .lineLimit(1)
             }
 
             Text(item.preview)
@@ -147,13 +94,13 @@ struct NotificationsHubScreen: View {
 
             if let detail = item.detail, !detail.isEmpty {
                 Text(detail)
-                    .font(.compound.bodyXS)
+                    .font(.compound.bodySM)
                     .foregroundStyle(.compound.textSecondary)
                     .lineLimit(1)
             }
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
+        .padding(.horizontal, ListRowPadding.horizontal)
+        .padding(.vertical, CompoundDesignTokens.space3X)
         .frame(maxWidth: .infinity, alignment: .leading)
         .contentShape(Rectangle())
     }
@@ -232,15 +179,18 @@ struct NotificationsHubScreen: View {
     @ViewBuilder
     private func activityContent(now: Date) -> some View {
         switch context.viewState.activityState {
+        case .loading where context.viewState.isNeedsActionFailed:
+            // The read that failed brings the activity too: no empty card under its error while it's out.
+            EmptyView()
         case .loading:
-            // Canon §3: fast/rare data → delayed spinner, never a skeleton.
+            // Decision 330: the activity's rows as placeholders, after a short delay.
             Section {
                 ListRow(kind: .custom {
-                    DelayedProgressView()
-                        .frame(minHeight: 80)
+                    SpiralPreloader(label: L10n.commonLoading) {
+                        SpiralPlaceholderRows(count: 3, leading: .icon)
+                    }
                 })
             }
-            .listRowBackground(Color.clear)
         case .loaded(let items, _) where !items.isEmpty:
             activitySection(items, now: now)
             if let sentinel = context.viewState.sentinel {
@@ -249,7 +199,7 @@ struct NotificationsHubScreen: View {
         case .loaded:
             EmptyView()
         case .failed:
-            AgentSpacesRetryErrorSection {
+            AgentSpacesRetryErrorSection(title: UntranslatedL10n.screenNotificationsHubLoadFailed) {
                 context.send(viewAction: .retry)
             }
         }
@@ -322,23 +272,10 @@ struct NotificationsHubScreen: View {
 
     private var emptySection: some View {
         Section {
-            VStack(spacing: 24) {
-                BigIcon(icon: \.notifications)
-                VStack(spacing: 8) {
-                    Text(UntranslatedL10n.screenNotificationsHubEmptyTitle)
-                        .font(.compound.headingSMSemibold)
-                        .foregroundStyle(.compound.textPrimary)
-                        .multilineTextAlignment(.center)
-                    Text(UntranslatedL10n.screenNotificationsHubEmptySubtitle)
-                        .font(.compound.bodyMD)
-                        .foregroundStyle(.compound.textSecondary)
-                        .multilineTextAlignment(.center)
-                }
-            }
-            .padding(.vertical, 40)
-            .padding(.horizontal, 24)
-            .frame(maxWidth: .infinity)
-            .listRowBackground(Color.clear)
+            SpiralEmptyState(symbol: .bell,
+                             title: UntranslatedL10n.screenNotificationsHubEmptyTitle,
+                             message: UntranslatedL10n.screenNotificationsHubEmptySubtitle)
+                .listRowBackground(Color.clear)
         }
     }
 
@@ -358,11 +295,12 @@ struct NotificationsHubScreen: View {
 
 // MARK: - Previews
 
-struct NotificationsHubScreen_Previews: PreviewProvider, TestablePreview {
+struct NotificationsHubScreen_Previews: PreviewProvider, TestablePreview, SpiralGatedPreview {
     static let emptyViewModel = makeViewModel(needsAction: [], activity: [])
     static let contentViewModel = makeViewModel(needsAction: sampleNeedsAction, activity: sampleActivity)
     static let activityOnlyViewModel = makeViewModel(needsAction: [], activity: sampleActivity)
     static let errorViewModel = makeViewModel(needsAction: [], activity: [], failsActivity: true)
+    static let needsActionFailedViewModel = makeViewModel(needsAction: [], activity: [], failsNeedsAction: true)
     static let visitorsViewModel = makeViewModel(needsAction: [], activity: [], visitorMessages: sampleVisitorMessages)
 
     static var previews: some View {
@@ -371,39 +309,49 @@ struct NotificationsHubScreen_Previews: PreviewProvider, TestablePreview {
         ElementNavigationStack {
             NotificationsHubScreen(context: emptyViewModel.context)
         }
-        .snapshotPreferences(expect: emptyViewModel.context.observe(\.viewState.activityState).map { if case .loading = $0 { false } else { true } })
+        .snapshotPreferences(expect: emptyViewModel.context.observe(\.viewState.isReadForPreview))
         .previewDisplayName("Empty")
 
         ElementNavigationStack {
             NotificationsHubScreen(context: contentViewModel.context)
         }
-        .snapshotPreferences(expect: contentViewModel.context.observe(\.viewState.activityState).map { if case .loading = $0 { false } else { true } })
+        .snapshotPreferences(expect: contentViewModel.context.observe(\.viewState.isReadForPreview))
         .previewDisplayName("Content")
 
         ElementNavigationStack {
             NotificationsHubScreen(context: activityOnlyViewModel.context)
         }
-        .snapshotPreferences(expect: activityOnlyViewModel.context.observe(\.viewState.activityState).map { if case .loading = $0 { false } else { true } })
+        .snapshotPreferences(expect: activityOnlyViewModel.context.observe(\.viewState.isReadForPreview))
         .previewDisplayName("Activity only")
 
         ElementNavigationStack {
             NotificationsHubScreen(context: errorViewModel.context)
         }
-        .snapshotPreferences(expect: errorViewModel.context.observe(\.viewState.activityState).map { if case .loading = $0 { false } else { true } })
+        .snapshotPreferences(expect: errorViewModel.context.observe(\.viewState.isReadForPreview))
         .previewDisplayName("Error")
+
+        ElementNavigationStack {
+            NotificationsHubScreen(context: needsActionFailedViewModel.context)
+        }
+        .snapshotPreferences(expect: needsActionFailedViewModel.context.observe(\.viewState.isNeedsActionFailed))
+        .previewDisplayName("Needs action failed")
 
         ElementNavigationStack {
             NotificationsHubScreen(context: visitorsViewModel.context)
         }
-        .snapshotPreferences(expect: visitorsViewModel.context.observe(\.viewState.activityState).map { if case .loading = $0 { false } else { true } })
+        .snapshotPreferences(expect: visitorsViewModel.context.observe(\.viewState.isReadForPreview))
         .previewDisplayName("People")
     }
 
+    // The hub reads "now" from a 30 s TimelineView schedule that started
+    // before these dates were made, so its "now" lags theirs by up to 30 s.
+    // Each offset sits 30 s into its unit (5 min 30 s, not 5 min), so the
+    // relative time shown survives that lag or a 30 s render delay.
     static let sampleVisitorMessages: [VisitorMessage] = [
         VisitorMessage(id: "visitor-1", kind: .message, agentID: "agent-1", visitorMXID: "@bob:spiral.md", roomID: "!bob:spiral.md",
-                       body: "Hi Anna, are we still on for Friday? I can bring the slides.", createdAt: Date(timeIntervalSinceNow: -600)),
+                       body: "Hi Anna, are we still on for Friday? I can bring the slides.", createdAt: Date(timeIntervalSinceNow: -630)),
         VisitorMessage(id: "visitor-2", kind: .missedCall, agentID: "agent-1", visitorMXID: "@carol:example.org", roomID: "!carol:spiral.md",
-                       body: "", createdAt: Date(timeIntervalSinceNow: -7200))
+                       body: "", createdAt: Date(timeIntervalSinceNow: -7230))
     ]
 
     static let sampleNeedsAction: [NeedsActionItem] = [
@@ -411,12 +359,12 @@ struct NotificationsHubScreen_Previews: PreviewProvider, TestablePreview {
                                   agentID: "agent-1",
                                   draftBody: "Hi Bob — thanks for reaching out! Alice is away today; can I take a message?",
                                   targetRoomID: "!visitor:spiral.md",
-                                  createdAt: Date(timeIntervalSinceNow: -300))),
+                                  createdAt: Date(timeIntervalSinceNow: -330))),
         .verification(VerificationSummary(id: "verification-1",
                                           requesterUserID: "@alice:spiral.md",
                                           requesterDeviceID: "IPHONE15",
                                           state: .pendingOwner,
-                                          createdAt: Date(timeIntervalSinceNow: -900),
+                                          createdAt: Date(timeIntervalSinceNow: -930),
                                           deadlineAt: Date(timeIntervalSinceNow: 600)))
     ]
 
@@ -433,8 +381,8 @@ struct NotificationsHubScreen_Previews: PreviewProvider, TestablePreview {
                            longFlowID: nil,
                            outcome: .executed,
                            outcomeEventID: "$ev1",
-                           createdAt: Date(timeIntervalSinceNow: -3600),
-                           resolvedAt: Date(timeIntervalSinceNow: -3590)),
+                           createdAt: Date(timeIntervalSinceNow: -3630),
+                           resolvedAt: Date(timeIntervalSinceNow: -3620)),
         AgentActivityEntry(id: "row-2",
                            agentID: "agent-1",
                            roomID: "!example2:spiral.md",
@@ -447,30 +395,34 @@ struct NotificationsHubScreen_Previews: PreviewProvider, TestablePreview {
                            longFlowID: nil,
                            outcome: .denied,
                            outcomeEventID: nil,
-                           createdAt: Date(timeIntervalSinceNow: -86400),
-                           resolvedAt: Date(timeIntervalSinceNow: -86400))
+                           createdAt: Date(timeIntervalSinceNow: -86430),
+                           resolvedAt: Date(timeIntervalSinceNow: -86430))
     ]
 
     static func makeViewModel(needsAction: [NeedsActionItem],
                               activity: [AgentActivityEntry],
                               failsActivity: Bool = false,
+                              failsNeedsAction: Bool = false,
                               visitorMessages: [VisitorMessage] = []) -> NotificationsHubScreenViewModel {
-        let streamService = ApprovalsStreamServiceMock()
-        streamService.needsAction = needsAction
-        streamService.underlyingPendingCount = needsAction.count
-        streamService.underlyingUnseenCount = 0
-        streamService.underlyingConnectionState = .connected
-
         let platformService = AgentPlatformServiceMock()
-        if failsActivity {
-            platformService.fetchNotificationsActivityCursorLimitReturnValue = .failure(.serverError(status: 500))
-        } else {
-            platformService.fetchNotificationsActivityCursorLimitReturnValue = .success(.init(needsAction: needsAction,
-                                                                                              activity: activity,
-                                                                                              nextActivityCursor: nil,
-                                                                                              lastSeenAt: nil,
-                                                                                              unseenCount: 0,
-                                                                                              visitorMessages: visitorMessages))
+        // What waits is read with a page of one; the activity with a page of its own.
+        platformService.fetchNotificationsActivityCursorLimitClosure = { _, limit in
+            if failsActivity, limit > 1 {
+                return .failure(.serverError(status: 500))
+            }
+            if failsNeedsAction {
+                // What waits fails; the activity's read, which would bring it too, is still out.
+                if limit > 1 {
+                    try? await Task.sleep(for: .seconds(60))
+                }
+                return .failure(.serverError(status: 500))
+            }
+            return .success(.init(needsAction: needsAction,
+                                  activity: activity,
+                                  nextActivityCursor: nil,
+                                  lastSeenAt: nil,
+                                  unseenCount: 0,
+                                  visitorMessages: visitorMessages))
         }
         platformService.markNotificationsSeenReturnValue = .success(Date())
         platformService.listMyAgentSpacesReturnValue = .success(.init(spaces: [.init(orgID: "org-personal", name: "Personal", kind: .solo,
@@ -481,17 +433,24 @@ struct NotificationsHubScreen_Previews: PreviewProvider, TestablePreview {
                                                                          agents: [.init(agentID: "agent-1", matrixUserID: "@assistant-owner:spiral.md",
                                                                                         displayName: "Anna's assistant", avatarMXC: nil,
                                                                                         kind: "personal_assistant", visibility: "public",
-                                                                                        lifecycleState: "active", presence: .online,
-                                                                                        roomCount: 1, activeToolCount: 0)]))
+                                                                                        lifecycleState: "active", roomCount: 1, activeToolCount: 0)]))
 
         let clientProxy = ClientProxyMock(.init())
         clientProxy.roomSummaryForIdentifierClosure = { $0 == "!example1:spiral.md" ? .mock(id: $0, name: "Book club") : nil }
         clientProxy.profileForClosure = { userID in
             userID == "@bob:spiral.md" ? .success(.init(userID: userID, displayName: "Bob")) : .failure(.sdkError(ClientProxyMockError.generic))
         }
-        return NotificationsHubScreenViewModel(approvalsStreamService: streamService,
+        return NotificationsHubScreenViewModel(store: AgentsStore(service: platformService),
                                                agentPlatformService: platformService,
                                                clientProxy: clientProxy,
                                                userIndicatorController: UserIndicatorControllerMock())
+    }
+}
+
+private extension NotificationsHubScreenViewState {
+    /// The activity, what waits and the agents' names are read on their own: the snapshot waits for all three.
+    var isReadForPreview: Bool {
+        if case .loading = activityState { return false }
+        return isNeedsActionRead && areAgentNamesRead
     }
 }

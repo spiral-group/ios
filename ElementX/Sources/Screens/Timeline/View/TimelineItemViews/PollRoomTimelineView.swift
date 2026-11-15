@@ -10,10 +10,11 @@ import SwiftUI
 
 struct PollRoomTimelineView: View {
     let timelineItem: PollRoomTimelineItem
-    @EnvironmentObject private var context: TimelineViewModel.Context
+    @Environment(\.timelineContext) private var context
+    @Environment(\.timelineRowContext.timelineKind) private var timelineKind // AGENT-PLATFORM (Brief 0083, question 359)
     
     private var state: PollViewState {
-        if context.viewState.timelineKind == .pinned {
+        if timelineKind == .pinned {
             return .preview
         } else {
             return .full(isEditable: timelineItem.isEditable)
@@ -28,13 +29,13 @@ struct PollRoomTimelineView: View {
                 switch action {
                 case .sendResponse(let answerIDs):
                     guard let eventID else { return }
-                    context.send(viewAction: .handlePollAction(.sendResponse(pollStartID: eventID, answerIDs: answerIDs)))
+                    context?.send(viewAction: .handlePollAction(.sendResponse(pollStartID: eventID, answerIDs: answerIDs)))
                 case .edit:
                     guard let eventID else { return }
-                    context.send(viewAction: .handlePollAction(.edit(pollStartID: eventID, poll: poll)))
+                    context?.send(viewAction: .handlePollAction(.edit(pollStartID: eventID, poll: poll)))
                 case .end:
                     guard let eventID else { return }
-                    context.send(viewAction: .handlePollAction(.end(pollStartID: eventID)))
+                    context?.send(viewAction: .handlePollAction(.end(pollStartID: eventID)))
                 }
             }
         }

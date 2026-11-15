@@ -39,6 +39,7 @@
         "type": "ios-strings",
         "changeExtension": "strings",
         "output": "ElementX/Resources/Localizations/${iosLprojFolder}/${file}",
+        "excludeKeys": ["REGEX:NSLocation.*"],
         "conditions": [
           "equals: ${languageCode}, en | equals: ${file}, InfoPlist.json"
         ]
@@ -85,6 +86,7 @@
         "type": "ios-strings",
         "changeExtension": "strings",
         "output": "ElementX/Resources/Localizations/${iosLprojFolder}/${file}",
+        "excludeKeys": ["REGEX:NSLocation.*"],
         "conditions": [
           "equals: ${file}, InfoPlist.json"
         ]

@@ -20,7 +20,7 @@ struct NotificationSettingsEditScreen: View {
                 roomsWithCustomSettingsSection
             }
         }
-        .compoundList()
+        .spiralGroupedList() // AGENT-PLATFORM (Brief 0083): Spiral's grouped list, was `compoundList()`.
         .navigationTitle(context.viewState.strings.navigationTitle)
         .alert(item: $context.alertInfo)
         .track(screen: .SettingsDefaultNotifications)
@@ -59,7 +59,8 @@ struct NotificationSettingsEditScreen: View {
 
 // MARK: - Previews
 
-struct NotificationSettingsEditScreen_Previews: PreviewProvider, TestablePreview {
+// AGENT-PLATFORM (Brief 0083, lane settings): gated.
+struct NotificationSettingsEditScreen_Previews: PreviewProvider, TestablePreview, SpiralGatedPreview {
     static let viewModelGroupChats: NotificationSettingsEditScreenViewModel = {
         let notificationSettingsProxy = NotificationSettingsProxyMock(with: .init())
         notificationSettingsProxy.getDefaultRoomNotificationModeIsEncryptedIsOneToOneReturnValue = .allMessages

@@ -18,6 +18,7 @@ struct ActiveCallTimelineItemView: View {
     let isVoiceCall: Bool
     let activeMembers: [String]
     let sender: TimelineItemSender
+    var isOutgoing = false // AGENT-PLATFORM (Brief 0083, question 359)
     let isJoined: Bool
     let callStartTimestamp: Date?
     
@@ -27,9 +28,8 @@ struct ActiveCallTimelineItemView: View {
         activeMembers
             .prefix(ActiveCallTimelineItemView.maxAvatars)
             .map { userID in
-                StackedAvatarInfo(url: context?.viewState.members[userID]?.avatarURL,
-                                  name: context?.viewState.members[userID]?.displayName,
-                                  contentID: userID)
+                let member = context?.viewState.member(userID) // AGENT-PLATFORM (Brief 0083, question 359)
+                return StackedAvatarInfo(url: member?.avatarURL, name: member?.displayName, contentID: userID)
             }
     }
     
@@ -53,82 +53,56 @@ struct ActiveCallTimelineItemView: View {
         Self.isGroupPresentation(isDM: isDM, activeMemberCount: activeMembers.count)
     }
     
+    private var title: String {
+        if isGroupPresentation { // AGENT-PLATFORM (Brief 0063): was `if isDM`.
+            L10n.commonGroupCallInProgress
+        } else if activeMembers.count == 1, activeMembers.first == sender.id {
+            L10n.commonUserStartedACall(sender.displayName ?? sender.id)
+        } else {
+            L10n.commonCallInProgress
+        }
+    }
+    
+    // AGENT-PLATFORM (Brief 0083, question 359): a bubble on the side of whoever called, as an ended call is.
     var body: some View {
-        HStack(spacing: 8) {
-            CompoundIcon(isVoiceCall ? \.voiceCallSolid : \.videoCallSolid, size: .medium,
-                         relativeTo: .compound.headingMDBold)
-                .padding(8)
-                .background(.compound.bgSubtleSecondary, in: RoundedRectangle(cornerRadius: 6))
-                .foregroundStyle(.compound.iconPrimary)
-                .accessibilityHidden(true)
+        TimelineCallBubble(sender: sender,
+                           isDM: isDM,
+                           isOutgoing: isOutgoing,
+                           icon: isVoiceCall ? \.voiceCallSolid : \.videoCallSolid,
+                           title: title) {
+            StackedAvatarsView(overlap: 6,
+                               lineWidth: 1,
+                               avatars: avatars,
+                               avatarSize: .user(on: .readReceipt),
+                               mediaProvider: context?.mediaProvider)
+                .padding(-1)
             
-            if !isGroupPresentation { // AGENT-PLATFORM (Brief 0063): was `if isDM`.
-                HStack(alignment: .center, spacing: 4) {
-                    StackedAvatarsView(overlap: 6,
-                                       lineWidth: 1,
-                                       avatars: avatars,
-                                       avatarSize: .user(on: .readReceipt),
-                                       mediaProvider: context?.mediaProvider)
-                        .padding(-1)
-                    
-                    let text = if activeMembers.count == 1,
-                                  activeMembers.first == sender.id {
-                        L10n.commonUserStartedACall(sender.displayName ?? sender.id)
-                    } else {
-                        L10n.commonCallInProgress
-                    }
-                    Text(text)
-                        .font(.compound.bodyMDSemibold)
-                        .foregroundColor(.compound.textPrimary)
-                        .labelStyle(.custom(spacing: 4))
-                }
-                
-            } else {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(L10n.commonGroupCallInProgress)
-                        .font(.compound.bodyMDSemibold)
-                        .foregroundColor(.compound.textPrimary)
-                        .labelStyle(.custom(spacing: 4))
-                    
-                    HStack(alignment: .center, spacing: 4) {
-                        StackedAvatarsView(overlap: 6,
-                                           lineWidth: 1,
-                                           avatars: avatars,
-                                           avatarSize: .user(on: .readReceipt),
-                                           mediaProvider: context?.mediaProvider)
-                            .padding(-1)
-                        
-                        Text(extraGroupLabel)
-                            .font(.compound.bodySM)
-                            .foregroundColor(.compound.textSecondary)
-                            .labelStyle(.custom(spacing: 4))
-                    }
-                }
+            if isGroupPresentation {
+                Text(extraGroupLabel)
             }
             
-            Spacer()
-            
-            VStack(spacing: 4) {
-                if !isJoined {
-                    Button { context?.send(viewAction: .joinActiveCall(isVoiceCall: isVoiceCall)) } label: {
-                        Text(L10n.actionJoin)
-                            .font(.compound.bodyMDSemibold)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 4)
-                    }
-                    .buttonStyle(.compound(.primary, size: .small))
-                }
-                
-                callTimer
-                    .font(.compound.bodyXS)
-                    .foregroundColor(.compound.textSecondary)
-                    .monospacedDigit()
+            callTimer
+                .monospacedDigit()
+        } accessory: {
+            if !isJoined {
+                joinButton
             }
         }
-        .padding(12)
-        .overlay(RoundedRectangle(cornerRadius: 8)
-            .stroke(.compound.borderInteractivePrimary, lineWidth: 1))
-        .padding(16)
+    }
+    
+    @ViewBuilder
+    private var joinButton: some View {
+        let button = Button { context?.send(viewAction: .joinActiveCall(isVoiceCall: isVoiceCall)) } label: {
+            Text(L10n.actionJoin)
+                .font(.compound.bodyMDSemibold)
+                .frame(maxWidth: .infinity)
+                .foregroundStyle(isOutgoing ? OwnBubbleInk.solid.onStrongFill : .compound.textOnSolidPrimary)
+                .padding(.vertical, 8)
+                .background(isOutgoing ? OwnBubbleInk.solid.strongFill : .compound.bgActionPrimaryRest, in: .capsule)
+                .contentShape(.capsule)
+        }
+        
+        button.buttonStyle(.plain)
     }
     
     @ViewBuilder

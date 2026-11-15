@@ -16,7 +16,7 @@ import OrderedCollections
 class ClientProxy: ClientProxyProtocol {
     private let client: ClientProtocol
     private let networkMonitor: NetworkMonitorProtocol
-    private let appSettings: AppSettings
+    private let userSettings: UserSettings
     private let analyticsService: AnalyticsServiceProtocol
     
     let mediaLoader: MediaLoaderProtocol
@@ -54,6 +54,8 @@ class ClientProxy: ClientProxyProtocol {
     private var liveLocationOwnInfoUpdatesListenerTaskHandle: TaskHandle?
     
     private var delegateHandle: TaskHandle?
+    
+    private var searchBackfillTaskHandle: TaskHandle?
     
     // These following summary providers both operate on the same allRooms() list but
     // can apply their own filtering and pagination
@@ -139,10 +141,10 @@ class ClientProxy: ClientProxyProtocol {
         userProfileSubject.asCurrentValuePublisher()
     }
     
-    private let ignoredUsersSubject = CurrentValueSubject<[String]?, Never>(nil)
+    // AGENT-PLATFORM: the SDK's first value is not the account's list after a relaunch.
+    private let ignoredUsers = IgnoredUsersList()
     var ignoredUsersPublisher: CurrentValuePublisher<[String]?, Never> {
-        ignoredUsersSubject
-            .asCurrentValuePublisher()
+        ignoredUsers.publisher
     }
     
     private var cancellables = Set<AnyCancellable>()
@@ -205,25 +207,20 @@ class ClientProxy: ClientProxyProtocol {
     
     init(client: ClientProtocol,
          networkMonitor: NetworkMonitorProtocol,
-         appSettings: AppSettings,
+         userSettings: UserSettings,
          analyticsService: AnalyticsServiceProtocol) async throws {
         self.client = client
         self.networkMonitor = networkMonitor
-        self.appSettings = appSettings
+        self.userSettings = userSettings
         self.analyticsService = analyticsService
         
         userProfileSubject = .init(UserProfile(userID: (try? client.userId()) ?? ""))
-        
-        if appSettings.automaticBackPaginationEnabled {
-            // Must be called before creating the sync service, timelines etc.
-            client.enableAutomaticBackpagination()
-        }
         
         mediaLoader = MediaLoader(client: client)
         
         // Route media downloads through a content scanner when one has been configured for the server,
         // and expose a proxy for the active scanning of content in the timeline.
-        if let contentScannerURL = appSettings.contentScannerURL.publisher.value, let client = client as? Client {
+        if let contentScannerURL = userSettings.app.contentScannerURL.publisher.value, let client = client as? Client {
             let scanner = ContentScanner(scannerUrl: contentScannerURL.absoluteString)
             await client.setContentScanner(contentScanner: scanner)
             contentScanner = ContentScannerProxy(contentScanner: scanner, client: client)
@@ -248,7 +245,7 @@ class ClientProxy: ClientProxyProtocol {
         
         let configuredAppService = try await ClientProxyServices(client: client,
                                                                  notificationSettings: notificationSettings,
-                                                                 appSettings: appSettings)
+                                                                 userSettings: userSettings)
         
         syncService = configuredAppService.syncService
         roomListService = configuredAppService.roomListService
@@ -281,7 +278,7 @@ class ClientProxy: ClientProxyProtocol {
         
         try await client.setUtdDelegate(utdDelegate: Self.makeDecryptionErrorDelegate(actionsSubject: actionsSubject))
         
-        let canSubscribeToUserProfile = if appSettings.userStatusEnabled, case .success(true) = await isUserStatusSupported() {
+        let canSubscribeToUserProfile = if await (try? client.isProfilesSlidingSyncExtensionSupported()) == true {
             true
         } else {
             false
@@ -310,6 +307,9 @@ class ClientProxy: ClientProxyProtocol {
             mediaPreviewConfigListenerTaskHandle = await createMediaPreviewConfigObserver()
         }
         
+        // AGENT-PLATFORM (decision 253): no automatic call status (MSC4426) in 1.0.2 — it
+        // publishes "in a call" to others; see `isUserStatusSupported`.
+        
         liveLocationOwnInfoUpdatesListenerTaskHandle = createLiveLocationOwnInfoUpdatesObserver()
     }
     
@@ -337,6 +337,10 @@ class ClientProxy: ClientProxyProtocol {
     
     var canDeactivateAccount: Bool {
         client.canDeactivateAccount()
+    }
+    
+    var totalUnreadNotifications: UInt64 {
+        client.totalUnreadNotifications()
     }
     
     var userIDServerName: String? {
@@ -464,6 +468,25 @@ class ClientProxy: ClientProxyProtocol {
         await transitionServices(to: .suspended).value
     }
     
+    func startSearchBackfill(strategy: SearchBackfillStrategy) {
+        if strategy == .foreground, isSearchBackfillRunning {
+            return
+        }
+        
+        MXLog.info("Starting search backfill with strategy: \(strategy)")
+        searchBackfillTaskHandle?.cancel()
+        searchBackfillTaskHandle = client.runSearchBackfill(strategy: strategy)
+    }
+    
+    func stopSearchBackfill() {
+        searchBackfillTaskHandle?.cancel()
+        searchBackfillTaskHandle = nil
+    }
+    
+    var isSearchBackfillRunning: Bool {
+        searchBackfillTaskHandle?.isFinished() == false
+    }
+    
     func expireSyncSessions() async {
         await syncService.expireSessions()
     }
@@ -508,7 +531,7 @@ class ClientProxy: ClientProxyProtocol {
         do {
             let parameters = CreateRoomParameters(name: nil,
                                                   topic: nil,
-                                                  isEncrypted: !appSettings.forceDisableE2EE.publisher.value,
+                                                  isEncrypted: !userSettings.app.forceDisableE2EE.publisher.value,
                                                   isDirect: true,
                                                   visibility: .private,
                                                   preset: .trustedPrivateChat,
@@ -551,7 +574,7 @@ class ClientProxy: ClientProxyProtocol {
             
             let parameters = CreateRoomParameters(name: name,
                                                   topic: topic,
-                                                  isEncrypted: !appSettings.forceDisableE2EE.publisher.value && accessType.isEncrypted,
+                                                  isEncrypted: !userSettings.app.forceDisableE2EE.publisher.value && accessType.isEncrypted,
                                                   isDirect: false,
                                                   visibility: accessType.visibility,
                                                   preset: accessType.preset,
@@ -792,13 +815,10 @@ class ClientProxy: ClientProxyProtocol {
         }
     }
     
+    // AGENT-PLATFORM (decision 253): User Status is off in 1.0.2 (presence privacy), whatever the
+    // homeserver supports, so Settings offers no status and nothing is published.
     func isUserStatusSupported() async -> Result<Bool, ClientProxyError> {
-        do {
-            return try await .success(client.isUserStatusSupported())
-        } catch {
-            MXLog.error("Failed detecting user status support with error: \(error)")
-            return .failure(.sdkError(error))
-        }
+        .success(false)
     }
     
     func setUserStatus(_ status: UserStatus.Raw) async -> Result<Void, ClientProxyError> {
@@ -812,7 +832,7 @@ class ClientProxy: ClientProxyProtocol {
         }
     }
     
-    func removeUserStatus() async -> Result<Void, ClientProxyError> {
+    func clearUserStatus() async -> Result<Void, ClientProxyError> {
         do {
             try await client.clearUserStatus()
             // No need to refresh the profile, we only support user status with the profiles /sync extension.
@@ -823,13 +843,44 @@ class ClientProxy: ClientProxyProtocol {
         }
     }
     
-    func removeCallStatus() async -> Result<Void, ClientProxyError> {
+    // AGENT-PLATFORM: feed (Brief 0082, decision 284). The bio's text is never logged.
+    func canSetUserBio() async -> Bool {
         do {
-            try await client.clearCallStatus()
-            // No need to refresh the profile, we only support user status with the profiles /sync extension.
+            return try await client.canSetProfileField(field: FeedBio.fieldName)
+        } catch {
+            MXLog.error("Failed checking whether the bio can be set, not offering it: \(error)")
+            return false
+        }
+    }
+    
+    // AGENT-PLATFORM: feed (Brief 0082, decision 284)
+    func userBio() async -> Result<String?, ClientProxyError> {
+        do {
+            return try await .success(client.ownProfileField(field: FeedBio.fieldName))
+        } catch {
+            MXLog.error("Failed reading the bio: \(error)")
+            return .failure(.sdkError(error))
+        }
+    }
+    
+    // AGENT-PLATFORM: feed (Brief 0082, decision 284)
+    func setUserBio(_ bio: String) async -> Result<Void, ClientProxyError> {
+        do {
+            try await client.setOwnProfileField(field: FeedBio.fieldName, value: bio)
             return .success(())
         } catch {
-            MXLog.error("Failed removing call status with error: \(error)")
+            MXLog.error("Failed setting the bio (\(bio.count) characters): \(error)")
+            return .failure(.sdkError(error))
+        }
+    }
+    
+    // AGENT-PLATFORM: feed (Brief 0082, decision 284)
+    func removeUserBio() async -> Result<Void, ClientProxyError> {
+        do {
+            try await client.deleteOwnProfileField(field: FeedBio.fieldName)
+            return .success(())
+        } catch {
+            MXLog.error("Failed removing the bio: \(error)")
             return .failure(.sdkError(error))
         }
     }
@@ -838,10 +889,9 @@ class ClientProxy: ClientProxyProtocol {
         LinkNewDeviceService(handler: client.newGrantLoginWithQrCodeHandler())
     }
     
-    func deactivateAccount(password: String?, eraseData: Bool) async -> Result<Void, ClientProxyError> {
+    func deactivateAccount(password: String, eraseData: Bool) async -> Result<Void, ClientProxyError> {
         do {
-            try await client.deactivateAccount(authData: password.map { .password(passwordDetails: .init(identifier: userID, password: $0)) },
-                                               eraseData: eraseData)
+            try await client.deactivateAccount(password: password, eraseData: eraseData)
             return .success(())
         } catch {
             return .failure(.sdkError(error))
@@ -863,7 +913,11 @@ class ClientProxy: ClientProxyProtocol {
                                    deviceDisplayName: configuration.deviceDisplayName,
                                    profileTag: configuration.profileTag,
                                    lang: configuration.lang,
-                                   append: false)
+                                   append: configuration.append)
+    }
+    
+    func deletePusher(with identifiers: PusherIdentifiers) async throws {
+        try await client.deletePusher(identifiers: identifiers)
     }
     
     func searchUsers(searchTerm: String, limit: UInt) async -> Result<SearchUsersResults, ClientProxyError> {
@@ -965,6 +1019,17 @@ class ClientProxy: ClientProxyProtocol {
     
     // MARK: Ignored users
     
+    // AGENT-PLATFORM (Brief 0082)
+    func refreshAccessTokenIfExpired() async {
+        do {
+            // Any authenticated request does (the NSE's `FeedPushTokenRefresher` uses the same one): on
+            // `M_UNKNOWN_TOKEN` the SDK refreshes, saves the session through its delegate and retries.
+            _ = try await client.ignoredUsers()
+        } catch {
+            MXLog.error("The access token check failed: \(type(of: error))")
+        }
+    }
+    
     func ignoreUser(_ userID: String) async -> Result<Void, ClientProxyError> {
         do {
             try await client.ignoreUser(userId: userID)
@@ -997,7 +1062,17 @@ class ClientProxy: ClientProxyProtocol {
         }
     }
     
-    func recentlyVisitedRooms(filter: @Sendable (JoinedRoomProxyProtocol) -> Bool) async -> [JoinedRoomProxyProtocol] {
+    func recentlyVisitedRoomIDs() async -> Result<[String], ClientProxyError> {
+        do {
+            let result = try await client.getRecentlyVisitedRooms()
+            return .success(result)
+        } catch {
+            MXLog.error("Failed retrieving recently visited rooms with error: \(error)")
+            return .failure(.sdkError(error))
+        }
+    }
+    
+    func recentlyVisitedRooms(filter: @Sendable (JoinedRoomProxyProtocol) async -> Bool) async -> [JoinedRoomProxyProtocol] {
         let maxResultsToReturn = 5
         
         guard case let .success(roomIdentifiers) = await recentlyVisitedRoomIDs() else {
@@ -1008,7 +1083,7 @@ class ClientProxy: ClientProxyProtocol {
         
         for roomID in roomIdentifiers {
             guard case let .joined(roomProxy) = await roomForIdentifier(roomID),
-                  filter(roomProxy) else {
+                  await filter(roomProxy) else {
                 continue
             }
             
@@ -1049,16 +1124,6 @@ class ClientProxy: ClientProxyProtocol {
         }
         
         return users.elements
-    }
-    
-    private func recentlyVisitedRoomIDs() async -> Result<[String], ClientProxyError> {
-        do {
-            let result = try await client.getRecentlyVisitedRooms()
-            return .success(result)
-        } catch {
-            MXLog.error("Failed retrieving recently visited rooms with error: \(error)")
-            return .failure(.sdkError(error))
-        }
     }
     
     // MARK: Moderation & Safety
@@ -1152,7 +1217,7 @@ class ClientProxy: ClientProxyProtocol {
         }
         
         ignoredUsersListenerTaskHandle = client.subscribeToIgnoredUsers(listener: SDKListener.onMainActor { [weak self] ignoredUsers in
-            self?.ignoredUsersSubject.send(ignoredUsers)
+            self?.ignoredUsers.subscriptionDelivered(ignoredUsers) // AGENT-PLATFORM
         })
         
         await updateVerificationState(client.encryption().verificationState())
@@ -1230,7 +1295,7 @@ class ClientProxy: ClientProxyProtocol {
     private func reconcileServiceState() async {
         switch desiredServiceState {
         case .running(let offline):
-            if appSettings.clientPausingAndResumingEnabled {
+            if userSettings.app.clientPausingAndResumingEnabled {
                 do {
                     MXLog.info("Resuming client")
                     try await client.resume()
@@ -1251,7 +1316,8 @@ class ClientProxy: ClientProxyProtocol {
             
             // If we are using OAuth we want to cache the account management URL in volatile memory on the SDK side.
             // To avoid the cache being invalidated while the app is backgrounded, we cache at every sync start.
-            await cacheAccountURL()
+            // Fire and forget as it might hit the network.
+            Task { await cacheAccountURL() }
             
             // Nudge the send queue listener to re-evaluate now that we're running; a resume doesn't otherwise
             // emit, and the SDK only re-enables queues when client.resume() runs (gated behind the flag).
@@ -1259,11 +1325,13 @@ class ClientProxy: ClientProxyProtocol {
         case .suspended:
             updateHomeserverReachability()
             
+            stopSearchBackfill()
+            
             MXLog.info("Stopping sync")
             await syncService.stop()
             MXLog.info("Sync stopped")
             
-            if appSettings.clientPausingAndResumingEnabled {
+            if userSettings.app.clientPausingAndResumingEnabled {
                 do {
                     MXLog.info("Pausing client")
                     try await client.pause()
@@ -1410,7 +1478,7 @@ class ClientProxy: ClientProxyProtocol {
                 // Hide the sync spinner as soon as we get any update back
                 actionsSubject.send(.receivedSyncUpdate)
                 
-                if ignoredUsersSubject.value == nil {
+                if !ignoredUsers.isKnown { // AGENT-PLATFORM
                     updateIgnoredUsers()
                 }
             case .error, .terminated:
@@ -1446,7 +1514,7 @@ class ClientProxy: ClientProxyProtocol {
             case .joined:
                 let roomProxy = try await JoinedRoomProxy(roomListService: roomListService,
                                                           room: room,
-                                                          appSettings: appSettings,
+                                                          userSettings: userSettings,
                                                           analyticsService: analyticsService,
                                                           eventStringBuilder: eventStringBuilder)
                 
@@ -1483,12 +1551,12 @@ class ClientProxy: ClientProxyProtocol {
     }
     
     private func updateIgnoredUsers() {
-        Task {
-            do {
-                let ignoredUsers = try await client.ignoredUsers()
-                ignoredUsersSubject.send(ignoredUsers)
-            } catch {
-                MXLog.error("Failed fetching ignored users with error: \(error)")
+        // AGENT-PLATFORM: retried while unknown; weak, so the tries never keep a signed-out proxy alive.
+        Task { [weak self] in
+            guard let list = self?.ignoredUsers else { return }
+            await list.load { [weak self] in
+                guard let self else { throw CancellationError() }
+                return try await client.ignoredUsers()
             }
         }
     }
@@ -1601,15 +1669,12 @@ private struct ClientProxyServices {
     
     init(client: ClientProtocol,
          notificationSettings: NotificationSettingsProxyProtocol,
-         appSettings: AppSettings) async throws {
-        var syncServiceBuilder = client
+         userSettings: UserSettings) async throws {
+        let syncService = try await client
             .syncService()
             .withOfflineMode()
             .withSharePos(enable: true)
-        if appSettings.userStatusEnabled {
-            syncServiceBuilder = syncServiceBuilder.withProfilesExtension()
-        }
-        let syncService = try await syncServiceBuilder.finish()
+            .finish()
         
         let roomListService = syncService.roomListService()
         
@@ -1625,24 +1690,47 @@ private struct ClientProxyServices {
                                                   eventStringBuilder: eventStringBuilder,
                                                   name: "AllRooms",
                                                   shouldUpdateVisibleRange: true,
+                                                  includesJoinedSpaces: !userSettings.app.spacesEnabled, // AGENT-PLATFORM (decision 301)
                                                   notificationSettings: notificationSettings,
-                                                  appSettings: appSettings)
+                                                  userSettings: userSettings)
         try await roomSummaryProvider.setRoomList(roomListService.allRooms())
         
         alternateRoomSummaryProvider = RoomSummaryProvider(roomListService: roomListService,
                                                            eventStringBuilder: eventStringBuilder,
                                                            name: "AlternateAllRooms",
+                                                           includesOnlyJoinedRooms: true,
                                                            notificationSettings: notificationSettings,
-                                                           appSettings: appSettings)
-        try await alternateRoomSummaryProvider.setRoomList(roomListService.allRooms())
+                                                           userSettings: userSettings)
         
         staticRoomSummaryProvider = RoomSummaryProvider(roomListService: roomListService,
                                                         eventStringBuilder: eventStringBuilder,
                                                         name: "StaticAllRooms",
                                                         roomListPageSize: .max,
                                                         notificationSettings: notificationSettings,
-                                                        appSettings: appSettings)
-        try await staticRoomSummaryProvider.setRoomList(roomListService.allRooms())
+                                                        userSettings: userSettings)
+        
+        // Setting a provider's room list will create summaries for every room so
+        // wait until the app is fully running for the alternate and static providers.
+        Task { [roomSummaryProvider, alternateRoomSummaryProvider, staticRoomSummaryProvider] in
+            // Wait for actual content (or a loaded-but-empty account) as the loading state
+            // doesn't take into account the app having build and published any summaries.
+            for await rooms in roomSummaryProvider.roomListPublisher.values {
+                if !rooms.isEmpty {
+                    break
+                }
+                
+                if case .loaded(0) = roomSummaryProvider.statePublisher.value {
+                    break
+                }
+            }
+            
+            do {
+                try await alternateRoomSummaryProvider.setRoomList(roomListService.allRooms())
+                try await staticRoomSummaryProvider.setRoomList(roomListService.allRooms())
+            } catch {
+                fatalError("Failed setting up the deferred room summary providers: \(error)")
+            }
+        }
         
         self.syncService = syncService
         self.roomListService = roomListService

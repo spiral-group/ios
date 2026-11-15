@@ -96,8 +96,10 @@ nonisolated struct SpiralAppPost: Equatable {
     /// `1.<level>` is the same runtime with names added later — `1.1`
     /// brought the games (`useSeats`, `useLeaderboard`, `<Leaderboard>`,
     /// § 5.75). A post says the level its imports need, so a build that
-    /// predates them shows the card rather than failing to link.
-    static let supportedRuntimes: Set = ["1", "1.1"]
+    /// predates them shows the card rather than failing to link. `1.2` brought
+    /// the motion helpers (`animate`, `spring`, `EASE`, `burst`, `crossings`
+    /// in `@spiral/play`) and `useLayoutEffect` (question 412).
+    static let supportedRuntimes: Set = ["1", "1.1", "1.2"]
 
     /// Whether this build can run the post at all.
     var isRuntimeSupported: Bool {

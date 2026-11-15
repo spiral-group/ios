@@ -25,15 +25,12 @@ enum MediaPickerScreenSelectionType: Hashable {
     /// Multiple items, up to the given limit.
     case multiple(limit: Int)
     
-    /// The number of attachments a gallery may contain, as recommended by
-    /// [MSC4274](https://github.com/matrix-org/matrix-spec-proposals/pull/4274).
-    static let galleryLimit = 60
-    /// The number of items to allow when each is sent as an individual message.
-    static let individualUploadLimit = 10
+    // AGENT-PLATFORM (question 413): an album holds up to ten, as Telegram's does. The Files picker has no limit.
+    static let multipleLimit = 10
     
-    /// Multiple items, capped for a gallery when they're sent as one, or for individual uploads when not.
-    static func multiple(galleryEnabled: Bool) -> Self {
-        .multiple(limit: galleryEnabled ? galleryLimit : individualUploadLimit)
+    /// Up to ``multipleLimit`` items from the photo library: photos and videos go as one album.
+    static var multipleItems: Self {
+        .multiple(limit: multipleLimit)
     }
 }
 

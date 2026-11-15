@@ -11,12 +11,11 @@ import SwiftUI
 
 struct AgentSpacesScreenCoordinatorParameters {
     let userSession: UserSessionProtocol
-    let agentPlatformService: AgentPlatformServiceProtocol
+    let store: AgentsStore
 }
 
 enum AgentSpacesScreenCoordinatorAction {
     case selectAgent(AgentSelection)
-    case showSettings
     case showCreateCompany
     case showCreateAgent(AgentSpaceSummary)
     case showEditCompany(AgentSpaceDetail)
@@ -34,7 +33,7 @@ final class AgentSpacesScreenCoordinator: CoordinatorProtocol {
     
     init(parameters: AgentSpacesScreenCoordinatorParameters) {
         viewModel = AgentSpacesScreenViewModel(userSession: parameters.userSession,
-                                               agentPlatformService: parameters.agentPlatformService)
+                                               store: parameters.store)
     }
     
     func start() {
@@ -43,8 +42,6 @@ final class AgentSpacesScreenCoordinator: CoordinatorProtocol {
             switch action {
             case .selectAgent(let selection):
                 actionsSubject.send(.selectAgent(selection))
-            case .showSettings:
-                actionsSubject.send(.showSettings)
             case .showCreateCompany:
                 actionsSubject.send(.showCreateCompany)
             case .showCreateAgent(let company):
@@ -58,10 +55,10 @@ final class AgentSpacesScreenCoordinator: CoordinatorProtocol {
         .store(in: &cancellables)
     }
     
-    /// Re-fetch the directory — the flow coordinator calls this when a
-    /// mutation elsewhere (create company, archive agent, …) changed it.
+    /// Read the spaces now — the flow coordinator calls this when the
+    /// person's own change elsewhere (create company, archive agent, …) changed them.
     func reload() {
-        Task { await viewModel.reload() }
+        viewModel.reload()
     }
     
     func toPresentable() -> AnyView {

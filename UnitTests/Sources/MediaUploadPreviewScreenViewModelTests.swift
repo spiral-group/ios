@@ -6,8 +6,8 @@
 // Please see LICENSE files in the repository root for full details.
 //
 
-@testable import ElementX
 import Foundation
+@testable import Spiral
 import Testing
 
 @MainActor
@@ -15,7 +15,7 @@ final class MediaUploadPreviewScreenViewModelTests {
     var timelineProxy: TimelineProxyMock!
     var clientProxy: ClientProxyMock!
     var userIndicatorController: UserIndicatorControllerMock
-    private let appSettings: AppSettings
+    private let userSettings: UserSettings
     
     var viewModel: MediaUploadPreviewScreenViewModel!
     var context: MediaUploadPreviewScreenViewModel.Context {
@@ -28,10 +28,39 @@ final class MediaUploadPreviewScreenViewModelTests {
     }
     
     init() {
-        appSettings = AppSettings.volatile()
-        appSettings.optimizeMediaUploads = false
+        userSettings = UserSettings.mock()
+        userSettings.app.optimizeMediaUploads = false
         
         userIndicatorController = UserIndicatorControllerMock()
+    }
+    
+    @Test
+    func cancelWhileSendWaitsForPreparation() async throws {
+        // Given a screen whose media preparation is still running.
+        let (startedStream, startedContinuation) = AsyncStream<Void>.makeStream()
+        let (resumeStream, resumeContinuation) = AsyncStream<Void>.makeStream()
+        defer { resumeContinuation.finish() }
+        
+        let preparationStarted = deferFulfillment(startedStream) { _ in true }
+        setUpViewModel(urls: [imageURL], expectedCaption: nil) {
+            startedContinuation.yield()
+            var iterator = resumeStream.makeAsyncIterator()
+            _ = await iterator.next() // Only returns once the preparation is cancelled.
+            return .success(100 * 1024 * 1024)
+        }
+        try await preparationStarted.fulfill()
+        
+        // When sending and then dismissing the screen before the preparation finishes.
+        context.send(viewAction: .send)
+        let loadingFinished = deferFulfillment(context.observe(\.viewState.shouldDisableInteraction)) { !$0 }
+        context.send(viewAction: .cancel)
+        viewModel.stopProcessing() // Called by the coordinator when the screen is dismissed.
+        try await loadingFinished.fulfill()
+        
+        // Then nothing is sent and no error is shown.
+        #expect(timelineProxy.sendImageUrlThumbnailURLImageInfoCaptionRequestHandleCallsCount == 0)
+        #expect(userIndicatorController.submitIndicatorDelayCallsCount == 1, "Only the loading indicator should be shown")
+        #expect(context.viewState.bindings.alertInfo == nil)
     }
     
     @Test
@@ -180,32 +209,49 @@ final class MediaUploadPreviewScreenViewModelTests {
     }
     
     @Test
-    func gallery() async throws {
-        // Given an upload screen with multiple media files.
-        setUpViewModel(urls: [fileURL, imageURL, fileURL], expectedCaption: nil)
+    func album() async throws {
+        // Given an upload screen with several photos and a caption.
+        let caption = "Waterfalls from the trip"
+        setUpViewModel(urls: [imageURL, imageURL, imageURL], expectedCaption: caption)
+        context.caption = .init(string: caption)
         #expect(!context.viewState.shouldDisableInteraction)
         #expect(userIndicatorController.submitIndicatorDelayCallsCount == 0)
         
-        // When attempting to send the files.
+        // When attempting to send them.
         let deferredDismiss = deferFulfillment(viewModel.actions) { $0 == .dismiss }
         context.send(viewAction: .send)
         
         #expect(context.viewState.shouldDisableInteraction, "The interaction should be disabled while sending.")
         #expect(userIndicatorController.submitIndicatorDelayCallsCount == 1) // Loading indicator
         
-        // Then the screen should be dismissed once the gallery has been sent in a single request.
+        // Then the screen should be dismissed once the album has been sent in a single request, with the one caption.
         try await deferredDismiss.fulfill()
         #expect(timelineProxy.sendGalleryItemInfosCaptionInReplyToEventIDCallsCount == 1)
         #expect(timelineProxy.sendGalleryItemInfosCaptionInReplyToEventIDReceivedArguments?.itemInfos.count == 3)
         #expect(timelineProxy.sendImageUrlThumbnailURLImageInfoCaptionRequestHandleCallsCount == 0)
-        #expect(timelineProxy.sendFileUrlFileInfoCaptionRequestHandleCallsCount == 0)
         #expect(userIndicatorController.submitIndicatorDelayCallsCount == 1, "Only a loading indicator should be shown.")
     }
     
+    @Test(.timeLimit(.minutes(2))) // Transcoding videos can be slow on a busy CI runner.
+    func albumOfPhotosAndVideos() async throws {
+        // Given an upload screen with a photo and a video.
+        setUpViewModel(urls: [imageURL, videoURL], expectedCaption: nil)
+        
+        // When attempting to send them.
+        let deferredDismiss = deferFulfillment(viewModel.actions, timeout: .seconds(60)) { $0 == .dismiss }
+        context.send(viewAction: .send)
+        
+        // Then they should go as one album.
+        try await deferredDismiss.fulfill()
+        #expect(timelineProxy.sendGalleryItemInfosCaptionInReplyToEventIDCallsCount == 1)
+        #expect(timelineProxy.sendGalleryItemInfosCaptionInReplyToEventIDReceivedArguments?.itemInfos.count == 2)
+        #expect(timelineProxy.sendVideoUrlThumbnailURLVideoInfoCaptionRequestHandleCallsCount == 0)
+    }
+    
     @Test
-    func galleryWithProcessingFailure() async throws {
+    func albumWithProcessingFailure() async throws {
         // Given an upload screen for a non-existent file.
-        setUpViewModel(urls: [imageURL, fileURL, badImageURL], expectedCaption: nil)
+        setUpViewModel(urls: [imageURL, imageURL, badImageURL], expectedCaption: nil)
         #expect(!context.viewState.shouldDisableInteraction)
         #expect(userIndicatorController.submitIndicatorDelayCallsCount == 0)
         
@@ -225,9 +271,9 @@ final class MediaUploadPreviewScreenViewModelTests {
     }
     
     @Test
-    func galleryWithSendFailure() async throws {
-        // Given an upload screen with multiple media files where the gallery send fails.
-        setUpViewModel(urls: [fileURL, imageURL, imageURL, fileURL], expectedCaption: nil, simulateGallerySendFailure: true)
+    func albumWithSendFailure() async throws {
+        // Given an upload screen with several photos where the album send fails.
+        setUpViewModel(urls: [imageURL, imageURL, imageURL], expectedCaption: nil, simulateGallerySendFailure: true)
         #expect(!context.viewState.shouldDisableInteraction)
         #expect(userIndicatorController.submitIndicatorDelayCallsCount == 0)
         
@@ -245,20 +291,35 @@ final class MediaUploadPreviewScreenViewModelTests {
     }
     
     @Test
-    func galleryDisabledSendsIndividualMessages() async throws {
-        // Given an upload screen with multiple media files and gallery sending disabled.
-        setUpViewModel(urls: [fileURL, imageURL, fileURL], expectedCaption: nil, galleryEnabled: false)
+    func filesPickedTogetherGoOneByOne() async throws {
+        // Given an upload screen with files picked together, one of them a photo.
+        setUpViewModel(urls: [fileURL, imageURL, fileURL], expectedCaption: nil)
         #expect(!context.viewState.shouldDisableInteraction)
         
         // When attempting to send the files.
         let deferredDismiss = deferFulfillment(viewModel.actions) { $0 == .dismiss }
         context.send(viewAction: .send)
         
-        // Then each file should be sent as an individual message rather than a single gallery.
+        // Then each file should be sent as an individual message rather than an album, as upstream does.
         try await deferredDismiss.fulfill()
         #expect(timelineProxy.sendGalleryItemInfosCaptionInReplyToEventIDCallsCount == 0)
         #expect(timelineProxy.sendFileUrlFileInfoCaptionRequestHandleCallsCount == 2)
         #expect(timelineProxy.sendImageUrlThumbnailURLImageInfoCaptionRequestHandleCallsCount == 1)
+    }
+    
+    @Test
+    func morePicturesThanAnAlbumHoldsGoOneByOne() async throws {
+        // Given more photos than an album holds, as only the Files picker allows.
+        setUpViewModel(urls: Array(repeating: imageURL, count: MediaPickerScreenSelectionType.multipleLimit + 1), expectedCaption: nil)
+        
+        // When attempting to send them.
+        let deferredDismiss = deferFulfillment(viewModel.actions, timeout: .seconds(30)) { $0 == .dismiss }
+        context.send(viewAction: .send)
+        
+        // Then each should be sent as an individual message.
+        try await deferredDismiss.fulfill()
+        #expect(timelineProxy.sendGalleryItemInfosCaptionInReplyToEventIDCallsCount == 0)
+        #expect(timelineProxy.sendImageUrlThumbnailURLImageInfoCaptionRequestHandleCallsCount == MediaPickerScreenSelectionType.multipleLimit + 1)
     }
     
     // MARK: - Helpers
@@ -293,7 +354,7 @@ final class MediaUploadPreviewScreenViewModelTests {
                                 expectedCaption: String?,
                                 maxUploadSizeResult: Result<UInt, ClientProxyError>? = nil,
                                 simulateGallerySendFailure: Bool = false,
-                                galleryEnabled: Bool = true) {
+                                maxUploadSizeClosure: (() async -> Result<UInt, ClientProxyError>)? = nil) {
         timelineProxy = TimelineProxyMock(.init())
         timelineProxy.sendAudioUrlAudioInfoCaptionRequestHandleClosure = { [weak self] _, _, caption, _ in
             self?.verifyCaption(caption, expectedCaption: expectedCaption) ?? .failure(.sdkError(TestError.unknown))
@@ -316,13 +377,12 @@ final class MediaUploadPreviewScreenViewModelTests {
         if let maxUploadSizeResult {
             clientProxy.underlyingMaxMediaUploadSize = maxUploadSizeResult
         }
+        clientProxy.maxMediaUploadSizeClosure = maxUploadSizeClosure
         
         viewModel = MediaUploadPreviewScreenViewModel(mediaURLs: urls,
                                                       caption: nil,
                                                       title: "Some File",
-                                                      shouldShowCaptionWarning: true,
-                                                      galleryEnabled: galleryEnabled,
-                                                      mediaUploadingPreprocessor: MediaUploadingPreprocessor(appSettings: appSettings),
+                                                      mediaUploadingPreprocessor: MediaUploadingPreprocessor(userSettings: userSettings),
                                                       timelineController: TimelineControllerMock(.init(timelineProxy: timelineProxy)),
                                                       clientProxy: clientProxy,
                                                       userIndicatorController: userIndicatorController)

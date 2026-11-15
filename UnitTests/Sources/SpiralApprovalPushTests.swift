@@ -7,8 +7,8 @@
 // (`spiral.reason`, backend `adapters/spiral_push.rs` `spiral_payload`), and the NSE words
 // the banner from it with the approval card's mapping — no REST call from the extension.
 
-@testable import ElementX
 import Foundation
+@testable import Spiral
 import Testing
 import UserNotifications
 

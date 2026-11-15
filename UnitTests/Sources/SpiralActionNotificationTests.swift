@@ -5,8 +5,8 @@
 // action's own JSON.
 //
 
-@testable import ElementX
 import Foundation
+@testable import Spiral
 import Testing
 import UserNotifications
 
@@ -65,6 +65,19 @@ struct SpiralActionNotificationTests {
                                                            receiverID: "@bob:spiral.md"))
         #expect(action.line(in: "uk") == "emm2 поставив O")
         #expect(action.line(in: "de") == "emm2 placed O", "English when the reader's is not there")
+    }
+
+    /// L1: any member's line reaches the push, so it is a line, not a page.
+    @Test
+    func aLongLineIsCutForThePush() throws {
+        let long = String(repeating: "я", count: 5000)
+        let plain = try #require(SpiralActionNotification(rawEvent: Self.raw(line: long), receiverID: "@bob:spiral.md"))
+        let byLanguage = try #require(SpiralActionNotification(rawEvent: Self.raw(line: ["uk": long]), receiverID: "@bob:spiral.md"))
+
+        for line in [plain.line(in: "en"), byLanguage.line(in: "uk")] {
+            #expect(line?.unicodeScalars.count == SpiralAppActionLimits.maxSummaryLineScalars)
+            #expect(line?.hasSuffix("…") == true)
+        }
     }
 
     @Test

@@ -19,10 +19,12 @@ struct LoginScreen: View {
     
     var body: some View {
         ScrollView {
-            VStack(spacing: 0) {
+            // AGENT-PLATFORM (Brief 0083, decision 308): the title leads, left aligned, without the lock icon, and
+            // the fields sit closer together, as on the storyboard.
+            VStack(alignment: .leading, spacing: 0) {
                 header
                     .padding(.top, UIConstants.titleTopPaddingToNavigationBar)
-                    .padding(.bottom, 32)
+                    .padding(.bottom, CompoundDesignTokens.space8X)
                 
                 switch context.viewState.loginMode {
                 case .password:
@@ -36,26 +38,22 @@ struct LoginScreen: View {
                 }
             }
             .readableFrame()
-            .padding(.horizontal, 16)
-            .padding(.bottom, 16)
+            .padding(.horizontal, CompoundDesignTokens.space6X)
+            .padding(.bottom, CompoundDesignTokens.space4X)
         }
         .background(Color.compound.bgCanvasDefault.ignoresSafeArea())
         .navigationBarTitleDisplayMode(.inline)
         .alert(item: $context.alertInfo)
     }
     
-    /// The header containing the title and icon.
+    /// The header containing the title.
     var header: some View {
-        VStack(spacing: 8) {
-            BigIcon(icon: \.lockSolid)
-                .padding(.bottom, 8)
-            
-            Text(L10n.screenLoginTitleWithHomeserver(context.viewState.homeserver.address))
-                .font(.compound.headingMDBold)
-                .multilineTextAlignment(.center)
-                .foregroundColor(.compound.textPrimary)
-        }
-        .padding(.horizontal, 16)
+        // AGENT-PLATFORM (Brief 0083, decision 308): no lock icon; a larger title, left aligned.
+        Text(L10n.screenLoginTitleWithHomeserver(context.viewState.homeserver.accountProvider.serverNameOrBaseURL))
+            .font(.compound.headingLGBold)
+            .foregroundColor(.compound.textPrimary)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .accessibilityAddTraits(.isHeader)
     }
     
     /// The form with text fields for username and password, along with a submit button.
@@ -74,7 +72,7 @@ struct LoginScreen: View {
                 usernameFocusChanged(isFocussed: newValue)
             }
             .onSubmit { isPasswordFocused = true }
-            .padding(.bottom, 20)
+            .padding(.bottom, CompoundDesignTokens.space3X) // AGENT-PLATFORM (Brief 0083): the storyboard's spacing
             
             SecureField(text: $context.password) {
                 Text(L10n.commonPassword).foregroundColor(.compound.textSecondary)
@@ -85,7 +83,7 @@ struct LoginScreen: View {
             .submitLabel(.done)
             .onSubmit(submit)
             
-            Spacer().frame(height: 32)
+            Spacer().frame(height: CompoundDesignTokens.space6X) // AGENT-PLATFORM (Brief 0083): the storyboard's spacing
             
             Button(action: submit) {
                 Text(L10n.actionContinue)
@@ -98,11 +96,11 @@ struct LoginScreen: View {
     
     /// Text shown if neither password or OAuth login is supported.
     var loginUnavailableText: some View {
+        // AGENT-PLATFORM (Brief 0083): left aligned under the title.
         Text(L10n.screenLoginErrorUnsupportedAuthentication)
-            .font(.body)
-            .multilineTextAlignment(.center)
+            .font(.compound.bodyLG)
             .foregroundColor(.compound.textPrimary)
-            .frame(maxWidth: .infinity)
+            .frame(maxWidth: .infinity, alignment: .leading)
             .accessibilityIdentifier(A11yIdentifiers.loginScreen.unsupportedServer)
     }
     
@@ -123,11 +121,12 @@ struct LoginScreen: View {
 
 // MARK: - Previews
 
-@available(iOS 26.0, *)
-struct LoginScreen_Previews: PreviewProvider, TestablePreview {
+// AGENT-PLATFORM (Brief 0083): opted in to Spiral's gates. Without `@available(iOS 26.0, *)` it builds for the
+// iOS 18 lane, and `observe(_:)` resolves to its AsyncStream fallback.
+struct LoginScreen_Previews: PreviewProvider, TestablePreview, SpiralGatedPreview {
     static let viewModel = makeViewModel()
     static let credentialsViewModel = makeViewModel(withCredentials: true)
-    static let unconfiguredViewModel = makeViewModel(homeserverAddress: "somethingtofailconfiguration")
+    static let unconfiguredViewModel = makeViewModel(serverNameOrBaseURL: "somethingtofailconfiguration")
     
     static var previews: some View {
         ElementNavigationStack {
@@ -148,15 +147,14 @@ struct LoginScreen_Previews: PreviewProvider, TestablePreview {
         .previewDisplayName("Unsupported")
     }
     
-    static func makeViewModel(homeserverAddress: String = "example.com", withCredentials: Bool = false) -> LoginScreenViewModel {
+    static func makeViewModel(serverNameOrBaseURL: String = "example.com", withCredentials: Bool = false) -> LoginScreenViewModel {
         let authenticationService = AuthenticationService.mock
         
-        Task { await authenticationService.configure(for: homeserverAddress, flow: .login) }
+        Task { await authenticationService.configure(for: serverNameOrBaseURL, flow: .login) }
         
         let viewModel = LoginScreenViewModel(authenticationService: authenticationService,
                                              loginHint: nil,
-                                             userIndicatorController: UserIndicatorControllerMock(),
-                                             appSettings: .volatile())
+                                             userIndicatorController: UserIndicatorControllerMock()) // AGENT-PLATFORM (Brief 0083 L1b)
         
         if withCredentials {
             viewModel.context.username = "alice"

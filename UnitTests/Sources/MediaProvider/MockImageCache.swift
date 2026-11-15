@@ -5,20 +5,22 @@
 // SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial.
 // Please see LICENSE files in the repository root for full details.
 //
-@testable import ElementX
 @testable import Kingfisher
+@testable import Spiral
 import UIKit
 
 nonisolated class MockImageCache: ImageCache, @unchecked Sendable {
     var retrievedImagesInMemory = [String: UIImage]()
     var retrievedImages = [String: UIImage]()
     var storedImages = [String: UIImage]()
+    var retrieveOptions: KingfisherOptionsInfo?
     
     override func retrieveImageInMemoryCache(forKey key: String, options: KingfisherParsedOptionsInfo) -> KFCrossPlatformImage? {
         retrievedImagesInMemory[key]
     }
     
     override func retrieveImage(forKey key: String, options: KingfisherOptionsInfo? = nil, callbackQueue: CallbackQueue = .mainCurrentOrAsync, completionHandler: ((Result<ImageCacheResult, KingfisherError>) -> Void)?) {
+        retrieveOptions = options
         if let image = retrievedImages[key] {
             completionHandler?(.success(ImageCacheResult.disk(image)))
         } else {

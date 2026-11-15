@@ -2,7 +2,7 @@
 // Copyright 2026 the Spiral authors. AGPL-3.0-or-later.
 //
 
-@testable import ElementX
+@testable import Spiral
 import Testing
 
 // AGENT-PLATFORM (Brief 0067): Spiral ships `Secrets.swift` with every entry

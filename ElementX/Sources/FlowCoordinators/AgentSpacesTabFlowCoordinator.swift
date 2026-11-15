@@ -17,9 +17,6 @@ import SwiftState
 // agents; an agent opens its own flow on the detail stack. Company
 // create/edit and new role agents are sheets over the split.
 enum AgentSpacesTabFlowCoordinatorAction {
-    /// The user tapped their avatar — same affordance as the Chats and
-    /// Spaces tabs; the parent presents the settings flow.
-    case showSettings
     /// The owner asked to open a DM with one of their agents. Handled
     /// by the parent because the Agents tab knows nothing about Chats.
     case openDMWithAgent(matrixUserID: String)
@@ -28,6 +25,8 @@ enum AgentSpacesTabFlowCoordinatorAction {
     /// From a chat opened on an agent's stack.
     case presentCallScreen(roomProxy: JoinedRoomProxyProtocol, isVoiceCall: Bool)
     case presentAIConsentSettings
+    /// The Agents tab, where the person's agent is or will be (question 412).
+    case presentAgentsTab
     case verifyUser(userID: String)
 }
 
@@ -205,10 +204,10 @@ class AgentSpacesTabFlowCoordinator: FlowCoordinatorProtocol {
     /// pinned needs-action union + chronological activity feed. The
     /// decide flows stay on the existing detail screens.
     private func presentNotificationsHub() {
-        guard let approvalsStreamService = flowParameters.userSession.approvalsStreamService,
+        guard let agentsStore = flowParameters.userSession.agentsStore,
               let agentPlatformService = flowParameters.userSession.agentPlatformService else { return }
         
-        let coordinator = NotificationsHubScreenCoordinator(parameters: .init(approvalsStreamService: approvalsStreamService,
+        let coordinator = NotificationsHubScreenCoordinator(parameters: .init(store: agentsStore,
                                                                               agentPlatformService: agentPlatformService,
                                                                               clientProxy: flowParameters.userSession.clientProxy,
                                                                               userIndicatorController: flowParameters.userIndicatorController))
@@ -235,11 +234,13 @@ class AgentSpacesTabFlowCoordinator: FlowCoordinatorProtocol {
     /// A visitor's entry for a chat this device doesn't have: the assistant's
     /// «Общение с людьми», where the owner decides how it treats them.
     private func pushVisitorSettings(agent: AgentSpaceAgentCard) {
-        guard let agentPlatformService = flowParameters.userSession.agentPlatformService else { return }
+        guard let agentPlatformService = flowParameters.userSession.agentPlatformService,
+              let agentsStore = flowParameters.userSession.agentsStore else { return }
         
         let coordinator = AgentSettingsScreenCoordinator(parameters: .init(agent: agent,
                                                                            section: .people,
                                                                            agentPlatformService: agentPlatformService,
+                                                                           store: agentsStore,
                                                                            userIndicatorController: flowParameters.userIndicatorController))
         coordinator.actionsPublisher
             .sink { [weak self] action in
@@ -299,11 +300,11 @@ class AgentSpacesTabFlowCoordinator: FlowCoordinatorProtocol {
     }
     
     private func pushPublicProfile(targetMXID: String) {
-        guard let agentPlatformService = flowParameters.userSession.agentPlatformService else { return }
+        guard let agentsStore = flowParameters.userSession.agentsStore else { return }
         
         let coordinator = PublicProfileScreenCoordinator(parameters: .init(targetMXID: targetMXID,
                                                                            currentUserMXID: flowParameters.userSession.clientProxy.userID,
-                                                                           agentPlatformService: agentPlatformService))
+                                                                           store: agentsStore))
         coordinator.actionsPublisher
             .sink { [weak self] (action: PublicProfileScreenCoordinatorAction) in
                 switch action {
@@ -326,8 +327,7 @@ class AgentSpacesTabFlowCoordinator: FlowCoordinatorProtocol {
                                                                            userSession: flowParameters.userSession,
                                                                            navigationStackCoordinator: stackCoordinator,
                                                                            userIndicatorController: flowParameters.userIndicatorController,
-                                                                           orientationManager: flowParameters.appMediator.windowManager,
-                                                                           appSettings: flowParameters.appSettings))
+                                                                           orientationManager: flowParameters.appMediator.windowManager))
         
         coordinator.actionsPublisher
             .sink { [weak self] action in
@@ -381,8 +381,7 @@ class AgentSpacesTabFlowCoordinator: FlowCoordinatorProtocol {
                                                                          userSession: flowParameters.userSession,
                                                                          navigationStackCoordinator: stackCoordinator,
                                                                          userIndicatorController: flowParameters.userIndicatorController,
-                                                                         orientationManager: flowParameters.appMediator.windowManager,
-                                                                         appSettings: flowParameters.appSettings))
+                                                                         orientationManager: flowParameters.appMediator.windowManager))
         coordinator.actionsPublisher
             .sink { [weak self] action in
                 switch action {
@@ -399,10 +398,12 @@ class AgentSpacesTabFlowCoordinator: FlowCoordinatorProtocol {
     }
     
     private func startAgentFlow(selection: AgentSelection) {
-        guard let agentPlatformService = flowParameters.userSession.agentPlatformService else { return }
+        guard let agentPlatformService = flowParameters.userSession.agentPlatformService,
+              let agentsStore = flowParameters.userSession.agentsStore else { return }
         
         let coordinator = AgentFlowCoordinator(selection: selection,
                                                agentPlatformService: agentPlatformService,
+                                               agentsStore: agentsStore,
                                                navigationStackCoordinator: detailNavigationStackCoordinator,
                                                flowParameters: flowParameters)
         
@@ -422,6 +423,8 @@ class AgentSpacesTabFlowCoordinator: FlowCoordinatorProtocol {
                     actionsSubject.send(.presentCallScreen(roomProxy: roomProxy, isVoiceCall: isVoiceCall))
                 case .presentAIConsentSettings:
                     actionsSubject.send(.presentAIConsentSettings)
+                case .presentAgentsTab: // AGENT-PLATFORM (question 412)
+                    actionsSubject.send(.presentAgentsTab)
                 case .verifyUser(let userID):
                     actionsSubject.send(.verifyUser(userID: userID))
                 }
@@ -441,21 +444,19 @@ class AgentSpacesTabFlowCoordinator: FlowCoordinatorProtocol {
         // The agent-platform service is optional on UserSession (nil
         // when the homeserver isn't one we provision) — degrade to the
         // placeholder exactly like the pre-rebuild tab did.
-        guard let agentPlatformService = flowParameters.userSession.agentPlatformService else {
-            sidebarNavigationStackCoordinator.setRootCoordinator(PlaceholderScreenCoordinator(hideBrandChrome: flowParameters.appSettings.hideBrandChrome))
+        guard let agentsStore = flowParameters.userSession.agentsStore else {
+            sidebarNavigationStackCoordinator.setRootCoordinator(PlaceholderScreenCoordinator(hideBrandChrome: flowParameters.userSession.userSettings.app.hideBrandChrome))
             return
         }
         
         let coordinator = AgentSpacesScreenCoordinator(parameters: .init(userSession: flowParameters.userSession,
-                                                                         agentPlatformService: agentPlatformService))
+                                                                         store: agentsStore))
         
         coordinator.actionsPublisher.sink { [weak self] action in
             guard let self else { return }
             switch action {
             case .selectAgent(let selection):
                 stateMachine.tryEvent(.selectAgent, userInfo: selection)
-            case .showSettings:
-                actionsSubject.send(.showSettings)
             case .showCreateCompany:
                 stateMachine.tryEvent(.startCreateCompanyFlow)
             case .showCreateAgent(let company):

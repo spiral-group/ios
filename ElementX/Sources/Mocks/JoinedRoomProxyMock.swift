@@ -29,6 +29,8 @@ struct JoinedRoomProxyMockConfiguration {
     var alternativeAliases: [String] = []
     var pinnedEventIDs: Set<String> = []
     var historyVisibility: RoomHistoryVisibility = .shared
+    var unreadMessagesCount: UInt = 0
+    var fullyReadEventID: String?
     
     var timelineStartReached = false
     
@@ -50,8 +52,8 @@ struct JoinedRoomProxyMockConfiguration {
     var powerLevelsConfiguration = RoomPowerLevelsProxyMock.Configuration()
 }
 
+@MainActor
 extension JoinedRoomProxyMock {
-    @MainActor
     convenience init(_ configuration: JoinedRoomProxyMockConfiguration) {
         self.init()
         
@@ -90,6 +92,7 @@ extension JoinedRoomProxyMock {
         flagAsUnreadReturnValue = .success(())
         declineCallNotificationIDReturnValue = .success(())
         markAsReadReceiptTypeReturnValue = .success(())
+        loadOrFetchEventDetailsForReturnValue = .failure(.eventNotFound)
         flagAsFavouriteReturnValue = .success(())
         
         applyPowerLevelChangesReturnValue = .success(())
@@ -126,6 +129,10 @@ extension JoinedRoomProxyMock {
         clearDraftThreadRootEventIDReturnValue = .success(())
         sendTypingNotificationIsTypingReturnValue = .success(())
         isVisibleInRoomDirectoryReturnValue = .success(configuration.isVisibleInPublicDirectory)
+        // AGENT-PLATFORM (Brief 0083 final pass): an interactive post's session reads its relations and listens for its
+        // events as soon as it shows; unset, the generated mock stopped previews and AccessibilityTests on the first call.
+        loadSpiralAppRelationsForReturnValue = .success([])
+        subscribeToSpiralEventsTypesListenerReturnValue = .failure(.eventNotFound)
         
         predecessorRoom = configuration.predecessor
         
@@ -136,8 +143,9 @@ extension JoinedRoomProxyMock {
     }
 }
 
+@MainActor
 extension RoomInfoProxyMock {
-    @MainActor convenience init(_ configuration: JoinedRoomProxyMockConfiguration) {
+    convenience init(_ configuration: JoinedRoomProxyMockConfiguration) {
         self.init()
         
         id = configuration.id
@@ -164,6 +172,8 @@ extension RoomInfoProxyMock {
         pinnedEventIDs = configuration.pinnedEventIDs
         joinRule = configuration.joinRule
         historyVisibility = configuration.historyVisibility
+        unreadMessagesCount = configuration.unreadMessagesCount
+        fullyReadEventID = configuration.fullyReadEventID
         
         powerLevels = RoomPowerLevelsProxyMock(configuration.powerLevelsConfiguration)
     }

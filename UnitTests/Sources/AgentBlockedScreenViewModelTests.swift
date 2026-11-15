@@ -5,16 +5,15 @@
 // page by page, with an unblock per row.
 //
 
-@testable import ElementX
 import Foundation
+@testable import Spiral
 import Testing
 
 @MainActor
 struct AgentBlockedScreenViewModelTests {
     private static let agent = AgentSpaceAgentCard(agentID: "agent-1", matrixUserID: "@assistant-owner:spiral.md",
                                                    displayName: "Assistant", avatarMXC: nil, kind: "personal_assistant",
-                                                   visibility: "public", lifecycleState: "active", presence: .online,
-                                                   roomCount: 1, activeToolCount: 0)
+                                                   visibility: "public", lifecycleState: "active", roomCount: 1, activeToolCount: 0)
 
     private static func block(_ name: String) -> AgentBlockedContact {
         AgentBlockedContact(contactMXID: "@\(name):spiral.md", displayName: name.capitalized, blockedAt: Date(timeIntervalSince1970: 1_760_000_000))
@@ -23,6 +22,7 @@ struct AgentBlockedScreenViewModelTests {
     private func loadedViewModel(service: AgentPlatformServiceMock) async throws -> AgentBlockedScreenViewModel {
         let viewModel = AgentBlockedScreenViewModel(agent: Self.agent,
                                                     agentPlatformService: service,
+                                                    store: AgentsStore(service: service),
                                                     userIndicatorController: UserIndicatorControllerMock())
         let loaded = deferFulfillment(viewModel.context.observe(\.viewState.listState)) { $0 != .loading }
         try await loaded.fulfill()

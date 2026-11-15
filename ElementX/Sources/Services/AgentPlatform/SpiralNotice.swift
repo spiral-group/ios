@@ -16,7 +16,7 @@ import Foundation
 
 nonisolated struct SpiralNotice: Equatable {
     static let msgtype = "com.spiral.notice"
-    private static let key = "com.spiral.notice"
+    static let key = "com.spiral.notice"
     
     enum Kind: Equatable {
         /// Someone registered through the reader's invite link; their name as
@@ -32,9 +32,12 @@ nonisolated struct SpiralNotice: Equatable {
         /// The automatic content check held the agent's reply back (coverage walk
         /// F7); resending meets the same check, so the card doesn't ask for it.
         case replyWithheld
-        /// The agent spent today's AI budget; it answers again at `resetsAt`
-        /// (Brief 0079). Posted once a day in the owner's DM.
+        /// The agent spent its AI limit; it answers again at `resetsAt`, the end
+        /// of the limit's window (Brief 0079, question 394). Posted once per window in the owner's DM.
         case aiBudgetReached(resetsAt: Date)
+        /// One category's cap paused it (question 395): the owner's card in the assistant's DM (the push), and the
+        /// one reply in a chat where an action was refused. `pauseUntil` nil: off until changed (a $0 cap).
+        case aiCategoryPaused(category: AILimitCategory, pauseUntil: Date?)
         /// To a first-contact visitor: their message went to the agent's owner.
         /// `greeting` only when the owner wrote one (Brief 0079 B1).
         case messagePassedToOwner(ownerDisplayName: String, greeting: String?)
@@ -52,6 +55,11 @@ nonisolated struct SpiralNotice: Equatable {
         /// assistant (decision 150): nothing they write reaches it until they do.
         case aiConsentNeeded(agentDisplayName: String)
         
+        /// A notice that something went wrong, which reads red (question 359).
+        var isFailure: Bool {
+            self == .replyFailed
+        }
+        
         /// The wire name of the kind, for the card's accessibility identifier.
         var wireName: String {
             switch self {
@@ -61,6 +69,7 @@ nonisolated struct SpiralNotice: Equatable {
             case .replyFailed: "reply_failed"
             case .replyWithheld: "reply_withheld"
             case .aiBudgetReached: "ai_budget_reached"
+            case .aiCategoryPaused: "ai_category_paused"
             case .messagePassedToOwner: "message_passed_to_owner"
             case .introSuggestion: "intro_suggestion"
             case .summaryMovedToDM: "summary_moved_to_dm"
@@ -107,6 +116,18 @@ nonisolated struct SpiralNotice: Equatable {
             guard let raw = facts["resets_at"] as? String,
                   let resetsAt = try? Date(raw, strategy: .iso8601) else { return nil }
             self.kind = .aiBudgetReached(resetsAt: resetsAt)
+        case "ai_category_paused":
+            // A newer category reads as other (decision 96); a date that does not parse is no card.
+            guard let category = facts["category"] as? String else { return nil }
+            let pauseUntil: Date?
+            switch facts["pause_until"] {
+            case nil, is NSNull: pauseUntil = nil
+            case let raw as String:
+                guard let date = try? Date(raw, strategy: .iso8601) else { return nil }
+                pauseUntil = date
+            default: return nil
+            }
+            self.kind = .aiCategoryPaused(category: .init(serverValue: category), pauseUntil: pauseUntil)
         case "message_passed_to_owner":
             guard let owner = Self.nonBlank(facts["owner_display_name"]) else { return nil }
             self.kind = .messagePassedToOwner(ownerDisplayName: owner, greeting: Self.nonBlank(facts["greeting"]))
@@ -136,6 +157,12 @@ nonisolated struct SpiralNotice: Equatable {
         return text
     }
     
+    /// «Перевод звонков на паузе до понедельника, 3:00»: the Limit page row's words after the category's name. Once the
+    /// pause has passed it names the date, so the card stays true in the timeline.
+    static func categoryPausedTitle(_ category: AILimitCategory, pauseUntil: Date?, now: Date = .now, calendar: Calendar = .current) -> String {
+        AgentLimitWording.categoryPauseLine(category, pauseUntil.map(AILimitPause.until) ?? .untilChanged, now: now, calendar: calendar)
+    }
+
     /// The notice as one line, for the room-list preview and a reply quote.
     /// The timeline draws it as a card (`SpiralNoticeRoomTimelineView`).
     var plainText: String {
@@ -152,6 +179,8 @@ nonisolated struct SpiralNotice: Equatable {
             UntranslatedL10n.noticeReplyWithheldTitle
         case .aiBudgetReached:
             UntranslatedL10n.noticeAiBudgetReachedTitle
+        case .aiCategoryPaused(let category, let pauseUntil):
+            Self.categoryPausedTitle(category, pauseUntil: pauseUntil)
         case .messagePassedToOwner:
             UntranslatedL10n.noticeMessagePassedTitle
         case .introSuggestion:

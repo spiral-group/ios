@@ -6,8 +6,9 @@
 // Please see LICENSE files in the repository root for full details.
 //
 
-@testable import ElementX
 import Foundation
+import MatrixRustSDK
+@testable import Spiral
 import Testing
 
 final class LocalizationTests {
@@ -74,6 +75,66 @@ final class LocalizationTests {
         #expect(L10n.commonMemberCount(2) == "2 Members")
     }
     
+    /// AGENT-PLATFORM (question 357): Spiral's value in a language's Untranslated table beats the synced Localizable.
+    @Test
+    func spiralValueWinsOverLocalizable() {
+        Bundle.overrideLocalizations = ["ru"]
+        
+        #expect(L10n.screenSearchEmptyStateTitle == "Начните поиск…")
+        #expect(L10n.commonNoResultsFor("кот") == "Нет результатов по запросу «кот». Попробуйте другой запрос.")
+        #expect(L10n.actionForwardMessages(2) == "Переслать 2 сообщения")
+        #expect(L10n.actionForwardMessages(5) == "Переслать 5 сообщений")
+        
+        // Ukrainian's Localizable has this one empty.
+        Bundle.overrideLocalizations = ["uk"]
+        #expect(L10n.screenSearchTabMessages == "Повідомлення")
+        // The search tab says what the Chats tab says.
+        #expect(L10n.screenSearchTabChats == L10n.screenHomeTabChats)
+    }
+    
+    /// A key Spiral doesn't carry still reads Localizable.
+    @Test
+    func localizableStaysTheDefault() {
+        Bundle.overrideLocalizations = ["ru"]
+        
+        #expect(L10n.actionContinue == "Продолжить")
+    }
+    
+    /// A sync that brings English into Russian fails here: give the key a value in ru's Untranslated.strings.
+    @Test
+    func russianHasNoEnglishLeft() throws {
+        let english = try #require(Bundle.lprojBundle(for: "en"))
+        let russian = try #require(Bundle.lprojBundle(for: "ru"))
+        let url = try #require(english.url(forResource: "Localizable", withExtension: "strings"))
+        let keys = try #require(NSDictionary(contentsOf: url)?.allKeys as? [String])
+        
+        let inEnglish = keys.filter { key in
+            let spiral = NSLocalizedString(key, tableName: "Untranslated", bundle: russian, comment: "")
+            let value = spiral != key ? spiral : NSLocalizedString(key, tableName: "Localizable", bundle: russian, comment: "")
+            return value == NSLocalizedString(key, tableName: "Localizable", bundle: english, comment: "")
+        }
+        
+        #expect(Set(inEnglish) == sameInEveryLanguage)
+    }
+    
+    /// Brands, formats with no words, an address and the test fixture. "Element Fade" is stripped from a Release build.
+    private let sameInEveryLanguage: Set = ["common_face_id_ios",
+                                            "common_gif",
+                                            "common_name_and_id",
+                                            "common_optic_id_ios",
+                                            "common_sentence_delimiter",
+                                            "common_touch_id_ios",
+                                            "crypto_identity_change_pin_violation_new_user_id",
+                                            "login_initial_device_name_ios",
+                                            "notification_ticker_text_dm",
+                                            "notification_ticker_text_group",
+                                            "screen_change_server_error_element_pro_required_action_ios",
+                                            "screen_change_server_textfield_placeholder",
+                                            "screen_create_poll_option_accessibility_label",
+                                            "screen_notification_settings_sound_element_fade",
+                                            "screen_space_list_details",
+                                            "test_untranslated_default_language_identifier"]
+    
     /// Test untranslated strings
     @Test
     func untranslated() {
@@ -116,10 +177,8 @@ final class LocalizationTests {
     /// of the app was translated. Nothing watched for that: the gap grew
     /// silently over four months because no test compared the files.
     ///
-    /// Deliberately only uk and ru. The other 36 locales keep the English
-    /// fallback rather than carry unreviewed machine output, which is the
-    /// honest state — a correct English word beats a confidently wrong
-    /// German one.
+    /// Question 305 (1.0.2) brought the rest of the shipped locales along;
+    /// `everyLocaleCarriesEveryForkString` keeps them complete.
     @Test
     func theCallSurfaceIsTranslatedWhereWeClaimItIs() {
         // A spread across the screen: status line, controls, agent centre,
@@ -137,11 +196,8 @@ final class LocalizationTests {
         #expect(UntranslatedL10n.screenNativeCallAgentCenterTitle == "Центр агентов")
         #expect(UntranslatedL10n.a11yNativeCallEnd == "Завершить звонок")
 
-        // A locale we deliberately did NOT translate still falls back to en,
-        // which is the point of leaving it alone rather than machine-filling
-        // it.
         Bundle.overrideLocalizations = ["de"]
-        #expect(UntranslatedL10n.screenNativeCallControlEnd == "End")
+        #expect(UntranslatedL10n.screenNativeCallControlEnd == "Beenden")
     }
 
     // AGENT-PLATFORM: the call-summary / call-recording tools (Brief 0046) and
@@ -153,7 +209,6 @@ final class LocalizationTests {
         Bundle.overrideLocalizations = ["uk"]
         #expect(UntranslatedL10n.screenAgentCapabilitiesCallSummaryTitle == "Підсумовувати дзвінки")
         #expect(UntranslatedL10n.screenAgentCapabilitiesCallRecordingTitle == "Записувати дзвінки")
-        #expect(UntranslatedL10n.screenArmToolLanguageAdd == "Додати мову")
 
         Bundle.overrideLocalizations = ["ru"]
         #expect(UntranslatedL10n.screenAgentCapabilitiesCallSummaryTitle == "Подводить итоги звонков")
@@ -167,21 +222,25 @@ final class LocalizationTests {
         #expect(UntranslatedL10n.screenArmToolCallSummaryTitle == "Summarise calls")
     }
 
-    // AGENT-PLATFORM (§ 5.59): completeness, not a sample.
-    /// uk and ru carry every string the fork adds, with the same placeholders.
+    // AGENT-PLATFORM (§ 5.59, question 305): completeness, not a sample.
+    /// Every shipped locale carries every string the fork adds, with the same placeholders.
     ///
     /// The spot checks above prove the pipeline, not coverage, and coverage
-    /// is what slipped twice: the call surface went four months English-only
-    /// in both languages (C11b), and the interactive posts' 37 strings went
-    /// two weeks — both because nothing compared the files. The en-only
-    /// sentinels exist to prove the fallback and are the only exceptions.
+    /// is what slipped: the call surface went four months English-only in uk
+    /// and ru (C11b), the interactive posts' 37 strings went two weeks, and
+    /// until question 305 a German user saw a third of the app in English —
+    /// each time because nothing compared the files. The en-only sentinels
+    /// exist to prove the fallback and are the only exceptions; en-US carries
+    /// only spelling overrides and falls back to en.
     @Test
-    func ukrainianAndRussianCarryEveryForkString() throws {
+    func everyLocaleCarriesEveryForkString() throws {
         let sentinels: Set = ["untranslated", "untranslated_plural"]
         let english = try untranslatedTable("en")
-        #expect(english.count > 400, "the en table did not load")
+        #expect(english.count > 1400, "the en table did not load")
+        let languages = Bundle.app.localizations.filter { !["Base", "en", "en-US"].contains($0) }
+        #expect(languages.count == 39)
 
-        for language in ["uk", "ru"] {
+        for language in languages {
             let translated = try untranslatedTable(language)
             let missing = Set(english.keys).subtracting(translated.keys).subtracting(sentinels)
             #expect(missing.isEmpty, "\(language) is missing \(missing.sorted())")
@@ -191,6 +250,100 @@ final class LocalizationTests {
                 #expect(Self.placeholders(value) == Self.placeholders(source),
                         "\(language).\(key) has placeholders \(Self.placeholders(value)), en has \(Self.placeholders(source))")
             }
+        }
+    }
+
+    /// A plural's every category carries the placeholders of en's `other`: a `%1$@` in place of `%1$d` in one
+    /// category would crash only for that count. Arabic and Welsh may name zero, one and two without the number.
+    @Test
+    func everyPluralCategoryKeepsItsPlaceholders() throws {
+        let english = try untranslatedPlurals("en")
+        #expect(english.count > 20, "the en plurals did not load")
+
+        for language in Bundle.app.localizations where !["Base", "en", "en-US"].contains(language) {
+            for (key, variables) in try untranslatedPlurals(language) {
+                guard let sourceVariables = english[key] else { continue }
+                for (variable, categories) in variables {
+                    let expected = try #require(sourceVariables[variable]?["other"].map(Self.placeholders), "\(language).\(key).\(variable)")
+                    #expect(categories["other"] != nil, "\(language).\(key).\(variable) has no other")
+                    for (category, value) in categories where Self.placeholders(value) != expected {
+                        let namesTheCount = ["ar", "cy"].contains(language) && ["zero", "one", "two"].contains(category)
+                        #expect(namesTheCount && Self.placeholders(value).isEmpty,
+                                "\(language).\(key).\(variable).\(category) has \(Self.placeholders(value)), en has \(expected)")
+                    }
+                }
+            }
+        }
+    }
+
+    // AGENT-PLATFORM (1.0.2): a German feed read «Pinned» beside «Weiterlesen».
+    @Test
+    func theFeedReadsInOneLanguage() {
+        Bundle.overrideLocalizations = ["de"]
+        #expect(UntranslatedL10n.screenFeedPinnedLabel == "Fixiert")
+        #expect(UntranslatedL10n.screenFeedReadMore == "Weiterlesen")
+    }
+
+    // AGENT-PLATFORM (Brief 0083 L1b, decision 302): the keys that replace
+    // Element-branded upstream strings are in every locale the app ships, so
+    // none of them falls back to en, and none names Element.
+    @Test
+    func spiralNamesForElementStringsAreInEveryLocale() throws {
+        let overrides = ["screen_notification_settings_sound_spiral_default",
+                         "screen_notification_settings_sound_spiral_fade",
+                         "screen_room_timeline_legacy_call_spiral"]
+        let languages = Bundle.app.localizations.filter { $0 != "Base" }
+        #expect(languages.count == 41, "decision 302 keeps Element X's 41 languages")
+
+        for language in languages {
+            let table = try untranslatedTable(language)
+            for key in overrides {
+                let value = try #require(table[key], "\(language) has no \(key)")
+                #expect(value.contains("Spiral") && !value.contains("Element"), "\(language).\(key) is \(value)")
+            }
+        }
+    }
+
+    // AGENT-PLATFORM (question 404, operator 2026-11-12): the "one recording
+    // per call" card and confirmation put the owner's name first, as the
+    // sentence's subject, in the present tense — so no language declines the
+    // name or agrees a verb with its gender. Every locale keeps the one name
+    // placeholder, and the card's own line names no one.
+    @Test
+    func aRecordingOwnersNameIsTheSubject() throws {
+        Bundle.overrideLocalizations = ["en"]
+        #expect(UntranslatedL10n.screenNativeCallAssistantsRecordingCovered("Bohdan") == "Bohdan is already recording this call")
+        #expect(UntranslatedL10n.screenNativeCallAssistantsRecordConfirmMessageAfterOther("Bohdan")
+            == "Bohdan is no longer recording. Your recording will come to the chat as a separate file.")
+        #expect(UntranslatedL10n.screenNativeCallAssistantsRecordingCoveredButton == "Recording")
+
+        Bundle.overrideLocalizations = ["uk"]
+        #expect(UntranslatedL10n.screenNativeCallAssistantsRecordingCovered("Богдан") == "Богдан уже записує цей дзвінок")
+        #expect(UntranslatedL10n.screenNativeCallAssistantsRecordingCoveredSomeone == "Хтось уже записує цей дзвінок")
+        #expect(UntranslatedL10n.screenNativeCallAssistantsRecordingCoveredCardDetail
+            == "Файл прийде в цей чат. Коли запис зупиниться, тут з’явиться «\(UntranslatedL10n.screenNativeCallAssistantsRecordingContinue)».")
+        #expect(UntranslatedL10n.screenNativeCallAssistantsRecordingCoveredGotIt == "Зрозуміло")
+        #expect(UntranslatedL10n.screenNativeCallAssistantsRecordConfirmMessageAfterOther("Богдан")
+            == "Богдан більше не записує. Ваш запис з’явиться в чаті окремим файлом.")
+        #expect(UntranslatedL10n.screenNativeCallAssistantsRecordConfirmMessageAfterSomeone
+            == "Попередній запис зупинено. Ваш запис з’явиться в чаті окремим файлом.")
+
+        Bundle.overrideLocalizations = ["ru"]
+        #expect(UntranslatedL10n.screenNativeCallAssistantsRecordingCovered("Богдан") == "Богдан уже записывает этот звонок")
+        #expect(UntranslatedL10n.screenNativeCallAssistantsRecordConfirmMessageAfterOther("Богдан")
+            == "Богдан больше не записывает. Ваша запись появится в чате отдельным файлом.")
+        Bundle.overrideLocalizations = nil
+
+        for language in Bundle.app.localizations where language != "Base" {
+            let table = try untranslatedTable(language)
+            for key in ["screen_native_call_assistants_recording_covered", "screen_native_call_assistants_record_confirm_message_after_other"] {
+                let value = try #require(table[key], "\(language) has no \(key)")
+                #expect(Self.placeholders(value) == ["%1$@"], "\(language).\(key) is \(value)")
+            }
+            // The card's line names the button it promises.
+            let detail = try #require(table["screen_native_call_assistants_recording_covered_card_detail"], "\(language) has no card line")
+            let resume = try #require(table["screen_native_call_assistants_recording_continue"])
+            #expect(detail.contains(resume), "\(language)'s card line doesn't name «\(resume)»: \(detail)")
         }
     }
 
@@ -212,6 +365,18 @@ final class LocalizationTests {
         return table
     }
 
+    /// A locale's Untranslated.stringsdict as key → variable → category → format.
+    private func untranslatedPlurals(_ language: String) throws -> [String: [String: [String: String]]] {
+        let bundle = try #require(Bundle.lprojBundle(for: language), "no \(language).lproj in the app")
+        guard let url = bundle.url(forResource: "Untranslated", withExtension: "stringsdict"),
+              let plurals = NSDictionary(contentsOf: url) as? [String: [String: Any]] else { return [:] }
+        return plurals.mapValues { entry in
+            entry.compactMapValues { $0 as? [String: String] }.mapValues { rules in
+                rules.filter { ["zero", "one", "two", "few", "many", "other"].contains($0.key) }
+            }
+        }
+    }
+
     // AGENT-PLATFORM (ADR-0088): room tools are turned on in the app, never by
     // chat. The assistant's welcome used to promise it would "set up tools for
     // groups" if written to; it now points at the menu item, so the copy must
@@ -220,6 +385,30 @@ final class LocalizationTests {
     func theWelcomeNamesTheMenuWhereToolsAre(language: String) {
         Bundle.overrideLocalizations = [language]
         #expect(UntranslatedL10n.noticeWelcomeAssistantBody("Aria").contains(UntranslatedL10n.screenRoomAttachmentAgentTools))
+    }
+
+    // AGENT-PLATFORM (dev walk 2026-11-13): the assistant's banner on Dev-A read «Thread» and
+    // «Draft - Голосування з іменами». Both words are the NSE's own, from these keys; the NSE
+    // follows the phone's language, and Dev-A's is en-US (only the app gets `-AppleLanguages (uk)`).
+    // The title is the post's own. On a phone in Ukrainian the banner reads as below.
+    @Test
+    func theAssistantsDraftBannerReadsInTheLanguage() {
+        let draft = InteractiveDraftContent(body: "", title: "Голосування з іменами", aspect: "1:1",
+                                            manifestJson: "{}", source: "", sha256: String(repeating: "0", count: 64),
+                                            version: 1, generatedByAgentId: nil, targetRoomId: "!r:spiral.md")
+        let builder = RoomMessageEventStringBuilder(attributedStringBuilder: AttributedStringBuilder(mentionBuilder: PlainMentionBuilder()),
+                                                    style: .plain)
+        func banner() -> String {
+            String(builder.buildAttributedString(for: .interactiveDraft(content: draft), senderDisplayName: "Aria", isOutgoing: false).characters)
+        }
+
+        Bundle.overrideLocalizations = ["uk"]
+        #expect(L10n.commonThread == "Гілка")
+        #expect(banner() == "Чернетка - Голосування з іменами")
+
+        Bundle.overrideLocalizations = ["ru"]
+        #expect(L10n.commonThread == "Обсуждение")
+        #expect(banner() == "Черновик - Голосування з іменами")
     }
 
     private static func placeholders(_ format: String) -> [String] {

@@ -13,6 +13,8 @@ import SwiftState
 enum SpaceFlowCoordinatorAction {
     case presentCallScreen(roomProxy: JoinedRoomProxyProtocol, isVoiceCall: Bool)
     case presentAIConsentSettings // AGENT-PLATFORM (decision 150)
+    /// The Agents tab, where the person's agent is or will be (question 412).
+    case presentAgentsTab
     case verifyUser(userID: String)
     case finished
 }
@@ -400,8 +402,7 @@ class SpaceFlowCoordinator: FlowCoordinatorProtocol {
         
         let parameters = JoinRoomScreenCoordinatorParameters(source: .space(spaceServiceRoom),
                                                              userSession: flowParameters.userSession,
-                                                             userIndicatorController: flowParameters.userIndicatorController,
-                                                             appSettings: flowParameters.appSettings)
+                                                             userIndicatorController: flowParameters.userIndicatorController)
         let coordinator = JoinRoomScreenCoordinator(parameters: parameters)
         coordinator.actionsPublisher
             .sink { [weak self] action in
@@ -510,6 +511,8 @@ class SpaceFlowCoordinator: FlowCoordinatorProtocol {
                     actionsSubject.send(.presentCallScreen(roomProxy: roomProxy, isVoiceCall: isVoiceCall))
                 case .presentAIConsentSettings: // AGENT-PLATFORM (decision 150)
                     actionsSubject.send(.presentAIConsentSettings)
+                case .presentAgentsTab: // AGENT-PLATFORM (question 412)
+                    actionsSubject.send(.presentAgentsTab)
                 case .verifyUser(let userID):
                     actionsSubject.send(.verifyUser(userID: userID))
                 case .finished:
@@ -537,6 +540,8 @@ class SpaceFlowCoordinator: FlowCoordinatorProtocol {
                     actionsSubject.send(.presentCallScreen(roomProxy: roomProxy, isVoiceCall: isVoiceCall))
                 case .presentAIConsentSettings: // AGENT-PLATFORM (decision 150)
                     actionsSubject.send(.presentAIConsentSettings)
+                case .presentAgentsTab: // AGENT-PLATFORM (question 412)
+                    actionsSubject.send(.presentAgentsTab)
                 case .verifyUser(let userID):
                     actionsSubject.send(.verifyUser(userID: userID))
                 case .continueWithSpaceFlow(let spaceRoomListProxy):
@@ -567,6 +572,8 @@ class SpaceFlowCoordinator: FlowCoordinatorProtocol {
                 actionsSubject.send(.presentCallScreen(roomProxy: roomProxy, isVoiceCall: isVoiceCall))
             case .presentAIConsentSettings: // AGENT-PLATFORM (decision 150)
                 actionsSubject.send(.presentAIConsentSettings)
+            case .presentAgentsTab: // AGENT-PLATFORM (question 412)
+                actionsSubject.send(.presentAgentsTab)
             case .verifyUser(let userID):
                 actionsSubject.send(.verifyUser(userID: userID))
             }
@@ -593,6 +600,8 @@ class SpaceFlowCoordinator: FlowCoordinatorProtocol {
                 actionsSubject.send(.presentCallScreen(roomProxy: roomProxy, isVoiceCall: isVoiceCall))
             case .presentAIConsentSettings: // AGENT-PLATFORM (decision 150)
                 actionsSubject.send(.presentAIConsentSettings)
+            case .presentAgentsTab: // AGENT-PLATFORM (question 412)
+                actionsSubject.send(.presentAgentsTab)
             case .verifyUser(userID: let userID):
                 actionsSubject.send(.verifyUser(userID: userID))
             }

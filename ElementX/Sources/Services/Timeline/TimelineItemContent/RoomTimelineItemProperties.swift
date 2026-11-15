@@ -22,7 +22,9 @@ nonisolated struct RoomTimelineItemProperties: Hashable {
     var reactions: [AggregatedReaction] = []
     /// The delivery status for this item. If a sent message is echoed the value is nil.
     var deliveryStatus: TimelineItemDeliveryStatus?
-    /// The read receipts of the item, ordered from newest to oldest.
+    /// The read receipts of the item, ordered from newest to oldest. Only fixtures have these, to build a read progress from
+    /// their rows. AGENT-PLATFORM (Brief 0083, question 359): the real one comes from the proxies, and no row draws a receipt,
+    /// so a build leaves this empty and a receipt moving changes no row.
     var orderedReadReceipts: [ReadReceipt] = []
     /// Authenticity warnings for item's sent in encrypted rooms.
     var encryptionAuthenticity: EncryptionAuthenticity?

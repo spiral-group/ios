@@ -3,7 +3,7 @@
 //
 
 import Combine
-@testable import ElementX
+@testable import Spiral
 import Testing
 
 @MainActor
@@ -23,6 +23,7 @@ struct NativeCallScreenCoordinatorTests {
         let coordinator = NativeCallScreenCoordinator(parameters: .init(roomProxy: roomProxy,
                                                                         callKitService: CallKitServiceMock(.init()),
                                                                         agentPlatformService: nil,
+                                                                        agentsStore: nil,
                                                                         isRoomEncrypted: false,
                                                                         notifyRoom: false,
                                                                         isAnswer: false,
@@ -51,6 +52,7 @@ struct NativeCallScreenCoordinatorTests {
         let coordinator = NativeCallScreenCoordinator(parameters: .init(roomProxy: roomProxy,
                                                                         callKitService: callKitService,
                                                                         agentPlatformService: nil,
+                                                                        agentsStore: nil,
                                                                         isRoomEncrypted: false,
                                                                         notifyRoom: false,
                                                                         isAnswer: false,
@@ -62,7 +64,7 @@ struct NativeCallScreenCoordinatorTests {
         // The real transport behind this coordinator fails its connect in a
         // test process, so the session's own start outcome is not the
         // subject here; what the coordinator does with stop()/start() is.
-        let joinsAfterFirstStart = rtcSession.joinEncryptMediaNotificationMediaCallsCount
+        let joinsAfterFirstStart = rtcSession.joinEncryptMediaNotificationMediaLanguageCallsCount
         let leavesAfterFirstStart = rtcSession.leaveCallsCount
         let teardownsAfterFirstStart = callKitService.tearDownCallSessionForRoomIDCallKitIDCallsCount
 
@@ -78,7 +80,7 @@ struct NativeCallScreenCoordinatorTests {
         coordinator.isParked = false
         coordinator.start()
         try await Task.sleep(for: .milliseconds(200))
-        #expect(rtcSession.joinEncryptMediaNotificationMediaCallsCount == joinsAfterFirstStart, "no second join")
+        #expect(rtcSession.joinEncryptMediaNotificationMediaLanguageCallsCount == joinsAfterFirstStart, "no second join")
 
         // An un-parked stop is the real thing.
         coordinator.stop()
@@ -91,7 +93,7 @@ struct NativeCallScreenCoordinatorTests {
         let rtcSession = MatrixRTCSessionMock()
         rtcSession.underlyingOwnIdentity = "@alice:matrix.org:DEVICE"
         rtcSession.underlyingUpdates = Empty().eraseToAnyPublisher()
-        rtcSession.joinEncryptMediaNotificationMediaReturnValue = .success(())
+        rtcSession.joinEncryptMediaNotificationMediaLanguageReturnValue = .success(())
         rtcSession.setMediaReturnValue = .success(())
         rtcSession.rtcNotificationEventIDReturnValue = "$ring:matrix.org"
         rtcSession.transportCredentialsReturnValue = .failure(.roomInvalid)

@@ -17,20 +17,20 @@ struct PillViewOnBubble_Previews: PreviewProvider, TestablePreview {
     static var previews: some View {
         VStack(spacing: 16) {
             mockMessage
-                .bubbleBackground(isOutgoing: false, color: .compound._bgBubbleIncoming)
+                .bubbleBackground(color: .compound._bgBubbleIncoming) // AGENT-PLATFORM (Brief 0083): corners no longer depend on the side
                 .frame(maxWidth: .infinity, alignment: .leading)
             
+            // AGENT-PLATFORM (Brief 0083, decision 300a): an own bubble is blue, and its pills keep their own colours.
             mockMessage
-                .bubbleBackground(isOutgoing: true, color: .compound._bgBubbleOutgoing)
+                .environment(\.ownBubbleInk, .solid)
+                .bubbleBackground(color: OwnBubbleStyle.fill) // AGENT-PLATFORM (Brief 0083)
                 .frame(maxWidth: .infinity, alignment: .trailing)
             
             HStack(spacing: 8) {
                 mockMessage
                     .offset(y: -1)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .messageComposerStyle()
-                
-                SendButton { }
+                    .messageComposerStyle(trailing: SendButton { }) // AGENT-PLATFORM (Brief 0083): send inside the field
             }
             .padding(.top)
         }
@@ -39,7 +39,7 @@ struct PillViewOnBubble_Previews: PreviewProvider, TestablePreview {
     
     static var mockMessage: some View {
         HStack(spacing: 4) {
-            Text("Hello").foregroundStyle(.compound.textPrimary)
+            Text("Hello").bubbleForegroundStyle(.primary) // AGENT-PLATFORM (Brief 0083): white on an own bubble
             PillView(context: mentionContext) { }
             PillView(context: ownMentionContext) { }
         }

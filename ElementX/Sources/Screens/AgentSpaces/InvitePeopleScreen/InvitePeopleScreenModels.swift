@@ -25,6 +25,16 @@ struct InvitePeopleScreenViewState: BindableState {
     var shareText: String? {
         invite.map { UntranslatedL10n.screenInvitePeopleShareMessage($0.link.webURL.absoluteString) }
     }
+    
+    /// Brief 0083, question 359: the link's read is out. The page has its shape; only the link's values wait.
+    var isLoadingInvite: Bool {
+        invite == nil && isLoading
+    }
+    
+    /// Who came through the link while their read is out: the link already counts them.
+    var joinedPlaceholderCount: Int {
+        isLoading && joined.isEmpty ? invite?.used ?? 0 : 0
+    }
 }
 
 struct InvitePeopleScreenViewStateBindings {

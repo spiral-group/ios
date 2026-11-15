@@ -6,7 +6,7 @@
 // Please see LICENSE files in the repository root for full details.
 //
 
-@testable import ElementX
+@testable import Spiral
 import Testing
 import UIKit
 
@@ -19,7 +19,7 @@ struct EmojiProviderTests {
         let emojiLoaderMock = EmojiLoaderMock()
         emojiLoaderMock.categories = [category]
         
-        let emojiProvider = EmojiProvider(loader: emojiLoaderMock, appSettings: .volatile())
+        let emojiProvider = EmojiProvider(loader: emojiLoaderMock, userSettings: .mock())
         
         let categories = await emojiProvider.categories()
         #expect(emojiLoaderMock.categories == categories)
@@ -33,7 +33,7 @@ struct EmojiProviderTests {
         let emojiLoaderMock = EmojiLoaderMock()
         emojiLoaderMock.categories = [category]
         
-        let emojiProvider = EmojiProvider(loader: emojiLoaderMock, appSettings: .volatile())
+        let emojiProvider = EmojiProvider(loader: emojiLoaderMock, userSettings: .mock())
         
         let categories = await emojiProvider.categories(searchString: "")
         #expect(emojiLoaderMock.categories == categories)
@@ -51,7 +51,7 @@ struct EmojiProviderTests {
         let emojiLoaderMock = EmojiLoaderMock()
         emojiLoaderMock.categories = categoriesForFirstLoad
         
-        let emojiProvider = EmojiProvider(loader: emojiLoaderMock, appSettings: .volatile())
+        let emojiProvider = EmojiProvider(loader: emojiLoaderMock, userSettings: .mock())
         
         _ = await emojiProvider.categories()
         emojiLoaderMock.categories = categoriesForSecondLoad
@@ -82,7 +82,7 @@ struct EmojiProviderTests {
         let emojiLoaderMock = EmojiLoaderMock()
         emojiLoaderMock.categories = categories
         
-        let emojiProvider = EmojiProvider(loader: emojiLoaderMock, appSettings: .volatile())
+        let emojiProvider = EmojiProvider(loader: emojiLoaderMock, userSettings: .mock())
         
         _ = await emojiProvider.categories()
         let result = await emojiProvider.categories(searchString: searchString)
@@ -92,8 +92,8 @@ struct EmojiProviderTests {
 }
 
 private class EmojiLoaderMock: EmojiLoaderProtocol {
-    var categories = [ElementX.EmojiCategory]()
-    func load() async -> [ElementX.EmojiCategory] {
+    var categories = [Spiral.EmojiCategory]()
+    func load() async -> [Spiral.EmojiCategory] {
         categories
     }
 }

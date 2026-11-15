@@ -4,7 +4,7 @@
 // AGENT-PLATFORM (Brief 0066, § 5.79): the countdown a post's card draws.
 //
 
-@testable import ElementX
+@testable import Spiral
 import SwiftUI
 import Testing
 

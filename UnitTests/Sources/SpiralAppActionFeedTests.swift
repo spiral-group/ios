@@ -9,9 +9,9 @@
 // it or merely happened to match. So they are asserted here.
 //
 
-@testable import ElementX
 import Foundation
 import MatrixRustSDK
+@testable import Spiral
 import Testing
 
 @MainActor

@@ -24,9 +24,9 @@ final class E1OwnerTests: DevE2ETestCase {
     }
 
     /// The owner's DM with their assistant, by the name the backend gives it
-    /// (`provision_personal_agent::default_display_name`).
+    /// (`AssistantLocale::display_name`, English for a password account).
     private var ownerAssistantRoomName: String {
-        "\(owner.displayName)'s Assistant"
+        "\(owner.displayName) · assistant"
     }
 
     // MARK: S2 + S3
@@ -41,8 +41,8 @@ final class E1OwnerTests: DevE2ETestCase {
         XCTAssertEqual(try currentAccount(), owner.mxid)
 
         let assistant = try await ownerAssistant()
-        let room = app.descendants(matching: .any).matching(NSPredicate(format: "identifier BEGINSWITH %@ AND identifier CONTAINS 'Assistant'",
-                                                                        A11yIdentifiers.homeScreen.roomNamePrefix + ":")).firstMatch
+        let room = app.descendants(matching: .any).matching(NSPredicate(format: "identifier BEGINSWITH %@ AND identifier CONTAINS %@",
+                                                                        A11yIdentifiers.homeScreen.roomNamePrefix + ":", ownerAssistantRoomName)).firstMatch
         XCTAssertTrue(room.waitForExistence(timeout: 60), "the assistant's invite is on the Chats list")
 
         let status = try await helper.peer("consent", owner.localpart, "status").first ?? [:]
@@ -212,6 +212,10 @@ final class E1OwnerTests: DevE2ETestCase {
         try openSettings()
         try scrollAndTap(element(A11yIdentifiers.settingsScreen.privacy), "Settings › Privacy")
         try scrollAndTap(element(A11yIdentifiers.advancedSettingsScreen.blockedUsers), "Settings › Privacy › Blocked users")
+        try require(element(A11yIdentifiers.blockedUsersScreen.user(peer.mxid)), "the peer in Blocked users")
+        // The relaunch sent the ignore list to the platform again: it must still name the peer.
+        let relaunched = try await helper.check("owner_block", ["owner": owner.mxid, "contact": peer.mxid]).first
+        XCTAssertEqual(relaunched?["owner_blocked"], "t", "a relaunch keeps the owner's block on the platform")
         try tap(element(A11yIdentifiers.blockedUsersScreen.user(peer.mxid)), "the peer in Blocked users")
         try tap(app.alerts.buttons["Unblock"].firstMatch, "the alert's Unblock")
         let cleared = try await eventually("owner_blocked_at cleared") {
@@ -222,15 +226,16 @@ final class E1OwnerTests: DevE2ETestCase {
 
     // MARK: S11 (with an assistant)
 
-    /// A catalogue link opens the catalogue on its template; with an
-    /// assistant the describe-new path and Fill in show (decision 129).
+    /// A catalogue link opens its template's page over the catalogue; with an
+    /// assistant Fill in shows there, and Yours on the catalogue (decisions 129, 412).
     func testS11CatalogueLinkWithAssistant() async throws {
         try await ensureSignedIn(owner)
         _ = try await peerDM()
         try await openCatalogueLinkFromChats()
-        XCTAssertTrue(element(A11yIdentifiers.interactivePostCatalogScreen.describeNew).exists, "describe-new shows with an assistant")
         XCTAssertTrue(element(A11yIdentifiers.interactivePostCatalogScreen.fillIn).exists, "Fill in shows for a template that asks")
         XCTAssertFalse(element(A11yIdentifiers.interactivePostCatalogScreen.assistantNote).exists)
+        app.navigationBars.buttons.element(boundBy: 0).tap()
+        try require(element(A11yIdentifiers.interactivePostCatalogScreen.yours), timeout: 10, "Yours on the catalogue with an assistant")
     }
 
     // MARK: S13
@@ -243,7 +248,7 @@ final class E1OwnerTests: DevE2ETestCase {
         try tap(agentsTab, "the Agents tab")
         try tap(element(A11yIdentifiers.agentSpacesScreen.agent(assistant.mxid)), timeout: 30, "the assistant's row")
         try tap(element(A11yIdentifiers.agentDetailScreen.usage), timeout: 30, "the Usage shortcut")
-        try require(element(A11yIdentifiers.agentUsageScreen.today), timeout: 30, "today's use")
+        try require(element(A11yIdentifiers.agentUsageScreen.week), timeout: 30, "the week's card")
         XCTAssertFalse(errorShown(), "Usage shows no error")
 
         let usage = try await helper.peer("api", owner.localpart, "GET", "/api/v1/agents/\(assistant.agentID)/usage")
@@ -253,19 +258,20 @@ final class E1OwnerTests: DevE2ETestCase {
 
     // MARK: S15
 
-    /// In the assistant's DM: «+» › Agents lists the assistant, its room
-    /// screen and Add a tool's list load without an error state.
+    /// In the assistant's DM: «+» › Agents opens the chat's tools with the
+    /// assistant and «Add a tool» (question 359, item 12), which opens the
+    /// kinds it can take here without an error.
     func testS15RoomToolsScreens() async throws {
         try await ensureSignedIn(owner)
         let assistant = try await ownerAssistant()
         try openRoom(named: ownerAssistantRoomName)
         try tap(element(A11yIdentifiers.roomScreen.composerToolbar.openComposeOptions), "the composer's +")
         try tap(element(A11yIdentifiers.roomScreen.attachmentPickerAgentTools), "+ › Agents")
-        try tap(element(A11yIdentifiers.agentSheetScreen.agent(assistant.mxid)), timeout: 30, "the assistant in the agent sheet")
-        XCTAssertFalse(errorShown(), "the agent sheet shows no error")
-        // The assistant's row opens what it can do in this room.
-        try require(element(A11yIdentifiers.agentCapabilitiesScreen.list), timeout: 30, "the assistant's tools in this room")
-        XCTAssertFalse(errorShown(), "the list of tools shows no error")
+        try require(element(A11yIdentifiers.agentSheetScreen.agent(assistant.mxid)), timeout: 30, "the assistant in the chat's tools")
+        XCTAssertFalse(errorShown(), "the chat's tools show no error")
+        try tap(element(A11yIdentifiers.agentSheetScreen.addTool), timeout: 30, "«Add a tool» under the assistant")
+        try require(element(A11yIdentifiers.addToolScreen.kind("call_summary")), timeout: 30, "the kinds of tool for this chat")
+        XCTAssertFalse(errorShown(), "the kinds of tool show no error")
     }
 
     // MARK: S16

@@ -5,13 +5,14 @@
 // name, which answers are the same to look at, and whose presence means anything.
 //
 
-@testable import ElementX
 import Foundation
+@testable import Spiral
 import Testing
 
 @MainActor
 struct UserPresenceTests {
     static let alice = "@alice:spiral.md"
+    static let agent = "@assistant-alice:spiral.md"
     
     // en_GB in UTC: fixed wording and a 24-hour clock (en_US puts a narrow
     // no-break space before AM/PM).
@@ -160,15 +161,49 @@ struct UserPresenceTests {
         #expect(!coarse.isEquivalent(to: coarser))
     }
     
+    // MARK: - Agents
+    
+    /// An agent's `last_active_ts` stays at its setup time (the final walk of 357).
+    @Test
+    func anOfflineAgentHasNoLastSeen() {
+        let exact = UserPresence(userID: Self.agent, state: .offline, lastActiveAgo: 13 * 60, currentlyActive: false, receivedAt: now)
+        #expect(text(exact) == nil)
+        
+        let coarse = UserPresence(userID: Self.agent, state: .offline, lastActiveAgo: nil, currentlyActive: false,
+                                  lastSeenBucket: .recently, receivedAt: now)
+        #expect(text(coarse) == nil)
+    }
+    
+    @Test
+    func anOnlineAgentReadsOnline() {
+        let presence = UserPresence(userID: Self.agent, state: .online, lastActiveAgo: 3, currentlyActive: true, receivedAt: now)
+        #expect(text(presence) == "online")
+    }
+    
+    @Test
+    func aPausedAgentSaysSoAndIsNotOnline() {
+        var presence = UserPresence(userID: Self.agent, state: .online, lastActiveAgo: 3, currentlyActive: true, receivedAt: now)
+        presence.isAgentPaused = true
+        #expect(!presence.isOnline)
+        #expect(text(presence) == UntranslatedL10n.screenAgentsPaused)
+    }
+    
     // MARK: - Policy
     
     @Test
-    func agentsAndBridgeContactsHaveNoPresence() {
-        for userID in ["@assistant-me:spiral.md",
-                       "@telegram_123456:spiral.md", "@whatsapp_380501234567:spiral.md", "@instagram_17841400:spiral.md",
+    func bridgeContactsHaveNoPresence() {
+        for userID in ["@telegram_123456:spiral.md", "@whatsapp_380501234567:spiral.md", "@instagram_17841400:spiral.md",
                        "@telegrambot:spiral.md", "@whatsappbot:spiral.md", "@instagrambot:spiral.md", "@instagram-login-bot:spiral.md",
                        "not-a-user-id"] {
             #expect(!SpiralPresencePolicy.hasPresence(userID), "\(userID)")
+        }
+    }
+    
+    /// An agent has ordinary presence, seen by everyone (357 item 10).
+    @Test
+    func agentsHavePresence() {
+        for userID in ["@assistant-me:spiral.md", "@agent-legal-0a1b2c3d:spiral.md"] {
+            #expect(SpiralPresencePolicy.hasPresence(userID), "\(userID)")
         }
     }
     

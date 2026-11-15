@@ -11,22 +11,22 @@ tag's version, without a leading `v`), all from `https://github.com/spiral-group
 
 | Package | Tag | What it is |
 |---|---|---|
-| `matrix-rust-components-swift` | `26.07.28-spiral.31` | the Matrix SDK's Swift bindings; the release carries `MatrixSDKFFI.xcframework.zip`, built from `matrix-rust-sdk` at the commit its `PROVENANCE.json` names |
+| `matrix-rust-components-swift` | `26.10.29-spiral.6` | the Matrix SDK's Swift bindings; the release carries `MatrixSDKFFI.xcframework.zip`, built from `matrix-rust-sdk` at the commit its `PROVENANCE.json` names |
 | `client-sdk-swift` | `2.16.0-spiral.1` | the LiveKit client |
-| `compound-design-tokens` | `v10.2.3-spiral.1` | design tokens and icons, read by `compound-ios` |
-| `spiral-app-shell` | `1.0.1` | the Interactive Posts runtime |
+| `compound-design-tokens` | `v11.3.1-spiral.4` | design tokens and icons, read by `compound-ios` |
+| `spiral-app-shell` | `1.1.0` | the Interactive Posts runtime |
 
 Git LFS holds the media files the tests use (`DevelopmentAssets/Media`):
 run `git lfs install` before cloning this repository, or `git lfs pull`
 after. In Spiral's own repository LFS also holds the tests' reference
 images: the `__Snapshots__` folders of `PreviewTests`, `UITests` and
-`compound-ios/Tests/CompoundTests`, about 3,100 images for 1.0.1. The
+`compound-ios/Tests/CompoundTests`, about 3,200 images for 1.0.2. The
 published source leaves all of those images out, Element's included; the
 test code that uses them stays.
 
 ## Requirements
 
-- macOS with Xcode 27.0 (27A266a), the version Spiral 1.0.1 is built with.
+- macOS with Xcode 27.1 (27A9275), the version Spiral 1.0.2 is built with.
 - Homebrew. `swift run tools setup-project` uses it: the command points
   git at the repository's hooks (`.githooks`), installs `xcodegen`,
   `swiftgen`, `swiftformat`, `git-lfs`, `sourcery`, `mint`, `pkl`,
@@ -49,8 +49,13 @@ test code that uses them stays.
 cd ios
 swift run tools setup-project
 xcodebuild -project ElementX.xcodeproj -scheme ElementX \
-  -destination "generic/platform=iOS Simulator" build
+  -destination "generic/platform=iOS Simulator" ARCHS=arm64 build
 ```
+
+The SDK framework has no Intel simulator slice, and a generic simulator
+build would also build the packages for x86_64; `ARCHS=arm64` keeps the
+whole build on Apple silicon, as `project.yml` does for the app's own
+targets.
 
 The first build resolves the packages, which downloads the SDK framework
 from the `matrix-rust-components-swift` release; SwiftPM checks it against
@@ -69,8 +74,8 @@ above, swap the comment for the `url:` lines, and run `xcodegen`.
 - **The SDK framework.** Clone `matrix-rust-sdk` (at the commit the
   components tag's `PROVENANCE.json` names) and
   `matrix-rust-components-swift` side by side. You need Rust at least the
-  `rust-version` in `matrix-rust-sdk/Cargo.toml` (1.93 for 1.0.1) with
-  `rustup target add aarch64-apple-ios aarch64-apple-ios-sim x86_64-apple-ios`.
+  `rust-version` in `matrix-rust-sdk/Cargo.toml` (1.96 for 1.0.2) with
+  `rustup target add aarch64-apple-ios aarch64-apple-ios-sim`.
   Then:
 
   ```sh
@@ -79,7 +84,7 @@ above, swap the comment for the `url:` lines, and run `xcodegen`.
   ```
 
   The `matrix-rust-sdk` checkout must have no local changes. The tool
-  builds it for the device and both simulators, puts
+  builds it for the device and the Apple-silicon simulator, puts
   `MatrixSDKFFI.xcframework` and its zip beside `Package.swift`, and the
   manifest then uses the framework instead of the release download. It
   also rewrites `Sources/MatrixRustSDK`, which comes out unchanged, and
@@ -106,15 +111,17 @@ Run the tests through the scripts, not plain `xcodebuild test`:
 ```sh
 Tools/Scripts/run-unit-tests.sh
 Tools/Scripts/run-preview-tests.sh
+Tools/Scripts/run-ui-tests.sh
 ```
 
 Every suite assumes an English simulator, and a new simulator takes the
-Mac's language, so the scripts create their own, set to English.
+Mac's language, so the scripts create their own, set to English
+(`Tools/Scripts/test-simulator.sh`).
 
-Both scripts create their simulators on the **iOS 26.5** simulator runtime,
-and the preview tests stop with a crash on any other iOS version. Install
-the runtime from Xcode > Settings > Components, or with
-`xcodebuild -downloadPlatform iOS -buildVersion 26.5`.
+All three scripts create their simulators on the **iOS 27.0** simulator
+runtime, and the preview and UI tests stop with a crash on any other iOS
+version. Install the runtime from Xcode > Settings > Components, or with
+`xcodebuild -downloadPlatform iOS -buildVersion 27.0`.
 
 The preview tests compare each screen with a recorded snapshot, and the
 UI tests and Compound's tests compare with recorded images too. The unit

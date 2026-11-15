@@ -53,7 +53,7 @@ class SecureBackupRecoveryKeyScreenViewModel: SecureBackupRecoveryKeyScreenViewM
             }
         case .copyKey:
             UIPasteboard.general.string = state.recoveryKey
-            userIndicatorController.submitIndicator(.init(title: "Copied recovery key"))
+            userIndicatorController.submitIndicator(.init(title: UntranslatedL10n.screenRecoveryKeyCopiedToClipboardSpiral)) // AGENT-PLATFORM (Brief 0083, decision 314)
             state.doneButtonEnabled = true
         case .keySaved:
             state.doneButtonEnabled = true
@@ -66,19 +66,24 @@ class SecureBackupRecoveryKeyScreenViewModel: SecureBackupRecoveryKeyScreenViewM
                     actionsSubject.send(.done(mode: state.mode))
                 case .failure(let error):
                     MXLog.error("Failed confirming recovery key with error: \(error)")
+                    // AGENT-PLATFORM (Brief 0083, decision 314): Spiral's copy.
                     state.bindings.alertInfo = .init(id: .init(),
-                                                     title: L10n.screenRecoveryKeyConfirmErrorTitle,
-                                                     message: L10n.screenRecoveryKeyConfirmErrorContent)
+                                                     title: UntranslatedL10n.screenRecoveryKeyConfirmErrorTitleSpiral,
+                                                     message: UntranslatedL10n.screenRecoveryKeyConfirmErrorContentSpiral)
                 }
                 
                 hideLoadingIndicator()
             }
         case .cancel:
             actionsSubject.send(.cancel)
+        case .retry:
+            // AGENT-PLATFORM (1.0.2): the unknown state had no way out but Cancel.
+            state.mode = secureBackupController.recoveryState.value.viewMode
         case .done:
+            // AGENT-PLATFORM (Brief 0083, decision 314): Spiral's copy.
             state.bindings.alertInfo = .init(id: .init(),
-                                             title: L10n.screenRecoveryKeySetupConfirmationTitle,
-                                             message: L10n.screenRecoveryKeySetupConfirmationDescription,
+                                             title: UntranslatedL10n.screenRecoveryKeySetupConfirmationTitleSpiral,
+                                             message: UntranslatedL10n.screenRecoveryKeySetupConfirmationDescriptionSpiral,
                                              primaryButton: .init(title: L10n.actionContinue) { [weak self] in
                                                  guard let self else { return }
                                                  actionsSubject.send(.done(mode: state.mode))

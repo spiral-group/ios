@@ -92,11 +92,11 @@ struct MediaFileRoomTimelineContent: View {
         Label {
             VStack(alignment: .leading, spacing: 0) {
                 Text(filename)
-                    .foregroundStyle(.compound.textPrimary)
+                    .bubbleForegroundStyle(.primary) // AGENT-PLATFORM (Brief 0083): white on an own bubble
                     .font(.compound.bodyLG)
                 Text(fileDescription)
                     .font(.compound.bodySM)
-                    .foregroundStyle(.compound.textSecondary)
+                    .bubbleForegroundStyle(.secondary) // AGENT-PLATFORM (Brief 0083)
             }
             .font(.compound.bodyLG)
             .foregroundStyle(.compound.textPrimary)
@@ -112,6 +112,8 @@ struct MediaFileRoomTimelineContent: View {
 /// The rounded icon badge used as the leading accessory of a file/audio row, either showing the
 /// file-type icon or a scanning spinner.
 struct FileTypeIconView: View {
+    @Environment(\.ownBubbleInk) private var ownBubbleInk // AGENT-PLATFORM (Brief 0083)
+    
     let icon: KeyPath<CompoundIcons, Image>
     var isScanning = false
     
@@ -122,11 +124,13 @@ struct FileTypeIconView: View {
                     .scaledFrame(size: CompoundIcon.Size.medium.value, relativeTo: .compound.bodyLG)
             } else {
                 CompoundIcon(icon)
-                    .foregroundColor(.compound.iconPrimary)
+                    .foregroundColor(ownBubbleInk?.onStrongFill ?? .compound.iconPrimary)
             }
         }
         .scaledPadding(6)
-        .background(.compound.iconOnSolidPrimary,
+        // AGENT-PLATFORM (Brief 0083, decision 306): the canvas behind the icon. On-solid is white in both themes
+        // since 306, as `iconPrimary` is in dark, so the icon vanished there.
+        .background(ownBubbleInk?.strongFill ?? .compound.bgCanvasDefault,
                     in: RoundedRectangle(cornerRadius: 4))
     }
 }

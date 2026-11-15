@@ -7,6 +7,7 @@
 //
 
 import Compound
+import SpiralComponents
 import SwiftUI
 
 struct MediaEventsTimelineScreen: View {
@@ -171,48 +172,21 @@ struct MediaEventsTimelineScreen: View {
         }
     }
     
+    // AGENT-PLATFORM (Brief 0083, question 413): Spiral's own empty state, as on the room's other lists.
+    @ViewBuilder
     private var emptyState: some View {
-        FullscreenDialog(topPadding: UIConstants.iconTopPaddingToNavigationBar, background: .gradient) {
-            VStack(spacing: 16) {
-                switch context.viewState.screenMode {
-                case .media:
-                    emptyMedia
-                case .files:
-                    emptyFiles
-                }
-            }
-            .padding(16)
-        } bottomContent: { EmptyView() }
-    }
-    
-    @ViewBuilder
-    private var emptyMedia: some View {
-        BigIcon(icon: \.image)
-        
-        Text(L10n.screenMediaBrowserMediaEmptyStateTitle)
-            .foregroundColor(.compound.textPrimary)
-            .font(.compound.headingMDBold)
-            .multilineTextAlignment(.center)
-        
-        Text(L10n.screenMediaBrowserMediaEmptyStateSubtitle)
-            .foregroundColor(.compound.textSecondary)
-            .font(.compound.bodyMD)
-            .multilineTextAlignment(.center)
-    }
-    
-    @ViewBuilder
-    private var emptyFiles: some View {
-        BigIcon(icon: \.document)
-        
-        Text(L10n.screenMediaBrowserFilesEmptyStateTitle)
-            .foregroundColor(.compound.textPrimary)
-            .font(.compound.headingMDBold)
-            .multilineTextAlignment(.center)
-        
-        Text(L10n.screenMediaBrowserFilesEmptyStateSubtitle)
-            .foregroundColor(.compound.textSecondary)
-            .font(.compound.bodyMD)
-            .multilineTextAlignment(.center)
+        switch context.viewState.screenMode {
+        case .media:
+            SpiralEmptyState(symbol: .photoOnRectangleAngled,
+                             title: L10n.screenMediaBrowserMediaEmptyStateTitle,
+                             message: L10n.screenMediaBrowserMediaEmptyStateSubtitle)
+                .centredInScrollView()
+        case .files:
+            SpiralEmptyState(symbol: .document,
+                             title: L10n.screenMediaBrowserFilesEmptyStateTitle,
+                             message: L10n.screenMediaBrowserFilesEmptyStateSubtitle)
+                .centredInScrollView()
+        }
     }
     
     @ToolbarContentBuilder
@@ -307,16 +281,14 @@ struct MediaEventsTimelineScreen_Previews: PreviewProvider, TestablePreview {
             makeTimelineController(screenMode: screenMode)
         }
         
-        let appSettings = AppSettings.volatile()
         return TimelineViewModel(roomProxy: JoinedRoomProxyMock(.init(name: "Preview room")),
                                  timelineController: timelineController,
                                  userSession: UserSessionMock(.init(contentScannerService: contentScannerService)),
                                  mediaPlayerProvider: MediaPlayerProviderMock(),
                                  userIndicatorController: UserIndicatorControllerMock(),
                                  appMediator: AppMediatorMock(.init()),
-                                 appSettings: appSettings,
                                  analyticsService: AnalyticsServiceMock(.init()),
-                                 emojiProvider: EmojiProvider(appSettings: appSettings),
+                                 emojiProvider: EmojiProvider(userSettings: .mock()),
                                  linkMetadataProvider: LinkMetadataProvider(),
                                  timelineControllerFactory: TimelineControllerFactoryMock(.init()))
     }

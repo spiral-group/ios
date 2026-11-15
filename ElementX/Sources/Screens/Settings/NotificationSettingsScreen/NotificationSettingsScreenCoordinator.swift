@@ -15,7 +15,6 @@ struct NotificationSettingsScreenCoordinatorParameters {
     let userNotificationCenter: UserNotificationCenterProtocol
     let userIndicatorController: UserIndicatorControllerProtocol
     let isModallyPresented: Bool
-    let appSettings: AppSettings
 }
 
 enum NotificationSettingsScreenCoordinatorAction {
@@ -25,6 +24,8 @@ enum NotificationSettingsScreenCoordinatorAction {
 final class NotificationSettingsScreenCoordinator: CoordinatorProtocol {
     private let parameters: NotificationSettingsScreenCoordinatorParameters
     private var viewModel: NotificationSettingsScreenViewModelProtocol
+    // AGENT-PLATFORM: feed (Brief 0082): the feed's switch; `nil` without the agent platform.
+    private let feedViewModel: FeedNotificationSettingsViewModel?
     private let actionsSubject: PassthroughSubject<NotificationSettingsScreenCoordinatorAction, Never> = .init()
     private var cancellables = Set<AnyCancellable>()
     
@@ -39,12 +40,15 @@ final class NotificationSettingsScreenCoordinator: CoordinatorProtocol {
     init(parameters: NotificationSettingsScreenCoordinatorParameters) {
         self.parameters = parameters
         
-        viewModel = NotificationSettingsScreenViewModel(appSettings: parameters.appSettings,
+        viewModel = NotificationSettingsScreenViewModel(userSettings: parameters.userSession.userSettings,
                                                         userNotificationCenter: parameters.userNotificationCenter,
-                                                        notificationToneManager: NotificationToneManager(appSettings: parameters.appSettings),
+                                                        notificationToneManager: NotificationToneManager(userSettings: parameters.userSession.userSettings),
                                                         notificationSettingsProxy: parameters.userSession.clientProxy.notificationSettings,
                                                         userIndicatorController: parameters.userIndicatorController,
                                                         isModallyPresented: parameters.isModallyPresented)
+        feedViewModel = parameters.userSession.agentPlatformService.map { // AGENT-PLATFORM: feed (Brief 0082)
+            FeedNotificationSettingsViewModel(feedService: $0.feed, userIndicatorController: parameters.userIndicatorController)
+        }
     }
     
     func start() {
@@ -63,7 +67,7 @@ final class NotificationSettingsScreenCoordinator: CoordinatorProtocol {
     }
     
     func toPresentable() -> AnyView {
-        AnyView(NotificationSettingsScreen(context: viewModel.context))
+        AnyView(NotificationSettingsScreen(context: viewModel.context, feedContext: feedViewModel?.context)) // AGENT-PLATFORM: feed (Brief 0082)
     }
     
     // MARK: - Private

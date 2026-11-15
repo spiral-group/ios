@@ -4,12 +4,21 @@
 // AGENT-PLATFORM: Brief 0073 — client-rendered notices.
 //
 
-@testable import ElementX
 import Foundation
+@testable import Spiral
 import Testing
 
 struct SpiralNoticeTests {
     private let referral = #"{"com.spiral.notice":{"kind":"referral_joined","joined_user_id":"@diana:spiral.md"}}"#
+    
+    @Test
+    func onlyAFailedReplyReadsAsAFailure() throws {
+        let failed = try #require(SpiralNotice(msgtype: "com.spiral.notice", data: #"{"com.spiral.notice":{"kind":"reply_failed"}}"#))
+        let referred = try #require(SpiralNotice(msgtype: "com.spiral.notice", data: referral))
+        
+        #expect(failed.kind.isFailure)
+        #expect(!referred.kind.isFailure)
+    }
     
     @Test
     func readsTheReferralNotice() throws {
@@ -185,16 +194,14 @@ struct SpiralNoticeTests {
     /// The card's own action is the one way there: the timeline passes it on.
     @Test @MainActor
     func theAIConsentNoticeAsksForTheAIToggle() async throws {
-        let appSettings = AppSettings.volatile()
         let viewModel = TimelineViewModel(roomProxy: JoinedRoomProxyMock(.init(name: "")),
                                           timelineController: TimelineControllerMock(.init()),
                                           userSession: UserSessionMock(.init()),
                                           mediaPlayerProvider: MediaPlayerProviderMock(),
                                           userIndicatorController: UserIndicatorControllerMock(),
                                           appMediator: AppMediatorMock(.init()),
-                                          appSettings: appSettings,
                                           analyticsService: AnalyticsServiceMock(.init()),
-                                          emojiProvider: EmojiProvider(appSettings: appSettings),
+                                          emojiProvider: EmojiProvider(userSettings: .mock()),
                                           linkMetadataProvider: LinkMetadataProvider(),
                                           timelineControllerFactory: TimelineControllerFactoryMock(.init()))
         let asked = deferFulfillment(viewModel.actions) { action in
@@ -227,4 +234,24 @@ struct SpiralNoticeTests {
         let blank = TimelineItemSender(id: "@assistant-alice:spiral.md", displayName: "  ")
         #expect(SpiralNoticeRoomTimelineView.liveName(sender: blank, fallback: "Alice's Assistant") == "Alice's Assistant")
     }
+
+    // MARK: - Question 395
+
+    @Test
+    func aCategoryPauseNamesItsCategoryAndUntilWhen() throws {
+        let dated = try #require(SpiralNotice(msgtype: "com.spiral.notice",
+                                              data: #"{"com.spiral.notice":{"kind":"ai_category_paused","category":"call_translation","pause_until":"2026-11-16T00:00:00Z"}}"#))
+        #expect(dated.kind == .aiCategoryPaused(category: .callTranslation, pauseUntil: Date(timeIntervalSince1970: 1_794_787_200)))
+        #expect(dated.kind.wireName == "ai_category_paused")
+
+        let undated = try #require(SpiralNotice(msgtype: "com.spiral.notice",
+                                                data: #"{"com.spiral.notice":{"kind":"ai_category_paused","category":"voice_cloning","pause_until":null}}"#))
+        #expect(undated.kind == .aiCategoryPaused(category: .other, pauseUntil: nil))
+        #expect(undated.plainText == UntranslatedL10n.screenAgentUsageCategoryPaused(UntranslatedL10n.screenAgentUsageCategoryOther))
+
+        // No category, or a date that doesn't parse, is no card: the body shows.
+        #expect(SpiralNotice(msgtype: "com.spiral.notice", data: #"{"com.spiral.notice":{"kind":"ai_category_paused","pause_until":null}}"#) == nil)
+        #expect(SpiralNotice(msgtype: "com.spiral.notice", data: #"{"com.spiral.notice":{"kind":"ai_category_paused","category":"calls","pause_until":"monday"}}"#) == nil)
+    }
+
 }

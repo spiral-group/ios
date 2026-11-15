@@ -20,17 +20,9 @@ class AuthenticationFlowCoordinatorUITests: XCTestCase {
         // Splash Screen: Tap get started button
         app.buttons[A11yIdentifiers.authenticationStartScreen.signIn].tap()
         
-        // Server Confirmation: Tap change server button
-        app.buttons[A11yIdentifiers.serverConfirmationScreen.changeServer].tap()
-        
-        // Server Selection: Clear the default, enter OAuth server and continue.
+        // Server Selection: Clear the default, enter a server address and submit.
+        // The \n triggers confirm directly, navigating to the login screen.
         app.textFields[A11yIdentifiers.changeServerScreen.server].clearAndTypeText("example.com\n", app: app)
-        
-        // Await for the button to be hittable, since a loader may appear
-        let serverConfirmationContinueButton = app.buttons[A11yIdentifiers.serverConfirmationScreen.continue]
-        XCTAssertTrue(serverConfirmationContinueButton.wait(for: \.isHittable, toEqual: true, timeout: 2.0))
-        // Server Confirmation: Tap continue button
-        serverConfirmationContinueButton.tap()
         
         // Login Screen: Wait for continue button to appear
         let continueButton = app.buttons[A11yIdentifiers.loginScreen.continue]
@@ -53,17 +45,9 @@ class AuthenticationFlowCoordinatorUITests: XCTestCase {
         // Splash Screen: Tap get started button
         app.buttons[A11yIdentifiers.authenticationStartScreen.signIn].tap()
         
-        // Server Confirmation: Tap change server button
-        app.buttons[A11yIdentifiers.serverConfirmationScreen.changeServer].tap()
-        
-        // Server Selection: Clear the default, enter OAuth server and continue.
+        // Server Selection: Clear the default, enter a server address and submit.
+        // The \n triggers confirm directly, navigating to the login screen.
         app.textFields[A11yIdentifiers.changeServerScreen.server].clearAndTypeText("example.com\n", app: app)
-        
-        // Await for the button to be hittable, since a loader may appear
-        let serverConfirmationContinueButton = app.buttons[A11yIdentifiers.serverConfirmationScreen.continue]
-        XCTAssertTrue(serverConfirmationContinueButton.wait(for: \.isHittable, toEqual: true, timeout: 2.0))
-        // Server Confirmation: Tap continue button
-        serverConfirmationContinueButton.tap()
         
         // Login Screen: Wait for continue button to appear
         let continueButton = app.buttons[A11yIdentifiers.loginScreen.continue]
@@ -88,17 +72,9 @@ class AuthenticationFlowCoordinatorUITests: XCTestCase {
         // Splash Screen: Tap get started button
         app.buttons[A11yIdentifiers.authenticationStartScreen.signIn].tap()
         
-        // Server Confirmation: Tap change server button
-        app.buttons[A11yIdentifiers.serverConfirmationScreen.changeServer].tap()
-        
-        // Server Selection: Clear the default, enter OAuth server and continue.
+        // Server Selection: Clear the default, enter a server address and submit.
+        // The \n triggers confirm directly, navigating to the login screen.
         app.textFields[A11yIdentifiers.changeServerScreen.server].clearAndTypeText("example.com\n", app: app)
-        
-        // Await for the button to be hittable, since a loader may appear
-        let serverConfirmationContinueButton = app.buttons[A11yIdentifiers.serverConfirmationScreen.continue]
-        XCTAssertTrue(serverConfirmationContinueButton.wait(for: \.isHittable, toEqual: true, timeout: 2.0))
-        // Server Confirmation: Tap continue button
-        serverConfirmationContinueButton.tap()
         
         // Login Screen: Wait for continue button to appear
         let continueButton = app.buttons[A11yIdentifiers.loginScreen.continue]
@@ -125,22 +101,19 @@ class AuthenticationFlowCoordinatorUITests: XCTestCase {
         // Splash Screen: Tap get started button
         app.buttons[A11yIdentifiers.authenticationStartScreen.signIn].tap()
         
-        // Server Confirmation: Tap change server button
-        app.buttons[A11yIdentifiers.serverConfirmationScreen.changeServer].tap()
-        
         // Server Selection: Clear the default, enter OAuth server and continue.
         app.textFields[A11yIdentifiers.changeServerScreen.server].clearAndTypeText("company.com\n", app: app)
         
         let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
-        let wasAlertText = springboard.staticTexts["“ElementX” Wants to Use “company.com” to Sign In"]
+        let wasAlertText = springboard.staticTexts["“Spiral” Wants to Use “company.com” to Sign In"] // AGENT-PLATFORM (Brief 0083 L1b): the app's display name
         
         // On a fresh simulator the webcredentials association is sometimes slow to be resolved.
         // This results in an error alert being shown instead of the Web Authentication Session alert.
         // Keep looping on the Continue button for ~5 minutes until the Authentication Session is happy.
         var remainingAttempts = 30
         while !wasAlertText.exists {
-            // Server Confirmation: Tap continue button
-            app.buttons[A11yIdentifiers.serverConfirmationScreen.continue].tap()
+            // Server Selection: Tap continue button
+            app.buttons[A11yIdentifiers.changeServerScreen.continue].tap()
             
             if wasAlertText.waitForExistence(timeout: 10) {
                 break
@@ -159,32 +132,7 @@ class AuthenticationFlowCoordinatorUITests: XCTestCase {
         XCTAssertTrue(wasAlertText.exists, "The web authentication prompt should be shown after selecting a homeserver with OAuth.")
     }
     
-    func testProvisionedLoginWithPassword() async throws {
-        // Given a provisioned authentication flow.
-        let app = Application.launch(.provisionedAuthenticationFlow)
-        
-        // Then the start screen should be configured appropriately.
-        try await app.assertScreenshot()
-        
-        // Check the bug report flow works.
-        try await verifyReportBugButton(app)
-        
-        // Splash Screen: Tap get started button
-        app.buttons[A11yIdentifiers.authenticationStartScreen.signIn].tap()
-        
-        // No server selection should be shown here
-        
-        // Login Screen: Wait for continue button to appear
-        let continueButton = app.buttons[A11yIdentifiers.loginScreen.continue]
-        XCTAssertTrue(continueButton.waitForExistence(timeout: 2.0))
-        
-        // Login Screen: Enter valid credentials
-        app.textFields[A11yIdentifiers.loginScreen.emailUsername].clearAndTypeText("alice\n", app: app)
-        app.secureTextFields[A11yIdentifiers.loginScreen.password].clearAndTypeText("12345678", app: app)
-        
-        // Login Screen: Tap next
-        app.buttons[A11yIdentifiers.loginScreen.continue].tap()
-    }
+    // AGENT-PLATFORM (Brief 0083 L1b): no testProvisionedLoginWithPassword, Element's provisioning links are gone.
     
     func testSingleProviderLoginWithPassword() async throws {
         // Given the authentication flow with a single supported server.
@@ -223,9 +171,11 @@ class AuthenticationFlowCoordinatorUITests: XCTestCase {
         // Splash Screen: Tap get started button
         app.buttons[A11yIdentifiers.authenticationStartScreen.signIn].tap()
         
-        // Server Confirmation: Tap the picker and confirm
-        app.switches.matching(identifier: A11yIdentifiers.serverConfirmationScreen.serverPicker).element(boundBy: 1).tap()
-        app.buttons[A11yIdentifiers.serverConfirmationScreen.continue].tap()
+        // Server Selection: Tap the second server in the picker and confirm.
+        // Use descendants(matching: .any) since ListRow used outside a List produces an ambiguous
+        // accessibility element type, making element-type-specific queries unreliable.
+        app.descendants(matching: .any).matching(identifier: "example.com").firstMatch.tap()
+        app.buttons[A11yIdentifiers.changeServerScreen.continue].tap()
         
         // Login Screen: Wait for continue button to appear
         let continueButton = app.buttons[A11yIdentifiers.loginScreen.continue]

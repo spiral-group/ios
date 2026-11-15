@@ -7,8 +7,8 @@
 //
 
 import Combine
-@testable import ElementX
 import MatrixRustSDK
+@testable import Spiral
 import Testing
 
 @MainActor
@@ -455,11 +455,11 @@ final class SecurityAndPrivacyScreenViewModelTests {
     
     private func setupViewModel(joinedParentSpaces: [SpaceServiceRoom],
                                 topLevelSpaces: [SpaceServiceRoom] = [],
-                                joinRule: ElementX.JoinRule,
+                                joinRule: Spiral.JoinRule,
                                 forceDisableE2EE: Bool = false) {
-        let appSettings = AppSettings.volatile()
-        appSettings.knockingEnabled = true
-        appSettings.forceDisableE2EE.applyRemoteValue(forceDisableE2EE)
+        let userSettings = UserSettings.mock()
+        userSettings.app.knockingEnabled = true
+        userSettings.app.forceDisableE2EE.applyRemoteValue(forceDisableE2EE)
         roomProxy = JoinedRoomProxyMock(.init(isEncrypted: false,
                                               canonicalAlias: "#room:matrix.org",
                                               members: .allMembersAsCreator,
@@ -468,11 +468,12 @@ final class SecurityAndPrivacyScreenViewModelTests {
         roomProxy.updateJoinRuleReturnValue = .success(())
         roomProxy.updateRoomDirectoryVisibilityReturnValue = .success(())
         
+        let clientProxy = ClientProxyMock(.init(userIDServerName: "matrix.org",
+                                                spaceServiceConfiguration: .init(topLevelSpaces: topLevelSpaces,
+                                                                                 joinedParentSpaces: joinedParentSpaces)))
+        
         viewModel = SecurityAndPrivacyScreenViewModel(roomProxy: roomProxy,
-                                                      clientProxy: ClientProxyMock(.init(userIDServerName: "matrix.org",
-                                                                                         spaceServiceConfiguration: .init(topLevelSpaces: topLevelSpaces,
-                                                                                                                          joinedParentSpaces: joinedParentSpaces))),
-                                                      userIndicatorController: UserIndicatorControllerMock(),
-                                                      appSettings: appSettings)
+                                                      userSession: UserSessionMock(.init(clientProxy: clientProxy, userSettings: userSettings)),
+                                                      userIndicatorController: UserIndicatorControllerMock())
     }
 }

@@ -14,7 +14,9 @@ import SwiftState
 // AGENT-PLATFORM: Brief 0037, reworked by the Agents tab step B (decision
 // 191). One instance per opened agent, rooted at the agent's screen on the
 // tab's detail stack: its chats, the agent in one chat with its tools, the
-// edit, activity, usage and «В чат».
+// edit, activity, usage and «В чат». With a `pushedRow` (question 359) it starts
+// at one of the owner's entries of the agent's page, on that page's stack: a row,
+// or the agent's screen itself for the chat's Settings (question 391).
 enum AgentFlowCoordinatorAction {
     /// The agent's screen was popped — the parent tidies its state.
     case finished
@@ -24,20 +26,33 @@ enum AgentFlowCoordinatorAction {
     /// From a chat opened on this agent's stack (an activity row's).
     case presentCallScreen(roomProxy: JoinedRoomProxyProtocol, isVoiceCall: Bool)
     case presentAIConsentSettings
+    /// The Agents tab, where the person's agent is or will be (question 412).
+    case presentAgentsTab
     case verifyUser(userID: String)
 }
 
 class AgentFlowCoordinator: FlowCoordinatorProtocol {
     private let selection: AgentSelection
     private let agentPlatformService: AgentPlatformServiceProtocol
+    /// AGENT-PLATFORM: platform sync (decision 289): the screens render from it.
+    private let agentsStore: AgentsStore
     private let navigationStackCoordinator: NavigationStackCoordinator
     private let flowParameters: CommonFlowParameters
+    /// The entry this flow was pushed for; `nil` for the agent's screen as the stack's root.
+    private let pushedRow: AgentPageRow?
+    /// Where a pushed flow's stack stood when it started.
+    private let initialCoordinator: CoordinatorProtocol?
+    /// Brings the chat this flow was pushed from back to the front when asked for its room, and says whether it did.
+    /// From a profile's sheet it takes every chat, which opens in Chats rather than inside the sheet (end-stage review,
+    /// 2026-11-14). `nil` when the flow didn't start in a chat, which has nothing to return to.
+    private let showOriginRoom: ((_ roomID: String) -> Bool)?
 
     private var agent: AgentSpaceAgentCard {
         selection.card
     }
 
     private weak var agentDetailScreenCoordinator: AgentDetailScreenCoordinator?
+    private weak var agentChatsScreenCoordinator: AgentChatsScreenCoordinator?
     private weak var agentInRoomScreenCoordinator: AgentInRoomScreenCoordinator?
     private weak var armToolCoordinator: ArmToolScreenCoordinator?
     // periphery:ignore - retaining purpose
@@ -46,7 +61,7 @@ class AgentFlowCoordinator: FlowCoordinatorProtocol {
     enum State: StateType {
         /// The state machine hasn't started.
         case initial
-        /// The agent's screen, the flow's root.
+        /// The flow's first screen: the agent's, or the row it was pushed for.
         case agentDetail
         /// The agent in one chat is pushed.
         case agentInRoom
@@ -77,12 +92,19 @@ class AgentFlowCoordinator: FlowCoordinatorProtocol {
 
     init(selection: AgentSelection,
          agentPlatformService: AgentPlatformServiceProtocol,
+         agentsStore: AgentsStore,
          navigationStackCoordinator: NavigationStackCoordinator,
-         flowParameters: CommonFlowParameters) {
+         flowParameters: CommonFlowParameters,
+         pushedRow: AgentPageRow? = nil,
+         showOriginRoom: ((_ roomID: String) -> Bool)? = nil) {
         self.selection = selection
         self.agentPlatformService = agentPlatformService
+        self.agentsStore = agentsStore
         self.navigationStackCoordinator = navigationStackCoordinator
         self.flowParameters = flowParameters
+        self.pushedRow = pushedRow
+        self.showOriginRoom = showOriginRoom
+        initialCoordinator = navigationStackCoordinator.stackCoordinators.last ?? navigationStackCoordinator.rootCoordinator
 
         stateMachine = .init(state: .initial)
         configureStateMachine()
@@ -97,14 +119,21 @@ class AgentFlowCoordinator: FlowCoordinatorProtocol {
     }
 
     func clearRoute(animated: Bool) {
-        navigationStackCoordinator.popToRoot(animated: animated)
+        guard pushedRow != nil else {
+            navigationStackCoordinator.popToRoot(animated: animated)
+            return
+        }
+        roomFlowCoordinator?.clearRoute(animated: animated)
+        if let initialCoordinator {
+            navigationStackCoordinator.pop(to: initialCoordinator, animated: animated)
+        }
     }
 
     // MARK: - Private
 
     private func configureStateMachine() {
         stateMachine.addRoutes(event: .start, transitions: [.initial => .agentDetail]) { [weak self] _ in
-            self?.presentAgentDetail()
+            self?.presentFirstScreen()
         }
 
         stateMachine.addRouteMapping { event, fromState, userInfo in
@@ -119,6 +148,7 @@ class AgentFlowCoordinator: FlowCoordinatorProtocol {
         stateMachine.addRoutes(event: .deselectRoom, transitions: [.agentInRoom => .agentDetail]) { [weak self] _ in
             // The agent's chats may have changed (tools, remove-from-chat).
             self?.agentDetailScreenCoordinator?.reload()
+            self?.agentChatsScreenCoordinator?.reload()
         }
 
         stateMachine.addRoutes(event: .editAgent, transitions: [.agentDetail => .agentEdit]) { [weak self] _ in
@@ -134,13 +164,29 @@ class AgentFlowCoordinator: FlowCoordinatorProtocol {
         }
     }
 
+    private func presentFirstScreen() {
+        let finished: () -> Void = { [weak self] in self?.actionsSubject.send(.finished) }
+        switch pushedRow {
+        case nil:
+            presentAgentDetail()
+        case .activity:
+            pushAgentActivity(filter: .all, dismissalCallback: finished)
+        case .usage:
+            pushAgentUsage(dismissalCallback: finished)
+        case .chats:
+            pushAgentChats(dismissalCallback: finished)
+        case .settings:
+            presentAgentDetail()
+        }
+    }
+
     private func presentAgentDetail() {
         let parameters = AgentDetailScreenCoordinatorParameters(selection: selection,
                                                                 agentPlatformService: agentPlatformService,
                                                                 clientProxy: flowParameters.userSession.clientProxy,
                                                                 mediaProvider: flowParameters.userSession.mediaProvider,
                                                                 userIndicatorController: flowParameters.userIndicatorController,
-                                                                approvalsStreamService: flowParameters.userSession.approvalsStreamService)
+                                                                store: agentsStore)
         let coordinator = AgentDetailScreenCoordinator(parameters: parameters)
 
         coordinator.actionsPublisher
@@ -168,24 +214,44 @@ class AgentFlowCoordinator: FlowCoordinatorProtocol {
                 case .showQueue:
                     pushOutreachQueue()
                 case .message:
-                    actionsSubject.send(.openDM(matrixUserID: agent.matrixUserID))
+                    if pushedRow == nil {
+                        actionsSubject.send(.openDM(matrixUserID: agent.matrixUserID))
+                    } else {
+                        openDM()
+                    }
                 case .addToChat(let agentRoomIDs):
                     presentRoomPicker(agentRoomIDs: agentRoomIDs)
                 case .addedToChat:
                     actionsSubject.send(.changed)
-                case .archived:
+                case .archived, .gone:
                     actionsSubject.send(.changed)
-                    // Removing the root ends the flow (its dismissal sends `.finished`).
-                    navigationStackCoordinator.setRootCoordinator(nil)
+                    // Taking the screen away ends the flow (its dismissal sends `.finished`).
+                    if pushedRow == nil {
+                        navigationStackCoordinator.setRootCoordinator(nil)
+                    } else if let initialCoordinator {
+                        navigationStackCoordinator.pop(to: initialCoordinator)
+                    }
                 }
             }
             .store(in: &cancellables)
 
         agentDetailScreenCoordinator = coordinator
 
-        navigationStackCoordinator.setRootCoordinator(coordinator) { [weak self] in
-            self?.actionsSubject.send(.finished)
+        let finished: () -> Void = { [weak self] in self?.actionsSubject.send(.finished) }
+        if pushedRow == nil {
+            navigationStackCoordinator.setRootCoordinator(coordinator, dismissalCallback: finished)
+        } else {
+            navigationStackCoordinator.push(coordinator, dismissalCallback: finished)
         }
+    }
+
+    /// Message on a pushed agent's screen: the agent's DM, which goes back to it when this flow started there.
+    private func openDM() {
+        guard case .success(let roomID?) = flowParameters.userSession.clientProxy.directRoomForUserID(agent.matrixUserID) else {
+            MXLog.error("No DM with \(agent.matrixUserID) to open from its pushed screen")
+            return
+        }
+        openChat(roomID: roomID)
     }
 
     // MARK: «В чат»
@@ -245,6 +311,7 @@ class AgentFlowCoordinator: FlowCoordinatorProtocol {
         let coordinator = AgentSettingsScreenCoordinator(parameters: .init(agent: agent,
                                                                            section: section,
                                                                            agentPlatformService: agentPlatformService,
+                                                                           store: agentsStore,
                                                                            userIndicatorController: flowParameters.userIndicatorController))
         coordinator.actionsPublisher
             .sink { [weak self] action in
@@ -266,6 +333,7 @@ class AgentFlowCoordinator: FlowCoordinatorProtocol {
     private func pushBlockedUsers() {
         let coordinator = AgentBlockedScreenCoordinator(parameters: .init(agent: agent,
                                                                           agentPlatformService: agentPlatformService,
+                                                                          store: agentsStore,
                                                                           userIndicatorController: flowParameters.userIndicatorController))
         navigationStackCoordinator.push(coordinator) { [weak self] in
             self?.agentDetailScreenCoordinator?.reload()
@@ -274,29 +342,44 @@ class AgentFlowCoordinator: FlowCoordinatorProtocol {
     
     /// Activity: a row opens its chat or its approval (G5). «Ждут вашего
     /// решения» opens it on that filter.
-    private func pushAgentActivity(filter: ActionOutcomeFilter) {
+    private func pushAgentActivity(filter: ActionOutcomeFilter, dismissalCallback: (() -> Void)? = nil) {
         let coordinator = AgentActivityScreenCoordinator(parameters: .init(agentID: agent.agentID,
                                                                            initialFilter: filter,
-                                                                           agentPlatformService: agentPlatformService,
+                                                                           store: agentsStore,
                                                                            clientProxy: flowParameters.userSession.clientProxy))
         coordinator.actionsPublisher
             .sink { [weak self] (action: AgentActivityScreenCoordinatorAction) in
                 guard let self else { return }
                 switch action {
                 case .openRoom(let roomID):
-                    openRoom(roomID: roomID)
+                    openChat(roomID: roomID)
                 case .openApproval(let approvalID):
                     pushApprovalDetail(approvalID: approvalID)
                 }
             }
             .store(in: &cancellables)
-        navigationStackCoordinator.push(coordinator)
+        navigationStackCoordinator.push(coordinator, dismissalCallback: dismissalCallback)
     }
 
+    /// «Open chat» of the agent in one chat. A chat this flow started from is shown by that chat's own flow, so it isn't
+    /// stacked twice; any other opens as an activity row's does.
+    func openChat(roomID: String) {
+        if showOriginRoom?(roomID) == true {
+            return
+        }
+        openRoom(roomID: roomID)
+    }
+    
     /// An activity row's chat, pushed on this stack as the Spaces tab pushes
     /// a space's room, so back returns to the activity rather than leaving
     /// the owner on the Chats tab with the Agents stack behind.
     func openRoom(roomID: String) {
+        // A second tap on a cold room would start a second flow, and push the room twice.
+        guard roomFlowCoordinator == nil else {
+            MXLog.info("A chat is already opening on the agent's stack")
+            return
+        }
+        
         let coordinator = RoomFlowCoordinator(roomID: roomID,
                                               isChildFlow: true,
                                               navigationStackCoordinator: navigationStackCoordinator,
@@ -309,6 +392,8 @@ class AgentFlowCoordinator: FlowCoordinatorProtocol {
                     actionsSubject.send(.presentCallScreen(roomProxy: roomProxy, isVoiceCall: isVoiceCall))
                 case .presentAIConsentSettings:
                     actionsSubject.send(.presentAIConsentSettings)
+                case .presentAgentsTab: // AGENT-PLATFORM (question 412)
+                    actionsSubject.send(.presentAgentsTab)
                 case .verifyUser(let userID):
                     actionsSubject.send(.verifyUser(userID: userID))
                 case .continueWithSpaceFlow:
@@ -341,16 +426,38 @@ class AgentFlowCoordinator: FlowCoordinatorProtocol {
     }
 
     /// The agent's AI use against its daily limit (Brief 0079 3c).
-    private func pushAgentUsage() {
+    private func pushAgentUsage(dismissalCallback: (() -> Void)? = nil) {
         let coordinator = AgentUsageScreenCoordinator(parameters: .init(agentID: agent.agentID,
-                                                                        agentPlatformService: agentPlatformService))
-        navigationStackCoordinator.push(coordinator)
+                                                                        store: agentsStore))
+        navigationStackCoordinator.push(coordinator, dismissalCallback: dismissalCallback)
+    }
+
+    /// The agent's chats on a screen of their own, from its page (question 359).
+    private func pushAgentChats(dismissalCallback: @escaping () -> Void) {
+        let coordinator = AgentChatsScreenCoordinator(parameters: .init(agent: agent,
+                                                                        clientProxy: flowParameters.userSession.clientProxy,
+                                                                        store: agentsStore))
+        coordinator.actionsPublisher
+            .sink { [weak self] (action: AgentChatsScreenCoordinatorAction) in
+                guard let self else { return }
+                switch action {
+                case .selectRoom(let room):
+                    stateMachine.tryEvent(.selectRoom, userInfo: room)
+                case .gone:
+                    actionsSubject.send(.changed)
+                    navigationStackCoordinator.pop()
+                }
+            }
+            .store(in: &cancellables)
+
+        agentChatsScreenCoordinator = coordinator
+        navigationStackCoordinator.push(coordinator, dismissalCallback: dismissalCallback)
     }
 
     /// Outreach queue (company outreach role only): list + the add-targets push.
     private func pushOutreachQueue() {
         let coordinator = OutreachQueueListScreenCoordinator(parameters: .init(agentID: agent.agentID,
-                                                                               agentPlatformService: agentPlatformService))
+                                                                               store: agentsStore))
         coordinator.actionsPublisher
             .sink { [weak self] (action: OutreachQueueListScreenCoordinatorAction) in
                 switch action {
@@ -384,11 +491,11 @@ class AgentFlowCoordinator: FlowCoordinatorProtocol {
     private func presentAgentEdit() {
         let parameters = AgentEditScreenCoordinatorParameters(agent: agent,
                                                               agentPlatformService: agentPlatformService,
+                                                              store: agentsStore,
                                                               userSession: flowParameters.userSession,
                                                               navigationStackCoordinator: navigationStackCoordinator,
                                                               userIndicatorController: flowParameters.userIndicatorController,
-                                                              orientationManager: flowParameters.appMediator.windowManager,
-                                                              appSettings: flowParameters.appSettings)
+                                                              orientationManager: flowParameters.appMediator.windowManager)
         let coordinator = AgentEditScreenCoordinator(parameters: parameters)
 
         coordinator.actionsPublisher
@@ -423,12 +530,14 @@ class AgentFlowCoordinator: FlowCoordinatorProtocol {
             .sink { [weak self] action in
                 guard let self else { return }
                 switch action {
+                case .openChat(let roomID):
+                    openChat(roomID: roomID)
                 case .removed:
                     // The pop's completion fires .deselectRoom, which reloads the agent.
                     actionsSubject.send(.changed)
                     navigationStackCoordinator.pop()
                 case .addTool:
-                    pushCapabilitiesCatalog(room: room)
+                    pushAddTool(room: room)
                 case .editTool(let detail):
                     pushArmTool(room: room, mode: .edit(detail))
                 }
@@ -446,19 +555,16 @@ class AgentFlowCoordinator: FlowCoordinatorProtocol {
     // for chats the owner isn't in (a visitor's DM). The member picker is the
     // one step that needs the owner in the chat.
 
-    private func pushCapabilitiesCatalog(room: AgentRoomEntry) {
-        let coordinator = AgentCapabilitiesScreenCoordinator(parameters: .init(roomID: room.roomID,
-                                                                               agentID: agent.agentID,
-                                                                               agentDisplayName: agent.displayName,
-                                                                               agentPlatformService: agentPlatformService,
-                                                                               showsDoneButton: false))
+    private func pushAddTool(room: AgentRoomEntry) {
+        let coordinator = AddToolScreenCoordinator(parameters: .init(roomID: room.roomID,
+                                                                     agentID: agent.agentID,
+                                                                     agentDisplayName: agent.displayName,
+                                                                     store: agentsStore))
         coordinator.actionsPublisher
-            .sink { [weak self] (action: AgentCapabilitiesScreenCoordinatorAction) in
+            .sink { [weak self] (action: AddToolScreenCoordinatorAction) in
                 switch action {
-                case .presentArmTool(let capability, let active):
-                    self?.pushArmTool(room: room, mode: .create(capability: capability, active: active))
-                case .dismiss:
-                    self?.navigationStackCoordinator.pop()
+                case .selectKind(let kind):
+                    self?.pushArmTool(room: room, mode: .create(kind))
                 }
             }
             .store(in: &cancellables)
@@ -470,17 +576,29 @@ class AgentFlowCoordinator: FlowCoordinatorProtocol {
     }
 
     private func pushArmTool(room: AgentRoomEntry, mode: ArmToolScreenCoordinatorParameters.Mode) {
-        let coordinator = ArmToolScreenCoordinator(parameters: .init(roomID: room.roomID,
-                                                                     agentID: agent.agentID,
-                                                                     agentDisplayName: agent.displayName,
-                                                                     mode: mode,
-                                                                     agentPlatformService: agentPlatformService))
+        // Call translation is personal (ADR-0094 D9, row 14): its own screen, as from the chat's Tools.
+        guard !mode.isCallTranslation else {
+            let coordinator = CallTranslationToolScreenCoordinator(parameters: .init(roomID: room.roomID,
+                                                                                     agentID: agent.agentID,
+                                                                                     agentDisplayName: agent.displayName,
+                                                                                     agentPlatformService: agentPlatformService))
+            navigationStackCoordinator.push(coordinator) { [weak self] in
+                self?.agentInRoomScreenCoordinator?.reload()
+            }
+            return
+        }
+        guard let coordinator = ArmToolScreenCoordinator(parameters: .init(roomID: room.roomID,
+                                                                           agentID: agent.agentID,
+                                                                           agentDisplayName: agent.displayName,
+                                                                           mode: mode,
+                                                                           agentPlatformService: agentPlatformService,
+                                                                           store: agentsStore)) else { return }
         coordinator.actionsPublisher
             .sink { [weak self] (action: ArmToolScreenCoordinatorAction) in
                 guard let self else { return }
                 switch action {
                 case .finished:
-                    // Back to the chat screen, past the catalog when there was one.
+                    // Back to the chat screen, past the kinds when there were any.
                     if let agentInRoomScreenCoordinator {
                         navigationStackCoordinator.pop(to: agentInRoomScreenCoordinator)
                     } else {

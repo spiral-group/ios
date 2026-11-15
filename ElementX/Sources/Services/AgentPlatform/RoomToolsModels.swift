@@ -77,6 +77,28 @@ nonisolated struct RoomToolView: Equatable, Identifiable {
     let trigger: TriggerKind?
     /// Stable per-row salt so two same-kind safe-slice rows keep distinct ids.
     let safeSliceSalt: String
+    /// Whether this Tool touches the reader's own messages, on every Tool, own and others'.
+    let appliesToViewer: ToolAppliesToViewer
+}
+
+/// `applies_to_viewer`: the server's answer for this reader only. The owner's chosen audience stays private.
+nonisolated enum ToolAppliesToViewer: Equatable {
+    case yes
+    case no
+    /// A call tool: it has no sender.
+    case notApplicable
+    /// A read failed on the server, which is never a `no`.
+    case unknown
+
+    /// A value newer than this build says nothing, so it reads as `unknown` (decision 96).
+    init(wire: String) {
+        switch wire {
+        case "yes": self = .yes
+        case "no": self = .no
+        case "not_applicable": self = .notApplicable
+        default: self = .unknown
+        }
+    }
 }
 
 // MARK: - Tool params (the WHAT)
@@ -92,7 +114,9 @@ nonisolated enum ToolParams: Equatable {
     case rephrase(instruction: String)
     case summarize
     case custom(instruction: String)
-    case liveTranslate(targetLanguages: [String], style: LiveTranslationStyle)
+    /// The personal per-chat call translation (ADR-0094 D9, A.5): "in calls here I listen in `language`; if nobody
+    /// translates, my assistant does". One catalog code.
+    case liveTranslate(language: String)
     case callSummary
     case callRecording
     /// Forward-compat: an unknown kind decodes here so a newer backend
@@ -123,9 +147,8 @@ nonisolated enum ToolParams: Equatable {
             payload["target_language"] = lang
         case .rephrase(let instruction), .custom(let instruction):
             payload["instruction"] = instruction
-        case .liveTranslate(let langs, let style):
-            payload["target_languages"] = langs
-            payload["style"] = style.rawValue
+        case .liveTranslate(let language):
+            payload["language"] = language
         case .simplify, .correct, .summarize, .callSummary, .callRecording, .unknown:
             break
         }
@@ -145,23 +168,12 @@ nonisolated enum ToolParams: Equatable {
         case "summarize": self = .summarize
         case "custom": self = .custom(instruction: wire["instruction"] as? String ?? "")
         case "live_translate":
-            let langs = wire["target_languages"] as? [String] ?? []
-            let style = LiveTranslationStyle(wire: wire["style"] as? String ?? "")
-            self = .liveTranslate(targetLanguages: langs, style: style)
+            self = .liveTranslate(language: wire["language"] as? String ?? "")
         case "call_summary": self = .callSummary
         case "call_recording": self = .callRecording
         default:
             self = .unknown(kind: kind)
         }
-    }
-}
-
-/// Live-translation presentation style (Brief 0033).
-nonisolated enum LiveTranslationStyle: String, Equatable {
-    case simultaneous, consecutive
-
-    init(wire: String) {
-        self = LiveTranslationStyle(rawValue: wire) ?? .simultaneous
     }
 }
 

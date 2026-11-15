@@ -13,14 +13,16 @@ import SwiftUI
 
 struct TimelineStyler<Content: View>: View {
     let timelineItem: EventBasedTimelineItemProtocol
-    @ViewBuilder let content: () -> Content
+    /// AGENT-PLATFORM (Brief 0083, question 359): a value rather than a closure, which compares unequal on every update of
+    /// the row around it, so that what hasn't changed isn't built again.
+    private let content: Content
     
     @State private var adjustedDeliveryStatus: TimelineItemDeliveryStatus?
     @State private var task: Task<Void, Never>?
     
-    init(timelineItem: EventBasedTimelineItemProtocol, @ViewBuilder content: @escaping () -> Content) {
+    init(timelineItem: EventBasedTimelineItemProtocol, @ViewBuilder content: () -> Content) {
         self.timelineItem = timelineItem
-        self.content = content
+        self.content = content()
         _adjustedDeliveryStatus = State(initialValue: timelineItem.properties.deliveryStatus)
     }
     
@@ -92,7 +94,7 @@ struct TimelineItemStyler_Previews: PreviewProvider, TestablePreview {
     
     static let failed: TextRoomTimelineItem = {
         var result = base
-        result.properties.deliveryStatus = .sendingFailed(.unknown)
+        result.properties.deliveryStatus = .sendingFailed(.unknown(reason: nil))
         return result
     }()
     

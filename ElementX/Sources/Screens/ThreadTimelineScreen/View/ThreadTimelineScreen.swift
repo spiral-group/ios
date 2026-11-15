@@ -10,6 +10,8 @@ import Compound
 import SwiftUI
 
 struct ThreadTimelineScreen: View {
+    @Environment(\.accessibilityVoiceOverEnabled) private var isVoiceOverEnabled // AGENT-PLATFORM (Brief 0083, question 359)
+    
     @ObservedObject private var context: ThreadTimelineScreenViewModelType.Context
     @ObservedObject private var timelineContext: TimelineViewModelType.Context
     private let composerToolbar: ComposerToolbar
@@ -24,17 +26,21 @@ struct ThreadTimelineScreen: View {
     
     var body: some View {
         TimelineView(timelineContext: timelineContext)
-            .background(.compound.bgCanvasDefault)
+            .timelineUnderComposerBar() // AGENT-PLATFORM (Brief 0083, decision 334): as in the room
+            .timelineUnderHeader(isEnabled: !isVoiceOverEnabled) // AGENT-PLATFORM (Brief 0083, question 359): as in the room
+            .chatBackground() // AGENT-PLATFORM (Brief 0083, question 357)
             .toolbarRole(RoomHeaderView.toolbarRole)
             .navigationTitle(L10n.commonThread)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { toolbar }
-            .toolbarBackground(.visible, for: .navigationBar) // Fix the toolbar's background.
+            .timelineHeaderBackground() // AGENT-PLATFORM (Brief 0083, question 359): as in the room
+            .navigationBarBackButtonHidden(isMessageSelectionActive)
             .timelineMediaPreview(viewModel: $context.mediaPreviewViewModel)
             .overlay(alignment: .top) {
                 FloatingDateBadge(dateText: timelineContext.floatingDate?.formattedDateSeparator()) {
                     timelineContext.send(viewAction: .scrollToFirstItemForCurrentDate)
                 }
+                .onChatBackground() // AGENT-PLATFORM (Brief 0083, question 359)
                 .padding(.top, 13)
             }
             .overlay(alignment: .bottomTrailing) {
@@ -42,15 +48,28 @@ struct ThreadTimelineScreen: View {
                     timelineContext.send(viewAction: .scrollToBottom)
                 }
             }
-            .safeAreaInset(edge: .bottom, spacing: 0) {
-                composer
-                    .padding(.top, 8)
-                    .background(Color.compound.bgCanvasDefault.ignoresSafeArea())
-                    .environmentObject(timelineContext)
-                    .environment(\.timelineContext, timelineContext)
-                    // Make sure the reply header honours the hideTimelineMedia setting too.
-                    .environment(\.shouldAutomaticallyLoadImages, !timelineContext.viewState.hideTimelineMedia)
+            .timelineComposerBar { // AGENT-PLATFORM (Brief 0083, decision 334): as in the room
+                VStack(spacing: 0) {
+                    composer
+                        .padding(.top, 8)
+                        .spiralComposerBar(scrollsUnder: true) // AGENT-PLATFORM (Brief 0083): the room's composer bar
+                        .environmentObject(timelineContext)
+                        .environment(\.timelineContext, timelineContext)
+                        // Make sure the reply header honours the hideTimelineMedia setting too.
+                        .environment(\.shouldAutomaticallyLoadImages, !timelineContext.viewState.hideTimelineMedia)
+                        .collapsedInPlace(isMessageSelectionActive)
+                    
+                    if isMessageSelectionActive {
+                        TimelineMessageSelectionActionBar(context: timelineContext)
+                    }
+                }
+            } floating: {
+                composerSuggestions
             }
+    }
+    
+    private var isMessageSelectionActive: Bool {
+        timelineContext.viewState.messageSelection.isActive
     }
     
     @ViewBuilder
@@ -59,6 +78,14 @@ struct ThreadTimelineScreen: View {
             composerToolbar
         } else {
             ComposerDisabledView()
+        }
+    }
+    
+    // AGENT-PLATFORM (question 357): as in the room, they go with the composer they belong to.
+    @ViewBuilder
+    private var composerSuggestions: some View {
+        if context.viewState.canSendMessage, !isMessageSelectionActive {
+            composerToolbar.floatingSuggestions
         }
     }
     
@@ -72,8 +99,16 @@ struct ThreadTimelineScreen: View {
                            roomAvatar: context.viewState.roomAvatar,
                            dmRecipientDetails: context.viewState.dmRecipientDetails,
                            roomHistorySharingState: context.viewState.roomHistorySharingState,
+                           typing: timelineContext.viewState.headerTyping, // AGENT-PLATFORM (Brief 0083, question 359)
                            mediaProvider: context.mediaProvider) {
                 // There is no action but the iOS 26 designs have it looking like a button.
+            }
+            .onChatBackground() // AGENT-PLATFORM (Brief 0083, question 359)
+        }
+        
+        if isMessageSelectionActive {
+            TimelineMessageSelectionToolbar {
+                timelineContext.send(viewAction: .clearMessageSelection)
             }
         }
     }

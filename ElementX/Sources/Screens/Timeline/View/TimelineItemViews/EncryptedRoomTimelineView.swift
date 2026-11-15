@@ -45,10 +45,10 @@ struct RoomTimelineViewPlaceholderLabelStyle: LabelStyle {
     func makeBody(configuration: Configuration) -> some View {
         HStack(alignment: .top, spacing: 8) {
             configuration.icon
-                .foregroundColor(.compound.iconSecondary)
+                .bubbleForegroundStyle(.secondaryIcon) // AGENT-PLATFORM (Brief 0083): white on an own bubble
             configuration.title
                 .font(.compound.bodyLG.italic())
-                .foregroundColor(.compound.textSecondary)
+                .bubbleForegroundStyle(.secondary) // AGENT-PLATFORM (Brief 0083)
         }
         .padding(.horizontal, 4)
     }

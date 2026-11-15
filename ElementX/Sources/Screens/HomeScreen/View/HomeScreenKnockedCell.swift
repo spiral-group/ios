@@ -8,6 +8,8 @@
 
 import Combine
 import Compound
+import MatrixRustSDKMocks
+import SpiralTokens // AGENT-PLATFORM (Brief 0083)
 import SwiftUI
 
 struct HomeScreenKnockedCell: View {
@@ -17,13 +19,17 @@ struct HomeScreenKnockedCell: View {
     let context: HomeScreenViewModel.Context
     
     var body: some View {
-        HStack(alignment: .top, spacing: 16) {
+        // AGENT-PLATFORM (Brief 0083): a Chats row's columns; a knock has nothing unread, so its marker is empty.
+        HStack(alignment: .top, spacing: 0) {
+            HomeScreenRoomUnreadMarker(isShown: false, isHighlighted: false)
+            
             if dynamicTypeSize < .accessibility3 {
                 RoomAvatarImage(avatar: room.avatar,
-                                avatarSize: .custom(52),
+                                avatarSize: .custom(SpiralAvatarSize.medium), // AGENT-PLATFORM (Brief 0083, decision 300b)
                                 mediaProvider: context.mediaProvider)
                     .dynamicTypeSize(dynamicTypeSize < .accessibility1 ? dynamicTypeSize : .accessibility1)
                     .accessibilityHidden(true)
+                    .padding(.trailing, CompoundDesignTokens.space3X) // AGENT-PLATFORM (Brief 0083)
             }
             
             mainContent
@@ -36,7 +42,6 @@ struct HomeScreenKnockedCell: View {
                 }
         }
         .padding(.top, 12)
-        .padding(.leading, 16)
         .onTapGesture {
             if let roomID = room.roomID {
                 context.send(viewAction: .selectRoom(roomIdentifier: roomID))
@@ -97,8 +102,6 @@ struct HomeScreenKnockedCell: View {
 
 // MARK: - Previews
 
-import MatrixRustSDKMocks
-
 struct HomeScreenKnockedCell_Previews: PreviewProvider, TestablePreview {
     static var previews: some View {
         ScrollView {
@@ -132,10 +135,10 @@ struct HomeScreenKnockedCell_Previews: PreviewProvider, TestablePreview {
         let userSession = UserSessionMock(.init(clientProxy: clientProxy))
         
         return HomeScreenViewModel(userSession: userSession,
+                                   availableSessionsPublisher: .init([.init(userSession: userSession)]),
                                    selectedRoomPublisher: CurrentValueSubject<String?, Never>(nil).asCurrentValuePublisher(),
-                                   appSettings: .volatile(),
                                    analyticsService: AnalyticsServiceMock(.init()),
-                                   notificationManager: NotificationManagerMock(),
+                                   bugReportService: BugReportServiceMock(.init()),
                                    userIndicatorController: UserIndicatorControllerMock())
     }
 }
@@ -149,6 +152,7 @@ private extension HomeScreenRoom {
         let summary = RoomSummary(room: RoomSDKMock(),
                                   id: "@someone:somewhere.com",
                                   joinRequestType: .invite(inviter: inviter),
+                                  isJoined: false,
                                   name: "Some Guy",
                                   isDirect: true,
                                   isSpace: false,
@@ -182,6 +186,7 @@ private extension HomeScreenRoom {
         let summary = RoomSummary(room: RoomSDKMock(),
                                   id: "@someone:somewhere.com",
                                   joinRequestType: .invite(inviter: inviter),
+                                  isJoined: false,
                                   name: "Awesome Room",
                                   isDirect: false,
                                   isSpace: false,

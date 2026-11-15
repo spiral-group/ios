@@ -18,7 +18,6 @@ struct CreateCompanyScreenCoordinatorParameters {
     weak var navigationStackCoordinator: NavigationStackCoordinator?
     let userIndicatorController: UserIndicatorControllerProtocol
     let orientationManager: OrientationManagerProtocol
-    let appSettings: AppSettings
 }
 
 enum CreateCompanyScreenCoordinatorAction {
@@ -40,8 +39,7 @@ final class CreateCompanyScreenCoordinator: CoordinatorProtocol {
         self.parameters = parameters
         viewModel = CreateCompanyScreenViewModel(agentPlatformService: parameters.agentPlatformService,
                                                  userSession: parameters.userSession,
-                                                 userIndicatorController: parameters.userIndicatorController,
-                                                 appSettings: parameters.appSettings)
+                                                 userIndicatorController: parameters.userIndicatorController)
     }
     
     func start() {

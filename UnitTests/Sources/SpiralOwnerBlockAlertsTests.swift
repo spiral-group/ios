@@ -5,8 +5,8 @@
 // what happens to the owner's agents, where there are agents to speak of.
 //
 
-@testable import ElementX
 import Foundation
+@testable import Spiral
 import Testing
 
 @MainActor
@@ -63,7 +63,7 @@ struct SpiralOwnerBlockAlertsTests {
         return RoomMemberDetailsScreenViewModel(userID: RoomMemberProxyMock.mockAlice.userID,
                                                 roomProxy: roomProxy,
                                                 userSession: userSession,
-                                                userIndicatorController: UserIndicatorControllerMock(),
-                                                analytics: AnalyticsServiceMock(.init()))
+                                                analytics: AnalyticsServiceMock(.init()),
+                                                userIndicatorController: UserIndicatorControllerMock())
     }
 }

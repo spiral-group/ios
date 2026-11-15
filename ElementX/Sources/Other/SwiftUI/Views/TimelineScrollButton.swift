@@ -21,16 +21,23 @@ struct TimelineScrollButton: View {
     let isHidden: Bool
     let showsBadge: Bool
     let onLongPress: (() -> Void)?
+    /// On the button itself: on the view around it, it would leave an element behind while the button is hidden.
+    let accessibilityIdentifier: String?
     let callback: () -> Void
     
-    @ScaledMetric(relativeTo: .compound.bodyLG) private var iconSize: CGFloat = 24
-    @ScaledMetric(relativeTo: .compound.bodyLG) private var badgeDotSize: CGFloat = 12
+    @ScaledMetric(relativeTo: .compound.headingLG) private var badgeDotSize: CGFloat = 12
     @GestureState private var isPressing = false
     /// Set when a long-press is recognized so the trailing touch-up doesn't also fire `callback()`.
     @State private var consumedByLongPress = false
     
-    /// Padding around the chevron, balanced so the total circle stays ~36pt at default text size.
-    private let iconPadding: CGFloat = 6
+    // AGENT-PLATFORM (Brief 0083): a 44 pt circle at the default text size, iOS's smallest target. Element's was 36.
+    /// Padding around the chevron, balanced so the total circle stays 44pt at default text size.
+    private let iconPadding: CGFloat = 10
+    
+    /// AGENT-PLATFORM (Brief 0083, question 359): the dot says this to VoiceOver too.
+    var accessibilityValueText: String {
+        showsBadge ? L10n.a11yNotificationsNewMessages : ""
+    }
     
     /// Vertical offset that half-centers the badge dot on the circle's edge. Magnitude is half
     /// the dot's diameter so half sits inside the circle, half outside. Sign is applied at the
@@ -43,11 +50,13 @@ struct TimelineScrollButton: View {
          isHidden: Bool = false,
          showsBadge: Bool = false,
          onLongPress: (() -> Void)? = nil,
+         accessibilityIdentifier: String? = nil,
          callback: @escaping () -> Void) {
         self.direction = direction
         self.isHidden = isHidden
         self.showsBadge = showsBadge
         self.onLongPress = onLongPress
+        self.accessibilityIdentifier = accessibilityIdentifier
         self.callback = callback
     }
     
@@ -77,7 +86,20 @@ struct TimelineScrollButton: View {
         }
     }
     
+    // AGENT-PLATFORM (Brief 0083, question 357): hidden, the button leaves the tree, as accessibility still listed it at
+    // zero opacity; the hidden icon keeps its place for the button stacked above it.
     private var buttonContent: some View {
+        ZStack {
+            icon.hidden()
+            if !isHidden {
+                button
+                    .transition(.opacity)
+            }
+        }
+        .animation(.elementDefault, value: isHidden)
+    }
+    
+    private var button: some View {
         Button {
             if consumedByLongPress {
                 consumedByLongPress = false
@@ -93,24 +115,22 @@ struct TimelineScrollButton: View {
                 }
             }
         }
-        .opacity(isHidden ? 0 : 1)
-        .allowsHitTesting(!isHidden)
-        .accessibilityHidden(isHidden)
         .accessibilityLabel(direction == .down ? L10n.a11yJumpToBottom : L10n.a11yJumpToUnread)
-        .animation(.elementDefault, value: isHidden)
+        .accessibilityValue(accessibilityValueText)
+        .accessibilityIdentifier(accessibilityIdentifier ?? "")
     }
     
     @ViewBuilder
     private var icon: some View {
         let chevron = CompoundIcon(direction == .down ? \.chevronDown : \.chevronUp,
-                                   size: .custom(iconSize),
-                                   relativeTo: .compound.bodyLG)
+                                   size: .medium,
+                                   relativeTo: .compound.headingLG)
             .foregroundStyle(.compound.iconPrimary)
-            .padding(iconPadding)
+            .scaledPadding(iconPadding, relativeTo: .compound.headingLG)
         if #available(iOS 26, *) {
+            // AGENT-PLATFORM (Brief 0083): the glass draws its own edge, as the bar's buttons do; no outline over it.
             chevron
                 .glassEffect(.regular, in: Circle())
-                .overlay(Circle().stroke(Color.compound.borderInteractiveSecondary, lineWidth: 1))
         } else {
             chevron
                 .background(.regularMaterial, in: Circle())

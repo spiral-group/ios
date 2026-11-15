@@ -23,6 +23,16 @@ enum TimelineGroupStyle: Hashable {
             return false
         }
     }
+    
+    // AGENT-PLATFORM (Brief 0083): the sender's avatar sits beside a group's last bubble, as Messages draws it.
+    var shouldShowSenderAvatar: Bool {
+        switch self {
+        case .single, .last:
+            return true
+        default:
+            return false
+        }
+    }
 }
 
 // MARK: - Environment

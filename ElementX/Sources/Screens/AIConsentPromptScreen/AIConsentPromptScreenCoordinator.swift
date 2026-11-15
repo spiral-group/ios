@@ -10,7 +10,7 @@ import Combine
 import SwiftUI
 
 struct AIConsentPromptScreenCoordinatorParameters {
-    let agentPlatformService: AgentPlatformServiceProtocol
+    let store: AgentsStore
     let privacyURL: URL
 }
 
@@ -28,7 +28,7 @@ final class AIConsentPromptScreenCoordinator: CoordinatorProtocol {
     }
     
     init(parameters: AIConsentPromptScreenCoordinatorParameters) {
-        viewModel = AIConsentPromptScreenViewModel(agentPlatformService: parameters.agentPlatformService,
+        viewModel = AIConsentPromptScreenViewModel(store: parameters.store,
                                                    privacyURL: parameters.privacyURL)
     }
     

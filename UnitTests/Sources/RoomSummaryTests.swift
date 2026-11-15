@@ -6,9 +6,9 @@
 // Please see LICENSE files in the repository root for full details.
 //
 
-@testable import ElementX
 import Foundation
 import MatrixRustSDKMocks
+@testable import Spiral
 import Testing
 
 @MainActor
@@ -26,6 +26,8 @@ struct RoomSummaryTests {
             #expect(id == roomDetails.id)
             #expect(name == roomDetails.name)
             #expect(avatarURL == roomDetails.avatarURL)
+        case .direct:
+            Issue.record("A room isn't a DM.")
         case .heroes:
             Issue.record("A room shouldn't use the heroes for its avatar.")
         case .space:
@@ -40,7 +42,9 @@ struct RoomSummaryTests {
         let details = makeSummary(isDirect: true, isSpace: false, hasRoomAvatar: true, isTombstoned: false)
         
         switch details.avatar {
-        case .room(let id, let name, let avatarURL):
+        case .room:
+            Issue.record("A DM isn't a group: it stays round (decision 357).")
+        case .direct(let id, let name, let avatarURL):
             #expect(id == roomDetails.id)
             #expect(name == roomDetails.name)
             #expect(avatarURL == roomDetails.avatarURL)
@@ -58,7 +62,7 @@ struct RoomSummaryTests {
         let details = makeSummary(isDirect: true, isSpace: false, hasRoomAvatar: false, isTombstoned: false)
         
         switch details.avatar {
-        case .room:
+        case .room, .direct:
             Issue.record("A DM without an avatar should defer to the hero for the correct placeholder tint colour.")
         case .heroes(let heroes):
             #expect(heroes == self.heroes)
@@ -74,7 +78,7 @@ struct RoomSummaryTests {
         let details = makeSummary(isDirect: false, isSpace: true, hasRoomAvatar: true, isTombstoned: false)
         
         switch details.avatar {
-        case .room:
+        case .room, .direct:
             Issue.record("A space shouldn't use a room avatar.")
         case .heroes:
             Issue.record("A room shouldn't use the heroes for its avatar.")
@@ -100,6 +104,7 @@ struct RoomSummaryTests {
         RoomSummary(room: RoomSDKMock(),
                     id: roomDetails.id,
                     joinRequestType: nil,
+                    isJoined: true,
                     name: roomDetails.name,
                     isDirect: isDirect,
                     isSpace: isSpace,

@@ -41,9 +41,9 @@ struct GalleryItemTileView: View {
                 Color.clear
                     .overlay { content }
                     .clipped()
-                    .overlay(alignment: .bottom) {
+                    .overlay(alignment: .topLeading) {
                         if item.isVideo {
-                            videoOverlay
+                            MediaVideoBadge(duration: item.duration)
                         }
                     }
                     .accessibilityElement(children: .ignore)
@@ -79,7 +79,7 @@ struct GalleryItemTileView: View {
                           size: item.size,
                           mediaProvider: mediaProvider) { imageView in
                 imageView
-                    .aspectRatio(contentMode: .fill)
+                    .scaledToFill()
             } placeholder: {
                 placeholder
             }
@@ -100,42 +100,18 @@ struct GalleryItemTileView: View {
         }
     }
     
-    private var videoOverlay: some View {
-        HStack(spacing: 0) {
-            CompoundIcon(\.videoCallSolid,
-                         size: .xSmall,
-                         relativeTo: .compound.bodyXSSemibold)
-            Spacer(minLength: 0)
-            if let duration = item.duration {
-                Text(formatted(duration: duration))
-                    .lineLimit(1)
-            }
-        }
-        .padding(8)
-        .frame(maxWidth: .infinity)
-        .font(.compound.bodyXSSemibold)
-        .foregroundStyle(.compound.textPrimary)
-        .background {
-            LinearGradient(colors: [.clear, .compound.bgCanvasDefault],
-                           startPoint: .top,
-                           endPoint: .bottom)
-        }
-    }
-    
+    // AGENT-PLATFORM (question 413): the last tile dims its picture under the count, as Telegram does. A photo is the
+    // same in either appearance, so the dimming and the count are too.
     private var overflowOverlay: some View {
         ZStack {
-            Color.compound.bgCanvasDefault.opacity(0.7)
+            Color.black.opacity(0.45)
             Text("+\(overflowCount)")
-                .font(.compound.headingSMSemibold)
-                .foregroundStyle(.compound.textPrimary)
+                .font(.compound.headingLGBold)
+                .foregroundStyle(.white)
+                // Above the time's chip, which sits in this tile's corner when there's no caption.
+                .padding(.bottom, 20)
         }
         .allowsHitTesting(false) // Let the tap fall through to the tile below.
         .accessibilityHidden(true) // The count is already announced by the tile's label.
-    }
-    
-    private func formatted(duration: TimeInterval) -> String {
-        let duration = Duration.seconds(duration)
-        let pattern: Duration.TimeFormatStyle.Pattern = duration >= .seconds(3600) ? .hourMinuteSecond : .minuteSecond
-        return duration.formatted(.time(pattern: pattern))
     }
 }

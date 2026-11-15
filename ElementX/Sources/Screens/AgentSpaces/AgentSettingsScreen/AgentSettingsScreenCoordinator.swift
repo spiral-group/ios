@@ -9,6 +9,7 @@ struct AgentSettingsScreenCoordinatorParameters {
     let agent: AgentSpaceAgentCard
     let section: AgentSettingsSection
     let agentPlatformService: AgentPlatformServiceProtocol
+    let store: AgentsStore
     let userIndicatorController: UserIndicatorControllerProtocol
 }
 
@@ -30,6 +31,7 @@ final class AgentSettingsScreenCoordinator: CoordinatorProtocol {
         viewModel = AgentSettingsScreenViewModel(agent: parameters.agent,
                                                  section: parameters.section,
                                                  agentPlatformService: parameters.agentPlatformService,
+                                                 store: parameters.store,
                                                  userIndicatorController: parameters.userIndicatorController)
     }
 

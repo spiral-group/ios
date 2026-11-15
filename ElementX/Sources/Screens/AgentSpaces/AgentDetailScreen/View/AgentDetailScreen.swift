@@ -7,39 +7,42 @@
 //
 
 import Compound
+import SpiralComponents
 import SwiftUI
 
-/// One agent (step B, decision 191) — the room details layout: avatar, name
-/// with the presence dot, handle and a kind line; «Написать» · «В чат» ·
-/// «Активность» · «Использование»; the agent's chats; a role agent's brief
-/// and its Archive at the bottom. «Изменить» is in the toolbar.
+/// One agent (step B, decision 191): the profile pages' hero on top (avatar, name,
+/// handle, what it is, its status, «Написать» and «В чат»), «Активность» and
+/// «Использование», the agent's chats; a role agent's brief and its Archive at
+/// the bottom. «Изменить» is in the toolbar.
 struct AgentDetailScreen: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    
     @Bindable var context: AgentDetailScreenViewModel.Context
     
     var body: some View {
-        Form {
+        // The profile pages' page (question 359): the avatar's field behind the top, the pull and the bar as there.
+        SpiralProfilePage(picture: .user(profile),
+                          title: context.viewState.displayName,
+                          mediaProvider: context.mediaProvider) {
             headerSection
             
             verificationBannerSection
             
-            switch context.viewState.detailState {
-            case .loading:
-                loadingSection
-            case .failure:
-                failureSection
-            case .loaded(_, let rooms):
-                roomsSection(rooms)
-                settingsSection
-                controlSection
-                queueSection
-            }
+            activitySection
+            
+            // AGENT-PLATFORM (Brief 0083, question 359): the page's shape comes from the card. The read fills the
+            // chats' slot and the counts; it moves nothing under them.
+            chatsSection
+            
+            settingsSection
+            
+            controlSection
+            
+            queueSection
             
             archiveSection
         }
-        .compoundList()
-        .refreshable { context.send(viewAction: .refresh) }
-        .navigationBarTitleDisplayMode(.inline)
-        .background(Color.compound.bgCanvasDefault.ignoresSafeArea())
+        .feedSyncStatus(context.viewState.syncStatus) // AGENT-PLATFORM: platform sync (decision 289)
         .toolbar { toolbar }
         .alert(item: $context.alertInfo)
     }
@@ -56,82 +59,68 @@ struct AgentDetailScreen: View {
     
     // MARK: Header
     
+    /// The page's picture: the agent's avatar, and a field in its own colour when it has none (question 400).
+    private var profile: UserProfile {
+        UserProfile(userID: context.viewState.card.matrixUserID,
+                    displayName: context.viewState.displayName,
+                    avatarURL: context.viewState.avatarMXC.flatMap(URL.init(string:)))
+    }
+    
+    /// The profile pages' hero (question 359): the avatar with its badge, the name, the handle, what it is and its
+    /// status, then Message and Add to chat as Spiral's buttons. Activity and Usage open screens, so they are rows below.
     private var headerSection: some View {
-        Section {
-            VStack(spacing: 8) {
-                LoadableAvatarImage(url: context.viewState.avatarMXC.flatMap(URL.init(string:)),
-                                    name: context.viewState.displayName,
-                                    contentID: context.viewState.card.matrixUserID,
-                                    avatarSize: .user(on: .memberDetails),
-                                    mediaProvider: context.mediaProvider)
-                    .accessibilityHidden(true)
-                
-                AgentNameWithPresence(name: context.viewState.displayName,
-                                      isOnline: context.viewState.card.presence == .online)
-                    .font(.compound.headingLGBold)
-                    .foregroundStyle(.compound.textPrimary)
-                    .multilineTextAlignment(.center)
-                
-                Text(context.viewState.card.matrixUserID)
-                    .font(.compound.bodyLG)
-                    .foregroundStyle(.compound.textSecondary)
-                    .multilineTextAlignment(.center)
-                    .textSelection(.enabled)
-                
-                if context.viewState.isPaused {
-                    AgentStatusBadge(title: UntranslatedL10n.screenAgentsPaused, variant: .neutral)
-                }
-                
-                if let kindLine = context.viewState.kindLine {
-                    Text(kindLine)
-                        .font(.compound.bodyMD)
-                        .foregroundStyle(.compound.textSecondary)
-                        .multilineTextAlignment(.center)
-                }
-                
-                actionButtons
-                    .padding(.top, 16)
-            }
-            .frame(maxWidth: .infinity)
-            .listRowBackground(Color.clear)
+        SpiralProfileHero(picture: .user(profile),
+                          title: context.viewState.displayName,
+                          agent: SpiralAgentProfile(userID: context.viewState.card.matrixUserID,
+                                                    roleLine: context.viewState.kindLine,
+                                                    ownCard: context.viewState.card),
+                          subtitle: context.viewState.card.matrixUserID,
+                          agentStatus: context.viewState.presence,
+                          mediaProvider: context.mediaProvider) {
+            actionButtons
+                .padding(.horizontal, ListRowPadding.horizontal)
+                .padding(.top, CompoundDesignTokens.space2X)
         }
     }
     
-    /// The room-details action row anatomy (`FormActionButtonStyle`).
+    /// Side by side, each half the width; stacked at accessibility sizes, Message first.
     private var actionButtons: some View {
-        HStack(spacing: 8) {
+        let layout = dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(spacing: CompoundDesignTokens.space2X))
+            : AnyLayout(HStackLayout(spacing: CompoundDesignTokens.space3X))
+        return layout {
             Button {
                 context.send(viewAction: .message)
             } label: {
-                CompoundIcon(\.chat)
+                actionTitle(L10n.actionMessage)
             }
-            .buttonStyle(FormActionButtonStyle(title: L10n.actionMessage))
+            .buttonStyle(.compound(.primary, size: .medium))
             .accessibilityIdentifier(A11yIdentifiers.agentDetailScreen.message)
             
             Button {
                 context.send(viewAction: .addToChat)
             } label: {
-                CompoundIcon(\.chatNew)
+                actionTitle(UntranslatedL10n.actionAddAgentToChat)
             }
-            .buttonStyle(FormActionButtonStyle(title: UntranslatedL10n.actionAddAgentToChat))
+            .buttonStyle(.compound(.secondary, size: .medium, isRaised: true))
             .disabled(context.viewState.isAddingToChat)
             .accessibilityIdentifier(A11yIdentifiers.agentDetailScreen.addToChat)
-            
-            Button {
-                context.send(viewAction: .openActivity)
-            } label: {
-                CompoundIcon(\.history)
-            }
-            .buttonStyle(FormActionButtonStyle(title: UntranslatedL10n.actionAgentActivity))
-            .accessibilityIdentifier(A11yIdentifiers.agentDetailScreen.activity)
-            
-            Button {
-                context.send(viewAction: .openUsage)
-            } label: {
-                CompoundIcon(\.chart)
-            }
-            .buttonStyle(FormActionButtonStyle(title: UntranslatedL10n.actionAgentUsage))
-            .accessibilityIdentifier(A11yIdentifiers.agentDetailScreen.usage)
+        }
+    }
+    
+    /// A title without a glyph: two titles fit side by side on the smallest phone in long languages.
+    private func actionTitle(_ title: String) -> some View {
+        Text(title)
+            .lineLimit(1)
+            .minimumScaleFactor(0.8)
+            .frame(maxWidth: .infinity)
+    }
+    
+    /// Activity and Usage, which were tiles in the header.
+    private var activitySection: some View {
+        Section {
+            AgentActivityRows(onActivity: { context.send(viewAction: .openActivity) },
+                              onUsage: { context.send(viewAction: .openUsage) })
         }
     }
     
@@ -152,26 +141,20 @@ struct AgentDetailScreen: View {
         }
     }
     
-    // MARK: Chats
-    
-    private func roomsSection(_ rooms: [AgentRoomEntry]) -> some View {
-        Section {
-            if rooms.isEmpty {
-                ListRow(label: .plain(title: UntranslatedL10n.screenAgentDetailNoRooms),
-                        kind: .label)
-            } else {
-                ForEach(rooms) { room in
-                    ListRow(label: .default(title: context.viewState.title(for: room),
-                                            description: room.toolsLine,
-                                            icon: room.kind == "dm" ? \.userProfile : \.chat),
-                            kind: .navigationLink {
-                                context.send(viewAction: .selectRoom(room))
-                            })
-                }
+    /// The chats' slot: placeholders as the card counts them, the rows, or why there are none to show.
+    @ViewBuilder
+    private var chatsSection: some View {
+        switch context.viewState.detailState {
+        case .loading:
+            AgentChatsLoadingSection(count: context.viewState.card.roomCount)
+        case .failure:
+            failureSection
+        case .loaded(_, let rooms):
+            AgentChatsSection(rooms: rooms) { room in
+                context.viewState.title(for: room)
+            } onSelect: { room in
+                context.send(viewAction: .selectRoom(room))
             }
-        } header: {
-            Text(UntranslatedL10n.screenAgentDetailChatsSection)
-                .compoundListSectionHeader()
         }
     }
     
@@ -189,6 +172,7 @@ struct AgentDetailScreen: View {
                         kind: .toggle(Binding(get: { showInSearch },
                                               set: { context.send(viewAction: .setShowInSearch($0)) })))
                     .disabled(context.viewState.isWritingVisibility)
+                    .allowsHitTesting(context.viewState.canWriteSwitches) // Not `.disabled`, which dims the row.
             }
             ListRow(label: .default(title: context.viewState.characterTitle, icon: \.reaction),
                     kind: .navigationLink {
@@ -214,27 +198,46 @@ struct AgentDetailScreen: View {
     /// «Контроль»: the pause, what waits for the owner, who is blocked.
     private var controlSection: some View {
         Section {
-            if let paused = context.viewState.paused {
-                ListRow(label: .default(title: UntranslatedL10n.screenAgentDetailPause,
-                                        description: UntranslatedL10n.screenAgentDetailPauseDescription,
-                                        icon: \.pause),
-                        kind: .toggle(Binding(get: { paused },
-                                              set: { context.send(viewAction: .setPaused($0)) })))
-                    .disabled(context.viewState.isPausing)
+            ListRow(label: .default(title: UntranslatedL10n.screenAgentDetailPause,
+                                    description: UntranslatedL10n.screenAgentDetailPauseDescription,
+                                    icon: \.pause),
+                    kind: .toggle(Binding(get: { context.viewState.paused },
+                                          set: { context.send(viewAction: .setPaused($0)) })))
+                .disabled(context.viewState.isPausing)
+                .allowsHitTesting(context.viewState.canWriteSwitches) // Not `.disabled`, which dims the row.
+            countRow(title: UntranslatedL10n.screenAgentActivityFilterPendingConsent,
+                     icon: \.time,
+                     count: context.viewState.pendingApprovalsCount.map(String.init),
+                     isReading: context.viewState.isReadingPendingApprovals) {
+                context.send(viewAction: .openPendingApprovals)
             }
-            ListRow(label: .default(title: UntranslatedL10n.screenAgentActivityFilterPendingConsent, icon: \.time),
-                    details: context.viewState.pendingApprovalsCount.map { .title(String($0)) },
-                    kind: .navigationLink {
-                        context.send(viewAction: .openPendingApprovals)
-                    })
-            ListRow(label: .default(title: UntranslatedL10n.screenAgentDetailBlocked, icon: \.block),
-                    details: context.viewState.blockedCount.map { .title($0.text) },
-                    kind: .navigationLink {
-                        context.send(viewAction: .openBlocked)
-                    })
+            countRow(title: UntranslatedL10n.screenAgentDetailBlocked,
+                     icon: \.block,
+                     count: context.viewState.blockedCount?.text,
+                     isReading: context.viewState.isReadingBlocked) {
+                context.send(viewAction: .openBlocked)
+            }
         } header: {
             Text(UntranslatedL10n.screenAgentDetailControlSection)
                 .compoundListSectionHeader()
+        }
+    }
+    
+    /// A row with a count: a placeholder while it is read; a failed read leaves the slot empty, never a made-up `0`.
+    @ViewBuilder
+    private func countRow(title: String,
+                          icon: KeyPath<CompoundIcons, Image>,
+                          count: String?,
+                          isReading: Bool,
+                          action: @escaping () -> Void) -> some View {
+        if isReading {
+            ListRow(label: .default(title: title, icon: icon),
+                    details: .icon(SpiralPreloader(label: L10n.commonLoading) { Text(verbatim: "00") }),
+                    kind: .navigationLink(action: action))
+        } else {
+            ListRow(label: .default(title: title, icon: icon),
+                    details: count.map { .title($0) },
+                    kind: .navigationLink(action: action))
         }
     }
     
@@ -269,17 +272,6 @@ struct AgentDetailScreen: View {
     
     // MARK: States
     
-    /// Fast data → a delayed spinner, no skeleton flicker (CODEBASE/14 §3).
-    private var loadingSection: some View {
-        Section {
-            ListRow(kind: .custom {
-                DelayedProgressView()
-                    .frame(minHeight: 80)
-            })
-        }
-        .listRowBackground(Color.clear)
-    }
-    
     private var failureSection: some View {
         AgentSpacesRetryErrorSection(title: UntranslatedL10n.screenAgentDetailErrorTitle) {
             context.send(viewAction: .retry)
@@ -289,10 +281,14 @@ struct AgentDetailScreen: View {
 
 // MARK: - Previews
 
-struct AgentDetailScreen_Previews: PreviewProvider, TestablePreview {
+struct AgentDetailScreen_Previews: PreviewProvider, TestablePreview, SpiralGatedPreview {
     static let viewModel = makeViewModel()
     static let roleViewModel = makeViewModel(isRoleAgent: true)
     static let pausedViewModel = makeViewModel(isPaused: true)
+    static let photoViewModel = makeViewModel(avatarMXC: URL.mockMXCUserAvatar.absoluteString)
+    static let loadingViewModel = makeViewModel(isLoading: true)
+    static let roleLoadingViewModel = makeViewModel(isRoleAgent: true, isLoading: true)
+    static let failedViewModel = makeViewModel(hasFailed: true)
     
     static var previews: some View {
         ElementNavigationStack {
@@ -311,27 +307,58 @@ struct AgentDetailScreen_Previews: PreviewProvider, TestablePreview {
         }
         .snapshotPreferences(expect: hasLoaded(pausedViewModel))
         .previewDisplayName("Paused")
+        
+        // The field from the agent's picture; the other states have the agent's own colour (question 400).
+        ElementNavigationStack {
+            AgentDetailScreen(context: photoViewModel.context)
+        }
+        .snapshotPreferences(expect: hasLoaded(photoViewModel))
+        .previewDisplayName("With a photo")
+        
+        // What a slow read shows: the rows from the card, placeholders for what the read fills.
+        ElementNavigationStack {
+            AgentDetailScreen(context: loadingViewModel.context)
+        }
+        .environment(\.spiralPreloaderDelay, .zero)
+        .previewDisplayName("Loading")
+        
+        ElementNavigationStack {
+            AgentDetailScreen(context: roleLoadingViewModel.context)
+        }
+        .environment(\.spiralPreloaderDelay, .zero)
+        .previewDisplayName("Role agent loading")
+        
+        ElementNavigationStack {
+            AgentDetailScreen(context: failedViewModel.context)
+        }
+        .snapshotPreferences(expect: failedViewModel.context.observe(\.viewState.detailState).map { if case .failure = $0 { true } else { false } })
+        .previewDisplayName("Failed")
     }
     
+    /// The agent, its blocks and what waits are read on their own: the snapshot waits for all three.
     private static func hasLoaded(_ viewModel: AgentDetailScreenViewModel) -> some AsyncSequence<Bool, Never> {
-        viewModel.context.observe(\.viewState.detailState).map { if case .loading = $0 { false } else { true } }
+        viewModel.context.observe(\.viewState.isReadForPreview)
     }
     
-    static func makeViewModel(isRoleAgent: Bool = false, isPaused: Bool = false) -> AgentDetailScreenViewModel {
+    static func makeViewModel(isRoleAgent: Bool = false,
+                              isPaused: Bool = false,
+                              avatarMXC: String? = nil,
+                              isLoading: Bool = false,
+                              hasFailed: Bool = false) -> AgentDetailScreenViewModel {
         let card = isRoleAgent
             ? AgentSpaceAgentCard(agentID: "agent-2", matrixUserID: "@agent-acme-sales:spiral.md", displayName: "Sales · Acme Corp",
-                                  avatarMXC: nil, kind: "sales", visibility: "public", lifecycleState: "active",
-                                  presence: .offline, roomCount: 1, activeToolCount: 0)
+                                  avatarMXC: avatarMXC, kind: "sales", visibility: "public", lifecycleState: "active",
+                                  roomCount: 1, activeToolCount: 0)
             : AgentSpaceAgentCard(agentID: "agent-1", matrixUserID: "@assistant-owner:spiral.md", displayName: "Anna Kovalchuk · assistant",
-                                  avatarMXC: nil, kind: "personal_assistant", visibility: "public", lifecycleState: "active",
-                                  presence: .online, roomCount: 3, activeToolCount: 3, isPaused: isPaused)
+                                  avatarMXC: avatarMXC, kind: "personal_assistant", visibility: "public", lifecycleState: "active",
+                                  roomCount: 3, activeToolCount: 3, isPaused: isPaused)
         
         let service = AgentPlatformServiceMock()
         service.listVerificationsForAgentAgentIDReturnValue = .success([])
         service.fetchAgentReadModelAgentIDReturnValue = .success(.init(agentID: card.agentID,
                                                                        matrixUserID: card.matrixUserID,
                                                                        displayName: card.displayName,
-                                                                       avatarMXC: nil,
+                                                                       avatarMXC: avatarMXC,
                                                                        kind: card.kind,
                                                                        visibility: card.visibility,
                                                                        lifecycleState: card.lifecycleState,
@@ -357,20 +384,41 @@ struct AgentDetailScreen_Previews: PreviewProvider, TestablePreview {
                      activeTools: [.init(toolID: "t2", toolKind: "summarize", targetLanguages: []),
                                    .init(toolID: "t3", toolKind: "call_recording", targetLanguages: [])])])
         
+        if isLoading {
+            service.fetchAgentRoomsAgentIDClosure = { _ in await neverAnswers() }
+            service.listBlockedContactsAgentIDCursorLimitClosure = { _, _, _ in await neverAnswers() }
+            service.fetchNotificationsActivityCursorLimitClosure = { _, _ in await neverAnswers() }
+        }
+        if hasFailed {
+            service.fetchAgentRoomsAgentIDReturnValue = .failure(.serverError(status: 500))
+        }
+        
         let clientProxy = ClientProxyMock(.init())
         clientProxy.directRoomForUserIDReturnValue = .success("!owner-dm:spiral.md")
         
-        let stream = ApprovalsStreamServiceMock()
-        stream.needsAction = isRoleAgent ? [] : [.approval(.init(id: "a1", agentID: card.agentID, draftBody: "Sure, Friday at 11 works.",
-                                                                 targetRoomID: "!dm:spiral.md", createdAt: .now))]
-        stream.underlyingConnectionState = .connected
-        stream.underlyingIsSeeded = true
+        let needsAction: [NeedsActionItem] = isRoleAgent ? [] : [.approval(.init(id: "a1", agentID: card.agentID, draftBody: "Sure, Friday at 11 works.",
+                                                                                     targetRoomID: "!dm:spiral.md", createdAt: .now))]
+        service.fetchNotificationsActivityCursorLimitReturnValue = .success(.init(needsAction: needsAction, activity: [], nextActivityCursor: nil,
+                                                                                  lastSeenAt: nil, unseenCount: 0))
         
         return AgentDetailScreenViewModel(selection: .init(card: card, companyName: isRoleAgent ? "Acme Corp" : nil),
                                           agentPlatformService: service,
                                           clientProxy: clientProxy,
                                           mediaProvider: MediaProviderMock(.init()),
                                           userIndicatorController: UserIndicatorControllerMock(),
-                                          approvalsStreamService: stream)
+                                          store: AgentsStore(service: service))
+    }
+    
+    /// A read that stays on its way: the snapshot suites share a view model in one run, which can outlast a minute.
+    private static func neverAnswers<Value>() async -> Result<Value, AgentPlatformError> {
+        try? await Task.sleep(for: .seconds(24 * 3600))
+        return .failure(.serverError(status: 0))
+    }
+}
+
+private extension AgentDetailScreenViewState {
+    var isReadForPreview: Bool {
+        if case .loading = detailState { return false }
+        return blockedCount != nil && pendingApprovalsCount != nil
     }
 }

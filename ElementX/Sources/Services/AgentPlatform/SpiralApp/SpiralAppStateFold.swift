@@ -62,6 +62,9 @@ struct SpiralAppSummary: Equatable {
     /// `none` · `badge` · `ping`. The app suggests; the client decides.
     let notify: String?
     let notifyUsers: [String]
+    /// Who wrote it: the action's sender, so a card can say when the line
+    /// is not the post author's words (L1).
+    var writer: String?
 
     init?(json: Any?) {
         guard let object = json as? [String: Any] else { return nil }
@@ -87,11 +90,15 @@ extension SpiralAppSummary {
     /// card is the post's words too — so an app may write it once per
     /// language, `{uk, ru, en}`, and each phone shows its own; a plain
     /// string is shown as written, as every line before was.
+    ///
+    /// Capped at `SpiralAppActionLimits.maxSummaryLineScalars`, whoever wrote
+    /// it: any room member's action can carry a line (L1).
     static func line(from value: Any?) -> String? {
-        if let text = value as? String { return text }
+        if let text = value as? String { return SpiralAppActionLimits.cappedLine(text) }
         guard let byLanguage = value as? [String: String], !byLanguage.isEmpty else { return nil }
         let wanted = SpiralAppMount.appLanguage
-        return byLanguage[wanted] ?? byLanguage["en"] ?? byLanguage.sorted { $0.key < $1.key }.first?.value
+        return (byLanguage[wanted] ?? byLanguage["en"] ?? byLanguage.sorted { $0.key < $1.key }.first?.value)
+            .map(SpiralAppActionLimits.cappedLine)
     }
 }
 
@@ -118,6 +125,10 @@ enum SpiralAppStateFold {
         /// People an action has pinged who have done nothing in the post
         /// since. Not pinged again until they do (§ 5.74).
         var awaitingReply: Set<String> = []
+        /// The actions would build a state past the budget (§ 5.2), so the
+        /// fold stopped where it would have crossed it. A host refuses such
+        /// a write; other people's actions arrive unchecked (M4).
+        var isOverBudget = false
     }
 
     /// Fold actions into the post's current state.
@@ -141,8 +152,8 @@ enum SpiralAppStateFold {
         // says under the owned namespace is dropped — that half is rebuilt
         // below from the only source allowed to say it.
         let baseIndex = ordered.lastIndex { $0.state != nil && $0.operation == nil }
-        var state = (baseIndex.flatMap { ordered[$0].state } ?? .object([:]))
-            .removing([SpiralAppOperation.ownedNamespace])
+        var state = BudgetedState((baseIndex.flatMap { ordered[$0].state } ?? .object([:]))
+            .removing([SpiralAppOperation.ownedNamespace]))
 
         var skipped: [String] = []
         var refused: [String] = []
@@ -154,7 +165,7 @@ enum SpiralAppStateFold {
                 continue
             }
             for member in operation.members where member.owner == nil {
-                state = member.applied(to: state)
+                state.apply(member)
             }
         }
 
@@ -169,16 +180,82 @@ enum SpiralAppStateFold {
                     if !refused.contains(action.eventID) { refused.append(action.eventID) }
                     continue
                 }
-                state = member.applied(to: state)
+                state.apply(member)
             }
         }
 
-        return Outcome(state: state,
+        let folded = state.finish()
+        return Outcome(state: folded,
                        skipped: skipped,
                        sawConflict: hasSeqConflict(ordered),
                        summary: ordered.last?.summary,
                        refused: refused,
-                       awaitingReply: awaitingReply(ordered))
+                       awaitingReply: awaitingReply(ordered),
+                       isOverBudget: state.isOverBudget)
+    }
+
+    /// A state that stops growing at the budget (§ 5.2, M4).
+    ///
+    /// Measuring after every operation would encode the whole state once
+    /// per action — about a quarter of a millisecond each at 16 KB, on every
+    /// fold of every open. So it is measured every `stride` operations, and
+    /// only when that check fails is the last stride replayed one by one to
+    /// find the operation that crossed. Everything from there on is dropped.
+    /// The same events in the same order stop at the same operation on every
+    /// phone, which is all a fold must promise. Inside one stride the state
+    /// may pass the budget and come back (a delete), at most 64 actions of
+    /// 32 KB; the cost stays bounded, which is what the budget is for here.
+    private struct BudgetedState {
+        private static let stride = 64
+
+        private var state: SpiralAppValue
+        private var checkpoint: SpiralAppValue
+        private var sinceCheckpoint: [SpiralAppOperation] = []
+        private(set) var isOverBudget = false
+
+        init(_ base: SpiralAppValue) {
+            if Self.fits(base) {
+                state = base
+            } else {
+                state = .object([:])
+                isOverBudget = true
+            }
+            checkpoint = state
+        }
+
+        mutating func apply(_ operation: SpiralAppOperation) {
+            guard !isOverBudget else { return }
+            state = operation.applied(to: state)
+            sinceCheckpoint.append(operation)
+            if sinceCheckpoint.count == Self.stride { settle() }
+        }
+
+        mutating func finish() -> SpiralAppValue {
+            settle()
+            return state
+        }
+
+        private mutating func settle() {
+            defer { sinceCheckpoint.removeAll() }
+            guard !isOverBudget, !sinceCheckpoint.isEmpty else { return }
+            guard !Self.fits(state) else {
+                checkpoint = state
+                return
+            }
+            var replayed = checkpoint
+            for operation in sinceCheckpoint {
+                let next = operation.applied(to: replayed)
+                guard Self.fits(next) else { break }
+                replayed = next
+            }
+            state = replayed
+            checkpoint = replayed
+            isOverBudget = true
+        }
+
+        private static func fits(_ value: SpiralAppValue) -> Bool {
+            (value.encoded()?.count ?? .max) <= SpiralAppPostSession.maxStateBytes
+        }
     }
 
     /// Who was pinged and has not answered: walk the post in room order; a
@@ -240,9 +317,11 @@ extension SpiralAppAction {
 
     /// Parse one raw, decrypted event as delivered by the relations FFI.
     ///
-    /// Returns `nil` when this is not an action for `postEventID`. Content
-    /// that is an action but malformed still parses, with `operation` nil,
-    /// so the fold can count it as skipped rather than pretend it was absent.
+    /// Returns `nil` when this is not an action for `postEventID`, or when it
+    /// breaks a bound in `SpiralAppActionLimits` — such an action is never
+    /// one of ours. Content that is an action but otherwise malformed still
+    /// parses, with `operation` nil, so the fold can count it as skipped
+    /// rather than pretend it was absent.
     static func parse(rawEventJSON: String, relatedTo postEventID: String) -> SpiralAppAction? {
         guard let data = rawEventJSON.data(using: .utf8),
               let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
@@ -263,13 +342,28 @@ extension SpiralAppAction {
             return nil
         }
 
+        // A `seq` outside the bound, or none, is refused whole: one `Int.max`
+        // once hung every reader of a post (a gap list built up to it) or
+        // trapped it (`+ 1`), for good, until redacted. And an action past
+        // the size bound is not folded at all — a thousand of them at 60 KB
+        // used to be 60 MB folded on every open (M4).
+        guard let rawSeq = content["seq"], let seq = SpiralAppActionLimits.seq(from: rawSeq),
+              let bytes = SpiralAppActionLimits.contentBytes(content),
+              bytes <= SpiralAppActionLimits.maxContentBytes else {
+            return nil
+        }
+
         return SpiralAppAction(eventID: eventID,
                                sender: sender,
                                originServerTimestamp: timestamp,
-                               seq: content["seq"] as? Int,
+                               seq: seq,
                                operation: content["op"].flatMap { SpiralAppOperation(json: $0) },
                                state: content["state"].flatMap { SpiralAppValue(json: $0) },
-                               summary: SpiralAppSummary(json: content["summary"]),
+                               summary: SpiralAppSummary(json: content["summary"]).map { summary in
+                                   var summary = summary
+                                   summary.writer = sender
+                                   return summary
+                               },
                                mentions: (content["m.mentions"] as? [String: Any])?["user_ids"] as? [String] ?? [])
     }
 }

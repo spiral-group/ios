@@ -9,8 +9,8 @@
 // The Spiral feature is built on Element's `TemplateScreenViewModelTests.swift`.
 //
 
-@testable import ElementX
 import Foundation
+@testable import Spiral
 import Testing
 
 @MainActor
@@ -77,6 +77,22 @@ struct LanguagePickerScreenViewModelTests {
         let languages = [AgentLanguage(code: "zh-Hans", displayName: "Chinese (Simplified)")]
         let viewModel = LanguagePickerScreenViewModel(languages: languages, selectedCode: "zh-Hans")
         #expect(viewModel.context.viewState.selectedCode == "zh-Hans")
+    }
+
+    /// Every list's rule: the selected language, the phone's, the keyboards' — no English, Ukrainian or Russian added,
+    /// and no section when none of them is in the list.
+    @Test
+    func suggestedLanguagesAreTheSelectedThenThePhonesAndKeyboardsWithNoFallback() {
+        var state = LanguagePickerScreenViewState(languages: Self.sampleLanguages, selectedCode: "de", preferredLanguages: ["ja-JP"], keyboardLanguages: ["emoji", "uk-UA"])
+        #expect(state.suggestedLanguages.map(\.code) == ["de", "uk"])
+        #expect(state.otherLanguages.map(\.code) == ["en"])
+
+        state = LanguagePickerScreenViewState(languages: [AgentLanguage(code: "fr", displayName: "Français")], selectedCode: "", preferredLanguages: ["ja-JP"])
+        #expect(state.suggestedLanguages.isEmpty)
+
+        state = LanguagePickerScreenViewState(languages: Self.sampleLanguages, selectedCode: "de", preferredLanguages: ["uk"])
+        state.bindings.searchQuery = "en"
+        #expect(state.suggestedLanguages.isEmpty)
     }
 
     @Test

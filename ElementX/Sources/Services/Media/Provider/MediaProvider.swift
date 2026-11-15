@@ -40,7 +40,8 @@ nonisolated struct MediaProvider: MediaProviderProtocol {
         
         let cacheKey = cacheKeyForURL(source.url, size: size)
         
-        if let cacheResult = try? await imageCache.retrieveImage(forKey: cacheKey, options: nil),
+        // AGENT-PLATFORM (Brief 0083, question 359): a picture left undecoded is decoded on the main thread when first drawn.
+        if let cacheResult = try? await imageCache.retrieveImage(forKey: cacheKey, options: [.backgroundDecode]),
            let image = cacheResult.image {
             return .success(image)
         }
@@ -53,11 +54,12 @@ nonisolated struct MediaProvider: MediaProviderProtocol {
                 imageData = try await mediaLoader.loadMediaContentForSource(source)
             }
             
-            guard let image = UIImage(data: imageData) else {
+            guard let loadedImage = UIImage(data: imageData) else {
                 MXLog.error("Invalid image data")
                 return .failure(.invalidImageData)
             }
             
+            let image = await loadedImage.byPreparingForDisplay() ?? loadedImage // AGENT-PLATFORM (Brief 0083, question 359)
             try await imageCache.store(image, forKey: cacheKey)
             
             return .success(image)

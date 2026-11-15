@@ -89,7 +89,7 @@ struct AIConsentPromptScreen: View {
 // MARK: - Previews
 
 struct AIConsentPromptScreen_Previews: PreviewProvider, TestablePreview {
-    static let viewModel = AIConsentPromptScreenViewModel(agentPlatformService: AgentPlatformServiceMock(),
+    static let viewModel = AIConsentPromptScreenViewModel(store: AgentsStore(service: AgentPlatformServiceMock()),
                                                           privacyURL: AppSettings.volatile().privacyURL)
     
     static var previews: some View {

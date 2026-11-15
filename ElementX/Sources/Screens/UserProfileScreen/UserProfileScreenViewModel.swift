@@ -14,12 +14,13 @@ typealias UserProfileScreenViewModelType = StateStoreViewModelV2<UserProfileScre
 
 class UserProfileScreenViewModel: UserProfileScreenViewModelType, UserProfileScreenViewModelProtocol {
     private let userSession: UserSessionProtocol
-    private let userIndicatorController: UserIndicatorControllerProtocol
     private let analytics: AnalyticsServiceProtocol
+    private let userIndicatorController: UserIndicatorControllerProtocol
     
     private var actionsSubject: PassthroughSubject<UserProfileScreenViewModelAction, Never> = .init()
     // AGENT-PLATFORM (Brief 0072, ADR-0083)
     private var presenceObservation: PresenceObservation?
+    private var agentCardObservation: AgentCardObservation? // AGENT-PLATFORM (Brief 0083, question 359)
     // AGENT-PLATFORM (Brief 0078, ADR-0019 P5)
     private let assistantMemoryEraser: AssistantMemoryEraser?
     // AGENT-PLATFORM (decision 87)
@@ -35,11 +36,11 @@ class UserProfileScreenViewModel: UserProfileScreenViewModelType, UserProfileScr
     init(userID: String,
          isPresentedModally: Bool,
          userSession: UserSessionProtocol,
-         userIndicatorController: UserIndicatorControllerProtocol,
-         analytics: AnalyticsServiceProtocol) {
+         analytics: AnalyticsServiceProtocol,
+         userIndicatorController: UserIndicatorControllerProtocol) {
         self.userSession = userSession
-        self.userIndicatorController = userIndicatorController
         self.analytics = analytics
+        self.userIndicatorController = userIndicatorController
         assistantMemoryEraser = userSession.agentPlatformService.map { // AGENT-PLATFORM (Brief 0078)
             AssistantMemoryEraser(agentPlatformService: $0, userIndicatorController: userIndicatorController)
         }
@@ -53,8 +54,14 @@ class UserProfileScreenViewModel: UserProfileScreenViewModelType, UserProfileScr
                                                           bindings: .init())
         initialViewState.canEraseAssistantMemory = assistantMemoryEraser != nil // AGENT-PLATFORM (Brief 0078)
         
-        super.init(initialViewState: initialViewState, mediaProvider: userSession.mediaProvider)
-        loadOwnAgentsIfNeeded() // AGENT-PLATFORM (Brief 0078)
+        super.init(initialViewState: userSession.userHooks.userProfileScreenHook.update(initialViewState),
+                   mediaProvider: userSession.mediaProvider)
+        
+        // AGENT-PLATFORM (Brief 0083, question 359): first, so that the page has its shape before it's pushed.
+        agentCardObservation = AgentCardObservation(userID: userID, store: userSession.agentsStore) { [weak self] ownership in
+            self?.state.agentOwnership = ownership
+            self?.loadAgentBlocksIfOffered()
+        }
 
         showLoadingIndicator(allowsInteraction: true)
         Task {
@@ -65,7 +72,8 @@ class UserProfileScreenViewModel: UserProfileScreenViewModelType, UserProfileScr
         // AGENT-PLATFORM (Brief 0072, ADR-0083)
         presenceObservation = PresenceObservation(userID: userID,
                                                   ownUserID: userSession.clientProxy.userID,
-                                                  service: userSession.presenceObserverService) { [weak self] presence in
+                                                  service: userSession.presenceObserverService,
+                                                  agentsStore: userSession.agentsStore) { [weak self] presence in
             self?.state.presence = presence
         }
     }
@@ -79,6 +87,7 @@ class UserProfileScreenViewModel: UserProfileScreenViewModelType, UserProfileScr
         hideLoadingIndicator()
         // AGENT-PLATFORM (Brief 0072, ADR-0083)
         presenceObservation?.cancel()
+        agentCardObservation?.cancel() // AGENT-PLATFORM (Brief 0083, question 359)
     }
     
     override func process(viewAction: UserProfileScreenViewAction) {
@@ -98,27 +107,15 @@ class UserProfileScreenViewModel: UserProfileScreenViewModelType, UserProfileScr
         case .unblockAgent(let agentID): // AGENT-PLATFORM (decision 87)
             confirmUnblock(agentID: agentID)
         case .appeared: // AGENT-PLATFORM (decision 87)
-            loadOwnAgentsIfNeeded()
+            agentCardObservation?.readAgainIfUnknown()
             readAgentBlocksIfOffered()
+        case .openAgentRow(let row): // AGENT-PLATFORM (Brief 0083, question 359)
+            guard let card = state.agentProfile?.ownCard else { return }
+            actionsSubject.send(.openAgentRow(row, card: card))
         }
     }
     
     // MARK: - Assistant memory (AGENT-PLATFORM, Brief 0078, ADR-0019 P5)
-    
-    /// Only an agent's profile needs to know whether the agent is the person's own.
-    /// A failed read is read again on reappearing (decision 87), or one `nil` would
-    /// hide the erase and the blocks for the screen's life.
-    private func loadOwnAgentsIfNeeded() {
-        guard let assistantMemoryEraser, SpiralAppPostSession.isAgent(state.userID),
-              state.ownAgentMXIDs == nil, !state.isReadingOwnAgents else { return }
-        state.isReadingOwnAgents = true
-        Task { [weak self] in
-            let mxids = await assistantMemoryEraser.ownAgentMXIDs()
-            self?.state.ownAgentMXIDs = mxids
-            self?.state.isReadingOwnAgents = false
-            self?.loadAgentBlocksIfOffered()
-        }
-    }
     
     private func confirmEraseAssistantMemory() {
         guard let assistantMemoryEraser, !state.isErasingAssistantMemory else { return }
@@ -241,11 +238,7 @@ class UserProfileScreenViewModel: UserProfileScreenViewModelType, UserProfileScr
         showLoadingIndicator(allowsInteraction: false)
         defer { hideLoadingIndicator() }
         
-        // We don't actually know the mime type here, assume it's an image.
-        if let mediaSource = try? MediaSourceProxy(url: url, mimeType: "image/jpeg"),
-           case let .success(file) = await userSession.mediaProvider.loadFileFromSource(mediaSource) {
-            state.bindings.mediaPreviewItem = MediaPreviewItem(file: file, title: userProfile.displayName)
-        }
+        state.bindings.mediaPreviewItem = await MediaPreviewItem.load(from: url, title: userProfile.displayName, using: userSession.mediaProvider)
     }
     
     private func openDirectChat() {

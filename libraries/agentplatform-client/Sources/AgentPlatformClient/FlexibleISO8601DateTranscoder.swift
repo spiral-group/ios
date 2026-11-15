@@ -21,17 +21,19 @@
 // `DecodingError.dataCorrupted: Expected date string to be
 // ISO8601-formatted`.
 //
-// This transcoder accepts both shapes on decode:
+// This transcoder accepts any fractional precision on decode and keeps
+// it to the microsecond, the backend's own precision:
 //
 //   * `2026-05-11T12:10:08Z`        (no fractional seconds)
 //   * `2026-05-11T12:10:08.123Z`    (millisecond precision)
 //   * `2026-05-11T12:10:08.866997Z` (microsecond precision)
-//   * `2026-05-11T12:10:08.866997123Z` (nanosecond precision)
+//   * `2026-05-11T12:10:08.866997123Z` (nanosecond precision, cut to μs)
 //
-// On encode, we emit millisecond precision (`.123Z`) for
-// stability — backend accepts any RFC 3339-compliant input
-// and we never need sub-millisecond precision in request
-// payloads.
+// On encode it emits microseconds (`.866997Z`), so a timestamp the
+// client echoes back is the server's own instant. Millisecond output
+// once put the feed's seen mark (`POST /feed/activity/seen` with the
+// newest entry's `at`) just before that entry, which then stayed unread
+// for ever (Brief 0082, FD10).
 //
 // Wire this into the generated client via
 // `Configuration(dateTranscoder:)` in `AgentPlatformClient.init`;
@@ -41,68 +43,45 @@
 import Foundation
 import OpenAPIRuntime
 
-/// `DateTranscoder` that accepts ISO 8601 / RFC 3339 timestamps
-/// with arbitrary fractional-second precision on decode and
-/// emits millisecond-precision UTC timestamps on encode.
+/// `DateTranscoder` that accepts ISO 8601 / RFC 3339 timestamps with
+/// any fractional-second precision on decode, keeping microseconds,
+/// and emits microsecond-precision UTC timestamps on encode.
 ///
-/// Thread-safe: every `encode` / `decode` call constructs its
-/// own `ISO8601DateFormatter`. The formatters themselves are
-/// not `Sendable` (Foundation's class predates Swift 6 strict
-/// concurrency), and `DateTranscoder` requires `Sendable`
-/// conformance — keeping no stored properties sidesteps the
-/// issue entirely. The formatter allocation is cheap (a few μs)
-/// and dwarfed by the surrounding network I/O of a real REST
-/// call.
+/// A `Date` is a `Double` of seconds: around now its step is under a
+/// quarter of a microsecond, so a microsecond survives the round trip
+/// when it is rounded back on encode.
+///
+/// Thread-safe: every call constructs its own `ISO8601DateFormatter`.
+/// The formatters are not `Sendable`, and `DateTranscoder` requires
+/// `Sendable` conformance — keeping no stored properties sidesteps the
+/// issue entirely. The allocation is cheap next to the network I/O of a
+/// real REST call.
 public struct FlexibleISO8601DateTranscoder: DateTranscoder {
+    private static let microsecondsPerSecond: Int64 = 1_000_000
+
     public init() { }
 
     // MARK: - DateTranscoder
 
     public func encode(_ date: Date) throws -> String {
-        // Always emit fractional-second form. Backend's
-        // `serde` deserialiser for `DateTime<Utc>` accepts
-        // both shapes; emitting fractional matches what the
-        // backend itself produces, keeping round-trips
-        // byte-identical when the client echoes a server-
-        // assigned timestamp back in a PATCH/PUT.
-        Self.fractionalFormatter().string(from: date)
+        let microseconds = Int64((date.timeIntervalSince1970 * Double(Self.microsecondsPerSecond)).rounded())
+        let (seconds, fraction) = Self.floorDivision(microseconds, by: Self.microsecondsPerSecond)
+        let whole = Self.plainFormatter().string(from: Date(timeIntervalSince1970: TimeInterval(seconds)))
+        // The plain formatter writes UTC as `…:08Z`; the fraction goes before the `Z`.
+        return whole.dropLast() + "." + Self.sixDigits(fraction) + "Z"
     }
 
     public func decode(_ dateString: String) throws -> Date {
-        // Fast path: millisecond-precision input matches
-        // exactly what `withFractionalSeconds` was built for.
-        if let date = Self.fractionalFormatter().date(from: dateString) {
-            return date
+        guard let (whole, microseconds) = Self.splitFraction(dateString),
+              let date = Self.plainFormatter().date(from: whole) else {
+            throw DecodingError.dataCorrupted(.init(codingPath: [],
+                                                    debugDescription: "Expected RFC 3339 timestamp, got \(dateString)"))
         }
-
-        // Plain RFC 3339 without fractional seconds.
-        if let date = Self.plainFormatter().date(from: dateString) {
-            return date
-        }
-
-        // Sub-millisecond precision (μs / ns) — `ISO8601DateFormatter`
-        // with `.withFractionalSeconds` only parses up to 3 fractional
-        // digits, so we truncate down to milliseconds before retrying.
-        // We deliberately drop the extra precision: `Date` is a
-        // `TimeInterval` (Double) anyway, so anything finer than
-        // about a microsecond is lost in storage; preserving full μs
-        // input precision in `Date` is not a goal of this codebase.
-        if let truncated = Self.truncateFractionalSecondsToMilliseconds(dateString),
-           let date = Self.fractionalFormatter().date(from: truncated) {
-            return date
-        }
-
-        throw DecodingError.dataCorrupted(.init(codingPath: [],
-                                                debugDescription: "Expected RFC 3339 timestamp, got \(dateString)"))
+        let total = Int64(date.timeIntervalSince1970) * Self.microsecondsPerSecond + microseconds
+        return Date(timeIntervalSince1970: Double(total) / Double(Self.microsecondsPerSecond))
     }
 
-    // MARK: - Formatter factories
-
-    private static func fractionalFormatter() -> ISO8601DateFormatter {
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        return formatter
-    }
+    // MARK: - Helpers
 
     private static func plainFormatter() -> ISO8601DateFormatter {
         let formatter = ISO8601DateFormatter()
@@ -110,35 +89,31 @@ public struct FlexibleISO8601DateTranscoder: DateTranscoder {
         return formatter
     }
 
-    // MARK: - Helpers
-
-    /// Truncates fractional-second component of an ISO 8601
-    /// timestamp to at most three digits, preserving the rest
-    /// of the string (timezone suffix, etc.).
+    /// The timestamp without its fractional seconds, and those seconds in
+    /// whole microseconds (digits past the sixth dropped).
     ///
-    /// Example:
-    ///   `2026-05-11T12:10:08.866997Z` → `2026-05-11T12:10:08.866Z`
-    ///   `2026-05-11T12:10:08.866997123+00:00` → `2026-05-11T12:10:08.866+00:00`
-    ///
-    /// Returns `nil` if the input has no fractional-second
-    /// component or fewer than four fractional digits (in which
-    /// case the calling fast path should have matched already).
-    static func truncateFractionalSecondsToMilliseconds(_ input: String) -> String? {
+    /// Example: `2026-05-11T12:10:08.8669971+02:00` → (`2026-05-11T12:10:08+02:00`, 866997).
+    /// `nil` for a `.` with no digit after it.
+    static func splitFraction(_ input: String) -> (whole: String, microseconds: Int64)? {
         guard let dotIndex = input.firstIndex(of: ".") else {
-            return nil
+            return (input, 0)
         }
-        // Walk forward from the dot collecting fractional digits.
-        var endOfFraction = input.index(after: dotIndex)
-        while endOfFraction < input.endIndex, input[endOfFraction].isNumber {
-            endOfFraction = input.index(after: endOfFraction)
-        }
-        let fractionalDigitCount = input.distance(from: input.index(after: dotIndex), to: endOfFraction)
-        guard fractionalDigitCount > 3 else {
-            return nil
-        }
-        let truncatedFractionEnd = input.index(dotIndex, offsetBy: 4) // `.` + 3 digits
-        let head = input[..<truncatedFractionEnd]
-        let tail = input[endOfFraction...]
-        return String(head) + String(tail)
+        let fractionStart = input.index(after: dotIndex)
+        let fractionEnd = input[fractionStart...].firstIndex { !$0.isASCII || !$0.isNumber } ?? input.endIndex
+        let digits = input[fractionStart..<fractionEnd]
+        guard !digits.isEmpty else { return nil }
+        let micro = String(digits.prefix(6)).padding(toLength: 6, withPad: "0", startingAt: 0)
+        guard let microseconds = Int64(micro) else { return nil }
+        return (String(input[..<dotIndex]) + String(input[fractionEnd...]), microseconds)
+    }
+
+    private static func floorDivision(_ value: Int64, by divisor: Int64) -> (quotient: Int64, remainder: Int64) {
+        let (quotient, remainder) = value.quotientAndRemainder(dividingBy: divisor)
+        return remainder < 0 ? (quotient - 1, remainder + divisor) : (quotient, remainder)
+    }
+
+    private static func sixDigits(_ value: Int64) -> String {
+        let digits = String(value)
+        return String(repeating: "0", count: max(0, 6 - digits.count)) + digits
     }
 }

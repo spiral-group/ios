@@ -15,6 +15,8 @@ extension View {
 }
 
 private struct WaveformInteractionModifier: ViewModifier {
+    @Environment(\.ownBubbleInk) private var ownBubbleInk // AGENT-PLATFORM (Brief 0083)
+    
     let isDragging: GestureState<Bool>
     let progress: Double
     let showCursor: Bool
@@ -28,7 +30,7 @@ private struct WaveformInteractionModifier: ViewModifier {
         GeometryReader { geometry in
             content
                 .progressCursor(progress: progress) {
-                    WaveformCursorView(color: .compound.iconAccentTertiary)
+                    WaveformCursorView(color: cursorColor) // AGENT-PLATFORM (Brief 0083)
                         .frame(width: cursorVisibleWidth, height: cursorVisibleHeight)
                         .opacity(showCursor ? 1 : 0)
                         .frame(width: cursorInteractiveSize)
@@ -54,4 +56,9 @@ private struct WaveformInteractionModifier: ViewModifier {
     }
     
     private static let namespaceName = "voice-message-waveform"
+    
+    // AGENT-PLATFORM (Brief 0083, decision 300a): the accent cursor is the own bubble's own blue there.
+    private var cursorColor: Color {
+        ownBubbleInk?.waveformCursor ?? .compound.iconAccentTertiary
+    }
 }

@@ -9,10 +9,82 @@
 import MatrixRustSDK
 import SwiftUI
 
-final class MessageTextView: UITextView, PillAttachmentViewProviderDelegate, UIGestureRecognizerDelegate {
+final class MessageTextView: UITextView, PillAttachmentViewProviderDelegate, UIGestureRecognizerDelegate, NSLayoutManagerDelegate {
+    /// AGENT-PLATFORM (Brief 0083, question 359): text views handed back by the rows that left, for the rows coming in.
+    @MainActor
+    final class Pool {
+        private let capacity: Int
+        private var textViews = [MessageTextView]()
+        
+        init(capacity: Int = 24) {
+            self.capacity = capacity
+        }
+        
+        func take() -> MessageTextView {
+            textViews.popLast() ?? MessageTextView.make()
+        }
+        
+        func put(_ textView: MessageTextView) {
+            textView.prepareForReuse()
+            // Next time round, as what's dismantling it still holds it for the rest of this update.
+            DispatchQueue.main.async { [self] in
+                if textViews.count < capacity {
+                    textViews.append(textView)
+                }
+            }
+        }
+        
+        func purge() {
+            textViews.removeAll()
+        }
+    }
+    
+    static let pool = Pool()
+    
     var timelineContext: TimelineViewModel.Context?
     var updateClosure: (() -> Void)?
-    private var pillViews = NSHashTable<UIView>.weakObjects()
+    /// AGENT-PLATFORM (Brief 0083, question 359): lazy, as `init(usingTextLayoutManager:)` doesn't run stored properties' initial
+    /// values: this stayed nil, so no pill was ever flushed, and a text view that's reused can't keep the last row's.
+    private lazy var pillViews = NSHashTable<UIView>.weakObjects()
+    
+    private static func make() -> MessageTextView {
+        // Need to use TextKit 1 for mentions
+        let textView = MessageTextView(usingTextLayoutManager: false)
+        textView.isEditable = false
+        textView.isScrollEnabled = false
+        textView.adjustsFontForContentSizeCategory = true
+        
+        // Required to allow tapping links
+        // We disable selection at delegate level
+        textView.isSelectable = true
+        textView.isUserInteractionEnabled = true
+        
+        // Otherwise links can be dragged and dropped when long pressed
+        textView.textDragInteraction?.isEnabled = false
+        // Otherwise items dropped onto a bubble land on the text view instead of
+        // bubbling up to the timeline's drop handler.
+        if let textDropInteraction = textView.textDropInteraction {
+            textView.removeInteraction(textDropInteraction)
+        }
+        
+        textView.contentInset = .zero
+        textView.contentInsetAdjustmentBehavior = .never
+        textView.textContainerInset = .zero
+        textView.textContainer.lineFragmentPadding = 0
+        textView.layoutManager.usesFontLeading = false
+        textView.layoutManager.delegate = textView
+        textView.backgroundColor = .clear
+        return textView
+    }
+    
+    /// Leaves nothing of the row it was in.
+    private func prepareForReuse() {
+        delegate = nil
+        timelineContext = nil
+        updateClosure = nil
+        flushPills()
+        removeFromSuperview()
+    }
     
     override func addGestureRecognizer(_ gestureRecognizer: UIGestureRecognizer) {
         // We don't need to change the behaviour on MacOS
@@ -42,6 +114,18 @@ final class MessageTextView: UITextView, PillAttachmentViewProviderDelegate, UIG
         }
     }
     
+    /// Stops TextKit from hyphenating code when a word doesn't fit on a line, wrapping it by
+    /// character instead. Code is meant to be verbatim, so an inserted hyphen would corrupt it.
+    nonisolated func layoutManager(_ layoutManager: NSLayoutManager, shouldBreakLineByHyphenatingBeforeCharacterAt charIndex: Int) -> Bool {
+        guard let textStorage = layoutManager.textStorage, charIndex < textStorage.length else {
+            return true
+        }
+        
+        let isCode = textStorage.attribute(.InlineCode, at: charIndex, effectiveRange: nil) != nil
+            || textStorage.attribute(.CodeBlock, at: charIndex, effectiveRange: nil) != nil
+        return !isCode
+    }
+    
     func registerPillView(_ pillView: UIView) {
         pillViews.add(pillView)
     }
@@ -60,13 +144,18 @@ final class MessageTextView: UITextView, PillAttachmentViewProviderDelegate, UIG
 /// timestamp. Without this subclass, an attachment with no image would render TextKit's
 /// default "missing image" glyph.
 private final nonisolated class TransparentTextAttachment: NSTextAttachment {
+    /// AGENT-PLATFORM (Brief 0083, question 359): one for every attachment, as nothing shows of it at any size. Rendering one
+    /// for each draw took 0.6 % of the main thread in a scroll on the phone.
+    private static let transparentImage = {
+        let format = UIGraphicsImageRendererFormat()
+        format.opaque = false
+        return UIGraphicsImageRenderer(size: CGSize(width: 1, height: 1), format: format).image { _ in }
+    }()
+    
     override func image(forBounds imageBounds: CGRect,
                         textContainer: NSTextContainer?,
                         characterIndex charIndex: Int) -> UIImage? {
-        let format = UIGraphicsImageRendererFormat()
-        format.opaque = false
-        let size = CGSize(width: max(imageBounds.width, 1), height: max(imageBounds.height, 1))
-        return UIGraphicsImageRenderer(size: size, format: format).image { _ in }
+        Self.transparentImage
     }
 }
 
@@ -75,22 +164,7 @@ struct MessageText: UIViewRepresentable {
     @Environment(\.timelineContext) private var viewModel
     @Environment(\.layoutDirection) private var layoutDirection
     
-    /// Cache key for `sizeThatFits`. Keyed on the reserved trailing size as well as the proposed
-    /// width to account for any changes on the send info label that happen after the first rendering.
-    private struct SizeCacheKey: Hashable {
-        // periphery:ignore - used via the synthesized Hashable conformance
-        let width: Double
-        // periphery:ignore - used via the synthesized Hashable conformance
-        let reservedSize: CGSize
-    }
-    
-    @State private var computedSizes = [SizeCacheKey: CGSize]()
-    
-    @State var attributedString: AttributedString {
-        didSet {
-            computedSizes.removeAll()
-        }
-    }
+    @State var attributedString: AttributedString
     
     /// Reserves an invisible inline area of this size at the very end of the rendered
     /// text. Used so that the message bubble's natural size accommodates the timestamp
@@ -160,8 +234,8 @@ struct MessageText: UIViewRepresentable {
     }
     
     func makeUIView(context: Context) -> MessageTextView {
-        // Need to use TextKit 1 for mentions
-        let textView = MessageTextView(usingTextLayoutManager: false)
+        // AGENT-PLATFORM (Brief 0083, question 359): a new row's most expensive part, on the phone, was making this view.
+        let textView = MessageTextView.pool.take()
         textView.timelineContext = viewModel
         textView.updateClosure = { [weak textView] in
             guard let textView else { return }
@@ -172,70 +246,73 @@ struct MessageText: UIViewRepresentable {
                 return
             }
         }
-        textView.isEditable = false
-        textView.isScrollEnabled = false
-        textView.adjustsFontForContentSizeCategory = true
-        
-        // Required to allow tapping links
-        // We disable selection at delegate level
-        textView.isSelectable = true
-        textView.isUserInteractionEnabled = true
-        
-        // Otherwise links can be dragged and dropped when long pressed
-        textView.textDragInteraction?.isEnabled = false
-        // Otherwise items dropped onto a bubble land on the text view instead of
-        // bubbling up to the timeline's drop handler.
-        if let textDropInteraction = textView.textDropInteraction {
-            textView.removeInteraction(textDropInteraction)
-        }
-        
-        textView.contentInset = .zero
-        textView.contentInsetAdjustmentBehavior = .never
-        textView.textContainerInset = .zero
-        textView.textContainer.lineFragmentPadding = 0
-        textView.layoutManager.usesFontLeading = false
-        textView.backgroundColor = .clear
-        if let attributedText = makeAttributedText() {
-            textView.attributedText = attributedText
-        }
         textView.delegate = context.coordinator
+        context.coordinator.show(content, makeAttributedText, in: textView)
         return textView
     }
     
     func updateUIView(_ uiView: MessageTextView, context: Context) {
-        if let newAttributedText = makeAttributedText(),
-           uiView.attributedText != newAttributedText {
-            uiView.flushPills()
-            uiView.attributedText = newAttributedText
-            computedSizes.removeAll()
-        }
+        context.coordinator.show(content, makeAttributedText, in: uiView)
         context.coordinator.openURLAction = openURLAction
+    }
+    
+    static func dismantleUIView(_ uiView: MessageTextView, coordinator: Coordinator) {
+        MessageTextView.pool.put(uiView)
     }
     
     func sizeThatFits(_ proposal: ProposedViewSize, uiView: MessageTextView, context: Context) -> CGSize? {
         let proposalWidth = proposal.width ?? UIView.layoutFittingExpandedSize.width
-        let key = SizeCacheKey(width: proposalWidth, reservedSize: trailingReservedSize)
-        
-        if let size = computedSizes[key] {
-            return size
-        }
-        
-        let size = uiView.sizeThatFits(CGSize(width: proposalWidth, height: UIView.layoutFittingCompressedSize.height))
-        DispatchQueue.main.async {
-            computedSizes[key] = size
-        }
-        return size
+        return context.coordinator.size(forWidth: proposalWidth, of: uiView)
     }
     
     func makeCoordinator() -> Coordinator {
         Coordinator(openURLAction: openURLAction)
     }
     
+    /// What the text view is showing, so that an update bringing the same has nothing to do.
+    private var content: Coordinator.Content {
+        .init(attributedString: attributedString, trailingReservedSize: trailingReservedSize, layoutDirection: layoutDirection)
+    }
+    
     final class Coordinator: NSObject, UITextViewDelegate {
+        struct Content: Equatable {
+            let attributedString: AttributedString
+            let trailingReservedSize: CGSize
+            let layoutDirection: LayoutDirection
+        }
+        
         var openURLAction: OpenURLAction
+        private var content: Content?
+        /// By the proposed width, for what the text view is showing. A value here rather than state, as writing state
+        /// from a measure renders the row again.
+        private var sizes = [CGFloat: CGSize]()
         
         init(openURLAction: OpenURLAction) {
             self.openURLAction = openURLAction
+        }
+        
+        /// Shows the content unless that's what the text view has, which spares the conversion of an update bringing nothing new.
+        func show(_ content: Content, _ makeAttributedText: () -> NSAttributedString?, in textView: MessageTextView) {
+            guard content != self.content else { return }
+            let isFirstContent = self.content == nil
+            self.content = content
+            sizes.removeAll()
+            
+            // A text view from the pool still has the text of the row it was in.
+            if let attributedText = makeAttributedText() ?? (isFirstContent ? NSAttributedString() : nil), textView.attributedText != attributedText {
+                textView.flushPills()
+                textView.attributedText = attributedText
+            }
+        }
+        
+        func size(forWidth width: CGFloat, of textView: MessageTextView) -> CGSize {
+            if let size = sizes[width] {
+                return size
+            }
+            
+            let size = textView.sizeThatFits(CGSize(width: width, height: UIView.layoutFittingCompressedSize.height))
+            sizes[width] = size
+            return size
         }
         
         func textViewDidChangeSelection(_ textView: UITextView) {

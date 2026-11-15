@@ -28,8 +28,8 @@ struct SecureBackupScreen: View {
                 }
             }
         }
-        .compoundList()
-        .navigationTitle(L10n.commonEncryption)
+        .spiralGroupedList() // AGENT-PLATFORM (Brief 0083): Spiral's grouped list, was `compoundList()`.
+        .navigationTitle(UntranslatedL10n.commonEncryptionSpiral) // AGENT-PLATFORM (Brief 0083): matches Settings' row.
         .navigationBarTitleDisplayMode(.inline)
         .alert(item: $context.alertInfo)
     }
@@ -116,8 +116,8 @@ struct SecureBackupScreen: View {
 
 // MARK: - Previews
 
-@available(iOS 26.0, *)
-struct SecureBackupScreen_Previews: PreviewProvider, TestablePreview {
+// AGENT-PLATFORM (Brief 0083, lane settings): gated, and built for iOS 18's lane too.
+struct SecureBackupScreen_Previews: PreviewProvider, TestablePreview, SpiralGatedPreview {
     static let bothSetupViewModel = viewModel(keyBackupState: .enabled, recoveryState: .enabled)
     static let onlyKeyBackupSetUpViewModel = viewModel(keyBackupState: .enabled, recoveryState: .disabled)
     static let keyBackupDisabledViewModel = viewModel(keyBackupState: .unknown, recoveryState: .disabled)

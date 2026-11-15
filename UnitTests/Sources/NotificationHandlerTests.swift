@@ -10,9 +10,9 @@
 // anything to show.
 //
 
-@testable import ElementX
 import MatrixRustSDK
 import MatrixRustSDKMocks
+@testable import Spiral
 import Testing
 
 struct NotificationHandlerTests {
@@ -46,6 +46,16 @@ struct NotificationHandlerTests {
         #expect(!NotificationHandler.hasNothingToShow(proxy(.timeline(event: custom))))
 
         #expect(!NotificationHandler.hasNothingToShow(proxy(.invite(sender: "@alice:spiral.md"))), "an invite has no timeline event and is shown")
+    }
+
+    /// Decision 371: the summary was an `m.text` with a push of its own, and its card's msgtype must not take that away.
+    @Test
+    func aCallSummaryIsPushedAndANoticeIsNot() {
+        let summary = #"{"com.spiral.notice":{"kind":"call_summary","summary":"We agreed.","decisions":[],"action_items":[]}}"#
+        #expect(NotificationHandler.isPushedAsAMessage(.other(msgtype: "com.spiral.notice", body: "We agreed.", data: summary)))
+        
+        let notice = #"{"com.spiral.notice":{"kind":"reply_failed"}}"#
+        #expect(!NotificationHandler.isPushedAsAMessage(.other(msgtype: "com.spiral.notice", body: "Failed", data: notice)))
     }
 
     private enum NotificationTestError: Error { case customEvent }

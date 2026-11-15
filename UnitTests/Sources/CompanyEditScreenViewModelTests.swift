@@ -9,9 +9,9 @@
 // RoomDetailsEdit canon (deferred save + unsaved-changes gate).
 //
 
-@testable import ElementX
 import Combine
 import Foundation
+@testable import Spiral
 import Testing
 
 @MainActor
@@ -30,8 +30,7 @@ struct CompanyEditScreenViewModelTests {
         CompanyEditScreenViewModel(detail: detail ?? Self.detail,
                                    agentPlatformService: service ?? AgentPlatformServiceMock(),
                                    userSession: UserSessionMock(.init(clientProxy: clientProxy ?? ClientProxyMock(.init()))),
-                                   userIndicatorController: UserIndicatorControllerMock(),
-                                   appSettings: .volatile())
+                                   userIndicatorController: UserIndicatorControllerMock())
     }
     
     private static func imageMediaInfo() -> MediaInfo {

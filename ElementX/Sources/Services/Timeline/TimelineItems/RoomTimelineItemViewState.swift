@@ -12,25 +12,54 @@ import MatrixRustSDK
 final class RoomTimelineItemViewState: Identifiable, Equatable, ObservableObject {
     @Published var type: RoomTimelineItemType
     @Published var groupStyle: TimelineGroupStyle
+    /// AGENT-PLATFORM (Brief 0083, question 359): all the row reads from the timeline's state.
+    @Published var rowContext: TimelineRowContext
     
     /// Contains all the identification info of the item, `uniqueID`, `eventID` and `transactionID`
     var identifier: TimelineItemIdentifier {
         type.id
     }
     
-    init(type: RoomTimelineItemType, groupStyle: TimelineGroupStyle) {
+    init(type: RoomTimelineItemType, groupStyle: TimelineGroupStyle, rowContext: TimelineRowContext = .init()) {
         self.type = type
         self.groupStyle = groupStyle
+        self.rowContext = rowContext
     }
     
-    convenience init(item: RoomTimelineItemProtocol, groupStyle: TimelineGroupStyle) {
-        self.init(type: .init(item: item), groupStyle: groupStyle)
+    convenience init(item: RoomTimelineItemProtocol, groupStyle: TimelineGroupStyle, rowContext: TimelineRowContext = .init()) {
+        self.init(type: .init(item: item), groupStyle: groupStyle, rowContext: rowContext)
+    }
+    
+    /// AGENT-PLATFORM (Brief 0083, question 359): takes the row's newest build, assigning only what changed, as whatever
+    /// is assigned re-renders the row, equal or not.
+    /// - Returns: Whether anything changed.
+    func update(item: RoomTimelineItemProtocol, groupStyle: TimelineGroupStyle) -> Bool {
+        let type = RoomTimelineItemType(item: item)
+        let isTypeChanged = !self.type.isDrawnAlike(type)
+        let isGroupStyleChanged = self.groupStyle != groupStyle
+        
+        if isTypeChanged {
+            self.type = type
+        }
+        if isGroupStyleChanged {
+            self.groupStyle = groupStyle
+        }
+        return isTypeChanged || isGroupStyleChanged
+    }
+    
+    func update(rowContext: TimelineRowContext) {
+        if self.rowContext != rowContext {
+            self.rowContext = rowContext
+        }
     }
     
     // MARK: - Equatable
     
     static func == (lhs: RoomTimelineItemViewState, rhs: RoomTimelineItemViewState) -> Bool {
-        lhs.type == rhs.type && lhs.groupStyle == rhs.groupStyle
+        #if DEBUG
+        TimelineSignposts.rowComparisons += 1
+        #endif
+        return lhs === rhs || (lhs.type == rhs.type && lhs.groupStyle == rhs.groupStyle) // AGENT-PLATFORM (Brief 0083, question 359)
     }
     
     // MARK: Identifiable
@@ -43,6 +72,14 @@ final class RoomTimelineItemViewState: Identifiable, Equatable, ObservableObject
     /// The timestamp of the item if available (separator date or event timestamp), `nil` otherwise.
     var timestamp: Date? {
         type.timestamp
+    }
+    
+    /// AGENT-PLATFORM (Brief 0083, question 364): the newest event drawn here, a folded group being many.
+    var newestEventItemID: TimelineItemIdentifier? {
+        if case .group(let group) = type {
+            return group.itemIDs.last { $0.eventID != nil }
+        }
+        return identifier.eventID != nil ? identifier : nil
     }
 }
 
@@ -77,6 +114,8 @@ enum RoomTimelineItemType: Equatable {
     case interactiveGenerating(InteractiveGeneratingRoomTimelineItem)
     // AGENT-PLATFORM (Brief 0073): a client-rendered notice card.
     case spiralNotice(SpiralNoticeRoomTimelineItem)
+    // AGENT-PLATFORM (decision 371): a call's summary as a card.
+    case callSummary(CallSummaryRoomTimelineItem)
     
     init(item: RoomTimelineItemProtocol) {
         switch item {
@@ -116,6 +155,8 @@ enum RoomTimelineItemType: Equatable {
             self = .interactiveGenerating(item)
         case let item as SpiralNoticeRoomTimelineItem:
             self = .spiralNotice(item)
+        case let item as CallSummaryRoomTimelineItem:
+            self = .callSummary(item)
         case let item as UnsupportedRoomTimelineItem:
             self = .unsupported(item)
         case let item as TimelineStartRoomTimelineItem:
@@ -139,6 +180,14 @@ enum RoomTimelineItemType: Equatable {
         default:
             fatalError("Unknown timeline item")
         }
+    }
+    
+    /// AGENT-PLATFORM (Brief 0083, question 359): whether the row would draw the same. `==` knows a folded group by its IDs,
+    /// which is enough for an animation to go by and not for a fold, as it draws the items in it.
+    func isDrawnAlike(_ other: RoomTimelineItemType) -> Bool {
+        guard self == other else { return false }
+        guard case .group(let group) = self, case .group(let otherGroup) = other else { return true }
+        return zip(group.items, otherGroup.items).allSatisfy { RoomTimelineItemType(item: $0) == RoomTimelineItemType(item: $1) }
     }
     
     var id: TimelineItemIdentifier {
@@ -170,7 +219,8 @@ enum RoomTimelineItemType: Equatable {
              .interactivePost(let item as RoomTimelineItemProtocol),
              .interactiveDraft(let item as RoomTimelineItemProtocol),
              .interactiveGenerating(let item as RoomTimelineItemProtocol),
-             .spiralNotice(let item as RoomTimelineItemProtocol):
+             .spiralNotice(let item as RoomTimelineItemProtocol),
+             .callSummary(let item as RoomTimelineItemProtocol):
             return item.id
         }
     }
@@ -226,6 +276,8 @@ enum RoomTimelineItemType: Equatable {
         case .callNotification(let item):
             return item.timestamp
         case .spiralNotice(let item):
+            return item.timestamp
+        case .callSummary(let item):
             return item.timestamp
         case .liveLocation(let item):
             return item.timestamp

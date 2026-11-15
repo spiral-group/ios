@@ -6,8 +6,8 @@
 //
 // Three things, in a bubble: a LIVE preview of the code (the same runtime
 // the post will run in, on a preview session with nothing behind it — § 7.7
-// exists for exactly this), the source to read, and "Publish". Publishing
-// sends `com.spiral.app` into THIS room as the owner; forwarding takes it
+// exists for exactly this), the source to read, and "Send". Send
+// posts `com.spiral.app` into THIS room as the owner; forwarding takes it
 // anywhere else, which is the flow the operator chose (notebook § 5.35).
 //
 // The preview is not shared and not pooled: one host per draft row, built
@@ -22,6 +22,7 @@ import SwiftUI
 
 struct InteractiveDraftRoomTimelineView: View {
     @Environment(\.timelineContext) private var context
+    @Environment(\.timelineRowContext) private var rowContext // AGENT-PLATFORM (Brief 0083, question 359)
     let timelineItem: InteractiveDraftRoomTimelineItem
 
     @StateObject private var preview = DraftPreview()
@@ -45,25 +46,29 @@ struct InteractiveDraftRoomTimelineView: View {
                                    cardTitle: timelineItem.draft.title,
                                    cardSubtitle: UntranslatedL10n.screenRoomInteractiveDraftVersion(Int(timelineItem.draft.version)),
                                    accessibilityLabel: UntranslatedL10n.a11ySpiralAppPost(timelineItem.draft.title),
+                                   isChatCard: true,
                                    onExpandedDismissed: {
                                        preview.setViewport(.row)
                                        reclaimCount += 1
-                                   }) {
-                    previewSurface
+                                   },
+                                   expandRequests: preview.expandRequests) {
+                    previewSurface { context?.send(viewAction: .displayTimelineItemMenu(itemID: timelineItem.id)) }
                 } expanded: {
-                    SpiralAppExpandedView(title: timelineItem.draft.title) {
-                        previewSurface
+                    SpiralAppExpandedView(title: timelineItem.draft.title,
+                                          author: SpiralAppViewerAuthor(timelineItem.sender),
+                                          mediaProvider: context?.mediaProvider) {
+                        previewSurface()
                             .onAppear { preview.setViewport(.expanded) }
                     }
                 }
 
                 publishButton
                     .padding(.horizontal, 8)
-                    .padding(.bottom, context?.viewState.spiralUpdatableLivePost == nil ? 8 : 0)
+                    .padding(.bottom, rowContext.updatesLivePost ? 0 : 8)
                 
                 // A thread whose post is out there updates it; starting over
                 // is the second choice, and says so (§ 5.55).
-                if context?.viewState.spiralUpdatableLivePost != nil {
+                if rowContext.updatesLivePost {
                     Button(UntranslatedL10n.screenRoomInteractivePostPublishNew) {
                         context?.send(viewAction: .publishInteractiveDraftAsNew(itemID: timelineItem.id))
                     }
@@ -99,7 +104,7 @@ struct InteractiveDraftRoomTimelineView: View {
         }
     }
 
-    /// Publish — the poll's "End poll": a capsule across the bubble. In a
+    /// Send — the poll's "End poll": a capsule across the bubble. In a
     /// thread whose post is live, it updates that post instead.
     private var publishButton: some View {
         Button {
@@ -120,18 +125,18 @@ struct InteractiveDraftRoomTimelineView: View {
         }
         .disabled(timelineItem.draft.artifact == nil)
         .opacity(timelineItem.draft.artifact == nil ? 0.5 : 1)
+        .accessibilityLabel(publishAccessibilityLabel)
     }
 
-    /// «Update the post» in a live post's thread; «Publish in «X»» when the
-    /// catalogue opened it to publish somewhere else; else «Publish».
+    /// «Update the post» in a live post's thread, else «Send», as short as the catalogue's (question 412, A1): the
+    /// chat it goes to is VoiceOver's to say.
     private var publishTitle: String {
-        if context?.viewState.spiralUpdatableLivePost != nil {
-            return UntranslatedL10n.screenRoomInteractivePostUpdate
-        }
-        if let room = context?.viewState.spiralPublishRoom {
-            return UntranslatedL10n.screenRoomInteractivePostPublishIn(room.name)
-        }
-        return UntranslatedL10n.screenRoomInteractiveDraftPublish
+        rowContext.updatesLivePost ? UntranslatedL10n.screenRoomInteractivePostUpdate : L10n.actionSend
+    }
+
+    private var publishAccessibilityLabel: String {
+        guard !rowContext.updatesLivePost, let publishRoomName = rowContext.publishRoomName else { return publishTitle }
+        return UntranslatedL10n.a11yInteractivePostSendToChat(publishRoomName)
     }
 
     private var versionLine: some View {
@@ -140,13 +145,15 @@ struct InteractiveDraftRoomTimelineView: View {
             : UntranslatedL10n.screenRoomInteractiveDraftVersion(Int(timelineItem.draft.version)))
             .font(.compound.bodyXS)
             .foregroundColor(timelineItem.draft.artifact == nil ? .compound.textCriticalPrimary : .compound.textSecondary)
+            .chatBackgroundChip() // AGENT-PLATFORM (Brief 0083, question 359): 2.49:1 in red and 3.91:1 in grey on the picture without it
             .padding(.top, 6)
     }
 
+    /// `onLongPress` is the row's menu; nil in the full-screen viewer, which has none.
     @ViewBuilder
-    private var previewSurface: some View {
+    private func previewSurface(onLongPress: (() -> Void)? = nil) -> some View {
         if let instance = preview.instance {
-            DraftPreviewSurface(container: instance.containerView, reclaimCount: reclaimCount)
+            DraftPreviewSurface(container: instance.containerView, reclaimCount: reclaimCount, onLongPress: onLongPress)
         } else {
             Color.clear
         }
@@ -165,11 +172,17 @@ final class DraftPreview: ObservableObject {
     /// the dead instance, which made `start` a no-op: the card stayed a
     /// picture until the screen was left.
     @Published private(set) var failures = 0
+    /// Bumped when the running app asks for the whole screen (`ui.expand`): whoever shows the preview opens its viewer.
+    @Published private(set) var expandRequests = 0
     /// How many failures a caller should start again after.
     static let retries = 2
     /// A pool of one, so the preview's host is its own and goes with it.
-    private let pool = SpiralAppHostPool { SpiralAppWebViewHost() }
+    private let pool: SpiralAppHostPool
     private var running: Task<Void, Never>?
+
+    init(makeHost: @escaping @MainActor () -> SpiralAppHostProtocol = { SpiralAppWebViewHost() }) {
+        pool = SpiralAppHostPool(makeHost: makeHost)
+    }
 
     func start(_ draft: SpiralAppDraft, viewerID: String, members: (() async -> [String: Any])? = nil) {
         guard let artifact = draft.artifact else { return }
@@ -185,6 +198,9 @@ final class DraftPreview: ObservableObject {
                                               loadMembers: members ?? { ["members": []] })
         let instance = SpiralAppInstance(session: session, pool: pool)
         self.instance = instance
+        instance.onExpandRequested = { [weak self] in
+            self?.expandRequests += 1
+        }
         // The system reclaims web views nobody is looking at; a preview whose
         // process died is a blank box, not a preview.
         instance.onContentProcessDied = { [weak self, weak instance] in
@@ -195,7 +211,8 @@ final class DraftPreview: ObservableObject {
 
         running = Task { [weak self] in
             let started = await instance.start(artifact, instanceID: "draft-preview") == .started
-            guard !Task.isCancelled else { return }
+            // A process that died during the start has already failed this instance.
+            guard !Task.isCancelled, self?.instance === instance else { return }
             if started {
                 self?.isReady = true
             } else {
@@ -237,30 +254,50 @@ final class DraftPreview: ObservableObject {
     }
 
     /// `stop`, and only return once the host is back in the pool — for a
-    /// caller that mounts the next artifact straight after (the lab).
-    func stopAndWait() async {
+    /// caller that mounts the next artifact straight after (the lab). A caller
+    /// that is about to take the host again keeps it, shell warm.
+    func stopAndWait(keepingHost: Bool = false) async {
         running?.cancel()
         let instance = instance
         self.instance = nil
         isReady = false
         await instance?.stop()
+        if !keepingHost {
+            pool.drain()
+        }
+    }
+
+    /// Destroy the host a `stopAndWait(keepingHost: true)` kept, for a caller
+    /// that found it has no next artifact after all.
+    func dropKeptHost() {
         pool.drain()
+    }
+
+    /// A picture of what the app shows now, nil when there is nothing to take.
+    func takeSnapshot() async -> UIImage? {
+        guard let instance else { return nil }
+        return await withCheckedContinuation { continuation in
+            instance.takeSnapshot { continuation.resume(returning: $0) }
+        }
     }
 }
 
 struct DraftPreviewSurface: UIViewRepresentable {
     let container: UIView
     var reclaimCount = 0
+    var onLongPress: (() -> Void)?
 
     func makeUIView(context: Context) -> DraftPreviewBox {
         let box = DraftPreviewBox()
         box.backgroundColor = .clear
         box.container = container
+        box.onLongPress = onLongPress
         return box
     }
 
     func updateUIView(_ uiView: DraftPreviewBox, context: Context) {
         uiView.container = container
+        uiView.onLongPress = onLongPress
         if context.coordinator.reclaimCount != reclaimCount {
             context.coordinator.reclaimCount = reclaimCount
             uiView.reclaim()
@@ -298,6 +335,29 @@ final class DraftPreviewBox: UIView {
         }
     }
 
+    /// A held finger on the preview opens the row's menu, as on a post (§ 5.66): the web view takes every touch, and
+    /// the strip under the draft that used to answer is gone. Beside WebKit's recognisers, never instead of them.
+    var onLongPress: (() -> Void)? {
+        didSet {
+            guard onLongPress != nil, longPress == nil else { return }
+            let recogniser = UILongPressGestureRecognizer(target: self, action: #selector(handleLongPress))
+            recogniser.minimumPressDuration = 0.5
+            recogniser.allowableMovement = 10
+            recogniser.cancelsTouchesInView = false
+            recogniser.delegate = self
+            addGestureRecognizer(recogniser)
+            longPress = recogniser
+        }
+    }
+
+    private var longPress: UILongPressGestureRecognizer?
+
+    @objc private func handleLongPress(_ recogniser: UILongPressGestureRecognizer) {
+        guard recogniser.state == .began else { return }
+        UIImpactFeedbackGenerator(style: .heavy).impactOccurred()
+        onLongPress?()
+    }
+
     override func didMoveToWindow() {
         super.didMoveToWindow()
         if window != nil { adopt() }
@@ -320,5 +380,12 @@ final class DraftPreviewBox: UIView {
         container.frame = bounds
         container.autoresizingMask = [.flexibleWidth, .flexibleHeight]
         addSubview(container)
+    }
+}
+
+extension DraftPreviewBox: UIGestureRecognizerDelegate {
+    func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer,
+                           shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer) -> Bool {
+        true
     }
 }

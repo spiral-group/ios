@@ -15,14 +15,15 @@ struct EmojiPickerScreen: View {
     @State var searchString = ""
     @State private var isSearching = false
     
-    @ScaledMetric(relativeTo: .title) var minimumWidth: Double = 64
+    // AGENT-PLATFORM (Brief 0083): iOS's emoji keyboard density, eight to a row on a phone, each a 44 pt target.
+    @ScaledMetric(relativeTo: .title) var minimumWidth: Double = 44
     
     private let feedbackGenerator = UIImpactFeedbackGenerator(style: .heavy)
     
     var body: some View {
         ElementNavigationStack {
             ScrollView {
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: minimumWidth))], spacing: 16) {
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: minimumWidth), spacing: 0)], spacing: CompoundDesignTokens.space1X) { // AGENT-PLATFORM (Brief 0083)
                     ForEach(context.viewState.categories) { category in
                         Section {
                             ForEach(category.emojis) { emoji in
@@ -30,9 +31,10 @@ struct EmojiPickerScreen: View {
                                     feedbackGenerator.impactOccurred()
                                     context.send(viewAction: .emojiTapped(emoji: emoji))
                                 } label: {
+                                    // AGENT-PLATFORM (Brief 0083): the keyboard's emoji size in a 44 pt circle.
                                     Text(emoji.value)
-                                        .padding(9.0)
-                                        .font(.compound.headingXL)
+                                        .font(.compound.headingLG)
+                                        .frame(minWidth: minimumWidth, minHeight: minimumWidth)
                                         .background(Circle()
                                             .foregroundColor(emojiBackgroundColor(for: emoji.value)))
                                 }
@@ -40,14 +42,15 @@ struct EmojiPickerScreen: View {
                             }
                         } header: {
                             EmojiPickerScreenHeaderView(title: category.name)
-                                .padding(.horizontal, 13)
-                                .padding(.top, 10)
+                                .padding(.horizontal, CompoundDesignTokens.space2X) // AGENT-PLATFORM (Brief 0083)
+                                .padding(.top, CompoundDesignTokens.space4X)
+                                .padding(.bottom, CompoundDesignTokens.space1X)
                         }
                     }
                 }
-                .padding(.horizontal, 6)
+                .padding(.horizontal, CompoundDesignTokens.space2X) // AGENT-PLATFORM (Brief 0083)
             }
-            .navigationTitle(L10n.commonReactions)
+            .navigationTitle(context.viewState.title)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { toolbar }
             .isSearching($isSearching)
@@ -100,10 +103,10 @@ struct EmojiPickerScreen: View {
 
 // MARK: - Previews
 
-@available(iOS 26.0, *)
-struct EmojiPickerScreen_Previews: PreviewProvider, TestablePreview {
+// AGENT-PLATFORM (Brief 0083): Spiral's gates, so on iOS 18 too (observe(_:) has its AsyncStream fallback).
+struct EmojiPickerScreen_Previews: PreviewProvider, TestablePreview, SpiralGatedPreview {
     static let viewModel = EmojiPickerScreenViewModel(selectedEmojis: ["😀", "😄"],
-                                                      emojiProvider: EmojiProvider(appSettings: .volatile()),
+                                                      emojiProvider: EmojiProvider(userSettings: .mock()),
                                                       continuation: AsyncStream<String>.makeStream().continuation)
     
     static var previews: some View {
@@ -115,7 +118,7 @@ struct EmojiPickerScreen_Previews: PreviewProvider, TestablePreview {
 
 struct EmojiPickerScreenSheet_Previews: PreviewProvider {
     static let viewModel = EmojiPickerScreenViewModel(selectedEmojis: ["😀", "😄"],
-                                                      emojiProvider: EmojiProvider(appSettings: .volatile()),
+                                                      emojiProvider: EmojiProvider(userSettings: .mock()),
                                                       continuation: AsyncStream<String>.makeStream().continuation)
     
     static var previews: some View {

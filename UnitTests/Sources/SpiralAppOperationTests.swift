@@ -11,8 +11,8 @@
 // caused by the encoder rather than by the network.
 //
 
-@testable import ElementX
 import Foundation
+@testable import Spiral
 import Testing
 
 struct SpiralAppOperationTests {

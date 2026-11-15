@@ -27,21 +27,9 @@ struct AgentEditScreen: View {
             .alert(item: $context.alertInfo)
     }
     
-    @ViewBuilder
+    /// The final form from the first frame. The card always has something to show, so nothing
+    /// replaces it; until the limits arrive the name can't be checked, and stays closed.
     private var content: some View {
-        switch context.viewState.loadState {
-        case .loading:
-            // Fast data → a delayed centred spinner, no skeleton flicker
-            // (CODEBASE/14 §3).
-            DelayedProgressView()
-        case .failure:
-            loadFailureState
-        case .loaded(let schema):
-            form(schema)
-        }
-    }
-    
-    private func form(_ schema: AgentEditSchema) -> some View {
         Form {
             avatarSection
             
@@ -49,14 +37,21 @@ struct AgentEditScreen: View {
                 ListRow(label: .plain(title: UntranslatedL10n.screenAgentEditDisplayNameSection),
                         kind: .textField(text: $context.displayName, axis: .horizontal))
                     .focused($focus)
+                    .disabled(context.viewState.schema == nil)
                     .onChange(of: context.displayName) { _, newValue in
-                        if newValue.count > schema.displayName.maxLength {
-                            context.displayName = String(newValue.prefix(schema.displayName.maxLength))
+                        if let maxLength = context.viewState.schema?.displayName.maxLength, newValue.count > maxLength {
+                            context.displayName = String(newValue.prefix(maxLength))
                         }
                     }
             } header: {
                 Text(UntranslatedL10n.screenAgentEditDisplayNameSection)
                     .compoundListSectionHeader()
+            }
+            
+            if context.viewState.loadState == .failure {
+                AgentSpacesRetryErrorSection(title: UntranslatedL10n.screenAgentEditLoadFailure) {
+                    context.send(viewAction: .retry)
+                }
             }
         }
         .compoundList()
@@ -123,22 +118,6 @@ struct AgentEditScreen: View {
         }
     }
     
-    private var loadFailureState: some View {
-        VStack(spacing: 24) {
-            TitleAndIcon(title: UntranslatedL10n.screenAgentEditLoadFailure,
-                         icon: \.error,
-                         iconStyle: .alertSolid)
-                .padding(.horizontal, 24)
-            
-            Button(L10n.actionRetry) {
-                context.send(viewAction: .retry)
-            }
-            .buttonStyle(.compound(.primary))
-            .padding(.horizontal, 16)
-        }
-        .padding(.top, 40)
-    }
-    
     /// «Изменить профиль» canon: Cancel replaces the back chevron while
     /// there is something to save.
     @ToolbarContentBuilder
@@ -164,26 +143,51 @@ struct AgentEditScreen: View {
 
 // MARK: - Previews
 
-struct AgentEditScreen_Previews: PreviewProvider, TestablePreview {
+struct AgentEditScreen_Previews: PreviewProvider, TestablePreview, SpiralGatedPreview {
     static let viewModel = makeViewModel()
+    // Brief 0083, question 359: the card fills the form while the name's limits are on their way.
+    static let loadingViewModel = makeViewModel(schema: nil)
+    static let failedViewModel = makeViewModel(schema: .failure(.serverError(status: 500)))
     
     static var previews: some View {
         ElementNavigationStack {
             AgentEditScreen(context: viewModel.context)
         }
-        .snapshotPreferences(expect: viewModel.context.observe(\.viewState.loadState).map { if case .loading = $0 { false } else { true } })
+        .snapshotPreferences(expect: viewModel.context.observe(\.viewState.loadState).map { $0 != .loading })
+        .previewDisplayName("Default")
+        
+        ElementNavigationStack {
+            AgentEditScreen(context: loadingViewModel.context)
+        }
+        .previewDisplayName("Loading")
+        
+        ElementNavigationStack {
+            AgentEditScreen(context: failedViewModel.context)
+        }
+        .snapshotPreferences(expect: failedViewModel.context.observe(\.viewState.loadState).map { $0 == .failure })
+        .previewDisplayName("Failed")
     }
     
-    static func makeViewModel() -> AgentEditScreenViewModel {
-        let card = AgentSpaceAgentCard(agentID: "agent-1", matrixUserID: "@assistant-owner:spiral.md", displayName: "Anna Kovalchuk · assistant",
-                                       avatarMXC: nil, kind: "personal_assistant", visibility: "public", lifecycleState: "active",
-                                       presence: .online, roomCount: 2, activeToolCount: 1)
-        
+    private static let card = AgentSpaceAgentCard(agentID: "agent-1", matrixUserID: "@assistant-owner:spiral.md", displayName: "Anna Kovalchuk · assistant",
+                                                  avatarMXC: nil, kind: "personal_assistant", visibility: "public", lifecycleState: "active",
+                                                  roomCount: 2, activeToolCount: 1)
+    
+    private static let schema = AgentEditSchema(agentID: card.agentID,
+                                                kind: card.kind,
+                                                displayName: .init(minLength: 1, maxLength: 64),
+                                                persona: nil)
+    
+    /// A `nil` schema is a read that never answers.
+    static func makeViewModel(schema: Result<AgentEditSchema, AgentPlatformError>? = .success(schema)) -> AgentEditScreenViewModel {
         let service = AgentPlatformServiceMock()
-        service.fetchAgentEditSchemaAgentIDReturnValue = .success(.init(agentID: card.agentID,
-                                                                        kind: card.kind,
-                                                                        displayName: .init(minLength: 1, maxLength: 64),
-                                                                        persona: nil))
+        if let schema {
+            service.fetchAgentEditSchemaAgentIDReturnValue = schema
+        } else {
+            service.fetchAgentEditSchemaAgentIDClosure = { _ in
+                try? await Task.sleep(for: .seconds(3600))
+                return .failure(.serverError(status: 500))
+            }
+        }
         service.fetchAgentReadModelAgentIDReturnValue = .success(.init(agentID: card.agentID,
                                                                        matrixUserID: card.matrixUserID,
                                                                        displayName: card.displayName,
@@ -196,11 +200,13 @@ struct AgentEditScreen_Previews: PreviewProvider, TestablePreview {
                                                                        activeToolCount: card.activeToolCount,
                                                                        configVersionNumber: 1,
                                                                        persona: nil))
+        service.fetchAgentRoomsAgentIDReturnValue = .success([])
+        service.listVerificationsForAgentAgentIDReturnValue = .success([])
         
         return AgentEditScreenViewModel(agent: card,
                                         agentPlatformService: service,
+                                        store: AgentsStore(service: service),
                                         userSession: UserSessionMock(.init(clientProxy: ClientProxyMock(.init()))),
-                                        userIndicatorController: UserIndicatorControllerMock(),
-                                        appSettings: .volatile())
+                                        userIndicatorController: UserIndicatorControllerMock())
     }
 }

@@ -4,8 +4,8 @@
 // AGENT-PLATFORM: Brief 0075 — how the identity page's return is read.
 //
 
-@testable import ElementX
 import Foundation
+@testable import Spiral
 import Testing
 
 struct NewPhrasePresenterTests {

@@ -11,8 +11,8 @@
 // Connect's privacy label says so. PostHog and Sentry are not linked: their own privacy
 // manifests would land in the archive's privacy report and contradict the label.
 
-@testable import ElementX
 import Foundation
+@testable import Spiral
 import Testing
 
 @MainActor

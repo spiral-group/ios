@@ -17,6 +17,8 @@
 // chat-flow DM resolution path.
 
 import Compound
+import SpiralComponents
+import SpiralTokens
 import SwiftUI
 
 struct PublicProfileScreen: View {
@@ -26,13 +28,19 @@ struct PublicProfileScreen: View {
         Form {
             switch context.viewState.detailState {
             case .loading:
-                skeletonSection
+                loadingSections
             case .loaded(let profile):
-                headerSection(profile: profile)
+                Section {
+                    header(profile: profile)
+                }
                 if profile.publicAgents.isEmpty {
                     emptyAgentsSection
                 } else {
-                    agentsSection(profile.publicAgents)
+                    agentsSection {
+                        ForEach(profile.publicAgents) { agent in
+                            agentRow(agent)
+                        }
+                    }
                 }
             case .notFound:
                 notFoundSection
@@ -42,79 +50,77 @@ struct PublicProfileScreen: View {
                 failedSection(reason: reason)
             }
         }
-        .compoundList()
+        .spiralGroupedList() // Brief 0083 (P4-D): iOS's grouped cards and plain grey glyphs (decision 337).
         .navigationTitle(UntranslatedL10n.screenPublicProfileTitle)
         .navigationBarTitleDisplayMode(.inline)
         .alert(item: $context.alertInfo)
-        .refreshable { context.send(viewAction: .refresh) }
-        .onAppear { context.send(viewAction: .appeared) }
+        .feedSyncStatus(context.viewState.syncStatus) // AGENT-PLATFORM: platform sync (decision 289)
     }
 
     // MARK: - Sections
 
-    // Canon §3 (operator ruling, CODEBASE/14): fast/rare data → a delayed
-    // spinner, never a skeleton (it only flickers).
-    private var skeletonSection: some View {
+    // AGENT-PLATFORM (Brief 0083, question 359): the header and an agent's card as placeholders, after a short delay
+    // (decision 330). How many agents the person has is the read's to say.
+    @ViewBuilder
+    private var loadingSections: some View {
         Section {
-            ListRow(kind: .custom {
-                DelayedProgressView()
-                    .frame(minHeight: 80)
-            })
-        }
-        .listRowBackground(Color.clear)
-    }
-
-    // Canon F7 (variant A): a real avatar header — the member-details
-    // anatomy with an initial-avatar (no avatar URL on the wire yet;
-    // `LoadableAvatarImage` renders the canonical initial fallback).
-    private func headerSection(profile: UserProfileView) -> some View {
-        Section {
-            VStack(spacing: 8) {
-                LoadableAvatarImage(url: nil,
-                                    name: profile.displayName,
-                                    contentID: profile.mxid,
-                                    avatarSize: .user(on: .memberDetails),
-                                    mediaProvider: context.mediaProvider)
-                VStack(spacing: 4) {
-                    Text(profile.displayName)
-                        .font(.compound.headingMDBold)
-                        .foregroundStyle(.compound.textPrimary)
-                        .multilineTextAlignment(.center)
-                    Text(profile.mxid)
-                        .font(.compound.bodyMD)
-                        .foregroundStyle(.compound.textSecondary)
-                        .textSelection(.enabled)
-                }
+            SpiralPreloader(label: L10n.commonLoading) {
+                header(profile: UserProfileView(mxid: context.viewState.targetMXID,
+                                                displayName: String(repeating: "0", count: 10),
+                                                publicAgents: []))
             }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 24)
-            .listRowBackground(Color.clear)
         }
+        
+        agentsSection {
+            SpiralPreloader(label: L10n.commonLoading) {
+                agentRow(Self.placeholderAgent)
+            }
+            .accessibilityHidden(true) // The header reads "Loading…" for the screen.
+        }
+    }
+    
+    private static let placeholderAgent = PublicAgentSummary(id: "placeholder",
+                                                             matrixUserID: "@" + String(repeating: "0", count: 24),
+                                                             displayName: String(repeating: "0", count: 16),
+                                                             tone: String(repeating: "0", count: 26),
+                                                             greeting: String(repeating: "0", count: 30),
+                                                             visitorGreeting: String(repeating: "0", count: 34),
+                                                             createdAt: .distantPast)
+
+    // Canon F7 (variant A): a real avatar header, with an initial-avatar (no avatar URL on the wire yet;
+    // `LoadableAvatarImage` renders the canonical initial fallback). Brief 0083 (P4-D): the agent card's profile
+    // layout, as an agent's screen and Settings draw their header.
+    private func header(profile: UserProfileView) -> some View {
+        SpiralAgentCard(layout: .profile,
+                        name: profile.displayName,
+                        subtitle: profile.mxid) {
+            LoadableAvatarImage(url: nil,
+                                name: profile.displayName,
+                                contentID: profile.mxid,
+                                avatarSize: .user(on: .memberDetails),
+                                mediaProvider: context.mediaProvider)
+                .dynamicTypeSize(...DynamicTypeSize.accessibility1)
+        } accessory: {
+            EmptyView()
+        }
+        .listRowInsets(EdgeInsets())
+        .listRowBackground(Color.clear)
     }
 
     private var emptyAgentsSection: some View {
         Section {
-            VStack(spacing: 16) {
-                Text(UntranslatedL10n.screenPublicProfileEmptyTitle)
-                    .font(.compound.headingSMSemibold)
-                    .foregroundStyle(.compound.textPrimary)
-                    .multilineTextAlignment(.center)
-                Text(UntranslatedL10n.screenPublicProfileEmptySubtitle)
-                    .font(.compound.bodyMD)
-                    .foregroundStyle(.compound.textSecondary)
-                    .multilineTextAlignment(.center)
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 24)
-            .listRowBackground(Color.clear)
+            // Under the person's header: one part of the screen, not the whole of it.
+            SpiralEmptyState(symbol: .sparkles,
+                             title: UntranslatedL10n.screenPublicProfileEmptyTitle,
+                             message: UntranslatedL10n.screenPublicProfileEmptySubtitle,
+                             size: .compact)
+                .listRowBackground(Color.clear)
         }
     }
 
-    private func agentsSection(_ agents: [PublicAgentSummary]) -> some View {
+    private func agentsSection(@ViewBuilder rows: () -> some View) -> some View {
         Section {
-            ForEach(agents) { agent in
-                agentRow(agent)
-            }
+            rows()
         } header: {
             Text(UntranslatedL10n.screenPublicProfileAgentsSectionTitle)
                 .compoundListSectionHeader()
@@ -124,90 +130,80 @@ struct PublicProfileScreen: View {
         }
     }
 
+    /// Brief 0083 (P4-D): Spiral's agent card, the avatar and name over what the agent says, then Contact agent.
     private func agentRow(_ agent: PublicAgentSummary) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(agent.displayName ?? Self.fallbackName(for: agent.matrixUserID))
-                    .font(.compound.bodyMDSemibold)
-                    .foregroundStyle(.compound.textPrimary)
-                Text(agent.matrixUserID)
-                    .font(.compound.bodySM)
-                    .foregroundStyle(.compound.textSecondary)
-            }
+        let name = agent.displayName ?? Self.fallbackName(for: agent.matrixUserID)
+        return ListRow(kind: .custom {
+            SpiralAgentCard(name: name,
+                            details: agent.matrixUserID) {
+                LoadableAvatarImage(url: nil,
+                                    name: name,
+                                    contentID: agent.matrixUserID,
+                                    avatarSize: .custom(SpiralAvatarSize.medium),
+                                    mediaProvider: context.mediaProvider)
+                    .dynamicTypeSize(...DynamicTypeSize.accessibility1)
+            } actions: {
+                VStack(alignment: .leading, spacing: CompoundDesignTokens.space3X) {
+                    persona(agent)
 
-            if let tone = agent.tone, !tone.isEmpty {
-                Text(tone)
-                    .font(.compound.bodySM)
-                    .foregroundStyle(.compound.textSecondary)
+                    Button {
+                        context.send(viewAction: .contactAgent(matrixUserID: agent.matrixUserID))
+                    } label: {
+                        // As the agent's screen draws its buttons: the title only, the card's full width (329).
+                        Text(UntranslatedL10n.screenPublicProfileActionContactAgent)
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.compound(.primary, size: .medium))
+                    .accessibilityLabel(UntranslatedL10n.a11yScreenPublicProfileActionContactAgent(agent.matrixUserID))
+                }
             }
+        })
+    }
 
-            if let greeting = agent.greeting, !greeting.isEmpty {
-                Text(greeting)
-                    .font(.compound.bodyMD)
-                    .foregroundStyle(.compound.textPrimary)
-            }
-
-            if let visitor = agent.visitorGreeting, !visitor.isEmpty {
-                // Canon F9: italics aren't a Compound typography variant.
-                Text(visitor)
-                    .font(.compound.bodySM)
-                    .foregroundStyle(.compound.textSecondary)
-                    .multilineTextAlignment(.leading)
-            }
-
-            Button {
-                context.send(viewAction: .contactAgent(matrixUserID: agent.matrixUserID))
-            } label: {
-                Label(UntranslatedL10n.screenPublicProfileActionContactAgent,
-                      icon: \.send)
-            }
-            .buttonStyle(.compound(.primary, size: .medium))
-            .accessibilityLabel(UntranslatedL10n.a11yScreenPublicProfileActionContactAgent(agent.matrixUserID))
+    @ViewBuilder
+    private func persona(_ agent: PublicAgentSummary) -> some View {
+        if let tone = agent.tone, !tone.isEmpty {
+            Text(tone)
+                .font(.compound.bodySM)
+                .foregroundStyle(.compound.textSecondary)
         }
-        .padding(.vertical, 8)
+
+        if let greeting = agent.greeting, !greeting.isEmpty {
+            Text(greeting)
+                .font(.compound.bodyMD)
+                .foregroundStyle(.compound.textPrimary)
+        }
+
+        if let visitor = agent.visitorGreeting, !visitor.isEmpty {
+            // Canon F9: italics aren't a Compound typography variant.
+            Text(visitor)
+                .font(.compound.bodySM)
+                .foregroundStyle(.compound.textSecondary)
+                .multilineTextAlignment(.leading)
+        }
     }
 
     private var notFoundSection: some View {
         Section {
-            VStack(spacing: 16) {
-                BigIcon(icon: \.userProfile, style: .alertSolid)
-                Text(UntranslatedL10n.screenPublicProfileNotFoundTitle)
-                    .font(.compound.headingSMSemibold)
-                    .foregroundStyle(.compound.textPrimary)
-                    .multilineTextAlignment(.center)
-                Text(UntranslatedL10n.screenPublicProfileNotFoundSubtitle(context.viewState.targetMXID))
-                    .font(.compound.bodyMD)
-                    .foregroundStyle(.compound.textSecondary)
-                    .multilineTextAlignment(.center)
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 32)
-            .listRowBackground(Color.clear)
+            SpiralEmptyState(symbol: .personCropCircleBadgeXmark,
+                             title: UntranslatedL10n.screenPublicProfileNotFoundTitle,
+                             message: UntranslatedL10n.screenPublicProfileNotFoundSubtitle(context.viewState.targetMXID))
+                .listRowBackground(Color.clear)
         }
     }
 
     private var selfLookupSection: some View {
         Section {
-            VStack(spacing: 16) {
-                BigIcon(icon: \.userProfile)
-                Text(UntranslatedL10n.screenPublicProfileSelfTitle)
-                    .font(.compound.headingSMSemibold)
-                    .foregroundStyle(.compound.textPrimary)
-                    .multilineTextAlignment(.center)
-                Text(UntranslatedL10n.screenPublicProfileSelfSubtitle)
-                    .font(.compound.bodyMD)
-                    .foregroundStyle(.compound.textSecondary)
-                    .multilineTextAlignment(.center)
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 32)
-            .listRowBackground(Color.clear)
+            SpiralEmptyState(symbol: .personCropCircle,
+                             title: UntranslatedL10n.screenPublicProfileSelfTitle,
+                             message: UntranslatedL10n.screenPublicProfileSelfSubtitle)
+                .listRowBackground(Color.clear)
         }
     }
 
     private func failedSection(reason: String) -> some View {
-        AgentSpacesRetryErrorSection {
-            context.send(viewAction: .refresh)
+        AgentSpacesRetryErrorSection(title: UntranslatedL10n.screenPublicProfileLoadFailed) {
+            context.send(viewAction: .retry)
         }
         .accessibilityHint(reason)
     }
@@ -226,7 +222,7 @@ struct PublicProfileScreen: View {
 
 // MARK: - Previews
 
-struct PublicProfileScreen_Previews: PreviewProvider, TestablePreview {
+struct PublicProfileScreen_Previews: PreviewProvider, TestablePreview, SpiralGatedPreview {
     static let sampleProfile = UserProfileView(mxid: "@alice:spiral.md",
                                                displayName: "Alice",
                                                publicAgents: [
@@ -243,38 +239,61 @@ struct PublicProfileScreen_Previews: PreviewProvider, TestablePreview {
                                               displayName: "Charlie",
                                               publicAgents: [])
 
+    // Held here: the screen's context does not keep its view model alive, and the snapshot waits on it.
+    static let loadingViewModel = makeViewModel(state: .loading)
+    static let loadedViewModel = makeViewModel(state: .loaded(sampleProfile))
+    static let emptyViewModel = makeViewModel(state: .loaded(emptyProfile))
+    static let notFoundViewModel = makeViewModel(state: .notFound)
+    static let selfLookupViewModel = makeViewModel(state: .selfLookup)
+    static let failedViewModel = makeViewModel(state: .failed(reason: "transport error"))
+
     static var previews: some View {
-        ElementNavigationStack { screen(state: .loading) }
+        ElementNavigationStack { screen(loadingViewModel, waitsForLoading: true) }
+            .environment(\.spiralPreloaderDelay, .zero)
             .previewDisplayName("Loading")
 
-        ElementNavigationStack { screen(state: .loaded(sampleProfile)) }
+        ElementNavigationStack { screen(loadedViewModel) }
             .previewDisplayName("Loaded")
 
-        ElementNavigationStack { screen(state: .loaded(emptyProfile)) }
+        ElementNavigationStack { screen(emptyViewModel) }
             .previewDisplayName("Loaded — no public agents")
 
-        ElementNavigationStack { screen(state: .notFound) }
+        ElementNavigationStack { screen(notFoundViewModel) }
             .previewDisplayName("Not found")
 
-        ElementNavigationStack { screen(state: .selfLookup) }
+        ElementNavigationStack { screen(selfLookupViewModel) }
             .previewDisplayName("Self lookup")
 
-        ElementNavigationStack { screen(state: .failed(reason: "transport error")) }
+        ElementNavigationStack { screen(failedViewModel) }
             .previewDisplayName("Failed")
     }
 
-    static func screen(state: PublicProfileState) -> some View {
+    /// The snapshot waits for the store's read, except while loading.
+    static func screen(_ viewModel: PublicProfileScreenViewModel, waitsForLoading: Bool = false) -> some View {
+        PublicProfileScreen(context: viewModel.context)
+            .snapshotPreferences(expect: viewModel.context.observe(\.viewState.detailState).map {
+                if case .loading = $0 { waitsForLoading } else { !waitsForLoading }
+            })
+    }
+
+    /// The store reads what `state` names.
+    static func makeViewModel(state: PublicProfileState) -> PublicProfileScreenViewModel {
         let service = AgentPlatformServiceMock()
-        // Block the live fetch so .onAppear can't overwrite the
-        // preview's seeded state with a real result.
         service.fetchUserProfileMxidClosure = { _ in
-            try? await Task.sleep(for: .seconds(60))
-            return .failure(.serverError(status: 0))
+            switch state {
+            case .loaded(let profile):
+                return .success(profile)
+            case .notFound:
+                return .failure(.notFound)
+            case .failed:
+                return .failure(.serverError(status: 500))
+            case .loading, .selfLookup:
+                try? await Task.sleep(for: .seconds(60))
+                return .failure(.serverError(status: 0))
+            }
         }
-        let viewModel = PublicProfileScreenViewModel(targetMXID: "@alice:spiral.md",
-                                                     currentUserMXID: "@viewer:spiral.md",
-                                                     agentPlatformService: service,
-                                                     initialState: state)
-        return PublicProfileScreen(context: viewModel.context)
+        return PublicProfileScreenViewModel(targetMXID: "@alice:spiral.md",
+                                            currentUserMXID: state == .selfLookup ? "@alice:spiral.md" : "@viewer:spiral.md",
+                                            store: AgentsStore(service: service))
     }
 }

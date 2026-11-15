@@ -9,8 +9,8 @@
 // The Spiral feature is built on Element's `TemplateScreenViewModelTests.swift`.
 //
 
-@testable import ElementX
 import Foundation
+@testable import Spiral
 import Testing
 
 @MainActor

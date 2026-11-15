@@ -6,23 +6,41 @@
 // Please see LICENSE files in the repository root for full details.
 //
 
+import Compound
 import SwiftUI
 
 struct FormattedBodyText: View {
+    @Environment(\.ownBubbleInk) private var ownBubbleInk // AGENT-PLATFORM (Brief 0083)
+    @Environment(\.isTimelineItemPinned) private var isPinned // AGENT-PLATFORM (Brief 0083, question 359)
+    
     private let attributedString: AttributedString
     private let trailingReservedSize: CGSize
     private let boostFontSize: Bool
     
-    private let defaultAttributesContainer: AttributeContainer = {
+    private var reservedSize: CGSize {
+        guard isPinned, trailingReservedSize != .zero else { return trailingReservedSize }
+        return CGSize(width: trailingReservedSize.width + TimelineItemSendInfo.pinSlotWidth, height: trailingReservedSize.height)
+    }
+    
+    private var defaultAttributesContainer: AttributeContainer { // AGENT-PLATFORM (Brief 0083): computed, it reads the bubble
         var container = AttributeContainer()
         // Equivalent to compound's bodyLG
         container.font = UIFont.preferredFont(forTextStyle: .body)
-        container.foregroundColor = UIColor.compound.textPrimary
+        container.foregroundColor = ownBubbleInk.map { UIColor($0.text) } ?? UIColor.compound.textPrimary // AGENT-PLATFORM (Brief 0083)
         return container
-    }()
+    }
     
     private var attributedComponents: [AttributedStringBuilderComponent] {
         var adjustedAttributedString = attributedString
+        
+        // AGENT-PLATFORM (Brief 0083, decision 300a): on an own blue bubble the text is white, so code keeps
+        // its dark text on the code background, and links, as white as the text, are underlined.
+        if let ownBubbleInk {
+            adjustedAttributedString.keepCodeColours()
+            for (link, range) in adjustedAttributedString.runs[\.link] where link != nil {
+                adjustedAttributedString[range].uiKit.underlineStyle = .single
+            }
+        }
         
         // Required to allow the underlying TextView to use  body font when no font is specified in the AttributedString.
         adjustedAttributedString.mergeAttributes(defaultAttributesContainer, mergePolicy: .keepCurrent)
@@ -50,15 +68,32 @@ struct FormattedBodyText: View {
                   boostFontSize: boostFontSize)
     }
     
+    /// Details components contain a control that VoiceOver needs to reach, so their children can't be merged away.
+    private var containsDetails: Bool {
+        attributedString.runs[\.details].contains { $0.0 != nil }
+    }
+    
     var body: some View {
         layout
-            .tint(.compound.textLinkExternal)
-            .accessibilityElement(children: .ignore)
+            .tint(ownBubbleInk?.link ?? .compound.textLinkExternal) // AGENT-PLATFORM (Brief 0083)
+            .accessibilityElement(children: containsDetails ? .contain : .ignore)
             .accessibilityLabel(Text(attributedString))
     }
     
     /// The attributed components laid out for the bubbles timeline style.
+    @ViewBuilder
     var layout: some View {
+        let components = layoutComponents
+        // AGENT-PLATFORM (Brief 0083, question 359): most messages are one run of plain text, which has nothing to lay out.
+        if components.count == 1, let component = components.first, component.type == .plainText {
+            plainText(component, trailingReservedSize: reservedSize)
+                .id(component.id)
+        } else {
+            layout(components)
+        }
+    }
+    
+    private var layoutComponents: [AttributedStringBuilderComponent] {
         // The trailing reserved area must only be applied to the last plain text
         // component so that the bubble's natural size accommodates the overlaid
         // timestamp, and TextKit decides whether to keep the timestamp on the last
@@ -72,6 +107,16 @@ struct FormattedBodyText: View {
                                                                attributedString: AttributedString(),
                                                                type: .plainText))
         }
+        return components
+    }
+    
+    private func plainText(_ component: AttributedStringBuilderComponent, trailingReservedSize: CGSize) -> some View {
+        MessageText(attributedString: component.attributedString, trailingReservedSize: trailingReservedSize)
+            .padding(.horizontal, 4)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+    
+    private func layout(_ components: [AttributedStringBuilderComponent]) -> some View {
         let lastPlainTextIndex = components.lastIndex { $0.type == .plainText }
         
         return TimelineBubbleLayout(spacing: 8) {
@@ -90,11 +135,12 @@ struct FormattedBodyText: View {
                                 UIPasteboard.general.string = component.attributedString.string
                             }
                         }
-                case .plainText:
-                    MessageText(attributedString: component.attributedString,
-                                trailingReservedSize: index == lastPlainTextIndex ? trailingReservedSize : .zero)
+                case .details(let summary):
+                    DetailsView(summary: summary, attributedString: component.attributedString)
                         .padding(.horizontal, 4)
-                        .fixedSize(horizontal: false, vertical: true)
+                        .timelineBubbleLayoutSize(.natural)
+                case .plainText:
+                    plainText(component, trailingReservedSize: index == lastPlainTextIndex ? reservedSize : .zero)
                         .timelineBubbleLayoutSize(.natural)
                 }
             }
@@ -111,7 +157,7 @@ struct FormattedBodyText: View {
                     CodeBlockView(attributedString: component.attributedString, mode: .layout)
                         .timelineBubbleLayoutSize(.bubbleWidth(mode: .layout))
                         .hidden()
-                case .plainText:
+                case .details, .plainText:
                     EmptyView()
                 }
             }
@@ -125,11 +171,13 @@ struct FormattedBodyText: View {
     /// - `.rendering`: The view has a greedy width that, in combination with the custom layout,
     /// will fill any available space, whilst remaining constrained by the bubble's calculated width.
     struct BlockquoteView: View {
+        @Environment(\.ownBubbleInk) private var ownBubbleInk // AGENT-PLATFORM (Brief 0083)
+        
         let attributedString: AttributedString
         let mode: TimelineBubbleLayout.Size.BubbleWidthMode
         
         var body: some View {
-            MessageText(attributedString: attributedString.mergingAttributes(blockquoteAttributes))
+            MessageText(attributedString: quotedString) // AGENT-PLATFORM (Brief 0083)
                 .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: mode == .rendering ? .infinity : nil, alignment: .leading)
                 .padding(.leading, 12.0)
@@ -139,7 +187,7 @@ struct FormattedBodyText: View {
                         Capsule()
                             .frame(width: 2.0)
                             .padding(.leading, 5.0)
-                            .foregroundColor(.compound.textSecondary)
+                            .foregroundColor(quoteColor) // AGENT-PLATFORM (Brief 0083)
                             .padding(.vertical, 2)
                     }
                 }
@@ -151,9 +199,54 @@ struct FormattedBodyText: View {
             var container = AttributeContainer([.paragraphStyle: NSParagraphStyle.default])
             // Sadly setting SwiftUI fonts do not work so we would need UIFont equivalents for compound, this one is bodyMD
             container.font = UIFont.preferredFont(forTextStyle: .subheadline)
-            container.foregroundColor = UIColor.compound.textSecondary
+            container.foregroundColor = ownBubbleInk.map { UIColor($0.secondaryText) } ?? UIColor.compound.textSecondary // AGENT-PLATFORM (Brief 0083)
             
             return container
+        }
+        
+        // AGENT-PLATFORM (Brief 0083, decision 300a): grey would fall under 4.5:1 on an own blue bubble.
+        private var quoteColor: Color {
+            ownBubbleInk?.secondaryText ?? .compound.textSecondary
+        }
+        
+        // AGENT-PLATFORM (Brief 0083, decision 300a): the quote's colour replaces every run's, so on an own
+        // bubble code in a quote turned white on its white background; it gets its own colours back.
+        private var quotedString: AttributedString {
+            var string = attributedString.mergingAttributes(blockquoteAttributes)
+            if ownBubbleInk != nil {
+                string.keepCodeColours()
+            }
+            return string
+        }
+    }
+    
+    /// The view used to render a `<details>` component, collapsing its content behind its `<summary>`.
+    private struct DetailsView: View {
+        @Environment(\.ownBubbleInk) private var ownBubbleInk // AGENT-PLATFORM (Brief 0083)
+        
+        let summary: String
+        let attributedString: AttributedString
+        
+        @State private var isExpanded = false
+        
+        var body: some View {
+            VStack(alignment: .leading, spacing: 4) {
+                Button { isExpanded.toggle() } label: {
+                    HStack(alignment: .center, spacing: 4) {
+                        CompoundIcon(\.chevronRight, size: .xSmall, relativeTo: .compound.bodyLG)
+                            .rotationEffect(.degrees(isExpanded ? 90 : 0))
+                        Text(summary)
+                    }
+                    .font(.compound.bodyLGSemibold)
+                    .foregroundStyle(ownBubbleInk?.text ?? .compound.textPrimary) // AGENT-PLATFORM (Brief 0083)
+                }
+                .buttonStyle(.plain)
+                
+                if isExpanded {
+                    MessageText(attributedString: attributedString)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
         }
     }
     
@@ -179,6 +272,22 @@ struct FormattedBodyText: View {
             .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
             .scrollIndicatorsFlash(onAppear: true)
             .padding(.horizontal, 4)
+        }
+    }
+}
+
+// AGENT-PLATFORM (Brief 0083, decision 300a)
+extension AttributedString {
+    /// On an own blue bubble the text is white; code keeps its dark text where the code background is drawn: under
+    /// inline code, and in a code block that is its own component (`CodeBlockView`). A `<pre>` inside a quote or a
+    /// `<details>` has no background there, so it stays in the text's colour (3.5:1 dark on the blue otherwise).
+    mutating func keepCodeColours() {
+        for (isCode, range) in runs[\.inlineCode] where isCode == true {
+            self[range].uiKit.foregroundColor = .compound.textPrimary
+        }
+        for (isCodeBlock, blockquote, details, range) in runs[\.codeBlock, \.blockquote, \.details]
+            where isCodeBlock == true && blockquote == nil && details == nil {
+            self[range].uiKit.foregroundColor = .compound.textPrimary
         }
     }
 }
@@ -221,6 +330,7 @@ struct FormattedBodyText_Previews: PreviewProvider, TestablePreview {
         <blockquote>A</blockquote>
         <pre><code>B</code></pre>
         <p>C</p>
+        <details><summary>D</summary><p>E</p></details>
         """
         
         if let attributedString = attributedStringBuilder.fromHTML(html) {

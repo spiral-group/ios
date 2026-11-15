@@ -10,10 +10,11 @@ import AVFoundation
 import CallKit
 import Clocks
 import Combine
-@testable import ElementX
 import Intents
 import MatrixRustSDKMocks
 import PushKit
+@testable import Spiral
+import SwiftUI
 import Testing
 
 // The TestClock advances by yielding to background tasks which can be starved on a busy CI runner.
@@ -48,6 +49,27 @@ final class CallKitServiceTests {
         pushRegistry = nil
         callController = nil
         audio = nil
+    }
+    
+    @Test
+    func providerIconIsAMarkOnTransparency() throws {
+        let data = try #require(CallKitService.makeProviderConfiguration().iconTemplateImageData)
+        let image = try #require(UIImage(data: data)?.cgImage)
+        
+        var alpha = [UInt8](repeating: 0, count: image.width * image.height)
+        let context = try #require(CGContext(data: &alpha,
+                                             width: image.width,
+                                             height: image.height,
+                                             bitsPerComponent: 8,
+                                             bytesPerRow: image.width,
+                                             space: CGColorSpaceCreateDeviceGray(),
+                                             bitmapInfo: CGImageAlphaInfo.alphaOnly.rawValue))
+        context.draw(image, in: CGRect(x: 0, y: 0, width: image.width, height: image.height))
+        
+        // `app-logo` has transparent corners too, 6% of it.
+        let transparentShare = Double(alpha.count { $0 == 0 }) / Double(alpha.count)
+        #expect(transparentShare > 0.3)
+        #expect(alpha.contains(255))
     }
     
     @Test
@@ -2427,7 +2449,7 @@ extension CallKitServiceTests {
         transport.underlyingIsMicrophoneEnabled = false
         transport.underlyingIsCameraEnabled = false
         // A hold re-walks the media plan.
-        transport.setSubscriptionsAuthorizedIdentitiesIsTrackExcludedClosure = { _, _ in true }
+        transport.setSubscriptionsAuthorizedIdentitiesStagedVideoIdentitiesIsTrackExcludedClosure = { _, _, _ in true }
         let session = NativeCallSession(rtcSession: rtcSession,
                                         isRoomEncrypted: false,
                                         notifyRoom: false,

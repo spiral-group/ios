@@ -13,7 +13,6 @@ protocol AgentSpacesScreenViewModelProtocol {
     var actionsPublisher: AnyPublisher<AgentSpacesScreenViewModelAction, Never> { get }
     var context: AgentSpacesScreenViewModelType.Context { get }
     
-    /// Re-fetch the directory (tab re-entry, pull-to-refresh, or after
-    /// a mutation elsewhere in the flow changed a space).
-    func reload() async
+    /// Read the spaces now, after the person's own change elsewhere in the flow.
+    func reload()
 }

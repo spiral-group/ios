@@ -13,11 +13,11 @@ struct ThreadDecorator: View {
     var body: some View {
         Label {
             Text(L10n.commonThread)
-                .foregroundColor(.compound.textPrimary)
+                .bubbleForegroundStyle(.primary) // AGENT-PLATFORM (Brief 0083): white on an own bubble
                 .font(.compound.bodyXS)
         } icon: {
             CompoundIcon(\.threads, size: .xSmall, relativeTo: .compound.bodyXS)
-                .foregroundColor(.compound.iconSecondary)
+                .bubbleForegroundStyle(.secondaryIcon) // AGENT-PLATFORM (Brief 0083)
         }
         .labelStyle(.custom(spacing: 4))
     }

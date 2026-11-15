@@ -41,12 +41,13 @@ struct SessionVerificationScreenViewState: BindableState {
             case .userInitiator, .userResponder:
                 return (\.userProfileSolid, .defaultSolid)
             }
+        // AGENT-PLATFORM (Brief 0083, decision 323): the solid face; the outline one draws filled in dark.
         case .showingChallenge:
-            return (\.reaction, .defaultSolid)
+            return (\.reactionSolid, .defaultSolid)
         case .acceptingChallenge:
-            return (\.reaction, .defaultSolid)
+            return (\.reactionSolid, .defaultSolid)
         case .decliningChallenge:
-            return (\.reaction, .defaultSolid)
+            return (\.reactionSolid, .defaultSolid)
         case .verified:
             return (\.checkCircleSolid, .successSolid)
         case .cancelled:
@@ -58,6 +59,7 @@ struct SessionVerificationScreenViewState: BindableState {
         verificationState == .verified ? A11yIdentifiers.sessionVerificationScreen.verificationComplete : ""
     }
     
+    // AGENT-PLATFORM (Brief 0083, decision 314): Spiral's copy, through `Untranslated.strings`' `*_spiral` keys.
     var title: String? {
         switch verificationState {
         case .initial, .acceptingVerificationRequest, .requestingVerification,
@@ -65,27 +67,27 @@ struct SessionVerificationScreenViewState: BindableState {
              .cancelling:
             switch flow {
             case .deviceInitiator:
-                return L10n.screenSessionVerificationUseAnotherDeviceTitle
+                return UntranslatedL10n.screenSessionVerificationUseAnotherDeviceTitleSpiral
             case .userInitiator:
-                return L10n.screenSessionVerificationUserInitiatorTitle
+                return UntranslatedL10n.screenSessionVerificationUserInitiatorTitleSpiral
             case .deviceResponder, .userResponder:
-                return L10n.screenSessionVerificationRequestTitle
+                return UntranslatedL10n.screenSessionVerificationRequestTitleSpiral
             }
         case .showingChallenge:
-            return L10n.screenSessionVerificationCompareEmojisTitle
+            return UntranslatedL10n.screenSessionVerificationCompareEmojisTitleSpiral
         case .acceptingChallenge:
-            return L10n.screenSessionVerificationCompareEmojisTitle
+            return UntranslatedL10n.screenSessionVerificationCompareEmojisTitleSpiral
         case .decliningChallenge:
-            return L10n.screenSessionVerificationCompareEmojisTitle
+            return UntranslatedL10n.screenSessionVerificationCompareEmojisTitleSpiral
         case .verified:
             switch flow {
             case .deviceInitiator, .deviceResponder:
-                return L10n.screenSessionVerificationDeviceVerified
+                return UntranslatedL10n.screenSessionVerificationDeviceVerifiedSpiral
             case .userInitiator, .userResponder:
-                return L10n.commonVerificationComplete
+                return UntranslatedL10n.commonVerificationCompleteSpiral
             }
         case .cancelled:
-            return L10n.commonVerificationFailed
+            return UntranslatedL10n.commonVerificationFailedSpiral
         }
     }
     
@@ -96,35 +98,35 @@ struct SessionVerificationScreenViewState: BindableState {
              .cancelling:
             switch flow {
             case .deviceInitiator:
-                return L10n.screenSessionVerificationUseAnotherDeviceSubtitle
+                return UntranslatedL10n.screenSessionVerificationUseAnotherDeviceSubtitleSpiral
             case .userInitiator:
-                return L10n.screenSessionVerificationUserInitiatorSubtitle
+                return UntranslatedL10n.screenSessionVerificationUserInitiatorSubtitleSpiral
             case .deviceResponder:
-                return L10n.screenSessionVerificationRequestSubtitle
+                return UntranslatedL10n.screenSessionVerificationRequestSubtitleSpiral
             case .userResponder:
-                return L10n.screenSessionVerificationUserResponderSubtitle
+                return UntranslatedL10n.screenSessionVerificationUserResponderSubtitleSpiral
             }
         case .acceptingChallenge:
-            return L10n.screenSessionVerificationCompareEmojisSubtitle
+            return UntranslatedL10n.screenSessionVerificationCompareEmojisSubtitleSpiral
         case .decliningChallenge:
-            return L10n.screenSessionVerificationCompareEmojisSubtitle
+            return UntranslatedL10n.screenSessionVerificationCompareEmojisSubtitleSpiral
         case .showingChallenge:
             switch flow {
             case .deviceInitiator, .deviceResponder:
-                return L10n.screenSessionVerificationCompareEmojisSubtitle
+                return UntranslatedL10n.screenSessionVerificationCompareEmojisSubtitleSpiral
             case .userInitiator, .userResponder:
-                return L10n.screenSessionVerificationCompareEmojisUserSubtitle
+                return UntranslatedL10n.screenSessionVerificationCompareEmojisUserSubtitleSpiral
             }
         case .verified:
             switch flow {
             case .deviceInitiator, .deviceResponder:
-                return L10n.screenSessionVerificationCompleteSubtitle
+                return UntranslatedL10n.screenSessionVerificationCompleteSubtitleSpiral
             case .userInitiator, .userResponder:
-                return L10n.screenSessionVerificationCompleteUserSubtitle
+                return UntranslatedL10n.screenSessionVerificationCompleteUserSubtitleSpiral
             }
             
         case .cancelled:
-            return L10n.screenSessionVerificationFailedSubtitle
+            return UntranslatedL10n.screenSessionVerificationFailedSubtitleSpiral
         }
     }
     

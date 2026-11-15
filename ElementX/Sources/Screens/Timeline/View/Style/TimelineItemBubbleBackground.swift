@@ -7,65 +7,58 @@
 //
 
 import Compound
+import SpiralTokens // AGENT-PLATFORM (Brief 0083)
 import SwiftUI
 
 extension View {
     /// - Parameters:
-    ///   - isOutgoing: rounds the corners according to the side it shows on, defaults to true
     ///   - insets: defaults to what we use for file timeline items, text uses custom values
     ///   - color: self explanatory, defaults to subtle secondary
     ///   - borderColor: an optional colour for a border around the bubble
-    func bubbleBackground(isOutgoing: Bool = true,
-                          insets: EdgeInsets = .init(top: 8, leading: 12, bottom: 8, trailing: 12),
+    ///   - cornerRadius: the bubble's, unless it's one of the chat's cards
+    ///   - shadowClearance: how far above the bubble its row ends, if the bubble casts the room background's shadow
+    func bubbleBackground(insets: EdgeInsets = .init(top: 8, leading: 12, bottom: 8, trailing: 12),
                           color: @autoclosure @MainActor () -> Color? = .compound.bgSubtleSecondary,
-                          borderColor: @autoclosure @MainActor () -> Color? = nil) -> some View {
-        modifier(TimelineItemBubbleBackgroundModifier(isOutgoing: isOutgoing,
-                                                      insets: insets,
+                          borderColor: @autoclosure @MainActor () -> Color? = nil,
+                          cornerRadius: CGFloat = SpiralRadius.bubble,
+                          shadowClearance: CGFloat? = nil) -> some View {
+        modifier(TimelineItemBubbleBackgroundModifier(insets: insets,
                                                       color: color(),
-                                                      borderColor: borderColor()))
+                                                      borderColor: borderColor(),
+                                                      cornerRadius: cornerRadius,
+                                                      shadowClearance: shadowClearance))
     }
 }
 
+// AGENT-PLATFORM (Brief 0083, the room's timeline): every corner keeps the bubble's continuous radius, grouped or
+// not, as Messages draws it. Element squared the corners on the sender's side within a group.
 private struct TimelineItemBubbleBackgroundModifier: ViewModifier {
-    @Environment(\.timelineGroupStyle) private var timelineGroupStyle
-    
-    let isOutgoing: Bool
     let insets: EdgeInsets
     var color: Color?
     var borderColor: Color?
+    var cornerRadius: CGFloat
+    var shadowClearance: CGFloat?
     
-    func body(content: Content) -> some View {
-        content
-            .padding(insets)
-            .background(color)
-            // AGENT-PLATFORM: 12 -> 16 (ADR-0005 Apple/Telegram-reference bubbles)
-            .cornerRadius(16, corners: roundedCorners)
-            .overlay {
-                if let borderColor {
-                    RoundedCornerShape(radius: 16, corners: roundedCorners)
-                        .stroke(borderColor)
-                }
-            }
+    private var shape: RoundedRectangle {
+        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
     }
     
-    private var roundedCorners: UIRectCorner {
-        switch timelineGroupStyle {
-        case .single:
-            return .allCorners
-        case .first:
-            if isOutgoing {
-                return [.topLeft, .topRight, .bottomLeft]
-            } else {
-                return [.topLeft, .topRight, .bottomRight]
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        let bubble = content
+            .padding(insets)
+            .background(color)
+            .clipShape(shape)
+            .overlay {
+                if let borderColor {
+                    shape.stroke(borderColor)
+                }
             }
-        case .middle:
-            return isOutgoing ? [.topLeft, .bottomLeft] : [.topRight, .bottomRight]
-        case .last:
-            if isOutgoing {
-                return [.topLeft, .bottomLeft, .bottomRight]
-            } else {
-                return [.topRight, .bottomLeft, .bottomRight]
-            }
+        
+        if let shadowClearance {
+            bubble.chatElevation(cornerRadius: cornerRadius, rowClearance: shadowClearance)
+        } else {
+            bubble
         }
     }
 }

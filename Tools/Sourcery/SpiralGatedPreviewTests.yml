@@ -1,0 +1,13 @@
+# Copyright 2026 the Spiral authors. AGPL-3.0-or-later.
+#
+# AGENT-PLATFORM (Brief 0083 L1c): a SpiralGatedPreviewTests test for every
+# preview that conforms to SpiralGatedPreview. Runs in the PreviewTests
+# target's own phase, which names the file as its output, so that the
+# compile waits for it (see SpiralGatedAccessibilityTests.yml).
+sources:
+  include:
+    - ../../ElementX
+templates:
+  - SpiralGatedPreviewTests.stencil
+output:
+  ../../PreviewTests/Sources/GeneratedSpiralGatedPreviewTests.swift

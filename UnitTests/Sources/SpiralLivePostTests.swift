@@ -5,9 +5,9 @@
 // knows which post it now edits.
 //
 
-@testable import ElementX
 import Foundation
 import MatrixRustSDK
+@testable import Spiral
 import Testing
 
 @MainActor

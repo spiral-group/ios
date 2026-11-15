@@ -8,14 +8,17 @@
 
 import SwiftUI
 
+/// AGENT-PLATFORM (Brief 0083, question 359): one for all the rows, as each row making its own showed in the cost of a new row.
+private let feedbackGenerator = UIImpactFeedbackGenerator(style: .heavy)
+
 struct SwipeRightAction<Label: View>: ViewModifier {
     private let actionThreshold = 50.0
     private let xOffsetThreshold = 100.0
     private let swipeThreshold = 1000.0
     
-    private let feedbackGenerator = UIImpactFeedbackGenerator(style: .heavy)
-    
     @State private var canStartAction = false
+    /// AGENT-PLATFORM (Brief 0083, question 359): whether the row has been swiped, as the label is only there to be drawn then.
+    @State private var hasStartedSwiping = false
     @GestureState private var dragGestureActive = false
     
     @State private var hasReachedActionThreshold = false
@@ -39,13 +42,15 @@ struct SwipeRightAction<Label: View>: ViewModifier {
                 }
             }
             .overlay(alignment: .leading) {
-                // We want the action icon to follow the view translation and gradually fade in
-                label()
-                    .multilineTextAlignment(.center)
-                    .frame(maxWidth: actionThreshold)
-                    .opacity(xOffset / 50)
-                    .animation(.interactiveSpring().speed(0.5), value: xOffset)
-                    .offset(x: -actionThreshold + min(xOffset, actionThreshold), y: 0.0)
+                if hasStartedSwiping {
+                    // We want the action icon to follow the view translation and gradually fade in
+                    label()
+                        .multilineTextAlignment(.center)
+                        .frame(maxWidth: actionThreshold)
+                        .opacity(xOffset / 50)
+                        .animation(.interactiveSpring().speed(0.5), value: xOffset)
+                        .offset(x: -actionThreshold + min(xOffset, actionThreshold), y: 0.0)
+                }
             }
     }
     
@@ -84,6 +89,9 @@ struct SwipeRightAction<Label: View>: ViewModifier {
                     // `actionThreshold` onwards
                     let screenWidthNormalisedTranslation = max(0.0, min(width, swipeThreshold)) / swipeThreshold
                     let easedTranslation = circularEaseOut(screenWidthNormalisedTranslation)
+                    if easedTranslation > 0, !hasStartedSwiping {
+                        hasStartedSwiping = true
+                    }
                     xOffset = easedTranslation * xOffsetThreshold
                     
                     if xOffset > actionThreshold {

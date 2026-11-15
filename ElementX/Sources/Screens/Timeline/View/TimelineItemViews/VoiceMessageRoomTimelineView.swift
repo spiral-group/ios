@@ -96,6 +96,15 @@ struct VoiceMessageRoomTimelineView_Previews: PreviewProvider, TestablePreview {
                                                                                    fileSize: nil,
                                                                                    contentType: nil))
     
+    // AGENT-PLATFORM (Brief 0083): an own one, whose waveform and cursor draw on the blue fill.
+    static let ownVoiceRoomTimelineItem = VoiceMessageRoomTimelineItem(id: .randomEvent,
+                                                                       timestamp: .mock,
+                                                                       isOutgoing: true,
+                                                                       isEditable: false,
+                                                                       canBeRepliedTo: true,
+                                                                       sender: .init(id: "Alice"),
+                                                                       content: voiceRoomTimelineItem.content)
+    
     static let playerState = AudioPlayerState(id: .timelineItemIdentifier(timelineItemIdentifier),
                                               title: L10n.commonVoiceMessage,
                                               duration: 10.0,
@@ -120,7 +129,10 @@ struct VoiceMessageRoomTimelineView_Previews: PreviewProvider, TestablePreview {
     }
     
     static var body: some View {
-        VoiceMessageRoomTimelineView(timelineItem: voiceRoomTimelineItem, playerState: playerState)
-            .fixedSize(horizontal: false, vertical: true)
+        VStack(spacing: 20) { // AGENT-PLATFORM (Brief 0083): an incoming one and an own one
+            VoiceMessageRoomTimelineView(timelineItem: voiceRoomTimelineItem, playerState: playerState)
+            VoiceMessageRoomTimelineView(timelineItem: ownVoiceRoomTimelineItem, playerState: playerState)
+        }
+        .fixedSize(horizontal: false, vertical: true)
     }
 }

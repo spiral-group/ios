@@ -3,7 +3,7 @@
 //
 // AGENT-PLATFORM (Brief 0072, ADR-0084): «Share presence» belongs to the account.
 //
-// The toggle in Advanced settings (`AppSettings.sharePresence`, upstream) is a
+// The toggle in Advanced settings (`AccountSettings.sharePresence`, upstream) is a
 // device setting: it decides what THIS device sends (presence, public read
 // receipts, typing). Presence privacy is the server's (ADR-0084): Synapse
 // reads the global account data `com.spiral.presence` `{"share": Bool}` to
@@ -29,7 +29,7 @@ final class SharePresenceSettingSync {
     static let accountDataType = "com.spiral.presence"
     
     private let clientProxy: ClientProxyProtocol
-    private let appSettings: AppSettings
+    private let accountSettings: AccountSettings
     private let echoSyncs: Int
     private var cancellables = Set<AnyCancellable>()
     
@@ -43,14 +43,14 @@ final class SharePresenceSettingSync {
     private var applyingServerValue = false
     
     init(clientProxy: ClientProxyProtocol,
-         appSettings: AppSettings,
+         accountSettings: AccountSettings,
          syncThrottle: DispatchQueue.SchedulerTimeType.Stride = .seconds(5),
          echoSyncs: Int = 3) {
         self.clientProxy = clientProxy
-        self.appSettings = appSettings
+        self.accountSettings = accountSettings
         self.echoSyncs = echoSyncs
         
-        appSettings.sharePresencePublisher
+        accountSettings.sharePresencePublisher
             .dropFirst()
             .removeDuplicates()
             .sink { [weak self] share in self?.localValueChanged(share) }
@@ -88,12 +88,12 @@ final class SharePresenceSettingSync {
         }
         
         if let serverValue {
-            guard serverValue != appSettings.sharePresence else { return }
+            guard serverValue != accountSettings.sharePresence else { return }
             MXLog.info("Share presence set to \(serverValue) on another device")
             applyingServerValue = true
-            appSettings.sharePresence = serverValue
+            accountSettings.sharePresence = serverValue
             applyingServerValue = false
-        } else if !appSettings.sharePresence {
+        } else if !accountSettings.sharePresence {
             pendingValue = false
             await flush()
         }

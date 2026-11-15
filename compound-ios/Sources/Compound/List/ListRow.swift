@@ -36,6 +36,7 @@ public enum ListRowPadding {
 
 public struct ListRow<Icon: View, DetailsIcon: View, CustomContent: View, SelectionValue: Hashable>: View {
     @Environment(\.isEnabled) private var isEnabled
+    @Environment(\.listRowFill) private var fill // AGENT-PLATFORM (Brief 0083): `spiralGroupedList()` sets it.
     
     let label: ListRowLabel<Icon>
     let details: ListRowDetails<DetailsIcon>?
@@ -65,7 +66,7 @@ public struct ListRow<Icon: View, DetailsIcon: View, CustomContent: View, Select
         rowContent
             .buttonStyle(ListRowButtonStyle())
             .listRowInsets(EdgeInsets())
-            .listRowBackground(Color.compound.bgCanvasDefaultLevel1)
+            .listRowBackground(fill) // AGENT-PLATFORM (Brief 0083): was `Color.compound.bgCanvasDefaultLevel1`.
             .listRowSeparatorTint(ListRowColor.separatorTint)
     }
     

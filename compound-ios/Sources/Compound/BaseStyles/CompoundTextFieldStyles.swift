@@ -5,6 +5,7 @@
 // Please see LICENSE files in the repository root for full details.
 //
 
+import SpiralTokens // AGENT-PLATFORM (Brief 0083)
 import SwiftUI
 import SwiftUIIntrospect
 
@@ -130,17 +131,6 @@ public struct CompoundTextFieldStyle: @MainActor TextFieldStyle {
         state == .error
     }
     
-    /// The color of the text field's border.
-    private var borderColor: Color {
-        guard !isError else { return .compound.textCriticalPrimary }
-        return kind.isRaised ? .compound.borderInteractiveSecondary : .clear
-    }
-    
-    /// The width of the text field's border.
-    private var borderWidth: CGFloat {
-        isFocused || isError || kind.isRaised ? 1.0 : 0
-    }
-    
     private var accentColor: Color {
         isError ? .compound.textCriticalPrimary : .compound.iconAccentTertiary
     }
@@ -148,17 +138,6 @@ public struct CompoundTextFieldStyle: @MainActor TextFieldStyle {
     /// The color of the text inside the text field.
     private var textColor: Color {
         isEnabled ? .compound.textPrimary : .compound.textDisabled
-    }
-    
-    /// The color of the text field's background.
-    private var backgroundColor: Color {
-        if kind.isRaised {
-            isError ? .compound.bgCriticalSubtleHovered :
-                .compound.bgCanvasDefaultLevel1
-        } else {
-            isError ? .compound.bgCriticalSubtleHovered :
-                .compound.bgSubtleSecondary.opacity(isEnabled ? 1 : 0.5)
-        }
     }
     
     /// The color of the placeholder text inside the text field.
@@ -198,9 +177,7 @@ public struct CompoundTextFieldStyle: @MainActor TextFieldStyle {
     
     @MainActor
     public func _body(configuration: TextField<_Label>) -> some View {
-        let shape = Compound.supportsGlass ? AnyShape(Capsule()) : AnyShape(RoundedRectangle(cornerRadius: 14.0))
-        
-        return VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 8) {
             labelText
                 .font(Compound.supportsGlass ? .compound.bodyMDSemibold : .compound.bodySMSemibold)
                 .foregroundColor(labelColor)
@@ -243,15 +220,10 @@ public struct CompoundTextFieldStyle: @MainActor TextFieldStyle {
                     EmptyView()
                 }
             }
-            .padding(.leading, 16.0)
-            .padding([.vertical, .trailing], 11.0)
-            .background {
-                ZStack {
-                    shape.fill(backgroundColor)
-                    shape.stroke(borderColor, lineWidth: borderWidth)
-                }
-                .onTapGesture { isFocused = true } // Set focus with taps outside of the text field
-            }
+            // AGENT-PLATFORM (Brief 0083): the box is a modifier of its own, so that the previews can show it focused.
+            .modifier(CompoundTextFieldBox(isRaised: kind.isRaised, isError: isError, isFocused: isFocused) {
+                isFocused = true // Set focus with taps outside of the text field
+            })
             
             if let footerText {
                 Label {
@@ -287,12 +259,73 @@ public struct CompoundTextFieldStyle: @MainActor TextFieldStyle {
     }
 }
 
+// AGENT-PLATFORM (Brief 0083, decision 293): Spiral's field is 52 pt at the default text size and filled, without a
+// border at rest. Focus draws a 2 pt ring, so it shows by shape and not by colour alone; an error tints the fill red and
+// keeps a 1 pt red ring. Before Liquid Glass the box has iOS 18's rounded corners, like its cards; with it, it is a
+// capsule like the buttons beside it.
+/// The box around a ``CompoundTextFieldStyle`` field's text.
+struct CompoundTextFieldBox: ViewModifier {
+    @Environment(\.isEnabled) private var isEnabled
+    
+    let isRaised: Bool
+    let isError: Bool
+    let isFocused: Bool
+    var onTap: () -> Void = { }
+    
+    private var fillColor: Color {
+        if isError {
+            .compound.bgCriticalSubtleHovered
+        } else if isRaised {
+            .compound.bgCanvasDefaultLevel1
+        } else {
+            .compound.bgSubtleSecondary.opacity(isEnabled ? 1 : 0.5)
+        }
+    }
+    
+    private var ringColor: Color {
+        isError ? .compound.borderCriticalPrimary : .compound.borderFocused
+    }
+    
+    private var ringWidth: CGFloat {
+        if isFocused {
+            2
+        } else if isError {
+            1
+        } else {
+            0
+        }
+    }
+    
+    func body(content: Content) -> some View {
+        content
+            .padding(.leading, 16)
+            .padding(.trailing, 11)
+            .padding(.vertical, 14) // A secure field's 24 pt eye button fits the 52 pt too.
+            .frame(minHeight: 52)
+            .background {
+                if Compound.supportsGlass {
+                    box(Capsule())
+                } else {
+                    box(RoundedRectangle(cornerRadius: SpiralRadius.block, style: .continuous))
+                }
+            }
+    }
+    
+    /// The ring is the shape filled under an inset fill: a stroked capsule drew a straight bar at each end in iOS 27's
+    /// snapshots, upstream's error border too.
+    private func box(_ shape: some InsettableShape) -> some View {
+        shape.fill(ringWidth > 0 ? ringColor : .clear)
+            .overlay(shape.inset(by: ringWidth).fill(fillColor))
+            .onTapGesture(perform: onTap)
+    }
+}
+
 public struct CompoundTextFieldStyle_Previews: PreviewProvider, TestablePreview {
     public static var previews: some View {
         ScrollView {
             states
         }
-        .previewLayout(.fixed(width: 390, height: 1500))
+        .previewLayout(.fixed(width: 390, height: 1825)) // AGENT-PLATFORM (Brief 0083): taller fields, and focused ones.
     }
     
     @ViewBuilder
@@ -344,6 +377,12 @@ public struct CompoundTextFieldStyle_Previews: PreviewProvider, TestablePreview 
             
             TextField("Placeholder", text: .constant("Bad text"))
                 .textFieldStyle(.compound(kind, labelText: labelText, footerText: footerText, state: .error))
+            
+            // AGENT-PLATFORM (Brief 0083): a snapshot can't focus a field, so this draws the focused box around a field.
+            TextField("Placeholder", text: .constant("Focused"))
+                .font(.compound.bodyLG)
+                .foregroundStyle(.compound.textPrimary)
+                .modifier(CompoundTextFieldBox(isRaised: kind.isRaised, isError: false, isFocused: true))
         }
         .padding()
         .background(kind.isRaised ? .compound.bgSubtleSecondaryLevel0 : .clear)

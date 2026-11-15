@@ -6,6 +6,7 @@
 // Please see LICENSE files in the repository root for full details.
 //
 
+import SpiralComponents // AGENT-PLATFORM (Brief 0083)
 import SwiftUI
 
 @main
@@ -23,8 +24,13 @@ struct Application: App {
         // compound-design-tokens fork (Brief 0032, sibling checkout at
         // ../../compound-design-tokens) — the former SpiralBrandTheme runtime
         // override was deleted; zero brand hex lives in app code.
+        #if SPIRAL_TIMELINE_BENCH // AGENT-PLATFORM (Brief 0083, question 359): only Tools/Scripts/run-timeline-bench.sh sets it.
+        appCoordinator = TimelineBenchAppCoordinator(appDelegate: appDelegate)
+        #else
         if ProcessInfo.isRunningUITests {
             appCoordinator = UITestsAppCoordinator(appDelegate: appDelegate)
+        } else if Self.isCallMotionLabRequested { // AGENT-PLATFORM (Brief 0083, question 383)
+            appCoordinator = Self.makeCallMotionLabCoordinator(appDelegate: appDelegate)
         } else if ProcessInfo.isRunningUnitTests {
             appCoordinator = UnitTestsAppCoordinator(appDelegate: appDelegate)
         } else if ProcessInfo.isRunningAccessibilityTests {
@@ -32,6 +38,7 @@ struct Application: App {
         } else {
             appCoordinator = AppCoordinator(appDelegate: appDelegate)
         }
+        #endif
         
         SceneDelegate.windowManager = appCoordinator.windowManager
         // AGENT-PLATFORM (Brief 0063): start-call activities are routed through
@@ -53,6 +60,9 @@ struct Application: App {
                     }
                 }
                 .environment(\.openURL, openURLAction(appCoordinator: appCoordinator, windowType: nil))
+                // AGENT-PLATFORM (Brief 0083): Spiral's preloader holds still under tests, as upstream's animations do
+                // (`disabledDuringTests()`). PreviewTests render outside this window and set it per snapshot.
+                .environment(\.spiralPreloaderShimmers, !ProcessInfo.isRunningTests)
                 .onOpenURL { url in
                     openURL(url, isExternalURL: true)
                 }
@@ -104,6 +114,24 @@ struct Application: App {
         .windowResizability(.contentSize)
     }
     
+    // AGENT-PLATFORM (Brief 0083, question 383): `-SpiralCallMotionLab YES` opens the call-motion lab instead of the app.
+    // Staging and Debug only; a Release build compiles neither the lab nor this switch.
+    private static var isCallMotionLabRequested: Bool {
+        #if DEBUG || SPIRAL_STAGING
+        CallMotionLabAppCoordinator.isRequested && !ProcessInfo.isRunningTests
+        #else
+        false
+        #endif
+    }
+
+    private static func makeCallMotionLabCoordinator(appDelegate: AppDelegate) -> AppCoordinatorProtocol {
+        #if DEBUG || SPIRAL_STAGING
+        CallMotionLabAppCoordinator(appDelegate: appDelegate)
+        #else
+        AppCoordinator(appDelegate: appDelegate)
+        #endif
+    }
+    
     private func openURLAction(appCoordinator: AppCoordinatorProtocol, windowType: SecondaryWindowType?) -> OpenURLAction {
         .init { url in
             if appCoordinator.handleDeepLink(url, isExternalURL: false, windowType: windowType) {
@@ -135,8 +163,10 @@ struct Application: App {
         }
     }
     
-    static func isOwnScheme(_ url: URL, appScheme: String = InfoPlistReader.app.appScheme) -> Bool {
-        url.scheme?.lowercased() == appScheme.lowercased()
+    // AGENT-PLATFORM (security pass): every scheme in Info.plist, not just the first.
+    static func isOwnScheme(_ url: URL) -> Bool {
+        guard let scheme = url.scheme else { return false }
+        return InfoPlistReader.app.urlSchemes.contains { $0.caseInsensitiveCompare(scheme) == .orderedSame }
     }
     
     /// Hide the status bar so it doesn't interfere with the screenshot tests

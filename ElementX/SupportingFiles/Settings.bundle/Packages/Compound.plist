@@ -719,7 +719,7 @@ Copyright 2022-2025 New Vector Ltd.
   v3.0 or, at your option, any later version. It is every file whose
   header reads "Copyright &lt;year&gt; the Spiral authors. AGPL-3.0-or-later.",
   and every package with its own LICENSE file saying so
-  (libraries/agentplatform-client).
+  (libraries/agentplatform-client, SpiralUI, SpiralComponents).
 - LICENSE-COMMERCIAL is Element's notice that Element also licenses its own
   code commercially. It covers Element's code only and gives no rights in
   Spiral's.

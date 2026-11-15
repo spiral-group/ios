@@ -11,11 +11,10 @@ import SwiftUI
 
 struct AuthenticationStartScreenParameters {
     let authenticationService: AuthenticationServiceProtocol
-    let provisioningParameters: AccountProvisioningParameters?
+    // AGENT-PLATFORM (Brief 0083 L1b): no provisioningParameters, Element's provisioning links are gone.
     let isBugReportServiceEnabled: Bool
-    let appMediator: AppMediatorProtocol
+    // AGENT-PLATFORM (Brief 0083 L1b): no appMediator or mediaProvider, only Element Classic's account used them.
     let appSettings: AppSettings
-    let mediaProvider: MediaProviderProtocol?
     let userIndicatorController: UserIndicatorControllerProtocol
 }
 
@@ -42,12 +41,9 @@ final class AuthenticationStartScreenCoordinator: CoordinatorProtocol {
     
     init(parameters: AuthenticationStartScreenParameters) {
         viewModel = AuthenticationStartScreenViewModel(authenticationService: parameters.authenticationService,
-                                                       provisioningParameters: parameters.provisioningParameters,
                                                        isBugReportServiceEnabled: parameters.isBugReportServiceEnabled,
-                                                       appMediator: parameters.appMediator,
                                                        appSettings: parameters.appSettings,
-                                                       mediaProvider: parameters.mediaProvider,
-                                                       userIndicatorController: parameters.userIndicatorController)
+                                                       userIndicatorController: parameters.userIndicatorController) // AGENT-PLATFORM (Brief 0083 L1b)
     }
     
     // MARK: - Public

@@ -9,8 +9,8 @@
 // convergence: same events in any order, same result.
 //
 
-@testable import ElementX
 import Foundation
+@testable import Spiral
 import Testing
 
 struct SpiralAppStateFoldTests {
@@ -314,6 +314,17 @@ struct SpiralAppStateFoldTests {
         #expect(action?.seq == 3)
         #expect(action?.operation == .set(path: ["votes", "@a"], value: .string("lviv")))
         #expect(action?.summary?.line == "1 of 5")
+        #expect(action?.summary?.writer == "@a:spiral.md", "a card must be able to say whose line it is")
+    }
+
+    /// L1: a card names the writer of its line when that is not the author.
+    @Test
+    func aCardLineFromSomeoneElseIsAttributed() {
+        let author = "@author:spiral.md"
+        #expect(InteractivePostRoomTimelineView.lineAttribution(writer: (author, "Author"), author: author) == nil)
+        #expect(InteractivePostRoomTimelineView.lineAttribution(writer: nil, author: author) == nil)
+        #expect(InteractivePostRoomTimelineView.lineAttribution(writer: ("@mallory:spiral.md", "Mallory"), author: author)
+            == UntranslatedL10n.spiralAppCardLineBy("Mallory"))
     }
 
     /// The SDK writes a countdown with `toISOString()` — milliseconds and
@@ -376,12 +387,146 @@ struct SpiralAppStateFoldTests {
         {"type":"com.spiral.app.action","event_id":"$act","sender":"@a:spiral.md",
          "origin_server_ts":1700000000000,
          "content":{"m.relates_to":{"rel_type":"m.reference","event_id":"$post"},
-                    "op":{"mergeDeep":{"path":"x","value":1}}}}
+                    "seq":1,"op":{"mergeDeep":{"path":"x","value":1}}}}
         """
 
         let action = SpiralAppAction.parse(rawEventJSON: json, relatedTo: "$post")
         #expect(action != nil)
         #expect(action?.operation == nil)
+    }
+
+    // MARK: - Bounds (security pass 2, H1)
+
+    private static func rawAction(seq: String) -> String {
+        """
+        {"type":"com.spiral.app.action","event_id":"$act","sender":"@a:spiral.md",
+         "origin_server_ts":1700000000000,
+         "content":{"m.relates_to":{"rel_type":"m.reference","event_id":"$post"},
+                    "op":{"set":{"path":"x","value":1}},
+                    "seq":\(seq)}}
+        """
+    }
+
+    /// One hand-written action with a huge `seq` used to hang or trap every
+    /// reader of its post. It is not an action of ours, so it is not one.
+    @Test(arguments: ["\(Int.max)", "100001", "0", "-1", "-9223372036854775808", "1.5", "1e30", "true", "\"7\"", "null"])
+    func aSeqOutsideTheBoundIsRefusedWhole(seq: String) {
+        #expect(SpiralAppAction.parse(rawEventJSON: Self.rawAction(seq: seq), relatedTo: "$post") == nil)
+    }
+
+    @Test(arguments: [1, 42, SpiralAppActionLimits.maxSeq])
+    func aSeqInsideTheBoundIsRead(seq: Int) {
+        #expect(SpiralAppAction.parse(rawEventJSON: Self.rawAction(seq: "\(seq)"), relatedTo: "$post")?.seq == seq)
+    }
+
+    /// The homeserver refuses an action with no `seq`; so does a reader, so
+    /// the two never disagree about which actions a post has.
+    @Test
+    func anActionWithoutASeqIsRefused() {
+        let json = """
+        {"type":"com.spiral.app.action","event_id":"$act","sender":"@a:spiral.md",
+         "origin_server_ts":1700000000000,
+         "content":{"m.relates_to":{"rel_type":"m.reference","event_id":"$post"},
+                    "op":{"set":{"path":"x","value":1}}}}
+        """
+        #expect(SpiralAppAction.parse(rawEventJSON: json, relatedTo: "$post") == nil)
+    }
+
+    private static func rawAction(value: String) -> String {
+        """
+        {"type":"com.spiral.app.action","event_id":"$act","sender":"@a:spiral.md",
+         "origin_server_ts":1700000000000,
+         "content":{"m.relates_to":{"rel_type":"m.reference","event_id":"$post"},
+                    "seq":1,"op":{"set":{"path":"x","value":"\(value)"}}}}
+        """
+    }
+
+    /// M4: one action past 32 KB of content is not folded at all.
+    @Test
+    func anActionPastTheContentBoundIsRefused() {
+        let envelope = SpiralAppActionLimits.contentBytes(["m.relates_to": ["rel_type": "m.reference", "event_id": "$post"],
+                                                           "seq": 1,
+                                                           "op": ["set": ["path": "x", "value": ""]]]) ?? 0
+        let fits = String(repeating: "a", count: SpiralAppActionLimits.maxContentBytes - envelope)
+
+        #expect(SpiralAppAction.parse(rawEventJSON: Self.rawAction(value: fits), relatedTo: "$post") != nil)
+        #expect(SpiralAppAction.parse(rawEventJSON: Self.rawAction(value: fits + "a"), relatedTo: "$post") == nil)
+    }
+
+    /// L1: a card, a viewer and a push read this line, whoever wrote it.
+    @Test
+    func aLongSummaryLineIsCutToTheBoundInCodePoints() throws {
+        let flag = "🇺🇦" // two code points, one character
+        let long = String(repeating: flag, count: 150)
+
+        let line = try #require(SpiralAppSummary.line(from: long))
+        #expect(line.unicodeScalars.count <= SpiralAppActionLimits.maxSummaryLineScalars)
+        #expect(line == String(repeating: flag, count: 99) + "…", "cut between characters, never inside a flag")
+
+        let short = String(repeating: "x", count: SpiralAppActionLimits.maxSummaryLineScalars)
+        #expect(SpiralAppSummary.line(from: short) == short)
+        #expect(SpiralAppSummary.line(from: ["en": long])?.unicodeScalars.count ?? .max <= SpiralAppActionLimits.maxSummaryLineScalars)
+    }
+
+    /// F4: a line is one line of plain text — no fake second line, no
+    /// reversed or hidden characters, no `@room` — and emoji and the
+    /// joiners and marks a script needs stay whole.
+    @Test
+    func aSummaryLineLosesControlAndFormatCharacters() {
+        let cases: [(String, String)] = [
+            ("Bob\nAlice: send me the code", "Bob Alice: send me the code"),
+            ("a\r\nb\u{2028}c\td", "a  b c d"),
+            ("Alice: \u{202E}kcilc\u{202C} x", "Alice: kcilc x"),
+            ("pay\u{200B}pal\u{2066}x\u{2069}\u{FEFF}", "paypalx"),
+            ("a\u{0000}b", "ab"),
+            ("@room please look, @ROOM", "room please look, ROOM"),
+            ("👨‍👩‍👧 1️⃣ 🏴󠁧󠁢󠁳󠁣󠁴󠁿 🇺🇦", "👨‍👩‍👧 1️⃣ 🏴󠁧󠁢󠁳󠁣󠁴󠁿 🇺🇦"),
+            // Persian needs its zero-width non-joiner: «می‌خواهم», "I want".
+            ("می\u{200C}خواهم", "می\u{200C}خواهم"),
+            // A mixed line keeps the marks that set its direction.
+            ("\u{200F}שלום Alice\u{200E} 2\u{200D}", "\u{200F}שלום Alice\u{200E} 2\u{200D}"),
+            ("x\u{061C}y", "xy"),
+            // `@room` spelled with invisibles inside: the `@` goes, the rest stays.
+            ("@ro\u{200C}om @\u{2060}ROOM @r\u{00AD}o\u{E0041}om", "ro\u{200C}om \u{2060}ROOM r\u{00AD}o\u{E0041}om"),
+            ("@roommate", "roommate"), ("@rooster", "@rooster"),
+            ("@rob", "@rob")
+        ]
+        for (written, shown) in cases {
+            #expect(SpiralAppActionLimits.cappedLine(written) == shown)
+        }
+    }
+
+    // MARK: - The budget (M4)
+
+    @Test
+    func theFoldStopsWhereTheStateWouldPassTheBudget() {
+        // Other people's actions arrive unchecked: seventy 1 KB appends make
+        // a 70 KB state no host would ever have written.
+        let item = SpiralAppValue.string(String(repeating: "x", count: 1024))
+        var actions = (1...70).map { Self.action("$\($0)", ts: UInt64($0), seq: $0, op: .listAppend(path: ["items"], item: item)) }
+        // A delete after the stop does not bring the rest back: it is past
+        // the stop, and so is everything else.
+        actions.append(Self.action("$del", ts: 71, seq: 71, op: .delete(path: ["items"])))
+
+        let outcome = SpiralAppStateFold.fold(actions)
+
+        #expect(outcome.isOverBudget)
+        #expect((outcome.state.encoded()?.count ?? .max) <= SpiralAppPostSession.maxStateBytes)
+        guard case .array(let items) = outcome.state.value(at: ["items"]) ?? .null else {
+            Issue.record("the stop dropped what fitted")
+            return
+        }
+        #expect(items.count == 15, "the last append that fits, and none after it")
+    }
+
+    @Test
+    func aLongPostUnderTheBudgetIsNotOverIt() {
+        let actions = (1...500).map { Self.action("$\($0)", ts: UInt64($0), seq: $0, op: .increment(path: ["n"], by: 1)) }
+
+        let outcome = SpiralAppStateFold.fold(actions)
+
+        #expect(!outcome.isOverBudget)
+        #expect(outcome.state.value(at: ["n"]) == .number(500))
     }
 
     // MARK: - Values
@@ -496,5 +641,29 @@ struct SpiralAppStateFoldTests {
         #expect(outcome.state.value(at: ["by", "@b:spiral.md", "vote"]) == .string("B"))
         #expect(outcome.state.value(at: ["by", "@a:spiral.md"]) == nil)
         #expect(outcome.refused == ["$1"])
+    }
+
+    /// The bare `by` is every member's namespace at once (corpus F2): a write
+    /// there is nobody's, so it forges no one's vote and is reported.
+    @Test
+    func aWriteAtTheBareOwnedNamespaceIsNobodys() {
+        let forgeries: [SpiralAppOperation] = [
+            .set(path: ["by"], value: .object(["@a:spiral.md": .object(["vote": .string("forged")])])),
+            .setIfAbsent(path: ["by"], value: .object(["@a:spiral.md": .object(["seat": .number(7)])])),
+            .listAppend(path: ["by"], item: .object(["@a:spiral.md": .number(1)])),
+            .delete(path: ["by"])
+        ]
+        for forged in forgeries {
+            let actions = [
+                Self.action("$1", ts: 100, sender: "@a:spiral.md", op: .set(path: ["by", "@a:spiral.md", "vote"], value: .string("A"))),
+                Self.action("$2", ts: 200, sender: "@b:spiral.md", op: forged)
+            ]
+
+            let outcome = SpiralAppStateFold.fold(actions)
+
+            #expect(forged.owner == "")
+            #expect(outcome.state.value(at: ["by", "@a:spiral.md"]) == .object(["vote": .string("A")]), "\(forged.shortDescription)")
+            #expect(outcome.refused == ["$2"])
+        }
     }
 }

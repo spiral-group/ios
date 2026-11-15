@@ -4,7 +4,7 @@
 // AGENT-PLATFORM (decision 188): threads and the thread list are on for everyone.
 //
 
-@testable import ElementX
+@testable import Spiral
 import Testing
 
 @MainActor
@@ -16,7 +16,6 @@ struct SpiralThreadsSettingTests {
         let store = VolatileUserDefaults(initialValues: ["threadsEnabled": false, "roomThreadListEnabled": false])
         let appSettings = AppSettings(store: store)
         
-        #expect(appSettings.threadsEnabled)
-        #expect(appSettings.roomThreadListEnabled)
+        #expect(appSettings.threadsEnabled) // the room thread list follows it since 26.10
     }
 }

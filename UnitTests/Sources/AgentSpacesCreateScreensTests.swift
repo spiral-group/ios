@@ -5,9 +5,9 @@
 // create-agent (0037-F) sheet forms.
 //
 
-@testable import ElementX
 import Combine
 import Foundation
+@testable import Spiral
 import Testing
 
 @MainActor
@@ -16,8 +16,7 @@ struct CreateCompanyScreenViewModelTests {
                                clientProxy: ClientProxyMock? = nil) -> CreateCompanyScreenViewModel {
         CreateCompanyScreenViewModel(agentPlatformService: service ?? AgentPlatformServiceMock(),
                                      userSession: UserSessionMock(.init(clientProxy: clientProxy ?? ClientProxyMock(.init()))),
-                                     userIndicatorController: UserIndicatorControllerMock(),
-                                     appSettings: .volatile())
+                                     userIndicatorController: UserIndicatorControllerMock())
     }
     
     @Test

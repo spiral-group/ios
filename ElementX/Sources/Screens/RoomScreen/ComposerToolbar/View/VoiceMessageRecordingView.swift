@@ -58,7 +58,7 @@ private struct VoiceMessageRecordingBadge: View {
     
     var body: some View {
         Circle()
-            .foregroundColor(.red)
+            .foregroundColor(.compound.iconCriticalPrimary) // AGENT-PLATFORM (Brief 0083): Compound's red, not the system's
             .opacity(opacity)
             .onAppear {
                 withElementAnimation(.easeOut(duration: 1).repeatForever(autoreverses: true)) {

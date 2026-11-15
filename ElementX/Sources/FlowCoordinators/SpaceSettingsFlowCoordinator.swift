@@ -13,6 +13,8 @@ enum SpaceSettingsFlowCoordinatorAction {
     case finished(leftRoom: Bool)
     case presentCallScreen(roomProxy: JoinedRoomProxyProtocol, isVoiceCall: Bool)
     case presentAIConsentSettings // AGENT-PLATFORM (decision 150)
+    /// The Agents tab, where the person's agent is or will be (question 412).
+    case presentAgentsTab
     case verifyUser(userID: String)
 }
 
@@ -237,7 +239,9 @@ final class SpaceSettingsFlowCoordinator: FlowCoordinatorProtocol {
             case .presentRecipientDetails, .presentNotificationSettingsScreen, .presentReportRoomScreen,
                  .presentInviteUsersScreen, .presentInviteToNewRoom, .presentPollsHistory, .presentCall,
                  .presentPinnedEventsTimeline, .presentMediaEventsTimeline, .presentKnockingRequestsListScreen,
-                 .presentAgents: // AGENT-PLATFORM (decision 192): a space has no «Агенты» row
+                 .presentThreadList, // AGENT-PLATFORM (Brief 0083, decision 344): a space has no «Threads» row
+                 .presentAgents, // AGENT-PLATFORM (decision 192): a space has no «Агенты» row
+                 .presentAgentRow: // AGENT-PLATFORM (Brief 0083, question 359): a space is no agent's DM
                 fatalError("Not handled in the space context")
             }
         }
@@ -252,10 +256,10 @@ final class SpaceSettingsFlowCoordinator: FlowCoordinatorProtocol {
         let stackCoordinator = NavigationStackCoordinator()
         let parameters = RoomDetailsEditScreenCoordinatorParameters(roomProxy: roomProxy,
                                                                     userSession: flowParameters.userSession,
-                                                                    mediaUploadingPreprocessor: MediaUploadingPreprocessor(appSettings: flowParameters.appSettings),
+                                                                    mediaUploadingPreprocessor: MediaUploadingPreprocessor(userSettings: flowParameters.userSession.userSettings),
                                                                     navigationStackCoordinator: stackCoordinator,
-                                                                    userIndicatorController: flowParameters.userIndicatorController,
-                                                                    orientationManager: flowParameters.appMediator.windowManager)
+                                                                    appMediator: flowParameters.appMediator,
+                                                                    userIndicatorController: flowParameters.userIndicatorController)
         
         let coordinator = RoomDetailsEditScreenCoordinator(parameters: parameters)
         
@@ -276,9 +280,8 @@ final class SpaceSettingsFlowCoordinator: FlowCoordinatorProtocol {
     
     private func presentSecurityAndPrivacyScreen() {
         let coordinator = SecurityAndPrivacyScreenCoordinator(parameters: .init(roomProxy: roomProxy,
-                                                                                clientProxy: flowParameters.userSession.clientProxy,
-                                                                                userIndicatorController: flowParameters.userIndicatorController,
-                                                                                appSetting: flowParameters.appSettings))
+                                                                                userSession: flowParameters.userSession,
+                                                                                userIndicatorController: flowParameters.userIndicatorController))
         
         coordinator.actionsPublisher.sink { [weak self] action in
             guard let self else { return }
@@ -394,6 +397,8 @@ final class SpaceSettingsFlowCoordinator: FlowCoordinatorProtocol {
                 actionsSubject.send(.presentCallScreen(roomProxy: roomProxy, isVoiceCall: isVoiceCall))
             case .presentAIConsentSettings: // AGENT-PLATFORM (decision 150)
                 actionsSubject.send(.presentAIConsentSettings)
+            case .presentAgentsTab: // AGENT-PLATFORM (question 412)
+                actionsSubject.send(.presentAgentsTab)
             case .verifyUser(let userID):
                 actionsSubject.send(.verifyUser(userID: userID))
             }

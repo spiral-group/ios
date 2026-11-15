@@ -6,7 +6,7 @@
 // Please see LICENSE files in the repository root for full details.
 //
 
-@testable import ElementX
+@testable import Spiral
 import Testing
 
 @MainActor
@@ -210,7 +210,7 @@ struct RoomMemberDetailsViewModelTests {
         viewModel = RoomMemberDetailsScreenViewModel(userID: roomMemberProxyMock.userID,
                                                      roomProxy: roomProxyMock,
                                                      userSession: userSession,
-                                                     userIndicatorController: UserIndicatorControllerMock(),
-                                                     analytics: AnalyticsServiceMock(.init()))
+                                                     analytics: AnalyticsServiceMock(.init()),
+                                                     userIndicatorController: UserIndicatorControllerMock())
     }
 }

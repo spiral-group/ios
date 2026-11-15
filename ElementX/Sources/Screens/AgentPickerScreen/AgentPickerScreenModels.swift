@@ -7,12 +7,9 @@
 //
 // AGENT-PLATFORM: Agent Platform feature (Brief 0036 / ADR-0048).
 // The Spiral feature is built on Element's `TemplateScreenModels.swift`.
-// The agent chooser shown as the root of the agent-
-// tools sheet when the room has more than one of the caller's own agents.
-// With exactly one own agent the RoomFlow presenter skips this and opens
-// the capabilities screen directly. The candidate list is already in hand
-// from `fetchRoomTools`, so this screen is a static single-select — no
-// async, no service.
+// The agent chooser of an Interactive Post, when the person has more than one
+// agent. The candidate list is already in hand, so this screen is a static
+// single-select — no async, no service.
 //
 
 import Foundation

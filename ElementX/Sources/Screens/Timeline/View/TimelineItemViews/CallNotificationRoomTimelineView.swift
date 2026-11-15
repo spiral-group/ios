@@ -24,6 +24,7 @@ struct CallNotificationRoomTimelineView: View {
                                        isVoiceCall: timelineItem.isVoiceCall,
                                        activeMembers: activeMembers,
                                        sender: timelineItem.sender,
+                                       isOutgoing: timelineItem.isOutgoing,
                                        isJoined: isJoined,
                                        callStartTimestamp: callStartTimestamp)
         }
@@ -36,36 +37,23 @@ struct CallNotificationRoomTimelineView: View {
     // and taps straight into a call back; the caller's own cancelled ring is
     // grey (decision 172). The length and direction replace the
     // clock-time-only tile the design review flagged.
+    //
+    // AGENT-PLATFORM (Brief 0083, question 359): a bubble on the side of whoever called.
     private func tombstonedCallView(outcome: CallNotificationRoomTimelineItem.TombstonedOutcome) -> some View {
-        HStack(spacing: 12) {
-            CompoundIcon(iconKeyPath(outcome: outcome), size: .medium, relativeTo: .compound.headingMDBold)
-                .foregroundStyle(outcome == .missed ? .compound.iconCriticalPrimary : .compound.iconSecondary)
-                .accessibilityHidden(true)
-
-            VStack(alignment: .leading, spacing: 1) {
-                Text(tileTitle(outcome: outcome))
-                    .font(.compound.bodyMD)
-                    .foregroundColor(outcome == .missed ? .compound.textCriticalPrimary : .compound.textSecondary)
-                    .labelStyle(.custom(spacing: 4))
-
-                if let subtitle = tileSubtitle(outcome: outcome) {
-                    Text(subtitle)
-                        .font(.compound.bodyXS)
-                        .foregroundColor(.compound.textSecondary)
-                }
+        TimelineCallBubble(sender: timelineItem.sender,
+                           isDM: timelineItem.isDM,
+                           isOutgoing: timelineItem.isOutgoing,
+                           isMissed: outcome == .missed,
+                           icon: iconKeyPath(outcome: outcome),
+                           title: tileTitle(outcome: outcome)) {
+            if let subtitle = tileSubtitle(outcome: outcome) {
+                Text(subtitle)
             }
             
-            Spacer()
-            
             Text(timelineItem.timestamp.formattedTime())
-                .font(.compound.bodyXS)
-                .foregroundColor(.compound.textSecondary)
+        } accessory: {
+            EmptyView()
         }
-        .padding(12)
-        .overlay(RoundedRectangle(cornerRadius: 8)
-            .stroke(.compound.borderInteractiveSecondary, lineWidth: 1))
-        .padding(16)
-        .contentShape(Rectangle())
         // The call-back affordance: a missed tile IS the redial button.
         .onTapGesture {
             guard outcome == .missed else { return }

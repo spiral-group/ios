@@ -64,7 +64,7 @@ struct LiveLocationRoomTimelineView: View {
             }
         }
         .onTapGesture {
-            guard context.viewState.mapTilerSettings.isEnabled,
+            guard context.viewState.mapTilerConfiguration.isEnabled,
                   timelineItem.content.lastGeoURI != nil,
                   isLive else {
                 return
@@ -93,7 +93,7 @@ struct LiveLocationRoomTimelineView: View {
     private var liveContent: some View {
         if let geoURI = timelineItem.content.lastGeoURI {
             MapLibreStaticMapView(geoURI: geoURI,
-                                  mapURLBuilder: context.viewState.mapTilerSettings,
+                                  mapURLBuilder: context.viewState.mapTilerConfiguration,
                                   attributionPlacement: .topLeft,
                                   mapSize: .init(width: mapAspectRatio * mapMaxHeight, height: mapMaxHeight)) {
                 LocationMarkerView(kind: .liveUser(.init(sender: timelineItem.sender)),
@@ -125,10 +125,17 @@ struct LiveLocationRoomTimelineView: View {
         isLive ? .compound.bgCanvasDefault : .compound.bgSubtleSecondary
     }
     
-    private var blurBackground: some View {
-        Color.compound.bgCanvasDefault
-            .opacity(0.8)
-            .background(.ultraThinMaterial)
+    // AGENT-PLATFORM (Brief 0083, decision 346): the strip is the message's content, where glass doesn't belong, so it's
+    // solid with Liquid Glass. Before it, the material.
+    @ViewBuilder
+    private var infoBackground: some View {
+        if Compound.supportsGlass {
+            Color.compound.bgCanvasDefault
+        } else {
+            Color.compound.bgCanvasDefault
+                .opacity(0.8)
+                .background(.ultraThinMaterial)
+        }
     }
     
     private var infoIcon: KeyPath<CompoundIcons, Image> {
@@ -176,7 +183,7 @@ struct LiveLocationRoomTimelineView: View {
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 6)
-        .background(blurBackground)
+        .background(infoBackground)
     }
     
     private func stop() {

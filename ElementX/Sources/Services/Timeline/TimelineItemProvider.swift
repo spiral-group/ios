@@ -84,6 +84,9 @@ class TimelineItemProvider: TimelineItemProviderProtocol {
     private func applyDiffs(_ diffs: [TimelineDiff]) async {
         MXLog.verbose("Received diffs: \(diffs)")
         
+        let signpost = TimelineSignposts.beginInterval("Apply diffs", count: diffs.count) // AGENT-PLATFORM (Brief 0083, question 359)
+        defer { TimelineSignposts.endInterval("Apply diffs", signpost) }
+        
         // Building the item proxies and computing/applying the CollectionDifference can be
         // expensive, so run it off the main actor and only hop back to publish the result.
         let result = await Self.processDiffs(diffs, on: itemProxies, spanName: "process_timeline_list_diffs:\(kind)")
@@ -99,12 +102,6 @@ class TimelineItemProvider: TimelineItemProviderProtocol {
     private static func processDiffs(_ diffs: [TimelineDiff],
                                      on currentItems: [TimelineItemProxy],
                                      spanName: String) async -> (itemProxies: [TimelineItemProxy], hasMembershipChange: Bool) {
-        let span = MXLog.createSpan(spanName)
-        span.enter()
-        defer {
-            span.exit()
-        }
-        
         var hasMembershipChange = false
         
         let itemProxies = diffs.reduce(currentItems) { currentItems, diff in
@@ -181,8 +178,10 @@ class TimelineItemProvider: TimelineItemProviderProtocol {
             let itemProxy = TimelineItemProxy(item: item)
             changes.append(.remove(offset: Int(index), element: itemProxy, associatedWith: nil))
             changes.append(.insert(offset: Int(index), element: itemProxy, associatedWith: nil))
-        case .truncate:
-            break
+        case .truncate(let length):
+            for (index, itemProxy) in itemProxies.enumerated() where index >= Int(length) {
+                changes.append(.remove(offset: index, element: itemProxy, associatedWith: nil))
+            }
         }
         
         return CollectionDifference(changes)

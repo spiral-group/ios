@@ -12,6 +12,9 @@
 // Privacy (Brief 0044 hybrid): the event carries only what is safe to
 // show EVERY participant — tool_id / kind / trigger / enabled /
 // target_language. Private free-text params are never on the wire.
+//
+// The event also says what it changed, in `changes` (question 357): the
+// backend knows, so the app reads that and never works it out.
 
 import Foundation
 
@@ -46,6 +49,28 @@ nonisolated struct ToolsBannerEntry: Equatable, Identifiable {
     }
 }
 
+/// One entry of a tools event's `changes`: what happened to one tool, and who did it.
+nonisolated struct SpiralToolChange: Equatable {
+    enum Action: Equatable {
+        case turnedOn
+        case turnedOff
+        /// An edit, with what the tool was before it. With the same language
+        /// it changed something the event doesn't carry, such as the scope.
+        case changed(from: ToolsBannerEntry.Tool)
+    }
+
+    enum Actor: String {
+        /// The owner did it through the app.
+        case owner
+        /// It wasn't them: a GDPR erase, the agent removed from the room, an expiry.
+        case system
+    }
+
+    let action: Action
+    let tool: ToolsBannerEntry.Tool
+    let actor: Actor
+}
+
 nonisolated enum SpiralToolsStateReader {
     static let eventType = "com.spiral.tools"
     /// AGENT-PLATFORM (Brief 0066 § 5.89): what the platform sends INSTEAD of
@@ -62,6 +87,9 @@ nonisolated enum SpiralToolsStateReader {
         let ownerUserID: String
         let updatedAt: Date
         let tools: [ToolsBannerEntry.Tool]
+        /// What this event changed, in order; empty when it changed nothing.
+        /// Nil when the event doesn't say, or says it in a way this build can't read.
+        var changes: [SpiralToolChange]?
     }
 
     /// Parse a `com.spiral.tools` event. Returns nil ONLY when the JSON
@@ -116,21 +144,55 @@ nonisolated enum SpiralToolsStateReader {
               let content = root["content"] as? [String: Any] else {
             return nil
         }
-        let toolsRaw = content["tools"] as? [[String: Any]] ?? []
-        let tools: [ToolsBannerEntry.Tool] = toolsRaw.compactMap { entry in
-            guard let kind = entry["tool"] as? String else { return nil }
-            // `enabled == false` is our per-tool "cleared" marker.
-            if let enabled = entry["enabled"] as? Bool, !enabled { return nil }
-            return ToolsBannerEntry.Tool(toolID: entry["tool_id"] as? String,
-                                         kind: kind,
-                                         trigger: (entry["trigger"] as? String) ?? "on_message",
-                                         targetLanguage: entry["target_language"] as? String)
-        }
         let atMs = (content["at"] as? Double) ?? (content["at"] as? NSNumber)?.doubleValue ?? 0
         return ParsedEvent(agentMatrixUserID: agentMatrixUserID,
                            ownerUserID: (content["by"] as? String) ?? "",
                            updatedAt: Date(timeIntervalSince1970: atMs / 1000),
-                           tools: tools)
+                           tools: tools(in: content["tools"] as? [[String: Any]] ?? []),
+                           changes: changes(in: content))
+    }
+
+    private static func tools(in entries: [[String: Any]]) -> [ToolsBannerEntry.Tool] {
+        entries.compactMap { entry in
+            // `enabled == false` is our per-tool "cleared" marker.
+            if let enabled = entry["enabled"] as? Bool, !enabled { return nil }
+            return tool(in: entry)
+        }
+    }
+
+    private static func tool(in entry: [String: Any]) -> ToolsBannerEntry.Tool? {
+        guard let kind = entry["tool"] as? String else { return nil }
+        return ToolsBannerEntry.Tool(toolID: entry["tool_id"] as? String,
+                                     kind: kind,
+                                     trigger: (entry["trigger"] as? String) ?? "on_message",
+                                     targetLanguage: entry["target_language"] as? String)
+    }
+
+    /// One entry this build can't read makes the whole list unreadable: a row
+    /// that told part of the story would read as all of it, and a list that
+    /// can't be read must never become an empty one, which draws no row.
+    private static func changes(in content: [String: Any]) -> [SpiralToolChange]? {
+        guard let entries = content["changes"] as? [[String: Any]] else { return nil }
+        let changes = entries.compactMap(change(in:))
+        return changes.count == entries.count ? changes : nil
+    }
+
+    private static func change(in entry: [String: Any]) -> SpiralToolChange? {
+        guard let tool = Self.tool(in: entry),
+              let actor = (entry["actor"] as? String).flatMap(SpiralToolChange.Actor.init(rawValue:)) else {
+            return nil
+        }
+        switch entry["action"] as? String {
+        case "armed":
+            return SpiralToolChange(action: .turnedOn, tool: tool, actor: actor)
+        case "disabled":
+            return SpiralToolChange(action: .turnedOff, tool: tool, actor: actor)
+        case "edited":
+            guard let previous = (entry["previous"] as? [String: Any]).flatMap(Self.tool(in:)) else { return nil }
+            return SpiralToolChange(action: .changed(from: previous), tool: tool, actor: actor)
+        default:
+            return nil
+        }
     }
 
     /// Convenience: parse into a banner entry, or nil if the event is

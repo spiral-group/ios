@@ -61,7 +61,7 @@ struct RoomDetailsEditScreen: View {
                                    url: context.viewState.avatarURL,
                                    name: context.viewState.initialName,
                                    contentID: context.viewState.roomID,
-                                   shape: isSpace ? .roundedRect : .circle,
+                                   shape: isSpace ? .roundedRect : .roundedSquare,
                                    avatarSize: .room(on: isSpace ? .editSpaceDetails : .editRoomDetails),
                                    mediaProvider: context.mediaProvider)
                 .accessibilityLabel(L10n.a11yEditAvatar)
@@ -177,7 +177,8 @@ struct RoomDetailsEditScreen_Previews: PreviewProvider, TestablePreview {
         
         return RoomDetailsEditScreenViewModel(roomProxy: roomProxy,
                                               userSession: UserSessionMock(.init()),
-                                              mediaUploadingPreprocessor: MediaUploadingPreprocessor(appSettings: .volatile()),
+                                              mediaUploadingPreprocessor: MediaUploadingPreprocessor(userSettings: .mock()),
+                                              appMediator: AppMediatorMock(.init()),
                                               userIndicatorController: UserIndicatorControllerMock())
     }
 }

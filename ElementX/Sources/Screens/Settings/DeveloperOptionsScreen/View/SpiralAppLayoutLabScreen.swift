@@ -8,21 +8,23 @@
 // REAL post frame — the row's width, the aspect's box — and then the SAME
 // instance in the viewer's box (402×758) with the viewport push the
 // full-screen cover sends, while the runtime's ruler reports into the app
-// log. Two sources: the shell's gallery of reference patterns (`lab`), and
-// the clipboard (`xcrun simctl pbcopy <udid> < bundle.jsx`), which may carry
-// MANY modules separated by `// ===== <id> <aspect>` lines. "Run all" walks
-// them unattended: row, full, next. The log is the result.
+// log. The source is a bundle — `Documents/lab-bundle.jsx` in the app
+// container, or the clipboard (`xcrun simctl pbcopy <udid> < bundle.jsx`) —
+// which may carry MANY modules separated by `// ===== <id> <aspect>` lines.
+// "Run all" walks them unattended: row, full, next. The log is the result.
+// The shell's gallery of reference patterns is one such bundle: copy the
+// shell's `ios/Sources/SpiralAppTestArtifacts/artifacts/lab.jsx` in. The app
+// no longer carries it (App Review F2, decision 252).
+//
+// Debug builds only: an App Store build has no layout lab compiled in
+// (App Review F3, decision 252).
 //
 
-import SpiralAppShell
+#if DEBUG
+
 import SwiftUI
 
 struct SpiralAppLayoutLabScreen: View {
-    enum Source: String, CaseIterable {
-        case gallery
-        case clipboard
-    }
-
     enum Box: String, CaseIterable {
         case row
         case full
@@ -34,10 +36,9 @@ struct SpiralAppLayoutLabScreen: View {
         let source: String
     }
 
-    @AppStorage("spiralLabSource") private var source = Source.gallery.rawValue
     @AppStorage("spiralLabAspect") private var aspect = "4:3"
     @StateObject private var preview = DraftPreview()
-    @State private var status = "Pick a source, then Mount."
+    @State private var status = "Copy a bundle in, then Mount."
     @State private var reclaimCount = 0
     @State private var box = Box.row
     @State private var modules: [Module] = []
@@ -78,12 +79,6 @@ struct SpiralAppLayoutLabScreen: View {
 
     private var controls: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Picker("Source", selection: $source) {
-                Text("Gallery").tag(Source.gallery.rawValue)
-                Text("Bundle").tag(Source.clipboard.rawValue)
-            }
-            .pickerStyle(.segmented)
-
             HStack {
                 Picker("Aspect", selection: $aspect) {
                     ForEach(aspects, id: \.self) { Text($0).tag($0) }
@@ -109,6 +104,7 @@ struct SpiralAppLayoutLabScreen: View {
                 Button(run == nil ? "Run all" : "Stop") { toggleRun() }
             }
             .buttonStyle(.borderedProminent)
+            .tint(.compound.bgActionPrimaryRest) // The filled blue under white labels (decision 306).
             .font(.compound.bodySM)
 
             Text(status)
@@ -138,34 +134,21 @@ struct SpiralAppLayoutLabScreen: View {
     // MARK: - Actions
 
     private func load() {
-        switch Source(rawValue: source) ?? .gallery {
-        case .gallery:
-            guard let packed = SpiralAppShell.labArtifact,
-                  let container = SpiralAppContainer.unpack(packed.bytes) else {
-                status = "The lab artifact is not in the bundle."
-                modules = []
-                return
-            }
-            modules = [Module(id: "lab", aspect: aspect, source: String(decoding: container.source, as: UTF8.self))]
-        case .clipboard:
-            // The clipboard, or — because the simulator's pasteboard sync is
-            // unreliable — `Documents/lab-bundle.jsx` in the app container:
-            //   cp bundle.jsx "$(xcrun simctl get_app_container <udid> <bundle-id> data)/Documents/"
-            // The FILE wins over the clipboard. Both are ways in, but the
-            // file is a deliberate act (`cp bundle.jsx …/Documents/`) while
-            // the pasteboard is ambient: a bundle copied an hour ago went on
-            // being served after the file had been replaced, and the lab
-            // silently measured yesterday's modules (2026-09-19).
-            let file = URL.documentsDirectory.appending(path: "lab-bundle.jsx")
-            let text = (try? String(contentsOf: file, encoding: .utf8))
-                ?? UIPasteboard.general.string.flatMap { $0.isEmpty ? nil : $0 }
-            guard let text, !text.isEmpty else {
-                status = "Nothing on the clipboard and no Documents/lab-bundle.jsx."
-                modules = []
-                return
-            }
-            modules = Self.split(text, defaultAspect: aspect)
+        // The FILE wins over the clipboard. Both are ways in, but the
+        // file is a deliberate act (`cp bundle.jsx …/Documents/`) while
+        // the pasteboard is ambient: a bundle copied an hour ago went on
+        // being served after the file had been replaced, and the lab
+        // silently measured yesterday's modules (2026-09-19).
+        //   cp bundle.jsx "$(xcrun simctl get_app_container <udid> <bundle-id> data)/Documents/"
+        let file = URL.documentsDirectory.appending(path: "lab-bundle.jsx")
+        let text = (try? String(contentsOf: file, encoding: .utf8))
+            ?? UIPasteboard.general.string.flatMap { $0.isEmpty ? nil : $0 }
+        guard let text, !text.isEmpty else {
+            status = "Nothing on the clipboard and no Documents/lab-bundle.jsx."
+            modules = []
+            return
         }
+        modules = Self.split(text, defaultAspect: aspect)
         status = "\(modules.count) module(s)."
     }
 
@@ -266,3 +249,5 @@ struct SpiralAppLayoutLabScreen: View {
         return parts.count == 2 && parts[1] > 0 ? CGFloat(parts[0] / parts[1]) : 4 / 3
     }
 }
+
+#endif

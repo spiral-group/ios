@@ -17,7 +17,7 @@ class TimelineController: TimelineControllerProtocol {
     private let liveTimelineItemProvider: TimelineItemProviderProtocol
     private let timelineItemFactory: RoomTimelineItemFactoryProtocol
     private let mediaProvider: MediaProviderProtocol
-    private let appSettings: AppSettings
+    private let userSettings: UserSettings
     
     let callbacks = PassthroughSubject<TimelineControllerCallback, Never>()
     
@@ -29,6 +29,7 @@ class TimelineController: TimelineControllerProtocol {
     }
     
     private(set) var timelineItems = [RoomTimelineItemProtocol]()
+    private(set) var readProgress = TimelineReadProgress() // AGENT-PLATFORM (Brief 0083, question 357)
     
     private(set) var paginationState: TimelinePaginationState = .initial {
         didSet {
@@ -51,19 +52,20 @@ class TimelineController: TimelineControllerProtocol {
          initialFocussedEventID: String?,
          timelineItemFactory: RoomTimelineItemFactoryProtocol,
          mediaProvider: MediaProviderProtocol,
-         appSettings: AppSettings,
+         userSettings: UserSettings,
          allowedGalleryItemTypes: [TimelineAllowedGalleryItemType]? = nil) {
         self.allowedGalleryItemTypes = allowedGalleryItemTypes
         self.roomProxy = roomProxy
         liveTimelineItemProvider = timelineProxy.timelineItemProvider
         self.timelineItemFactory = timelineItemFactory
         self.mediaProvider = mediaProvider
-        self.appSettings = appSettings
+        self.userSettings = userSettings
         
         activeTimeline = timelineProxy
         activeTimelineItemProvider = liveTimelineItemProvider
         
-        guard let initialFocussedEventID else {
+        // No need for a detached timeline when the live one has already loaded the event.
+        guard let initialFocussedEventID, !liveTimelineItemProvider.containsEvent(initialFocussedEventID) else {
             configureActiveTimelineItemProvider()
             return
         }
@@ -127,7 +129,7 @@ class TimelineController: TimelineControllerProtocol {
     }
     
     func sendReadReceipt(for itemID: TimelineItemIdentifier) async {
-        let receiptType: MatrixRustSDK.ReceiptType = appSettings.sharePresence ? .read : .readPrivate
+        let receiptType: MatrixRustSDK.ReceiptType = userSettings.account.sharePresence ? .read : .readPrivate
         
         guard let eventID = itemID.eventID else {
             return
@@ -230,10 +232,10 @@ class TimelineController: TimelineControllerProtocol {
         }
     }
     
-    func redact(_ eventOrTransactionID: TimelineItemIdentifier.EventOrTransactionID) async {
+    func redact(_ eventOrTransactionID: TimelineItemIdentifier.EventOrTransactionID, reason: String?) async {
         MXLog.info("Send redaction in \(roomID)")
         
-        switch await activeTimeline.redact(eventOrTransactionID, reason: nil) {
+        switch await activeTimeline.redact(eventOrTransactionID, reason: reason) {
         case .success:
             MXLog.info("Finished redacting message")
         case .failure(let error):
@@ -305,6 +307,53 @@ class TimelineController: TimelineControllerProtocol {
         }
         
         return nil
+    }
+    
+    func pendingSendTarget(for itemID: TimelineItemIdentifier) -> SendTarget? {
+        for timelineItemProxy in activeTimelineItemProvider.itemProxies {
+            switch timelineItemProxy {
+            case .event(let item):
+                if item.id == itemID {
+                    return item.pendingSend?.target
+                }
+            default:
+                continue
+            }
+        }
+        
+        return nil
+    }
+    
+    func retrySend(_ itemID: TimelineItemIdentifier, target: SendTarget) async {
+        guard let eventOrTransactionID = itemID.eventOrTransactionID else {
+            MXLog.error("Cannot retry sending on \(itemID).")
+            return
+        }
+        
+        MXLog.info("Retry \(target) send in \(roomID)")
+        
+        switch await activeTimeline.retrySend(eventOrTransactionID, target: target) {
+        case .success(let hadPendingSend):
+            MXLog.info("Finished retrying send, had one pending: \(hadPendingSend)")
+        case .failure(let error):
+            MXLog.error("Failed retrying send with error: \(error)")
+        }
+    }
+    
+    func abortSend(_ itemID: TimelineItemIdentifier, target: SendTarget) async {
+        guard let eventOrTransactionID = itemID.eventOrTransactionID else {
+            MXLog.error("Cannot abort sending on \(itemID).")
+            return
+        }
+        
+        MXLog.info("Abort \(target) send in \(roomID)")
+        
+        switch await activeTimeline.abortSend(eventOrTransactionID, target: target) {
+        case .success(let hadPendingSend):
+            MXLog.info("Finished aborting send, had one pending: \(hadPendingSend)")
+        case .failure(let error):
+            MXLog.error("Failed aborting send with error: \(error)")
+        }
     }
     
     // MARK: - Sending
@@ -463,6 +512,8 @@ class TimelineController: TimelineControllerProtocol {
     private var updateTimelineItemsCancellable: AnyCancellable?
     /// The controller is switching the `activeTimelineItemProvider`.
     private var isSwitchingTimelines = false
+    /// How long after a rebuild the next one waits.
+    static let rebuildWindow: Duration = .milliseconds(50)
     
     /// Configures the controller to listen to `activeTimeline` for events.
     /// - Parameter clearExistingItems: Whether or not to clear any existing items before loading the timeline's contents.
@@ -480,38 +531,54 @@ class TimelineController: TimelineControllerProtocol {
         // leaves the room (agents are service members, excluded from the DM/group
         // boundary). Without this the call tile keeps the stale group wording.
         let isDMChangePublisher = roomProxy.infoPublisher.map(\.isDM).removeDuplicates().dropFirst()
-        let rebuildTriggers = contentSizeChangePublisher.map { _ in () }.merge(with: isDMChangePublisher.map { _ in () })
-        let timelineUpdates = activeTimelineItemProvider.updatePublisher.merge(with: rebuildTriggers.compactMap { [weak self] _ in
-            guard let activeTimelineProvider = self?.activeTimelineItemProvider else {
-                return nil
+
+        // AGENT-PLATFORM: every source only asks for a rebuild, and a build reads
+        // the provider's state when it starts. Carrying snapshots through
+        // `merge` + `.values` let a stale one (taken by a rebuild trigger while
+        // the items were still loading) be built after a newer one, and the
+        // newest never: a room opened just after its invite was accepted stayed
+        // without the event the SDK had (dev E2E S04/S06). Keeping only the
+        // newest request still guarantees one build after the last change.
+        let provider = activeTimelineItemProvider
+        let (rebuildRequests, rebuildContinuation) = AsyncStream<Void>.makeStream(bufferingPolicy: .bufferingNewest(1))
+        let rebuildSubscription = provider.updatePublisher.map { _ in () }
+            .merge(with: contentSizeChangePublisher.map { _ in () }, isDMChangePublisher.map { _ in () })
+            .sink { rebuildContinuation.yield() }
+
+        let updateTask = Task { [weak self] in
+            for await _ in rebuildRequests {
+                await self?.updateTimelineItems(itemProxies: provider.itemProxies, paginationState: provider.paginationState)
+                // AGENT-PLATFORM (Brief 0083, question 359): a rebuild goes through every row, and the SDK can send several
+                // batches a frame. So a lone update lands at once, and what follows it in a burst lands together.
+                try? await Task.sleep(for: Self.rebuildWindow)
             }
-            
-            return (activeTimelineProvider.itemProxies, activeTimelineProvider.paginationState)
-        })
-        
-        updateTimelineItemsCancellable = Task { [weak self] in
-            for await (items, paginationState) in timelineUpdates.values {
-                await self?.updateTimelineItems(itemProxies: items, paginationState: paginationState)
-            }
-        }.asCancellable()
+        }
+
+        updateTimelineItemsCancellable = AnyCancellable {
+            rebuildSubscription.cancel()
+            rebuildContinuation.finish()
+            updateTask.cancel()
+        }
     }
     
     private func updateTimelineItems(itemProxies: [TimelineItemProxy], paginationState: TimelinePaginationState) async {
-        let isNewTimeline = isSwitchingTimelines
-        isSwitchingTimelines = false
+        let signpost = TimelineSignposts.beginInterval("Build items", count: itemProxies.count) // AGENT-PLATFORM (Brief 0083, question 359)
+        defer { TimelineSignposts.endInterval("Build items", signpost) }
         
         let isDM = roomProxy.infoPublisher.value.isDM
         let displayName = roomProxy.infoPublisher.value.displayName
         let hasPredecessor = roomProxy.predecessorRoom != nil
+        let ownUserID = roomProxy.ownUserID
         
-        var newTimelineItems = await Task.detached { [timelineItemFactory, activeTimeline] in
+        let built = await Task.detached { [timelineItemFactory, activeTimeline] in
             var newTimelineItems = [RoomTimelineItemProtocol]()
             
             let collapsibleChunks = itemProxies.groupBy { $0.isItemCollapsible }
             
             // AGENT-PLATFORM: the SDK puts its read marker before the first event from
             // someone else, counting events with no row here (`m.call.member`, sent by
-            // every call). Show «New» only above a row from someone else.
+            // every call). Show «New» only above a row from someone else. An agent's
+            // echo of your own tool change is a row from you.
             var readMarkerIndex: Int?
             var isReadMarkerFollowed = false
             
@@ -524,7 +591,8 @@ class TimelineController: TimelineControllerProtocol {
                                                       roomDisplayName: displayName,
                                                       timelineItemFactory: timelineItemFactory,
                                                       activeTimeline: activeTimeline)
-                    if item != nil, case .event(let eventItem) = itemProxy, !eventItem.isOwn {
+                    if item != nil, case .event(let eventItem) = itemProxy, !eventItem.isOwn,
+                       (item as? StateRoomTimelineItem)?.isAgentToolChangeByYou != true {
                         hasRowFromOthers = true
                     }
                     return item
@@ -553,8 +621,18 @@ class TimelineController: TimelineControllerProtocol {
                 newTimelineItems.remove(at: readMarkerIndex)
             }
             
-            return InteractiveGeneratingRoomTimelineItem.droppingSuperseded(newTimelineItems)
+            return (timelineItems: InteractiveGeneratingRoomTimelineItem.droppingSuperseded(newTimelineItems),
+                    readProgress: TimelineReadProgress(events: itemProxies.compactMap(\.readProgressEvent), ownUserID: ownUserID))
         }.value
+        
+        // AGENT-PLATFORM: a build still running when the timeline was switched
+        // holds the old timeline's items; the new timeline's loop builds its own.
+        guard !Task.isCancelled else { return }
+        
+        let isNewTimeline = isSwitchingTimelines
+        isSwitchingTimelines = false
+        
+        var newTimelineItems = built.timelineItems
         
         // Check if we need to add anything to the top of the timeline.
         switch paginationState.backward {
@@ -572,6 +650,7 @@ class TimelineController: TimelineControllerProtocol {
         }
         
         timelineItems = newTimelineItems
+        readProgress = built.readProgress
         
         callbacks.send(.updatedTimelineItems(timelineItems: newTimelineItems, isSwitchingTimelines: isNewTimeline))
         self.paginationState = paginationState
@@ -674,6 +753,7 @@ class TimelineController: TimelineControllerProtocol {
         
         let avatarURL: URL? = switch roomProxy.details.avatar {
         case .room(_, _, let avatarURL),
+             .direct(_, _, let avatarURL),
              .space(_, _, let avatarURL):
             avatarURL
         case .heroes(let userProfiles):
@@ -689,8 +769,14 @@ class TimelineController: TimelineControllerProtocol {
         }
         
         if let avatarURL, let mediaSource = try? MediaSourceProxy(url: avatarURL, mimeType: nil) {
-            if case let .success(avatarData) = await mediaProvider.loadThumbnailForSource(source: mediaSource, size: .init(width: 100, height: 100)) {
-                sendMessageIntent.setImage(INImage(imageData: avatarData), forParameterNamed: \.speakableGroupName)
+            // Request a generous size so the square crop of a non-square avatar keeps enough resolution.
+            if case let .success(avatarData) = await mediaProvider.loadThumbnailForSource(source: mediaSource, size: .init(width: 256, height: 256)) {
+                if let squareAvatarData = Self.squareAvatarImageData(from: avatarData) {
+                    sendMessageIntent.setImage(INImage(imageData: squareAvatarData), forParameterNamed: \.speakableGroupName)
+                } else {
+                    MXLog.error("Failed processing the room avatar for the send message intent, using a placeholder.")
+                    addPlacehoder()
+                }
             } else {
                 addPlacehoder()
             }
@@ -708,7 +794,45 @@ class TimelineController: TimelineControllerProtocol {
     }
 }
 
+private extension TimelineController {
+    /// Media repo thumbnails are scaled, not cropped, so they keep the source's aspect
+    /// ratio. The share sheet's conversation suggestions stretch the donated image to fill
+    /// their circle, so centre-crop it to a square first.
+    static func squareAvatarImageData(from data: Data) -> Data? {
+        guard let image = UIImage(data: data) else { return nil }
+        
+        let side = min(image.size.width, image.size.height)
+        guard side > 0 else { return nil }
+        
+        if image.size.width == image.size.height {
+            return data
+        }
+        
+        let format = UIGraphicsImageRendererFormat()
+        // UIImage(data:) decodes at scale 1; pin the renderer to that so the
+        // output isn't silently multiplied by the device's screen scale.
+        format.scale = image.scale
+        
+        return UIGraphicsImageRenderer(size: CGSize(width: side, height: side), format: format)
+            .pngData { _ in
+                // Round the offsets to pixel boundaries so the crop is a straight
+                // copy rather than resampling (and softening) the whole image.
+                image.draw(at: CGPoint(x: ((side - image.size.width) / 2).rounded(),
+                                       y: ((side - image.size.height) / 2).rounded()))
+            }
+    }
+}
+
 private nonisolated extension TimelineItemProxy {
+    var readProgressEvent: TimelineReadProgress.Event? {
+        guard case let .event(eventItem) = self else { return nil }
+        let deliveryStatus = eventItem.deliveryStatus
+        return .init(uniqueID: eventItem.id.uniqueID,
+                     isOwn: eventItem.isOwn,
+                     isOnServer: deliveryStatus == nil || deliveryStatus == .sent,
+                     receipts: ReadReceipt.ordered(eventItem.readReceipts))
+    }
+    
     var isItemCollapsible: Bool {
         if case let .event(eventItem) = self {
             switch eventItem.content {
@@ -720,5 +844,14 @@ private nonisolated extension TimelineItemProxy {
         }
         
         return false
+    }
+}
+
+private extension TimelineItemProviderProtocol {
+    func containsEvent(_ eventID: String) -> Bool {
+        itemProxies.contains { item in
+            guard case let .event(eventItem) = item else { return false }
+            return eventItem.id.eventID == eventID
+        }
     }
 }

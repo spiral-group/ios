@@ -2,7 +2,7 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<key>screen_agent_detail_rooms_section</key>
+	<key>screen_native_call_assistants_count</key>
 	<dict>
 		<key>COUNT</key>
 		<dict>
@@ -11,84 +11,21 @@
 			<key>NSStringFormatValueTypeKey</key>
 			<string>d</string>
 			<key>few</key>
-			<string>%1$d kambariuose</string>
+			<string>%1$d asistentai</string>
+			<key>many</key>
+			<string>%1$d asistento</string>
 			<key>one</key>
-			<string>%1$d kambaryje</string>
+			<string>%1$d asistentas</string>
 			<key>other</key>
-			<string>%1$d kambarių</string>
-		</dict>
-		<key>NSStringLocalizedFormatKey</key>
-		<string>Gyvena %#@COUNT@</string>
-	</dict>
-	<key>screen_agent_detail_tool_count</key>
-	<dict>
-		<key>COUNT</key>
-		<dict>
-			<key>NSStringFormatSpecTypeKey</key>
-			<string>NSStringPluralRuleType</string>
-			<key>NSStringFormatValueTypeKey</key>
-			<string>d</string>
-			<key>few</key>
-			<string>%1$d įrankiai</string>
-			<key>one</key>
-			<string>%1$d įrankis</string>
-			<key>other</key>
-			<string>%1$d įrankių</string>
-		</dict>
-		<key>NSStringLocalizedFormatKey</key>
-		<string>%#@COUNT@</string>
-	</dict>
-	<key>screen_agent_space_agent_status</key>
-	<dict>
-		<key>NSStringLocalizedFormatKey</key>
-		<string>%#@ROOMS@ · %#@TOOLS@</string>
-		<key>ROOMS</key>
-		<dict>
-			<key>NSStringFormatSpecTypeKey</key>
-			<string>NSStringPluralRuleType</string>
-			<key>NSStringFormatValueTypeKey</key>
-			<string>d</string>
-			<key>few</key>
-			<string>%1$d kambariuose</string>
-			<key>one</key>
-			<string>%1$d kambaryje</string>
-			<key>other</key>
-			<string>%1$d kambarių</string>
-		</dict>
-		<key>TOOLS</key>
-		<dict>
-			<key>NSStringFormatSpecTypeKey</key>
-			<string>NSStringPluralRuleType</string>
-			<key>NSStringFormatValueTypeKey</key>
-			<string>d</string>
-			<key>few</key>
-			<string>%2$d aktyvūs įrankiai</string>
-			<key>one</key>
-			<string>%2$d aktyvus įrankis</string>
-			<key>other</key>
-			<string>%2$d aktyvių įrankių</string>
-		</dict>
-	</dict>
-	<key>screen_agent_spaces_agent_count</key>
-	<dict>
-		<key>COUNT</key>
-		<dict>
-			<key>NSStringFormatSpecTypeKey</key>
-			<string>NSStringPluralRuleType</string>
-			<key>NSStringFormatValueTypeKey</key>
-			<string>d</string>
-			<key>few</key>
-			<string>%1$d agentai</string>
-			<key>one</key>
-			<string>%1$d agentas</string>
-			<key>other</key>
-			<string>%1$d agentų</string>
+			<string>%1$d asistentų</string>
 		</dict>
 		<key>NSStringLocalizedFormatKey</key>
 		<string>%#@COUNT@</string>
 	</dict>
 	<key>screen_native_call_status_agent_count</key>
 	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@COUNT@</string>
 		<key>COUNT</key>
 		<dict>
 			<key>NSStringFormatSpecTypeKey</key>
@@ -96,14 +33,36 @@
 			<key>NSStringFormatValueTypeKey</key>
 			<string>d</string>
 			<key>one</key>
-			<string>%1$d agent</string>
+			<string>%1$d agentas</string>
+			<key>few</key>
+			<string>%1$d agentai</string>
+			<key>many</key>
+			<string>%1$d agento</string>
 			<key>other</key>
-			<string>%1$d agents</string>
+			<string>%1$d agentų</string>
 		</dict>
-		<key>NSStringLocalizedFormatKey</key>
-		<string>%#@COUNT@</string>
 	</dict>
 	<key>screen_native_call_status_people_count</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@COUNT@</string>
+		<key>COUNT</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%1$d žmogus</string>
+			<key>few</key>
+			<string>%1$d žmonės</string>
+			<key>many</key>
+			<string>%1$d žmogaus</string>
+			<key>other</key>
+			<string>%1$d žmonių</string>
+		</dict>
+	</dict>
+	<key>screen_feed_new_posts</key>
 	<dict>
 		<key>COUNT</key>
 		<dict>
@@ -112,12 +71,451 @@
 			<key>NSStringFormatValueTypeKey</key>
 			<string>d</string>
 			<key>one</key>
-			<string>%1$d person</string>
+			<string>%1$d naujas įrašas</string>
+			<key>few</key>
+			<string>%1$d nauji įrašai</string>
+			<key>many</key>
+			<string>%1$d naujo įrašo</string>
 			<key>other</key>
-			<string>%1$d people</string>
+			<string>%1$d naujų įrašų</string>
 		</dict>
 		<key>NSStringLocalizedFormatKey</key>
 		<string>%#@COUNT@</string>
+	</dict>
+	<key>a11y_feed_images</key>
+	<dict>
+		<key>COUNT</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%1$d vaizdas</string>
+			<key>few</key>
+			<string>%1$d vaizdai</string>
+			<key>many</key>
+			<string>%1$d vaizdo</string>
+			<key>other</key>
+			<string>%1$d vaizdų</string>
+		</dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@COUNT@</string>
+	</dict>
+	<key>screen_feed_composer_characters_left</key>
+	<dict>
+		<key>COUNT</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>Liko %1$d simbolis</string>
+			<key>few</key>
+			<string>Liko %1$d simboliai</string>
+			<key>many</key>
+			<string>Liko %1$d simbolio</string>
+			<key>other</key>
+			<string>Liko %1$d simbolių</string>
+		</dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@COUNT@</string>
+	</dict>
+	<key>screen_feed_composer_characters_over</key>
+	<dict>
+		<key>COUNT</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>Limitas viršytas: %1$d simbolis</string>
+			<key>few</key>
+			<string>Limitas viršytas: %1$d simboliai</string>
+			<key>many</key>
+			<string>Limitas viršytas: %1$d simbolio</string>
+			<key>other</key>
+			<string>Limitas viršytas: %1$d simbolių</string>
+		</dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@COUNT@</string>
+	</dict>
+	<key>screen_feed_composer_error_rate_limited_minutes</key>
+	<dict>
+		<key>COUNT</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>Bandykite dar kartą po %1$d minutės.</string>
+			<key>few</key>
+			<string>Bandykite dar kartą po %1$d minučių.</string>
+			<key>many</key>
+			<string>Bandykite dar kartą po %1$d minutės.</string>
+			<key>other</key>
+			<string>Bandykite dar kartą po %1$d minučių.</string>
+		</dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@COUNT@</string>
+	</dict>
+	<key>screen_feed_composer_daily_cap_notice</key>
+	<dict>
+		<key>COUNT</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>Šiandienos limitas išnaudotas: %1$d įrašas. Vėl skelbti galėsite po vidurnakčio UTC.</string>
+			<key>few</key>
+			<string>Šiandienos limitas išnaudotas: %1$d įrašai. Vėl skelbti galėsite po vidurnakčio UTC.</string>
+			<key>many</key>
+			<string>Šiandienos limitas išnaudotas: %1$d įrašo. Vėl skelbti galėsite po vidurnakčio UTC.</string>
+			<key>other</key>
+			<string>Šiandienos limitas išnaudotas: %1$d įrašų. Vėl skelbti galėsite po vidurnakčio UTC.</string>
+		</dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@COUNT@</string>
+	</dict>
+	<key>a11y_feed_likes</key>
+	<dict>
+		<key>COUNT</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%1$d patiktukas</string>
+			<key>few</key>
+			<string>%1$d patiktukai</string>
+			<key>many</key>
+			<string>%1$d patiktuko</string>
+			<key>other</key>
+			<string>%1$d patiktukų</string>
+		</dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@COUNT@</string>
+	</dict>
+	<key>a11y_feed_comments</key>
+	<dict>
+		<key>COUNT</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%1$d komentaras</string>
+			<key>few</key>
+			<string>%1$d komentarai</string>
+			<key>many</key>
+			<string>%1$d komentaro</string>
+			<key>other</key>
+			<string>%1$d komentarų</string>
+		</dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@COUNT@</string>
+	</dict>
+	<key>a11y_feed_shares</key>
+	<dict>
+		<key>COUNT</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%1$d pasidalinimas</string>
+			<key>few</key>
+			<string>%1$d pasidalinimai</string>
+			<key>many</key>
+			<string>%1$d pasidalinimo</string>
+			<key>other</key>
+			<string>%1$d pasidalinimų</string>
+		</dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@COUNT@</string>
+	</dict>
+	<key>screen_feed_shared_partly</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@SENT@, %#@FAILED@</string>
+		<key>SENT</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>Išsiųsta į %1$d pokalbį</string>
+			<key>few</key>
+			<string>Išsiųsta į %1$d pokalbius</string>
+			<key>many</key>
+			<string>Išsiųsta į %1$d pokalbio</string>
+			<key>other</key>
+			<string>Išsiųsta į %1$d pokalbių</string>
+		</dict>
+		<key>FAILED</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>į %2$d išsiųsti nepavyko</string>
+			<key>few</key>
+			<string>į %2$d išsiųsti nepavyko</string>
+			<key>many</key>
+			<string>į %2$d išsiųsti nepavyko</string>
+			<key>other</key>
+			<string>į %2$d išsiųsti nepavyko</string>
+		</dict>
+	</dict>
+	<key>screen_feed_shared</key>
+	<dict>
+		<key>COUNT</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>Išsiųsta į %1$d pokalbį</string>
+			<key>few</key>
+			<string>Išsiųsta į %1$d pokalbius</string>
+			<key>many</key>
+			<string>Išsiųsta į %1$d pokalbio</string>
+			<key>other</key>
+			<string>Išsiųsta į %1$d pokalbių</string>
+		</dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@COUNT@</string>
+	</dict>
+	<key>screen_feed_comment_daily_cap_notice</key>
+	<dict>
+		<key>COUNT</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>Šiandienos limitas – %1$d komentaras. Vėl komentuoti galėsite po vidurnakčio UTC.</string>
+			<key>few</key>
+			<string>Šiandienos limitas – %1$d komentarai. Vėl komentuoti galėsite po vidurnakčio UTC.</string>
+			<key>many</key>
+			<string>Šiandienos limitas – %1$d komentaro. Vėl komentuoti galėsite po vidurnakčio UTC.</string>
+			<key>other</key>
+			<string>Šiandienos limitas – %1$d komentarų. Vėl komentuoti galėsite po vidurnakčio UTC.</string>
+		</dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@COUNT@</string>
+	</dict>
+	<key>screen_feed_comment_error_rate_limited_minutes</key>
+	<dict>
+		<key>COUNT</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>Bandykite dar kartą po %1$d minutės.</string>
+			<key>few</key>
+			<string>Bandykite dar kartą po %1$d minučių.</string>
+			<key>many</key>
+			<string>Bandykite dar kartą po %1$d minutės.</string>
+			<key>other</key>
+			<string>Bandykite dar kartą po %1$d minučių.</string>
+		</dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@COUNT@</string>
+	</dict>
+	<key>a11y_feed_notices_unread</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@COUNT@</string>
+		<key>COUNT</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%1$d neperskaitytas</string>
+			<key>few</key>
+			<string>%1$d neperskaityti</string>
+			<key>many</key>
+			<string>%1$d neperskaityto</string>
+			<key>other</key>
+			<string>%1$d neperskaitytų</string>
+		</dict>
+	</dict>
+	<key>screen_feed_report_rate_limited_message_hours</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@COUNT@</string>
+		<key>COUNT</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>Šiandien išsiuntėte 10 skundų. Daugiau galėsite siųsti maždaug po %1$d valandos.</string>
+			<key>few</key>
+			<string>Šiandien išsiuntėte 10 skundų. Daugiau galėsite siųsti maždaug po %1$d valandų.</string>
+			<key>many</key>
+			<string>Šiandien išsiuntėte 10 skundų. Daugiau galėsite siųsti maždaug po %1$d valandos.</string>
+			<key>other</key>
+			<string>Šiandien išsiuntėte 10 skundų. Daugiau galėsite siųsti maždaug po %1$d valandų.</string>
+		</dict>
+	</dict>
+	<key>screen_feed_activity_others</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@COUNT@</string>
+		<key>COUNT</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>dar %1$d</string>
+			<key>few</key>
+			<string>dar %1$d</string>
+			<key>many</key>
+			<string>dar %1$d</string>
+			<key>other</key>
+			<string>dar %1$d</string>
+		</dict>
+	</dict>
+	<key>a11y_feed_activity_unread</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@COUNT@</string>
+		<key>COUNT</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>Veikla, %1$d neperskaitytas</string>
+			<key>few</key>
+			<string>Veikla, %1$d neperskaityti</string>
+			<key>many</key>
+			<string>Veikla, %1$d neperskaityto</string>
+			<key>other</key>
+			<string>Veikla, %1$d neperskaitytų</string>
+		</dict>
+	</dict>
+	<key>a11y_album_items</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@COUNT@</string>
+		<key>COUNT</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>Albumas, %1$d elementas</string>
+			<key>few</key>
+			<string>Albumas, %1$d elementai</string>
+			<key>many</key>
+			<string>Albumas, %1$d elemento</string>
+			<key>other</key>
+			<string>Albumas, %1$d elementų</string>
+		</dict>
+	</dict>
+	<key>a11y_tab_badge_count</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@COUNT@</string>
+		<key>COUNT</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%1$d laukia</string>
+			<key>few</key>
+			<string>%1$d laukia</string>
+			<key>many</key>
+			<string>%1$d laukia</string>
+			<key>other</key>
+			<string>%1$d laukia</string>
+		</dict>
+	</dict>
+	<key>screen_agents_chat_count</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@COUNT@</string>
+		<key>COUNT</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%1$d pokalbis</string>
+			<key>few</key>
+			<string>%1$d pokalbiai</string>
+			<key>many</key>
+			<string>%1$d pokalbio</string>
+			<key>other</key>
+			<string>%1$d pokalbių</string>
+		</dict>
+	</dict>
+	<key>screen_agents_tool_count</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@COUNT@</string>
+		<key>COUNT</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%1$d įrankis</string>
+			<key>few</key>
+			<string>%1$d įrankiai</string>
+			<key>many</key>
+			<string>%1$d įrankio</string>
+			<key>other</key>
+			<string>%1$d įrankių</string>
+		</dict>
+	</dict>
+	<key>screen_room_timeline_tool_changes</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@COUNT@</string>
+		<key>COUNT</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>Įrankiai pakeisti %1$d kartą</string>
+			<key>few</key>
+			<string>Įrankiai pakeisti %1$d kartus</string>
+			<key>many</key>
+			<string>Įrankiai pakeisti %1$d karto</string>
+			<key>other</key>
+			<string>Įrankiai pakeisti %1$d kartų</string>
+		</dict>
 	</dict>
 </dict>
 </plist>

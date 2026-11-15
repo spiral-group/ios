@@ -8,6 +8,7 @@
 
 import Combine
 import Compound
+import SpiralComponents // AGENT-PLATFORM (Brief 0083)
 import SwiftUI
 
 struct EncryptionResetPasswordScreen: View {
@@ -15,25 +16,19 @@ struct EncryptionResetPasswordScreen: View {
     @FocusState private var textFieldFocus
     
     var body: some View {
-        FullscreenDialog {
-            VStack(spacing: 16) {
-                BigIcon(icon: \.lockSolid)
-                
-                Text(L10n.screenResetEncryptionPasswordTitle)
-                    .foregroundColor(.compound.textPrimary)
-                    .font(.compound.headingMDBold)
-                    .multilineTextAlignment(.center)
-                
-                Text(L10n.screenResetEncryptionPasswordSubtitle)
-                    .foregroundColor(.compound.textSecondary)
-                    .font(.compound.bodyMD)
-                    .multilineTextAlignment(.center)
+        // AGENT-PLATFORM (Brief 0083, decisions 313 and 314): the identity path's leading header and margins, Compound's
+        // field and Spiral's copy.
+        FullscreenDialog(horizontalPadding: CompoundDesignTokens.space6X, bottomHorizontalPadding: CompoundDesignTokens.space6X) {
+            VStack(alignment: .leading, spacing: CompoundDesignTokens.space8X) {
+                SpiralDialogHeader(icon: \.lockSolid,
+                                   tone: .critical,
+                                   title: UntranslatedL10n.screenResetEncryptionPasswordTitleSpiral,
+                                   message: UntranslatedL10n.screenResetEncryptionPasswordSubtitleSpiral)
                 
                 passwordSection
             }
-            .padding(16)
         } bottomContent: {
-            Button(L10n.actionResetIdentity, role: .destructive) {
+            Button(UntranslatedL10n.screenResetEncryptionPasswordSubmitSpiral, role: .destructive) {
                 context.send(viewAction: .submit)
             }
             .buttonStyle(.compound(.primary))
@@ -45,31 +40,22 @@ struct EncryptionResetPasswordScreen: View {
         .onAppear { textFieldFocus = true }
     }
     
+    // AGENT-PLATFORM (Brief 0083, decision 313): Compound's field, as on sign-in, in place of a hand-drawn one.
     private var passwordSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(L10n.commonPassword)
-                .foregroundColor(.compound.textPrimary)
-                .font(.compound.bodySMSemibold)
-            
-            SecureField(L10n.screenResetEncryptionPasswordPlaceholder, text: $context.password)
-                .tint(.compound.iconAccentTertiary)
-                .frame(maxWidth: .infinity)
-                .padding()
-                .background(Color.compound.bgSubtleSecondaryLevel0)
-                .clipShape(RoundedRectangle(cornerRadius: 8))
-                .focused($textFieldFocus)
-                .submitLabel(.done)
-                .onSubmit {
-                    context.send(viewAction: .submit)
-                }
-                .accessibilityIdentifier(A11yIdentifiers.encryptionResetPasswordScreen.passwordField)
-        }
+        SecureField(UntranslatedL10n.screenResetEncryptionPasswordPlaceholderSpiral, text: $context.password)
+            .focused($textFieldFocus)
+            .textFieldStyle(.compound(labelText: L10n.commonPassword,
+                                      accessibilityIdentifier: A11yIdentifiers.encryptionResetPasswordScreen.passwordField))
+            .submitLabel(.done)
+            .onSubmit {
+                context.send(viewAction: .submit)
+            }
     }
 }
 
 // MARK: - Previews
 
-struct EncryptionResetPasswordScreen_Previews: PreviewProvider, TestablePreview {
+struct EncryptionResetPasswordScreen_Previews: PreviewProvider, TestablePreview, SpiralGatedPreview { // AGENT-PLATFORM (Brief 0083)
     static let passwordPublisher = PassthroughSubject<String, Never>()
     static let viewModel = EncryptionResetPasswordScreenViewModel(passwordPublisher: passwordPublisher)
     static var previews: some View {

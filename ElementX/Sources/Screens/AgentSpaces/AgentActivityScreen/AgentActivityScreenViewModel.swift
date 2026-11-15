@@ -15,60 +15,53 @@ import SwiftUI
 typealias AgentActivityScreenViewModelType = StateStoreViewModelV2<AgentActivityScreenViewState, AgentActivityScreenViewAction>
 
 /// Drives `AgentActivityScreen`. Owner-visible audit timeline of
-/// the agent's `agent_action_log` rows, fetched via
-/// `GET /api/v1/agents/:id/activity` (Phase R3.5 E1, Brief 0002).
+/// the agent's `agent_action_log` rows (`GET /api/v1/agents/:id/activity`,
+/// Phase R3.5 E1, Brief 0002).
 ///
-/// ### Cursor pagination
-///
-/// First slice on iOS to do real cursor pagination — sibling
-/// `VerificationsListScreen` is single-page, `ApprovalsListScreen`
-/// uses SSE. The pattern that landed here:
-///
-/// 1. `.appeared` / `.retry` / `.selectFilter` → first-page fetch
-///    (clears any accumulated items first).
-/// 2. The View renders a sentinel row at the bottom whenever
-///    `.loaded`'s `LoadMoreState` is `.idle` or `.failed`. Its
-///    `.onAppear` posts `.loadMore` which fetches the next page
-///    and **appends** the items (preserving scroll position).
-/// 3. `nextCursor == nil` on a response transitions `LoadMoreState`
-///    to `.exhausted`, hiding the sentinel.
-///
-/// ### Race protection
-///
-/// Filter changes mid-fetch are common in real usage. The
-/// `loadGeneration` counter tracks the most recent intent: any
-/// completed fetch whose generation doesn't match the current
-/// one is discarded (silently — the in-flight fetch was already
-/// outdated when filter changed).
+/// AGENT-PLATFORM: platform sync (decision 289). The rows are the session
+/// store's, one list per filter; `agent.activity` reads the shown one again,
+/// as many rows as it holds, so a list scrolled down stays. The bottom
+/// sentinel's `.loadMore` appends the next page to the store's list.
 class AgentActivityScreenViewModel: AgentActivityScreenViewModelType, AgentActivityScreenViewModelProtocol {
     private let agentID: String
-    private let agentPlatformService: any AgentPlatformServiceProtocol
+    private let store: AgentsStore
     private let clientProxy: any ClientProxyProtocol
 
-    /// Default page size. Matches backend's default + the
-    /// approvals/voice-sessions list endpoints' `25` for
-    /// consistency.
+    /// Default page size, the backend's default.
     static let defaultPageSize = 25
 
-    /// Monotonic counter incremented on every operation that
-    /// invalidates in-flight fetches (filter change, retry).
-    /// Completed fetches compare their captured generation
-    /// against the current one and bail if stale.
-    private var loadGeneration: UInt64 = 0
+    /// The next page on its way, or the last one that could not be read; `nil` follows the list's cursor.
+    private var loadMore: LoadMoreState?
 
     private let actionsSubject: PassthroughSubject<AgentActivityScreenViewModelAction, Never> = .init()
     var actionsPublisher: AnyPublisher<AgentActivityScreenViewModelAction, Never> {
         actionsSubject.eraseToAnyPublisher()
     }
 
+    private var resource: AgentsResource {
+        .activity(agentID: agentID, filter: state.filter)
+    }
+
     init(agentID: String,
          initialFilter: ActionOutcomeFilter = .all,
-         agentPlatformService: any AgentPlatformServiceProtocol,
+         store: AgentsStore,
          clientProxy: any ClientProxyProtocol) {
         self.agentID = agentID
-        self.agentPlatformService = agentPlatformService
+        self.store = store
         self.clientProxy = clientProxy
-        super.init(initialViewState: AgentActivityScreenViewState(filter: initialFilter, bindings: AgentActivityScreenViewStateBindings()))
+        super.init(initialViewState: AgentActivityScreenViewState(filter: initialFilter))
+
+        render()
+        store.observe { [weak self] in
+            guard let self else { return false }
+            render()
+            return true
+        }
+        store.show(resource, by: self)
+    }
+
+    isolated deinit {
+        store.stopShowing(resource, by: self)
     }
 
     // MARK: - Public
@@ -77,36 +70,24 @@ class AgentActivityScreenViewModel: AgentActivityScreenViewModelType, AgentActiv
         MXLog.info("AgentActivityScreenViewModel received view action: \(viewAction)")
 
         switch viewAction {
-        case .appeared:
-            // Skip refetch only if a prior load already
-            // succeeded with at least one item; on `.failed` /
-            // fresh `.loading` we always refetch. (We never
-            // re-arm on empty `.loaded` either — that's the
-            // "no activity yet" terminal which doesn't change
-            // until the agent produces traffic; user can
-            // pull-to-refresh.)
-            if case .loaded(let items, _) = state.listState, !items.isEmpty {
-                return
-            }
-            Task { await loadFirstPage() }
         case .retry:
-            Task { await loadFirstPage() }
+            Task { await store.reread(resource) }
         case .loadMore:
-            // Sentinel `.onAppear` can fire twice in quick
-            // succession when SwiftUI's diffing rebuilds the
-            // bottom row. Guard against double-fetch by
-            // requiring an `.idle` or `.failed` sentinel.
-            guard case .loaded(let items, let loadMore) = state.listState else { return }
-            switch loadMore {
-            case .idle(let cursor), .failed(let cursor):
-                Task { await loadNextPage(currentItems: items, cursor: cursor) }
+            // The sentinel's `.onAppear` can fire twice when SwiftUI rebuilds the bottom row.
+            guard case .loaded(_, let sentinel) = state.listState else { return }
+            switch sentinel {
+            case .idle, .failed:
+                Task { await loadNextPage() }
             case .loading, .exhausted:
                 return
             }
         case .selectFilter(let filter):
             guard filter != state.filter else { return }
+            store.stopShowing(resource, by: self)
             state.filter = filter
-            Task { await loadFirstPage() }
+            loadMore = nil
+            store.show(resource, by: self)
+            render()
         case .selectItem(let id):
             guard let item = state.items.first(where: { $0.id == id }) else { return }
             if let approvalID = item.approvalID {
@@ -119,81 +100,38 @@ class AgentActivityScreenViewModel: AgentActivityScreenViewModelType, AgentActiv
 
     // MARK: - Private
 
-    /// Fetch the first page. Always clears accumulated items
-    /// before the request fires so the loading skeleton renders
-    /// even when the user already had data on screen (pull-to-
-    /// refresh, filter change).
-    private func loadFirstPage() async {
-        loadGeneration += 1
-        let generation = loadGeneration
-        state.listState = .loading
-
-        let result = await agentPlatformService.listAgentActivity(agentID: agentID,
-                                                                  filter: state.filter,
-                                                                  cursor: nil,
-                                                                  limit: Self.defaultPageSize)
-
-        // Stale-fetch guard: if filter changed (or retry fired)
-        // while this request was in flight, drop the response on
-        // the floor — a fresh fetch is already running.
-        guard generation == loadGeneration else {
-            MXLog.info("AgentActivityScreenViewModel: dropping stale first-page response (gen=\(generation), current=\(loadGeneration))")
-            return
+    private func render() {
+        let listState: AgentActivityListState = switch store.readState(resource, \.activity) {
+        case .loading: .loading
+        case .failed: .failed
+        case .loaded(let page): .loaded(page.items.map { Self.mapItem($0, clientProxy: clientProxy) },
+                                        loadMore: loadMore ?? Self.makeLoadMoreState(from: page.nextCursor))
         }
-
-        switch result {
-        case .success(let page):
-            let mapped = page.items.map { Self.mapItem($0, clientProxy: clientProxy) }
-            state.listState = .loaded(mapped, loadMore: Self.makeLoadMoreState(from: page.nextCursor))
-            MXLog.info("Loaded \(mapped.count) activity entries for agent \(agentID); next_cursor=\(page.nextCursor != nil ? "present" : "exhausted")")
-        case .failure(let error):
-            MXLog.error("Failed to load agent activity: \(error)")
-            state.listState = .failed
-            state.bindings.alertInfo = AlertInfo(id: .loadFailed,
-                                                 title: L10n.commonError,
-                                                 message: L10n.errorUnknown,
-                                                 primaryButton: .init(title: L10n.actionRetry) { [weak self] in
-                                                     Task { await self?.loadFirstPage() }
-                                                 },
-                                                 secondaryButton: .init(title: L10n.actionCancel, role: .cancel, action: nil))
+        if state.listState != listState {
+            state.listState = listState
+        }
+        if state.syncStatus != store.syncStatus {
+            state.syncStatus = store.syncStatus
         }
     }
 
-    /// Append a continuation page to the accumulated items. Does
-    /// NOT clear anything on failure — the previous items stay on
-    /// screen and the sentinel flips to `.failed(cursor:)` so the
-    /// user can retry without losing place.
-    private func loadNextPage(currentItems: [AgentActivityListItem], cursor: String) async {
-        // Mark sentinel as loading BEFORE awaiting so the user
-        // sees the spinner immediately.
-        state.listState = .loaded(currentItems, loadMore: .loading)
-        let generation = loadGeneration
-
-        let result = await agentPlatformService.listAgentActivity(agentID: agentID,
-                                                                  filter: state.filter,
-                                                                  cursor: cursor,
-                                                                  limit: Self.defaultPageSize)
-
-        // Race-guard: a filter change mid-paginate invalidates
-        // this fetch. The first-page fetch that filter change
-        // queued is already in flight; let it take over.
-        guard generation == loadGeneration else {
-            MXLog.info("AgentActivityScreenViewModel: dropping stale next-page response (gen=\(generation), current=\(loadGeneration))")
-            return
+    /// The previous rows stay on screen; a failure keeps the sentinel's cursor for its retry.
+    private func loadNextPage() async {
+        guard case .loaded(_, let sentinel) = state.listState else { return }
+        let filter = state.filter
+        loadMore = .loading
+        render()
+        let isRead = await store.loadMore(.activity(agentID: agentID, filter: filter))
+        // A filter change meanwhile started its own list.
+        guard filter == state.filter else { return }
+        if isRead {
+            loadMore = nil
+        } else if case .idle(let cursor) = sentinel {
+            loadMore = .failed(cursor: cursor)
+        } else {
+            loadMore = sentinel
         }
-
-        switch result {
-        case .success(let page):
-            let mapped = page.items.map { Self.mapItem($0, clientProxy: clientProxy) }
-            let combined = currentItems + mapped
-            state.listState = .loaded(combined, loadMore: Self.makeLoadMoreState(from: page.nextCursor))
-            MXLog.info("Appended \(mapped.count) activity entries for agent \(agentID); total=\(combined.count)")
-        case .failure(let error):
-            MXLog.error("Failed to load activity continuation page: \(error)")
-            // Preserve the cursor on failure so the sentinel's
-            // retry tap can reuse it.
-            state.listState = .loaded(currentItems, loadMore: .failed(cursor: cursor))
-        }
+        render()
     }
 
     /// Wire the per-row preview shape. Defined as a static so

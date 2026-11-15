@@ -29,6 +29,25 @@ targets:
     - target: ElementX
     - package: KZFileWatchers
 
+    # AGENT-PLATFORM (Brief 0083 L1c): this target doesn't import the app, so it
+    # can compile before the app target's Sourcery phases have run. Spiral's list
+    # of gated previews is generated here instead, and named as the phase's
+    # output so that the compile waits for it and sees the new list.
+    preBuildScripts:
+    - name: 🧙 Sourcery - Spiral's gated previews
+      runOnlyWhenInstalling: false
+      basedOnDependencyAnalysis: false
+      shell: /bin/sh
+      outputFiles:
+      - $(SRCROOT)/AccessibilityTests/Sources/GeneratedSpiralGatedAccessibilityTests.swift
+      script: |
+        export PATH="$PATH:/opt/homebrew/bin"
+        if which sourcery >/dev/null; then
+            sourcery --config Tools/Sourcery/SpiralGatedAccessibilityTests.yml
+        else
+            echo "warning: Sourcery not installed, run swift run tools setup-project"
+        fi
+
     info:
       path: ../SupportingFiles/Info.plist
 
@@ -36,7 +55,7 @@ targets:
       base:
         PRODUCT_NAME: AccessibilityTests
         PRODUCT_BUNDLE_IDENTIFIER: ${BASE_BUNDLE_IDENTIFIER}.accessibility.tests
-        SWIFT_VERSION: 6.2
+        SWIFT_VERSION: 6
         SWIFT_APPROACHABLE_CONCURRENCY: YES
       configs:
       # This is required to remove the $(inherited) flags

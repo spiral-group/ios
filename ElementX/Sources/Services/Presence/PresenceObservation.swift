@@ -13,27 +13,39 @@ import Foundation
 final class PresenceObservation {
     let userID: String
     private let service: PresenceObserverServiceProtocol
+    /// Set for an agent: its owner's store knows whether it's paused, which presence doesn't say.
+    private let agentsStore: AgentsStore?
+    private let onChange: (UserPresence?) -> Void
     private var cancellable: AnyCancellable?
     private var isObserving = true
+    private var presence: UserPresence?
+    private var isAgentPaused = false
     
     /// `nil` when there is nothing to observe: no service, no user, the user
     /// themselves, or someone without meaningful presence.
     init?(userID: String?,
           ownUserID: String,
           service: PresenceObserverServiceProtocol?,
+          agentsStore: AgentsStore? = nil,
           onChange: @escaping (UserPresence?) -> Void) {
         guard let userID, userID != ownUserID, SpiralPresencePolicy.hasPresence(userID), let service else {
             return nil
         }
         self.userID = userID
         self.service = service
+        self.agentsStore = SpiralAppPostSession.isAgent(userID) ? agentsStore : nil
+        self.onChange = onChange
         
         service.observe(userID)
         cancellable = service.presencePublisher
             .map { $0[userID] }
             .removeDuplicates()
             .receive(on: DispatchQueue.main)
-            .sink(receiveValue: onChange)
+            .sink { [weak self] presence in
+                self?.presence = presence
+                self?.deliver()
+            }
+        followAgentPause()
     }
     
     isolated deinit {
@@ -45,6 +57,32 @@ final class PresenceObservation {
         isObserving = false
         cancellable = nil
         service.stopObserving(userID)
+        agentsStore?.stopShowing(.spaces, by: self)
+    }
+    
+    private func followAgentPause() {
+        guard let agentsStore else { return }
+        agentsStore.show(.spaces, by: self)
+        updateAgentPause()
+        agentsStore.observe { [weak self] in
+            guard let self, isObserving else { return false }
+            updateAgentPause()
+            return true
+        }
+    }
+    
+    /// Not paused unless the store says so: someone else's agent has no card, and nor does a read that failed.
+    private func updateAgentPause() {
+        let isPaused = agentsStore?.card(matrixUserID: userID)?.isPaused ?? false
+        guard isPaused != isAgentPaused else { return }
+        isAgentPaused = isPaused
+        deliver()
+    }
+    
+    private func deliver() {
+        var presence = presence
+        presence?.isAgentPaused = isAgentPaused
+        onChange(presence)
     }
 }
 

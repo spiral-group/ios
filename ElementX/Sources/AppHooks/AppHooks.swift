@@ -7,105 +7,37 @@
 //
 
 import Foundation
+import Macros
 import Synchronization
 
 final nonisolated class AppHooks: AppHooksProtocol {
     #if IS_MAIN_APP
-    func configure(with userSession: UserSessionProtocol?) async {
-        await roomScreenHook.configure(with: userSession)
-    }
+    @AppHook(default: DefaultAppSettingsHook())
+    var appSettingsHook: AppSettingsHookProtocol
     
-    private let _appSettingsHook: Mutex<AppSettingsHookProtocol> = Mutex(DefaultAppSettingsHook())
-    var appSettingsHook: AppSettingsHookProtocol {
-        _appSettingsHook.withLock { $0 }
-    }
+    @AppHook(default: DefaultCompoundHook())
+    var compoundHook: CompoundHookProtocol
     
-    func registerAppSettingsHook(_ hook: AppSettingsHookProtocol) {
-        _appSettingsHook.withLock { $0 = hook }
-    }
+    @AppHook(default: DefaultBugReportHook())
+    var bugReportHook: BugReportHookProtocol
     
-    private let _compoundHook: Mutex<CompoundHookProtocol> = Mutex(DefaultCompoundHook())
-    var compoundHook: CompoundHookProtocol {
-        _compoundHook.withLock { $0 }
-    }
+    @AppHook(default: DefaultOAuthAuthenticationPresenterHook())
+    var oAuthAuthenticationPresenterHook: OAuthAuthenticationPresenterHookProtocol
     
-    func registerCompoundHook(_ hook: CompoundHookProtocol) {
-        _compoundHook.withLock { $0 = hook }
-    }
-    
-    private let _bugReportHook: Mutex<BugReportHookProtocol> = Mutex(DefaultBugReportHook())
-    var bugReportHook: BugReportHookProtocol {
-        _bugReportHook.withLock { $0 }
-    }
-    
-    func registerBugReportHook(_ hook: BugReportHookProtocol) {
-        _bugReportHook.withLock { $0 = hook }
-    }
-    
-    private let _oAuthPresenterHook: Mutex<OAuthPresenterHookProtocol> = Mutex(DefaultOAuthPresenterHook())
-    var oAuthPresenterHook: OAuthPresenterHookProtocol {
-        _oAuthPresenterHook.withLock { $0 }
-    }
-    
-    func registerOAuthPresenterHook(_ hook: OAuthPresenterHookProtocol) {
-        _oAuthPresenterHook.withLock { $0 = hook }
-    }
-    
-    private let _roomScreenHook: Mutex<RoomScreenHookProtocol> = Mutex(DefaultRoomScreenHook())
-    var roomScreenHook: RoomScreenHookProtocol {
-        _roomScreenHook.withLock { $0 }
-    }
-    
-    func registerRoomScreenHook(_ hook: RoomScreenHookProtocol) {
-        _roomScreenHook.withLock { $0 = hook }
-    }
-    
-    private let _developerOptionsScreenHook: Mutex<DeveloperOptionsScreenHookProtocol> = Mutex(DefaultDeveloperOptionsScreenHook())
-    var developerOptionsScreenHook: DeveloperOptionsScreenHookProtocol {
-        _developerOptionsScreenHook.withLock { $0 }
-    }
-    
-    func registerDeveloperOptionsScreenHook(_ hook: DeveloperOptionsScreenHookProtocol) {
-        _developerOptionsScreenHook.withLock { $0 = hook }
-    }
-    
-    private let _recoveryKeyScreenHook: Mutex<RecoveryKeyScreenHookProtocol> = Mutex(DefaultRecoveryKeyScreenHook())
-    var recoveryKeyScreenHook: RecoveryKeyScreenHookProtocol {
-        _recoveryKeyScreenHook.withLock { $0 }
-    }
-    
-    func registerRecoveryKeyScreenHook(_ hook: RecoveryKeyScreenHookProtocol) {
-        _recoveryKeyScreenHook.withLock { $0 = hook }
-    }
+    @AppHook(default: DefaultDeveloperOptionsScreenHook())
+    var developerOptionsScreenHook: DeveloperOptionsScreenHookProtocol
     #endif
     
-    private let _tracingHook: Mutex<TracingHookProtocol> = Mutex(DefaultTracingHook())
-    var tracingHook: TracingHookProtocol {
-        _tracingHook.withLock { $0 }
-    }
+    @AppHook(default: DefaultTracingHook())
+    var tracingHook: TracingHookProtocol
     
-    func registerTracingHook(_ hook: TracingHookProtocol) {
-        _tracingHook.withLock { $0 = hook }
-    }
+    @AppHook(default: DefaultClientFactoryHook())
+    var clientFactoryHook: ClientFactoryHookProtocol
     
-    private let _clientBuilderHook: Mutex<ClientBuilderHookProtocol> = Mutex(DefaultClientBuilderHook())
-    var clientBuilderHook: ClientBuilderHookProtocol {
-        _clientBuilderHook.withLock { $0 }
-    }
+    // AGENT-PLATFORM (Brief 0083 L1b): no remoteSettingsHook; it only checked Element Pro's element.json.
     
-    // periphery:ignore - might be useful to have
-    func registerClientBuilderHook(_ hook: ClientBuilderHookProtocol) {
-        _clientBuilderHook.withLock { $0 = hook }
-    }
-    
-    private let _remoteSettingsHook: Mutex<RemoteSettingsHookProtocol> = Mutex(DefaultRemoteSettingsHook())
-    var remoteSettingsHook: RemoteSettingsHookProtocol {
-        _remoteSettingsHook.withLock { $0 }
-    }
-    
-    func registerRemoteSettingsHook(_ hook: RemoteSettingsHookProtocol) {
-        _remoteSettingsHook.withLock { $0 = hook }
-    }
+    @AppHook(default: DefaultUserSessionHook())
+    var userSessionHook: UserSessionHookProtocol
 }
 
 nonisolated protocol AppHooksProtocol: Sendable {

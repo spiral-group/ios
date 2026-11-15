@@ -50,6 +50,9 @@ struct EstimatedWaveformView: View {
     var linePadding: CGFloat = 2
     var waveform: EstimatedWaveform
     var progress: CGFloat = 0.0
+    // AGENT-PLATFORM (Brief 0083): an own voice message draws on the blue bubble in white.
+    var trackColor: Color = .compound.iconSecondary
+    var backgroundTrackColor: Color = .compound.iconQuaternary
     
     @State private var normalizedWaveformData: [Float] = []
     
@@ -59,7 +62,7 @@ struct EstimatedWaveformView: View {
                           linePadding: linePadding,
                           waveformData: normalizedWaveformData)
                 .stroke(Color.compound.iconSecondary, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
-                .progressMask(progress: progress)
+                .progressMask(progress: progress, trackColor: trackColor, backgroundTrackColor: backgroundTrackColor) // AGENT-PLATFORM (Brief 0083)
                 .preference(key: ViewSizeKey.self, value: geometry.size)
         }
         .onPreferenceChange(ViewSizeKey.self) { size in

@@ -14,6 +14,7 @@ typealias UserDetailsEditScreenViewModelType = StateStoreViewModelV2<UserDetails
 class UserDetailsEditScreenViewModel: UserDetailsEditScreenViewModelType, UserDetailsEditScreenViewModelProtocol {
     private let actionsSubject: PassthroughSubject<UserDetailsEditScreenViewModelAction, Never> = .init()
     private let clientProxy: ClientProxyProtocol
+    private let appMediator: AppMediatorProtocol
     private let userIndicatorController: UserIndicatorControllerProtocol
     private let mediaUploadingPreprocessor: MediaUploadingPreprocessor
     
@@ -23,10 +24,12 @@ class UserDetailsEditScreenViewModel: UserDetailsEditScreenViewModelType, UserDe
     
     init(userSession: UserSessionProtocol,
          mediaUploadingPreprocessor: MediaUploadingPreprocessor,
+         appMediator: AppMediatorProtocol,
          userIndicatorController: UserIndicatorControllerProtocol) {
         clientProxy = userSession.clientProxy
         self.mediaUploadingPreprocessor = mediaUploadingPreprocessor
         self.userIndicatorController = userIndicatorController
+        self.appMediator = appMediator
         
         let profile = clientProxy.userProfilePublisher.value
         super.init(initialViewState: UserDetailsEditScreenViewState(currentUserProfile: profile,
@@ -50,6 +53,9 @@ class UserDetailsEditScreenViewModel: UserDetailsEditScreenViewModelType, UserDe
             state.canEditAvatar = await clientProxy.capabilities.canChangeAvatar()
             state.canEditDisplayName = await clientProxy.capabilities.canChangeDisplayName()
         }
+        
+        // AGENT-PLATFORM: feed (Brief 0082)
+        Task { await self.loadBio() }
     }
     
     // MARK: - Public
@@ -63,6 +69,11 @@ class UserDetailsEditScreenViewModel: UserDetailsEditScreenViewModelType, UserDe
         case .presentMediaSource:
             state.bindings.showMediaSheet = true
         case .displayCameraPicker:
+            guard appMediator.isCameraAvailable else {
+                MXLog.info("Camera unavailable, not presenting the picker.")
+                userIndicatorController.submitIndicator(UserIndicator(title: L10n.errorCameraUnavailable))
+                return
+            }
             actionsSubject.send(.displayCameraPicker)
         case .displayMediaPicker:
             actionsSubject.send(.displayMediaPicker)
@@ -71,6 +82,10 @@ class UserDetailsEditScreenViewModel: UserDetailsEditScreenViewModelType, UserDe
         case .removeImage:
             state.localMedia = nil
             state.selectedAvatarURL = nil
+        // AGENT-PLATFORM: feed (Brief 0082)
+        case .retryLoadingBio:
+            guard state.bio == .loadFailed else { return }
+            Task { await loadBio() }
         }
     }
     
@@ -133,10 +148,23 @@ class UserDetailsEditScreenViewModel: UserDetailsEditScreenViewModelType, UserDe
                     }
                 }
                 
+                // AGENT-PLATFORM: feed (Brief 0082)
+                if state.bioDidChange {
+                    let bio = state.normalisedBio
+                    group.addTask {
+                        try await self.saveBio(bio)
+                    }
+                }
+                
                 try await group.waitForAll()
             }
             
             actionsSubject.send(.dismiss)
+        } catch is UserDetailsEditBioSaveError {
+            // AGENT-PLATFORM: feed (Brief 0082): the typed bio stays in the field.
+            state.bindings.alertInfo = .init(id: .bioSaveError,
+                                             title: L10n.screenEditProfileErrorTitle,
+                                             message: UntranslatedL10n.screenEditProfileBioSaveFailed)
         } catch {
             state.bindings.alertInfo = .init(id: .saveError,
                                              title: L10n.screenEditProfileErrorTitle,
@@ -155,4 +183,43 @@ class UserDetailsEditScreenViewModel: UserDetailsEditScreenViewModelType, UserDe
     private func saveDisplayName() async throws {
         try await clientProxy.setUserDisplayName(state.bindings.name).get()
     }
+    
+    // MARK: Bio
+    
+    // AGENT-PLATFORM: feed (Brief 0082, decision 284). Offered only when the server allows the field. A failed
+    // check reads as not allowed: no field this time, and the next opening of the screen (a new model) checks again.
+    private func loadBio() async {
+        guard await clientProxy.canSetUserBio() else {
+            state.bio = .unavailable
+            return
+        }
+        
+        state.bio = .loading // A retry's.
+        switch await clientProxy.userBio() {
+        case .success(let bio):
+            state.bindings.bio = bio ?? ""
+            state.bio = .loaded(bio)
+        case .failure:
+            state.bio = .loadFailed
+        }
+    }
+    
+    /// `bio` is already normalised; an empty one removes the field.
+    private func saveBio(_ bio: String) async throws {
+        let result = if bio.isEmpty {
+            await clientProxy.removeUserBio()
+        } else {
+            await clientProxy.setUserBio(bio)
+        }
+        
+        guard case .success = result else {
+            throw UserDetailsEditBioSaveError()
+        }
+        
+        state.bindings.bio = bio
+        state.bio = .loaded(bio.isEmpty ? nil : bio)
+    }
 }
+
+// AGENT-PLATFORM: feed (Brief 0082)
+private struct UserDetailsEditBioSaveError: Error { }

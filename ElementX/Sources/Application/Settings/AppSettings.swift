@@ -14,22 +14,6 @@ import Foundation
 import Macros
 import SwiftUI
 
-/// Common settings between app and NSE
-nonisolated protocol CommonSettingsProtocol: AnyObject, Sendable {
-    var lastNotificationBootTime: TimeInterval? { get set }
-    var selectedNotificationTone: NotificationTone? { get set }
-    
-    var logLevel: LogLevel { get }
-    var traceLogPacks: Set<TraceLogPack> { get }
-    var bugReportRageshakeURL: RemotePreference<RageshakeConfiguration> { get }
-    var contentScannerURL: RemotePreference<URL?> { get }
-    var forceDisableE2EE: RemotePreference<Bool> { get }
-    
-    var enableOnlySignedDeviceIsolationMode: Bool { get }
-    var threadsEnabled: Bool { get }
-    var hideQuietNotificationAlerts: Bool { get }
-}
-
 nonisolated enum AppBuildType {
     case debug
     case nightly
@@ -69,15 +53,10 @@ final nonisolated class AppSettings: @unchecked Sendable {
         store.reset()
     }
     
-    func resetSessionSpecificSettings() {
-        MXLog.warning("Resetting the user session specific AppSettings.")
-        resetHasRunIdentityConfirmationOnboarding()
-    }
-    
     // MARK: - Hooks
     
     // swiftlint:disable:next function_parameter_count
-    func override(accountProviders: [String],
+    func override(accountProviders: [AccountProvider],
                   allowOtherAccountProviders: Bool,
                   hideBrandChrome: Bool,
                   pushGatewayBaseURL: URL,
@@ -92,11 +71,10 @@ final nonisolated class AppSettings: @unchecked Sendable {
                   deviceVerificationURL: URL,
                   chatBackupDetailsURL: URL,
                   identityPinningViolationDetailsURL: URL,
-                  historySharingDetailsURL: URL,
-                  accountProvisioningHost: String,
+                  historySharingDetailsURL: URL, // AGENT-PLATFORM (Brief 0083 L1b): no accountProvisioningHost
                   bugReportApplicationID: String,
                   analyticsTermsURL: URL?,
-                  mapTilerConfiguration: MapTilerSettings.Configuration) {
+                  mapTilerConfiguration: MapTilerConfiguration) {
         self.accountProviders = accountProviders
         self.allowOtherAccountProviders = allowOtherAccountProviders
         self.hideBrandChrome = hideBrandChrome
@@ -113,10 +91,9 @@ final nonisolated class AppSettings: @unchecked Sendable {
         self.chatBackupDetailsURL = chatBackupDetailsURL
         self.identityPinningViolationDetailsURL = identityPinningViolationDetailsURL
         self.historySharingDetailsURL = historySharingDetailsURL
-        self.accountProvisioningHost = accountProvisioningHost
         self.bugReportApplicationID = bugReportApplicationID
         self.analyticsTermsURL = analyticsTermsURL
-        mapTilerSettings = RemotePreference(.configuration(mapTilerConfiguration))
+        self.mapTilerConfiguration = RemotePreference(mapTilerConfiguration)
     }
     
     // MARK: - Application
@@ -126,11 +103,6 @@ final nonisolated class AppSettings: @unchecked Sendable {
     /// deleted between runs so should clear data in the shared container and keychain.
     @UserPreference
     var lastVersionLaunched: String?
-    
-    /// The Set of room identifiers of invites that the user already saw in the invites list.
-    /// This Set is being used to implement badges for unread invites.
-    @UserPreference(defaultValue: Set<String>())
-    var seenInvites: Set<String>
     
     /// Defaults to `true` for new users, and we use a migration to set it to `false` for existing users.
     @UserPreference(defaultValue: true)
@@ -144,13 +116,21 @@ final nonisolated class AppSettings: @unchecked Sendable {
     @UserPreference
     var pendingInvite: PendingInvite?
     
+    /// Defaults to `true` so new users never see it. Developer options arms it for now, an upgrade migration will at launch.
+    @UserPreference(defaultValue: true)
+    var hasSeenMultiAccountAnnouncement: Bool
+    
+    /// AGENT-PLATFORM (question 412): the posts catalogue's introduction shows once, on first opening.
+    @UserPreference(key: "spiralHasSeenInteractivePostIntroduction", defaultValue: false)
+    var hasSeenInteractivePostIntroduction: Bool
+    
     /// The initial set of account providers shown to the user in the authentication flow.
     ///
     /// Account provider is the friendly term for the server name. It should not contain an `https` prefix and should
     /// match the last part of the user ID. For example `example.com` and not `https://matrix.example.com`.
     // AGENT-PLATFORM: closed v1.0 single-tenant SaaS — only our own homeserver
     // is offered, with manual entry of other providers disabled.
-    private(set) var accountProviders = ["spiral.md"]
+    private(set) var accountProviders: [AccountProvider] = [SpiralEnvironment.current.accountProvider] // AGENT-PLATFORM (Brief 0084)
     /// Whether or not the user is allowed to manually enter their own account provider or must select from one of `defaultAccountProviders`.
     private(set) var allowOtherAccountProviders = false
     /// Whether the components surrounding the app brand/logo should be hidden or not
@@ -161,6 +141,9 @@ final nonisolated class AppSettings: @unchecked Sendable {
     // and stays consistent across Debug/Release/Nightly variants.
     /// The task identifier used for background app refresh. Also used in main target's the Info.plist
     let backgroundAppRefreshTaskIdentifier = "\(InfoPlistReader.main.baseBundleIdentifier).background.refresh"
+    /// The task identifier used for the search index backfill. Also used in main target's the Info.plist
+    // AGENT-PLATFORM: bundle-ID based, like the refresh task above.
+    let searchBackfillTaskIdentifier = "\(InfoPlistReader.main.baseBundleIdentifier).background.search-backfill"
 
     // AGENT-PLATFORM: brand URLs hosted on our homeserver host so MAS dynamic
     // client registration accepts them. MSC2966 enforces that client_uri /
@@ -168,7 +151,7 @@ final nonisolated class AppSettings: @unchecked Sendable {
     // subdomain) — split-host metadata is rejected as invalid_client_metadata.
     // Pages under /brand/ are served by Caddy file_server (backend R2.3.5).
     /// A URL where users can go read more about the app.
-    private(set) var websiteURL: URL = "https://spiral.md/brand/"
+    private(set) var websiteURL: URL = SpiralEnvironment.current.websiteURL // AGENT-PLATFORM (Brief 0084)
     /// AGENT-PLATFORM (§ 5.56): the curated Interactive Post templates, static
     /// on the same host as /brand/.
     ///
@@ -181,17 +164,20 @@ final nonisolated class AppSettings: @unchecked Sendable {
             return url
         }
         #endif
-        return "https://spiral.md/catalog/"
+        return SpiralEnvironment.current.catalogURL // AGENT-PLATFORM (Brief 0084)
     }()
 
+    /// AGENT-PLATFORM (1.0.2): the app's App Store page, where "Update" leads. The id is the store listing's, as the
+    /// backend's `app_store_id` and the web pages' install buttons have it.
+    static let appStoreURL: URL = "https://apps.apple.com/app/id6760817174"
     /// A URL that contains the app's logo that may be used when showing content in a web view.
-    private(set) var logoURL: URL = "https://spiral.md/brand/logo.png"
+    private(set) var logoURL: URL = SpiralEnvironment.current.logoURL // AGENT-PLATFORM (Brief 0084)
     /// A URL that contains that app's copyright notice.
     private(set) var copyrightURL: URL = "https://spiral.md/brand/copyright"
     /// A URL that contains the app's Terms of use.
-    private(set) var acceptableUseURL: URL = "https://spiral.md/brand/terms"
+    private(set) var acceptableUseURL: URL = SpiralEnvironment.current.acceptableUseURL // AGENT-PLATFORM (Brief 0084)
     /// A URL that contains the app's Privacy Policy.
-    private(set) var privacyURL: URL = "https://spiral.md/brand/privacy"
+    private(set) var privacyURL: URL = SpiralEnvironment.current.privacyURL // AGENT-PLATFORM (Brief 0084)
     /// AGENT-PLATFORM (AGPL publication): the app's source. Not live until the
     /// publication pushes the repository.
     private(set) var sourceCodeURL: URL = "https://github.com/spiral-group/ios"
@@ -215,14 +201,23 @@ final nonisolated class AppSettings: @unchecked Sendable {
     /// A URL describing how history sharing works
     private(set) var historySharingDetailsURL: URL = "https://spiral.md/brand/help#history-sharing"
 
-    /// The domain that account provisioning links will be hosted on - used for handling the links.
-    private(set) var accountProvisioningHost = "mobile.element.io"
-    /// The App Store URL for Element Pro, shown to the user when a homeserver requires that app.
-    /// **Note:** This property isn't overridable as it in unexpected for forks to come across the error (or to even have a "Pro" app).
-    let elementProAppStoreURL: URL = "https://apps.apple.com/app/element-pro-for-work/id6502951615"
+    // AGENT-PLATFORM (Brief 0083 L1b): no accountProvisioningHost (mobile.element.io) and no
+    // elementProAppStoreURL; Element's provisioning links and Element Pro's alert are gone.
     
     @UserPreference(defaultValue: AppAppearance.system)
     var appAppearance: AppAppearance
+    
+    /// Tracks previous servers the user connected to for autocompletion purposes. Entries are made lowercase on write.
+    @UserPreference(key: "previousServers", defaultValue: [])
+    var previousServers: [String]
+    
+    var defaultAccountProvider: AccountProvider {
+        if allowOtherAccountProviders {
+            previousServers.first.map { .generic($0) } ?? accountProviders[0]
+        } else {
+            accountProviders[0]
+        }
+    }
     
     // MARK: - Security
     
@@ -247,7 +242,7 @@ final nonisolated class AppSettings: @unchecked Sendable {
     // client registration policy (MSC2966). Path /oidc/login is served by
     // Caddy file_server alongside /brand/* (backend R2.3.5); the matching
     // apple-app-site-association entry is added when AASA lands.
-    private(set) nonisolated(unsafe) var oAuthRedirectURL: URL! = URL(string: "https://spiral.md/oidc/login")
+    private(set) nonisolated(unsafe) var oAuthRedirectURL: URL! = SpiralEnvironment.current.oAuthRedirectURL // AGENT-PLATFORM (Brief 0084)
     /// A path that is appended to `websiteURL` to form the OAuth `clientURI`. MAS uses `clientURI` as the identifier for a specific app, allowing us to
     /// distinguish the various clients we have for Android, iOS and Web from each other.
     // AGENT-PLATFORM: nil — our clientURI stays the bare websiteURL (spiral.md),
@@ -295,7 +290,7 @@ final nonisolated class AppSettings: @unchecked Sendable {
     
     // AGENT-PLATFORM: Caddy proxies /_matrix/push/v1/* to our self-hosted
     // Sygnal instance; the actual Sygnal service lands in backend R2.3.
-    private(set) var pushGatewayBaseURL: URL = "https://spiral.md"
+    private(set) var pushGatewayBaseURL: URL = SpiralEnvironment.current.baseURL // AGENT-PLATFORM (Brief 0084)
     var pushGatewayNotifyEndpoint: URL {
         pushGatewayBaseURL.appending(path: "_matrix/push/v1/notify")
     }
@@ -306,27 +301,19 @@ final nonisolated class AppSettings: @unchecked Sendable {
     // /api/v1/... so the URL is protocol + host only. Lands wired
     // through AgentPlatformClient via MatrixSDKAuthBridge — see
     // `Services/AgentPlatform/`.
-    private(set) var agentPlatformBaseURL: URL = "https://spiral.md"
+    private(set) var agentPlatformBaseURL: URL = SpiralEnvironment.current.platformURL // AGENT-PLATFORM (Brief 0084)
     
-    // AGENT-PLATFORM: a Debug build launched with SPIRAL_DEV_STACK=1 talks to
-    // the local dev stack (matrix-agent-platform/docker) instead of spiral.md,
-    // so a whole flow — registration to account deletion — runs on a simulator
-    // without touching prod. The homeserver is plain HTTP on purpose: the Rust
-    // SDK accepts the dev MAS issuer (http://localhost:8081) only for an http
-    // homeserver. The platform API goes through Caddy, whose root CA the
-    // simulator must trust; links use the dev server name (`SpiralLink`).
-    // See docs/project/DEV_STACK_SIMULATOR.md.
-    func useLocalDevStackIfRequested() {
-        guard SpiralLink.isLocalDevStack else { return }
-        accountProviders = ["http://localhost:8008"]
-        agentPlatformBaseURL = "https://synapse.localhost"
+    /// AGENT-PLATFORM: feed (Brief 0082): the platform API for a session, where the
+    /// launch environment is not known (the NSE): a Debug build's dev-stack
+    /// account (`@…:localhost`) talks to the dev stack, everyone else to `agentPlatformBaseURL`.
+    func agentPlatformBaseURL(forUserID userID: String) -> URL {
+        #if DEBUG
+        if userID.hasSuffix(":localhost") {
+            return SpiralEnvironment.localDev.platformURL // AGENT-PLATFORM (Brief 0084)
+        }
+        #endif
+        return agentPlatformBaseURL
     }
-    
-    @UserPreference(defaultValue: true)
-    var enableNotifications: Bool
-    
-    @UserPreference(defaultValue: true)
-    var enableInAppNotifications: Bool
     
     @UserPreference(defaultValue: false)
     var hideQuietNotificationAlerts: Bool
@@ -339,9 +326,9 @@ final nonisolated class AppSettings: @unchecked Sendable {
     @UserPreference
     var lastNotificationBootTime: TimeInterval?
     
-    /// The sound played when delivering noisy notifications. If nil, use the ElementX default
-    @UserPreference
-    var selectedNotificationTone: NotificationTone?
+    /// The app icon badge value the app last computed from the SDK's unread notification counts.
+    @UserPreference(defaultValue: 0)
+    var lastKnownBadgeCount: Int
     
     // MARK: - Logging
     
@@ -377,7 +364,7 @@ final nonisolated class AppSettings: @unchecked Sendable {
     /// The configuration to use for analytics. Set to `nil` to disable analytics.
     let analyticsConfiguration: AnalyticsConfiguration? = nil
     /// The URL to open with more information about analytics terms. When this is `nil` the "Learn more" link will be hidden.
-    private(set) var analyticsTermsURL: URL? = "https://element.io/cookie-policy"
+    private(set) var analyticsTermsURL: URL? = "https://spiral.md/brand/privacy" // AGENT-PLATFORM (Brief 0083 L1b): Spiral's privacy policy, not Element's cookie policy.
     /// Whether or not there the app is able ask for user consent to enable analytics or sentry reporting.
     var canPromptForAnalytics: Bool {
         analyticsConfiguration != nil // AGENT-PLATFORM (Brief 0078): Sentry consent went with Sentry.
@@ -387,17 +374,10 @@ final nonisolated class AppSettings: @unchecked Sendable {
     @UserPreference(defaultValue: AnalyticsConsentState.unknown)
     var analyticsConsentState: AnalyticsConsentState
     
-    /// Whether a user session has ever been set up on this device. Deliberately not cleared on
-    /// logout: it stops the Classic app migration prompt from reappearing when an Element X
-    /// user is signed out unexpectedly (invalidated token, corrupted storage, etc).
-    @UserPreference(defaultValue: false)
-    var hasSignedInBefore: Bool
+    // AGENT-PLATFORM (Brief 0083 L1b): no hasSignedInBefore, it only stopped Element Classic's import prompt.
     
     @UserPreference(defaultValue: false)
     var hasRunNotificationPermissionsOnboarding: Bool
-    
-    @UserPreference(defaultValue: false)
-    var hasRunIdentityConfirmationOnboarding: Bool
     
     @UserPreference(defaultValue: false)
     var hasRequestedLocationAlwaysLocationAuthorization: Bool
@@ -407,19 +387,11 @@ final nonisolated class AppSettings: @unchecked Sendable {
     
     // MARK: - Live Location
     
-    @UserPreference(key: "liveLocationSharingTimeoutDatesByRoomID", defaultValue: [String: LiveLocationSession]())
-    var liveLocationSharingSessionsByRoomID: [String: LiveLocationSession]
-    
     @UserPreference(defaultValue: 10)
     var liveLocationMinimumDistanceUpdate: Int
     
     @UserPreference(defaultValue: false)
     var liveLocationDisclaimerDisplayed: Bool
-    
-    // MARK: - Home Screen
-    
-    @UserPreference(defaultValue: RoomListActivityVisibility.current)
-    var roomListActivityVisibility: RoomListActivityVisibility
     
     // MARK: - Room Screen
     
@@ -431,10 +403,6 @@ final nonisolated class AppSettings: @unchecked Sendable {
     
     @UserPreference(defaultValue: AudioPlaybackSpeed.default)
     var voiceMessagePlaybackSpeed: AudioPlaybackSpeed
-    
-    /// Whether or not to show a warning on the media caption composer so the user knows
-    /// that captions might not be visible to users who are using other Matrix clients.
-    let shouldShowMediaCaptionWarning = true
     
     // AGENT-PLATFORM (Brief 0067): the Element Call section (base URL, analytics
     // endpoints, URL override) is gone with the widget (ADR-0079).
@@ -452,20 +420,13 @@ final nonisolated class AppSettings: @unchecked Sendable {
     // key. Use the public streets-v2 / streets-v2-dark presets that every
     // MapTiler account can serve so location sharing renders maps under our
     // own MapTiler key. Replace with custom Spiral-branded styles later.
-    static let bundledMapTilerConfiguration = MapTilerSettings.Configuration(baseURL: "https://api.maptiler.com/maps",
-                                                                             apiKey: Secrets.mapLibreAPIKey,
-                                                                             lightStyleID: "streets-v2",
-                                                                             darkStyleID: "streets-v2-dark")
+    static let bundledMapTilerConfiguration = MapTilerConfiguration(baseURL: "https://api.maptiler.com/maps",
+                                                                    apiKey: Secrets.mapLibreAPIKey,
+                                                                    lightStyleID: "streets-v2",
+                                                                    darkStyleID: "streets-v2-dark")
     
-    /// The resolved map tile settings. Defaults to ``MapTilerSettings.configuration(_:)`` with the
-    /// bundled configuration and is remotely overridden with ``MapTilerSettings.url(_:)`` when
-    /// the homeserver advertises a `style.json` URL via the matrix client well-known.
-    private(set) var mapTilerSettings = RemotePreference<MapTilerSettings>(.configuration(AppSettings.bundledMapTilerConfiguration))
-    
-    // MARK: - Presence
-    
-    @UserPreference(defaultValue: true)
-    var sharePresence: Bool
+    /// The MapTiler configuration used to build map URLs, which defaults to the bundled one.
+    private(set) var mapTilerConfiguration = RemotePreference(AppSettings.bundledMapTilerConfiguration)
     
     // MARK: - Feature Flags
     
@@ -475,6 +436,9 @@ final nonisolated class AppSettings: @unchecked Sendable {
     
     @UserPreference(defaultValue: false)
     var lowPriorityFilterEnabled: Bool
+    
+    @UserPreference(defaultValue: false)
+    var mentionsFilterEnabled: Bool
     
     /// Configuration to enable only signed device isolation mode for  crypto. In this mode only devices signed by their owner will be considered in e2ee rooms.
     @UserPreference(defaultValue: false)
@@ -492,11 +456,14 @@ final nonisolated class AppSettings: @unchecked Sendable {
     @UserPreference(key: "spiralThreadsEnabled", defaultValue: true)
     var threadsEnabled: Bool
     
-    @UserPreference(key: "spiralRoomThreadListEnabled", defaultValue: true) // AGENT-PLATFORM (decision 188)
-    var roomThreadListEnabled: Bool
-    
-    @UserPreference(defaultValue: ProcessInfo().isiOSAppOnMac)
+    @UserPreference(key: "globalSearchEnabledV2", defaultValue: true)
     var globalSearchEnabled: Bool
+    
+    // AGENT-PLATFORM (decision 301): Spiral doesn't use Matrix spaces yet. Off drops the Spaces tab,
+    // the Chats space filter and Create room's space picker, and the Chats list shows joined spaces
+    // as rows, so a space opens in Chats like a room. On is upstream's behaviour. Read when a session starts.
+    @UserPreference(key: "spiralSpacesEnabled", defaultValue: false)
+    var spacesEnabled: Bool
     
     @UserPreference(defaultValue: false)
     var focusEventOnNotificationTap: Bool
@@ -504,36 +471,38 @@ final nonisolated class AppSettings: @unchecked Sendable {
     @UserPreference(defaultValue: false)
     var linkPreviewsEnabled: Bool
     
-    /// Enables *sending* gallery messages (multiple media in a single message).
-    /// Received galleries are always rendered regardless of this flag.
-    @UserPreference(defaultValue: false)
-    var galleryEnabled: Bool
-    
     @UserPreference(defaultValue: false)
     var jumpToReadMarkerEnabled: Bool
     
     @UserPreference(defaultValue: false)
     var linkNewDeviceEnabled: Bool
     
-    @UserPreference(defaultValue: false)
-    var automaticBackPaginationEnabled: Bool
-    
     @UserPreference(key: "clientPausingAndResumingEnabledV2", defaultValue: false, volatile: true)
     var clientPausingAndResumingEnabled: Bool
-    
-    @UserPreference(defaultValue: false)
-    var userStatusEnabled: Bool
     
     @UserPreference(defaultValue: AppBuildType.current != .release)
     var developerOptionsEnabled: Bool
     
+    /// Runs calls through the native matrix-rust-rtc stack instead of the Element Call web view.
+    @UserPreference(defaultValue: false)
+    var nativeCallEnabled: Bool
+    
+    @UserPreference(defaultValue: false)
+    var multiAccountEnabled: Bool
+    
+    /// Lets the add account flow start once `multiAccountEnabled` shows its entry points. Not a user preference, so testers
+    /// can't add a second account while signing out of one isn't safe yet. Only set it to `true` locally, for development.
+    let addAccountFlowEnabled = false
+    
     init(store: UserDefaultsProtocol) {
         self.store = store
+    }
+    
+    func userSettings(for userID: String) -> UserSettings {
+        UserSettings(appSettings: self, accountSettings: .init(userID: userID, store: store))
     }
     
     static func volatile() -> AppSettings {
         AppSettings(store: VolatileUserDefaults())
     }
 }
-
-nonisolated extension AppSettings: CommonSettingsProtocol { }

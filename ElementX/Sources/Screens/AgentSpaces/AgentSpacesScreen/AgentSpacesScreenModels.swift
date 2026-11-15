@@ -7,6 +7,7 @@
 //
 
 import Foundation
+import SpiralComponents
 
 // AGENT-PLATFORM: Brief 0037, reworked by the Agents tab step B (decision
 // 191): the tab root is one list, a section per space (Personal first, then
@@ -14,7 +15,6 @@ import Foundation
 
 enum AgentSpacesScreenViewModelAction {
     case selectAgent(AgentSelection)
-    case showSettings
     case showCreateCompany
     /// A new role agent inside this company.
     case showCreateAgent(AgentSpaceSummary)
@@ -31,14 +31,14 @@ struct AgentSelection: Equatable {
 }
 
 struct AgentSpacesScreenViewState: BindableState {
-    let userID: String
-    var userDisplayName: String?
-    var userAvatarURL: URL?
-
     var listState: AgentSpacesScreenListState = .loading
-    /// Pending-approvals count for the nav-bar bell badge — mirrored from
-    /// `ApprovalsStreamService`.
+    /// What waits for the owner, for the nav-bar bell badge (`AgentsStore`).
     var pendingApprovalsCount = 0
+    /// The sync's state at the top while the stream is not live (decision 289).
+    var syncStatus: PlatformSyncStatus?
+    /// S5: moves when the list comes back into view after its rows changed while it was covered; the list's
+    /// identity, so its rows are made anew and load what changed.
+    var listGeneration = 0
 
     var sections: [AgentSpaceSection] {
         if case .loaded(let sections) = listState { return sections }
@@ -101,18 +101,17 @@ enum AgentSpacesScreenListState: Equatable {
 }
 
 enum AgentSpacesScreenViewAction {
+    /// The tab came into view: its selection, or the way back from a screen on top.
+    case appeared
+    /// The tab went out of view: a pushed screen covers it, or another tab took its place.
+    case disappeared
     case selectAgent(agentID: String)
-    case showSettings
     case createCompany
     case createAgent(orgID: String)
     case editCompany(orgID: String)
     case showNotifications
-    /// Full retry after a failure — flips back to `.loading` first.
+    /// Read again after a failure, or a space that could not be read.
     case retry
-    /// Silent pull-to-refresh — keeps the current list on screen.
-    case refresh
-    /// The list is on screen again; it is read again, rows kept meanwhile.
-    case appeared
 }
 
 extension AgentSpaceAgentCard {
@@ -127,19 +126,28 @@ extension AgentSpaceAgentCard {
         }
     }
 
-    /// The row's one line: a role agent's role, the assistant's chats and
-    /// tools, after «В сети» when it is. Offline adds nothing (see
-    /// `AgentNameWithPresence`).
-    var rowSubtitle: String {
-        if isPaused {
-            return [localizedRole, UntranslatedL10n.screenAgentsPaused].compactMap(\.self).joined(separator: " · ")
+    /// What the agent is, on its row and on its page.
+    var roleLine: String? {
+        isPersonalAssistant ? UntranslatedL10n.screenAgentDetailKindPersonalAssistant : localizedRole
+    }
+
+    /// The card's status, on the Agents tab and on the agent's own screen: online unless paused or no longer
+    /// active, as everywhere else an agent shows. Paused before online: a paused agent answers nobody. `isPaused`
+    /// is for a screen that has read the agent since this card was listed.
+    func presence(isPaused: Bool? = nil) -> SpiralAgentStatus? {
+        if isPaused ?? self.isPaused {
+            return .paused(UntranslatedL10n.screenAgentsPaused)
         }
-        let online = presence == .online ? UntranslatedL10n.screenAgentSpaceAgentPresenceOnline : nil
-        if let role = localizedRole {
-            return [role, online].compactMap(\.self).joined(separator: " · ")
-        }
-        return [online,
-                UntranslatedL10n.screenAgentsChatCount(roomCount),
-                UntranslatedL10n.screenAgentsToolCount(activeToolCount)].compactMap(\.self).joined(separator: " · ")
+        return lifecycleState == "active" ? .online(UntranslatedL10n.screenAgentSpaceAgentPresenceOnline) : nil
+    }
+
+    var chatsAndTools: String {
+        [UntranslatedL10n.screenAgentsChatCount(roomCount), UntranslatedL10n.screenAgentsToolCount(activeToolCount)].joined(separator: " · ")
+    }
+
+    /// A row's line of facts. A role says what a role agent does; the assistant, and an agent of a kind this build
+    /// doesn't know, have their chats and tools instead.
+    var rowFacts: String? {
+        localizedRole == nil ? chatsAndTools : nil
     }
 }

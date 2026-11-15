@@ -7,8 +7,8 @@
 //
 
 import Combine
-@testable import ElementX
 import MatrixRustSDK
+@testable import Spiral
 import Testing
 
 @MainActor

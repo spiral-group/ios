@@ -194,9 +194,11 @@ nonisolated extension GalleryItem {
                           source: MediaSourceProxy = ImageInfoProxy.mockImage.source,
                           thumbnailSource: MediaSourceProxy? = ImageInfoProxy.mockThumbnail.source,
                           blurhash: String? = "L%KUc%kqS$RP?Ks,WEf8OlrqaekW",
-                          contentType: UTType? = .jpeg) -> GalleryItem {
-        let imageInfo = ImageInfoProxy(source: source, width: 1920, height: 1080, mimeType: nil, fileSize: nil)
-        let thumbnailInfo = thumbnailSource.map { ImageInfoProxy(source: $0, width: 1920, height: 1080, mimeType: nil, fileSize: nil) }
+                          contentType: UTType? = .jpeg,
+                          width: UInt64 = 1920,
+                          height: UInt64 = 1080) -> GalleryItem { // AGENT-PLATFORM (question 413): an album's shapes
+        let imageInfo = ImageInfoProxy(source: source, width: width, height: height, mimeType: nil, fileSize: nil)
+        let thumbnailInfo = thumbnailSource.map { ImageInfoProxy(source: $0, width: width, height: height, mimeType: nil, fileSize: nil) }
         return .image(id: .mock(index),
                       .init(filename: filename, imageInfo: imageInfo, thumbnailInfo: thumbnailInfo, blurhash: blurhash, contentType: contentType))
     }

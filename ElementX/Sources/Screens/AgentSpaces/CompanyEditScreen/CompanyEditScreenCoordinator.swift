@@ -19,7 +19,6 @@ struct CompanyEditScreenCoordinatorParameters {
     weak var navigationStackCoordinator: NavigationStackCoordinator?
     let userIndicatorController: UserIndicatorControllerProtocol
     let orientationManager: OrientationManagerProtocol
-    let appSettings: AppSettings
 }
 
 enum CompanyEditScreenCoordinatorAction {
@@ -42,8 +41,7 @@ final class CompanyEditScreenCoordinator: CoordinatorProtocol {
         viewModel = CompanyEditScreenViewModel(detail: parameters.detail,
                                                agentPlatformService: parameters.agentPlatformService,
                                                userSession: parameters.userSession,
-                                               userIndicatorController: parameters.userIndicatorController,
-                                               appSettings: parameters.appSettings)
+                                               userIndicatorController: parameters.userIndicatorController)
     }
     
     func start() {

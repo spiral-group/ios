@@ -27,6 +27,8 @@ struct FullscreenDialog<Content: View, BottomContent: View>: View {
     var bottomHorizontalPadding: CGFloat = 16
     /// The spacing between the content and the buttons.
     var spacing: CGFloat = 16
+    /// Padding applied below the buttons. AGENT-PLATFORM (Brief 0083): Spiral's identity screen ends at the safe area.
+    var bottomPadding: CGFloat = UIConstants.actionButtonBottomPadding
     
     /// The type of background that should be shown behind the content. This
     /// will be hidden if the main content extends behind the bottom content.
@@ -87,7 +89,7 @@ struct FullscreenDialog<Content: View, BottomContent: View>: View {
                         .readableFrame()
                         .padding(.horizontal, bottomHorizontalPadding)
                         .padding(.top, spacing)
-                        .padding(.bottom, UIConstants.actionButtonBottomPadding)
+                        .padding(.bottom, bottomPadding) // AGENT-PLATFORM (Brief 0083)
                     
                     Spacer()
                         .frame(height: UIConstants.spacerHeight(in: geometry))
@@ -116,7 +118,7 @@ struct FullscreenDialog<Content: View, BottomContent: View>: View {
                     bottomContent()
                         .readableFrame()
                         .padding(.horizontal, bottomHorizontalPadding)
-                        .padding(.bottom, UIConstants.actionButtonBottomPadding)
+                        .padding(.bottom, bottomPadding) // AGENT-PLATFORM (Brief 0083)
                     
                     Spacer()
                         .frame(height: UIConstants.spacerHeight(in: geometry))

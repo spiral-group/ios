@@ -15,8 +15,8 @@
 //
 
 import Combine
-@testable import ElementX
 import Foundation
+@testable import Spiral
 import Synchronization
 import Testing
 
@@ -138,6 +138,42 @@ struct SpiralAppStateReaderTests {
         #expect(SpiralAppCompleteness.evaluate([]) == .complete)
     }
 
+    /// H1: the verdict is walked from the numbers held, not from `1...max`,
+    /// so one huge `seq` costs one step. `Int.max` used to hang this call
+    /// (or trap it); parsing refuses it now, and this holds even if it ever
+    /// reached here.
+    @Test(arguments: [SpiralAppActionLimits.maxSeq, Int.max])
+    func aHugeSeqCostsOneStepAndNamesABoundedList(highest: Int) {
+        let actions = [Self.action("$1", seq: 1), Self.action("$huge", seq: highest)]
+
+        guard case .gaps(let listed) = SpiralAppCompleteness.evaluate(actions) else {
+            Issue.record("a hole this wide must still be a gap")
+            return
+        }
+        #expect(listed == Array(2...(1 + SpiralAppCompleteness.maxListedGaps)))
+    }
+
+    @Test
+    func aHoleWiderThanTheRedactionsIsStillAGap() {
+        // The count behind the list is exact, so a list cut short never
+        // makes a hole look explained.
+        let actions = [Self.action("$1", seq: 1), Self.action("$100", seq: 100)]
+        #expect(SpiralAppCompleteness.evaluate(actions, redacted: 97) != .complete)
+        #expect(SpiralAppCompleteness.evaluate(actions, redacted: 98) == .complete)
+    }
+
+    @Test
+    func aNormalSequenceWithAGapNamesIt() {
+        let actions = [1, 2, 4, 5, 8].map { Self.action("$\($0)", seq: $0) }
+        #expect(SpiralAppCompleteness.evaluate(actions) == .gaps([3, 6, 7]))
+    }
+
+    @Test
+    func nonPositiveSeqsAreNeverRequired() {
+        let actions = [Self.action("$0", seq: 0), Self.action("$neg", seq: -5)]
+        #expect(SpiralAppCompleteness.evaluate(actions) == .undeterminable)
+    }
+
     // MARK: - Reading
 
     @Test
@@ -163,16 +199,50 @@ struct SpiralAppStateReaderTests {
     }
 
     @Test
-    func aSetWithoutSequenceNumbersIsStillRendered() async {
-        // Nothing can be checked, and refusing to render would make every
-        // pre-`seq` post permanently a spinner.
+    func anActionWithoutASequenceNumberIsNotOneOfThePosts() async {
+        // Every action this app writes carries a `seq`, and the homeserver
+        // refuses one without; a reader that folded it would disagree with
+        // the server about what the post holds.
         let reader = Self.reader(Relations([[Self.rawAction("$e1", ts: 100, seq: nil, n: 7)]]))
 
         await reader.refresh()
 
         #expect(reader.snapshot.readiness == .ready)
-        #expect(reader.snapshot.state.value(at: ["n"]) == .number(7))
-        #expect(reader.snapshot.seq == 0)
+        #expect(reader.snapshot.state.value(at: ["n"]) == nil)
+    }
+
+    // MARK: - Bounds (M4)
+
+    @Test
+    func aPostPastTheActionCapKeepsTheFirstActionsAndSaysItIsPartial() async {
+        let count = SpiralAppStateReader.maxKnownActions + 10
+        let all = (1...count).map { Self.rawAction("$e\($0)", ts: UInt64($0), seq: $0, n: $0) }
+        let reader = Self.reader(Relations([all.reversed()]))
+
+        await reader.refresh()
+
+        #expect(reader.snapshot.readiness == .partial(missing: []))
+        #expect(reader.snapshot.seq == SpiralAppStateReader.maxKnownActions, "the first ones in room order, whatever order they came in")
+        #expect(reader.snapshot.state.value(at: ["n"]) == .number(Double(SpiralAppStateReader.maxKnownActions)))
+    }
+
+    @Test
+    func aStatePastTheBudgetIsPartial() async {
+        let big = String(repeating: "x", count: 10 * 1024)
+        let raw = (1...2).map { index in
+            """
+            {"type":"com.spiral.app.action","event_id":"$b\(index)","sender":"@a:spiral.md","origin_server_ts":\(index),
+             "content":{"m.relates_to":{"rel_type":"m.reference","event_id":"$post"},"seq":\(index),
+                        "op":{"set":{"path":"k\(index)","value":"\(big)"}}}}
+            """
+        }
+        let reader = Self.reader(Relations([raw]))
+
+        await reader.refresh()
+
+        #expect(reader.snapshot.readiness == .partial(missing: []))
+        #expect(reader.snapshot.state.value(at: ["k1"]) != nil)
+        #expect(reader.snapshot.state.value(at: ["k2"]) == nil)
     }
 
     // MARK: - The loader policy
@@ -192,10 +262,10 @@ struct SpiralAppStateReaderTests {
     }
 
     @Test
-    func aGapThatClosesShowsTheLoaderBeforeTheApp() async {
-        // § 5.11: the one place the runtime prefers a spinner to a render.
-        // The intermediate `.loading` is what the post shows instead of a
-        // number that disagrees with the same post on another phone.
+    func aGapIsPartialFromTheFirstAttemptAndImprovesAfter() async {
+        // A hole used to hold the post on its card through every retry, up to
+        // five seconds per mount (question 359). What the first attempt found
+        // goes out at once, and the retries go on behind it.
         let reader = Self.reader(Relations([Self.batch([1, 3]), Self.batch([1, 2, 3])]))
         let readiness = Mutex<[SpiralAppStateReader.Readiness]>([])
         let cancellable = reader.snapshotPublisher.sink { snapshot in
@@ -205,7 +275,7 @@ struct SpiralAppStateReaderTests {
         await reader.refresh()
         cancellable.cancel()
 
-        #expect(readiness.withLock { $0 } == [.loading, .loading, .ready])
+        #expect(readiness.withLock { $0 } == [.loading, .partial(missing: [2]), .ready])
     }
 
     @Test
@@ -261,7 +331,72 @@ struct SpiralAppStateReaderTests {
 
         await reader.refresh()
 
-        #expect(reader.snapshot.readiness == .loading)
+        #expect(reader.snapshot.readiness == .failed)
+        #expect(!reader.snapshot.readiness.isVouched)
+    }
+
+    @Test
+    func aPostThatCouldNotBeReadGoesBackToLoadingWhenItIsReadAgain() async {
+        struct LoadFailure: Error { }
+        let calls = Mutex(0)
+        let seen = Mutex<[SpiralAppStateReader.Readiness]>([])
+        let reader = SpiralAppStateReader(postEventID: "$post",
+                                          load: { _ in
+                                              let call = calls.withLock { value in
+                                                  value += 1
+                                                  return value
+                                              }
+                                              guard call > 1 else { throw LoadFailure() }
+                                              return []
+                                          },
+                                          retryDelay: Self.noDelay)
+        await reader.refresh()
+
+        let cancellable = reader.snapshotPublisher.sink { snapshot in
+            seen.withLock { $0.append(snapshot.readiness) }
+        }
+        await reader.refresh()
+        cancellable.cancel()
+
+        #expect(seen.withLock { $0 } == [.failed, .loading, .ready])
+    }
+
+    @Test
+    func aVerdictIsWaitedForAndTheWaitIsBounded() async {
+        let reader = SpiralAppStateReader(postEventID: "$post",
+                                          load: { _ in
+                                              try await Task.sleep(for: .seconds(3600))
+                                              return []
+                                          },
+                                          retryDelay: Self.noDelay)
+        let reading = Task { await reader.refresh() }
+
+        let isVouched = await reader.verdict(within: .milliseconds(30))
+        reading.cancel()
+
+        #expect(!isVouched, "a read that never answered was taken for a state")
+    }
+
+    @Test
+    func aSleepingReaderKeepsActionsAndFoldsThemOnWaking() async {
+        let relations = Relations([Self.batch([1])])
+        let reader = Self.reader(relations)
+        await reader.refresh()
+        let published = Mutex(0)
+        let cancellable = reader.snapshotPublisher.dropFirst().sink { _ in
+            published.withLock { $0 += 1 }
+        }
+
+        reader.sleep()
+        await reader.ingest(rawEventJSONs: Self.batch([1, 2]))
+        #expect(published.withLock { $0 } == 0, "a post nobody can see was folded")
+
+        await reader.wake()
+        cancellable.cancel()
+
+        #expect(published.withLock { $0 } == 1)
+        #expect(reader.snapshot.seq == 2)
+        #expect(relations.readCount == 1, "waking read what the subscription had already delivered")
     }
 
     @Test

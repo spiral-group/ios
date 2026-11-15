@@ -2,8 +2,8 @@
 // Copyright 2026 the Spiral authors. AGPL-3.0-or-later.
 //
 
-@testable import ElementX
 import Foundation
+@testable import Spiral
 import Testing
 
 // AGENT-PLATFORM (Brief 0063 closeout): pins for THE agent register every
@@ -35,19 +35,21 @@ struct NativeCallAgentPresentationTests {
                          recordingDelivery: NativeAgentCenterArtifact.Delivery = .notArmed,
                          summary: Bool = false,
                          languages: [String] = [],
+                         translationPause: AILimitPause? = nil,
                          conversation: NativeAgentCenterConversation = .unknown) -> NativeAgentCenterSession {
+        var translation = NativeAgentCenterTranslation(effective: .init(source: languages.isEmpty ? "off" : "override",
+                                                                        style: languages.isEmpty ? nil : "simultaneous",
+                                                                        forLanguage: languages.first),
+                                                       revision: 1)
+        translation.effective.pause = translationPause
+        return
         NativeAgentCenterSession(sessionID: "session-\(mxid)",
                                  agentMxid: mxid,
                                  canControl: canControl,
                                  isEnding: isEnding,
                                  recording: .init(isEnabled: recording, revision: 1, delivery: recordingDelivery, isStopped: false),
                                  summary: .init(isEnabled: summary, revision: 1, delivery: .notArmed, isStopped: false),
-                                 translation: .init(booths: languages.isEmpty
-                                     ? []
-                                     : [.init(speakerScope: "anyone", speakerMembers: [], targetLanguages: languages)],
-                                     style: languages.isEmpty ? nil : "simultaneous",
-                                     source: languages.isEmpty ? "off" : "override",
-                                     revision: 1),
+                                 translation: translation,
                                  conversation: conversation)
     }
 
@@ -58,25 +60,37 @@ struct NativeCallAgentPresentationTests {
                         pendingWrites: [String: [NativeAgentCenterPendingWrite]] = [:],
                         isCallConnected: Bool = true,
                         falteredAgents: Set<String> = [],
-                        covered: [String: String] = [:],
                         profiles: [String: NativeCallMemberProfile] = [:],
                         candidates: [NativeAgentCenterCandidate] = [],
                         ownUserID: String? = nil,
+                        ownAgentMxids: Set<String> = [],
                         at time: Date? = nil) -> NativeCallAgentPresentation {
         var claims = NativeCallAgentClaims()
         claims.documents = documents
         claims.speaking = speaking
         var rest = NativeAgentCenterSnapshot(isAvailable: true, isLoading: false, sessions: sessions, candidates: candidates)
         rest.pendingOwnerWrites = pendingWrites
+        rest.ownAgentMxids = ownAgentMxids
         return NativeCallAgentPresentation.derive(live: .init(participants: agents,
                                                               claims: claims,
-                                                              coveredSpeakers: covered,
                                                               isCallConnected: isCallConnected,
                                                               falteredAgents: falteredAgents,
                                                               memberProfiles: profiles,
                                                               ownUserID: ownUserID),
                                                   rest: rest,
                                                   now: time ?? now)
+    }
+
+    /// Question 395: the owner's session goes on with translation paused by its cap; the call line says so, and only
+    /// for the owner's own session.
+    @Test
+    func aPausedTranslationGivesTheOwnersLine() {
+        let monday = Date(timeIntervalSince1970: 1_794_787_200)
+        let own = session(agentMxid, summary: true, translationPause: .until(monday))
+        #expect(derive(agents: [agent(agentMxid)], sessions: [own]).limitStop == .categoryPaused(.callTranslation, until: monday))
+
+        let foreign = session(secondAgentMxid, canControl: false, translationPause: .untilChanged)
+        #expect(derive(agents: [agent(secondAgentMxid)], sessions: [foreign]).limitStop == nil)
     }
 
     private func write(_ fact: NativeAgentCenterPendingWrite.Fact, expiresIn seconds: TimeInterval = 10) -> NativeAgentCenterPendingWrite {
@@ -195,6 +209,33 @@ struct NativeCallAgentPresentationTests {
         #expect(presentation.ownAgents.map(\.mxid) == [agentMxid])
         #expect(presentation.foreignAgents.map(\.mxid) == [secondAgentMxid])
         #expect(presentation.foreignAgents.first?.control == nil)
+    }
+
+    /// Audit F7 — the person's own agents list says "mine": a late or failed session read never draws one's own
+    /// assistant as someone else's, and the pill keeps "Your assistant".
+    @Test
+    func ownAgentsComeFromTheOwnAgentsListNotTheSessionRead() {
+        let presentation = derive(agents: [agent(secondAgentMxid), agent(agentMxid)], ownAgentMxids: [agentMxid])
+
+        #expect(presentation.ownAgents.map(\.mxid) == [agentMxid])
+        #expect(presentation.ownAgents.first?.control == nil)
+        #expect(presentation.foreignAgents.map(\.mxid) == [secondAgentMxid])
+        #expect(presentation.activeAgent?.mxid == agentMxid)
+        #expect(presentation.activeAgent.map { NativeCallAgentBlockState($0, among: presentation.agents) }?.isOwn == true)
+    }
+
+    /// Critique item 1 — "You hear" only while a translation covers someone other than you.
+    @Test
+    func youHearOnlyWhenSomeoneElseIsTranslated() {
+        let me = "@me:spiral.md"
+        let other = "@mira:spiral.md"
+        let onlyMe = derive(agents: [agent(agentMxid)],
+                            documents: [agentMxid: .make(languages: ["en"], speakers: [me])])
+        #expect(!onlyMe.translatesSomeone(otherThan: me, among: [me, other]))
+
+        let everyone = derive(agents: [agent(agentMxid)], documents: [agentMxid: .make(languages: ["en"], speakers: [me, other])])
+        #expect(everyone.translatesSomeone(otherThan: me, among: [me, other]))
+        #expect(!everyone.translatesSomeone(otherThan: me, among: [me]))
     }
 
     /// A read-only REST session is control only: its translation is NEVER
@@ -370,7 +411,7 @@ struct NativeCallAgentPresentationTests {
     /// Conversation airs exactly like a translation: the document says the
     /// agent talks, and it is speaking — every device shows the wave.
     @Test
-    func aTalkingAgentAirsWhileItSpeaks() throws {
+    func aTalkingAgentAirsWhileItSpeaks() {
         let presentation = derive(agents: [agent(agentMxid)],
                                   documents: [agentMxid: .make(conversation: true)],
                                   speaking: [agentMxid])
@@ -379,7 +420,6 @@ struct NativeCallAgentPresentationTests {
         #expect(presentation.agents.first?.shown.event == .airing(.conversation))
         #expect(presentation.agents.first?.live.isAiring == true)
         #expect(presentation.agents.first?.shown.isAiring == true)
-        #expect(try NativeCallAgentBlockState(#require(presentation.activeAgent)).isAiring)
 
         let between = derive(agents: [agent(agentMxid)], documents: [agentMxid: .make(conversation: true)])
         #expect(between.agents.first?.shown.event == .idle(role: .conversation, languages: []))
@@ -387,7 +427,7 @@ struct NativeCallAgentPresentationTests {
     }
 
     /// One function airs at a time: a translation names its languages over
-    /// the conversation, and a paused one airs nothing.
+    /// the conversation, and one stopped by the cap airs nothing (it can't talk then either, D11).
     @Test
     func aTranslationAirsBeforeTheConversation() {
         let translating = derive(agents: [agent(agentMxid)],
@@ -396,7 +436,7 @@ struct NativeCallAgentPresentationTests {
         #expect(translating.agents.first?.shown.event == .airing(.translation(languages: ["en"])))
 
         let paused = derive(agents: [agent(agentMxid)],
-                            documents: [agentMxid: .make(languages: ["en"], paused: true, conversation: true)],
+                            documents: [agentMxid: .make(languages: ["en"], paused: true)],
                             speaking: [agentMxid])
         #expect(paused.agents.first?.shown.event == .paused)
         #expect(paused.agents.first?.shown.isAiring == false)
@@ -465,8 +505,8 @@ struct NativeCallAgentPresentationTests {
                                   speaking: [agentMxid])
 
         #expect(presentation.agents.first?.shown.event == .paused)
-        // Paused still names its languages — the sheet's row is not "Off".
-        #expect(presentation.agents.first?.shown.languages == ["en"])
+        // ADR-0094 D6: stopped by the cap, it translates nothing; the owner's sheet says why from REST.
+        #expect(presentation.agents.first?.shown.languages == [])
         #expect(presentation.agents.first?.shown.isPaused == true)
         #expect(presentation.agents.first?.live.isAiring == false)
     }
@@ -509,33 +549,24 @@ struct NativeCallAgentPresentationTests {
         #expect(presentation.agents.first?.shown.event == .idle(role: nil, languages: []))
     }
 
-    // MARK: - The active agent and ordinals
+    // MARK: - The pill's agent
 
+    /// Question 383, audit bug 13: the pill's agent stays put while several take turns; the one speaking shows by its
+    /// Halo, not by the pill swapping who it names.
     @Test
-    func theAiringAgentIsShownWhenSeveralAreAttached() {
-        let presentation = derive(agents: [agent(agentMxid), agent(secondAgentMxid)],
-                                  documents: [secondAgentMxid: .make(languages: ["de"])],
-                                  speaking: [secondAgentMxid])
-
-        #expect(presentation.activeAgent?.mxid == secondAgentMxid)
-        #expect(presentation.activeAgent?.ordinal == .init(index: 2, count: 2))
-    }
-
-    @Test
-    func theTalkingAgentIsShownWhenSeveralAreAttached() {
+    func thePillsAgentStaysPutWhileAnotherSpeaks() {
         let presentation = derive(agents: [agent(agentMxid), agent(secondAgentMxid)],
                                   documents: [agentMxid: .make(recording: true),
                                               secondAgentMxid: .make(conversation: true)],
                                   speaking: [secondAgentMxid])
 
-        #expect(presentation.activeAgent?.mxid == secondAgentMxid)
-        #expect(presentation.activeAgent?.shown.event == .airing(.conversation))
+        #expect(presentation.activeAgent?.mxid == agentMxid)
+        #expect(presentation.agents.last?.shown.event == .airing(.conversation))
     }
 
-    /// Airing is selected by the wave's fact, not by the event — a delivery
-    /// failure outranks airing on the ladder but must not hide the wave.
+    /// One's own agent leads the pill, wherever it is in the roster, with its failure.
     @Test
-    func anAiringAgentWithADeliveryFailureIsStillTheActiveOne() {
+    func onesOwnAgentLeadsThePill() {
         let presentation = derive(agents: [agent(agentMxid), agent(secondAgentMxid)],
                                   documents: [secondAgentMxid: .make(languages: ["de"])],
                                   speaking: [secondAgentMxid],
@@ -573,12 +604,6 @@ struct NativeCallAgentPresentationTests {
                                   documents: [secondAgentMxid: .make(languages: ["de"])])
 
         #expect(presentation.activeAgent?.mxid == agentMxid)
-        #expect(presentation.activeAgent?.ordinal == .init(index: 1, count: 2))
-    }
-
-    @Test
-    func aSingleAgentHasNoOrdinal() {
-        #expect(derive(agents: [agent(agentMxid)]).activeAgent?.ordinal == nil)
     }
 
     @Test
@@ -586,13 +611,13 @@ struct NativeCallAgentPresentationTests {
         let presentation = derive(agents: [agent(agentMxid), agent(secondAgentMxid)],
                                   documents: [agentMxid: .make(recording: true)],
                                   profiles: [agentMxid: .init(displayName: "Alice's Assistant")])
-        let block = try NativeCallAgentBlockState(#require(presentation.activeAgent))
+        let block = try NativeCallAgentBlockState(#require(presentation.activeAgent), among: presentation.agents)
 
         #expect(block.name == "Alice's Assistant")
         #expect(block.agentUserID == agentMxid)
         #expect(block.event == .idle(role: .recording, languages: []))
-        #expect(block.agentCountLine == UntranslatedL10n.screenNativeCallAgentBlockCount(1, 2))
-        #expect(!block.isAiring)
+        #expect(block.otherAgentUserIDs == [secondAgentMxid], "the second sits stacked behind, no ordinal")
+        #expect(!block.isOwn, "no session this device controls")
     }
 
     // MARK: - Brief 0066: style and "covers me"
@@ -601,25 +626,18 @@ struct NativeCallAgentPresentationTests {
     func theStyleAndWhoCoversMeComeFromTheDocument() {
         let me = "@me:spiral.md"
         let open = derive(agents: [agent(agentMxid)],
-                          documents: [agentMxid: .make(languages: ["en"], style: .simultaneous)],
+                          documents: [agentMxid: .make(languages: ["en"], style: .simultaneous, speakers: [me, "@bob:spiral.md"])],
                           ownUserID: me)
         #expect(open.agents.first?.live.style == .simultaneous)
         #expect(open.agents.first?.live.coversMe == .live(languages: ["en"]))
 
         let interpreter = derive(agents: [agent(agentMxid)],
-                                 documents: [agentMxid: .make(languages: ["en", "de"], style: .consecutive)],
+                                 documents: [agentMxid: .make(languages: ["en", "de"], style: .consecutive, speakers: [me])],
                                  ownUserID: me)
         #expect(interpreter.agents.first?.live.coversMe == .interpreter(languages: ["de", "en"]))
 
-        let exceptMe = derive(agents: [agent(agentMxid)],
-                              documents: [agentMxid: .make(languages: ["en"],
-                                                           booths: [.init(coverage: .exceptMembers([me]), targetLanguages: ["en"])])],
-                              ownUserID: me)
-        #expect(exceptMe.agents.first?.live.coversMe == nil)
-
         let onlyBob = derive(agents: [agent(agentMxid)],
-                             documents: [agentMxid: .make(languages: ["en"],
-                                                          booths: [.init(coverage: .members(["@bob:spiral.md"]), targetLanguages: ["en"])])],
+                             documents: [agentMxid: .make(languages: ["en"], speakers: ["@bob:spiral.md"])],
                              ownUserID: me)
         #expect(onlyBob.agents.first?.live.coversMe == nil)
 
@@ -652,13 +670,6 @@ struct NativeCallAgentPresentationTests {
                                                .init(id: "b", mxid: secondAgentMxid, displayName: "B", avatarURL: nil, isRoomMember: true)])
 
         #expect(presentation.panel.candidates.map(\.mxid) == [secondAgentMxid])
-    }
-
-    @Test
-    func coveredSpeakersPassThroughForTheRoster() {
-        let presentation = derive(agents: [], covered: ["@bob:spiral.md": "en"])
-
-        #expect(presentation.coveredSpeakers == ["@bob:spiral.md": "en"])
     }
 
     @Test

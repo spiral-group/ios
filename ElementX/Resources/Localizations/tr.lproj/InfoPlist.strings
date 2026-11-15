@@ -1,6 +1,4 @@
 "NSCameraUsageDescription" = "Görüntülü arama yapmak ve fotoğraf veya video çekip bunları mesaj olarak göndermek için Spiral'ın kameraya erişimi gerekir.";
 "NSFaceIDUsageDescription" = "Face ID, uygulamanıza erişmek için kullanılır.";
-"NSLocationAlwaysAndWhenInUseUsageDescription" = "To share your location live in chats, location access is needed when the app is in the background.";
-"NSLocationWhenInUseUsageDescription" = "Spiral'ın konumunuzu paylaşabilmesi için konum erişimi verin.";
 "NSMicrophoneUsageDescription" = "Sesli arama yapmak ve sesli mesaj kaydedip göndermek için Spiral'ın mikrofona erişmesi gerekir.";
 "NSPhotoLibraryUsageDescription" = "Bu, görüntüleri ve videoları fotoğraf kitaplığınıza kaydetmenizi sağlar.";

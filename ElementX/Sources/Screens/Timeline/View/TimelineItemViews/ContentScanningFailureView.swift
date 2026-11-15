@@ -11,28 +11,42 @@ import SwiftUI
 /// The placeholder shown in place of a media item when the content scanner wasn't able to
 /// validate it. Preview and download of the content are disabled.
 ///
-/// This view only renders the failure title and message - the critical background is applied
-/// to the whole message bubble by `TimelineItemBubbledStylerView`, so that any caption and
-/// reply preview are included in the critical area too.
+/// This view only renders the failure title and message, as a card in the bubble its message would have had.
 struct ContentScanningFailureView: View {
+    @Environment(\.ownBubbleInk) private var ownBubbleInk // AGENT-PLATFORM (Brief 0083, question 359)
+    
     let failure: ContentScanningFailure
+    /// One row of several, or a quote, where a card's disc would outweigh what's around it. AGENT-PLATFORM (Brief 0083, question 359)
+    var isCompact = false
     
     var body: some View {
-        HStack(spacing: 8) {
-            CompoundIcon(\.error, size: .medium, relativeTo: .compound.bodyMDSemibold)
-                .foregroundStyle(.compound.iconCriticalPrimary)
-            
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                    .font(.compound.bodyMDSemibold)
-                    .foregroundStyle(.compound.textCriticalPrimary)
-                
-                Text(message)
-                    .font(.compound.bodySM)
-                    .foregroundStyle(.compound.textSecondary)
+        Group {
+            if isCompact {
+                HStack(spacing: 8) {
+                    CompoundIcon(\.error, size: .medium, relativeTo: .compound.bodyMDSemibold)
+                        .foregroundStyle(.compound.iconCriticalPrimary)
+                    
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(title)
+                            .font(.compound.bodyMDSemibold)
+                            .foregroundStyle(.compound.textCriticalPrimary)
+                        messageText
+                    }
+                }
+            } else {
+                ChatCardRow(icon: \.error, isCritical: true, title: title) {
+                    messageText
+                }
             }
         }
         .accessibilityElement(children: .combine)
+    }
+    
+    private var messageText: some View {
+        Text(message)
+            .font(.compound.bodySM)
+            // Compact, it sits in a critical container of its own, whatever the bubble around that.
+            .foregroundStyle(isCompact ? .compound.textSecondary : ownBubbleInk?.secondaryText ?? .compound.textSecondary)
     }
     
     private var title: String {

@@ -10,6 +10,7 @@
 // The Spiral feature is built on Element's `TemplateScreen.swift`.
 
 import Compound
+import SpiralComponents
 import SwiftUI
 
 struct AgentActivityScreen: View {
@@ -32,13 +33,11 @@ struct AgentActivityScreen: View {
                     errorSection
                 }
             }
-            .compoundList()
+            .spiralGroupedList() // Brief 0083 (P4-D): iOS's grouped cards and plain grey glyphs (decision 337).
         }
         .navigationTitle(UntranslatedL10n.screenAgentActivityTitle)
         .navigationBarTitleDisplayMode(.inline)
-        .alert(item: $context.alertInfo)
-        .refreshable { context.send(viewAction: .retry) }
-        .onAppear { context.send(viewAction: .appeared) }
+        .feedSyncStatus(context.viewState.syncStatus) // AGENT-PLATFORM: platform sync (decision 289)
         .toolbar { filterToolbarItem }
     }
 
@@ -65,37 +64,23 @@ struct AgentActivityScreen: View {
 
     // MARK: - Sections
 
-    // Canon §3 (operator ruling, CODEBASE/14): fast/rare data → a delayed
-    // spinner, never a skeleton (it only flickers).
+    // Decision 330: the activity's rows as placeholders, after a short delay.
     private var skeletonSection: some View {
         Section {
             ListRow(kind: .custom {
-                DelayedProgressView()
-                    .frame(minHeight: 80)
+                SpiralPreloader(label: L10n.commonLoading) {
+                    SpiralPlaceholderRows(count: 5, leading: .icon)
+                }
             })
         }
-        .listRowBackground(Color.clear)
     }
 
     private var emptySection: some View {
         Section {
-            VStack(spacing: 24) {
-                BigIcon(icon: \.history)
-                VStack(spacing: 8) {
-                    Text(context.viewState.emptyTitle)
-                        .font(.compound.headingSMSemibold)
-                        .foregroundStyle(.compound.textPrimary)
-                        .multilineTextAlignment(.center)
-                    Text(context.viewState.emptySubtitle)
-                        .font(.compound.bodyMD)
-                        .foregroundStyle(.compound.textSecondary)
-                        .multilineTextAlignment(.center)
-                }
-            }
-            .padding(.vertical, 40)
-            .padding(.horizontal, 24)
-            .frame(maxWidth: .infinity)
-            .listRowBackground(Color.clear)
+            SpiralEmptyState(symbol: .clockArrowTriangleheadCounterclockwiseRotate90,
+                             title: context.viewState.emptyTitle,
+                             message: context.viewState.emptySubtitle)
+                .listRowBackground(Color.clear)
         }
     }
 
@@ -189,7 +174,7 @@ struct AgentActivityScreen: View {
     }
 
     private var errorSection: some View {
-        AgentSpacesRetryErrorSection {
+        AgentSpacesRetryErrorSection(title: UntranslatedL10n.screenAgentActivityLoadFailed) {
             context.send(viewAction: .retry)
         }
     }
@@ -229,7 +214,7 @@ struct AgentActivityScreen: View {
 
 // MARK: - Previews
 
-struct AgentActivityScreen_Previews: PreviewProvider, TestablePreview {
+struct AgentActivityScreen_Previews: PreviewProvider, TestablePreview, SpiralGatedPreview {
     static let loadingViewModel = makeViewModel(state: .loading)
     static let emptyViewModel = makeViewModel(state: .loaded([], loadMore: .exhausted))
     static let nothingPendingViewModel = makeViewModel(state: .loaded([], loadMore: .exhausted), filter: .pendingConsent)
@@ -241,6 +226,7 @@ struct AgentActivityScreen_Previews: PreviewProvider, TestablePreview {
         ElementNavigationStack {
             AgentActivityScreen(context: loadingViewModel.context)
         }
+        .environment(\.spiralPreloaderDelay, .zero)
         .previewDisplayName("Loading")
 
         ElementNavigationStack {
@@ -280,16 +266,17 @@ struct AgentActivityScreen_Previews: PreviewProvider, TestablePreview {
     }
 
     /// The last row's capability, reason and outcome are newer than this
-    /// build: "Other action", no reason, "Other".
+    /// build: "Other action", no reason, "Other". Each age sits 30 s into its
+    /// unit, because `AgentRelativeTime.refreshSchedule`'s "now" lags up to 30 s.
     static let sampleEntries: [AgentActivityEntry] = [
         sampleEntry(id: "row-1", capabilityName: "messenger.reply_in_room", policyDecision: .allowedDirect,
-                    policyReason: "relationship_approved", outcome: .executed, age: 120),
+                    policyReason: "relationship_approved", outcome: .executed, age: 150),
         sampleEntry(id: "row-2", capabilityName: "messenger.reply_in_room", policyDecision: .requiresOwnerConsent,
-                    policyReason: "first_contact_with_unknown_visitor", outcome: .pending, age: 3600),
+                    policyReason: "first_contact_with_unknown_visitor", outcome: .pending, age: 3630),
         sampleEntry(id: "row-3", capabilityName: "messenger.reply_in_room", policyDecision: .denied,
-                    policyReason: "blocked_visitor", outcome: .denied, age: 86400),
+                    policyReason: "blocked_visitor", outcome: .denied, age: 86430),
         sampleEntry(id: "row-4", capabilityName: "future.capability", policyDecision: .ignored,
-                    policyReason: "future_reason", outcome: .unknown(rawValue: "future"), age: 172_800)
+                    policyReason: "future_reason", outcome: .unknown(rawValue: "future"), age: 172_830)
     ]
 
     static let sampleItems = sampleEntries.map { AgentActivityScreenViewModel.mapItem($0, clientProxy: makeClientProxy()) }
@@ -341,7 +328,7 @@ struct AgentActivityScreen_Previews: PreviewProvider, TestablePreview {
         }
         return AgentActivityScreenViewModel(agentID: "preview-agent",
                                             initialFilter: filter,
-                                            agentPlatformService: service,
+                                            store: AgentsStore(service: service),
                                             clientProxy: makeClientProxy())
     }
 }

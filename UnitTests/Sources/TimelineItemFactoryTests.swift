@@ -6,9 +6,10 @@
 // Please see LICENSE files in the repository root for full details.
 //
 
-@testable import ElementX
 import Foundation
 import MatrixRustSDK
+import MatrixRustSDKMocks
+@testable import Spiral
 import Testing
 
 @MainActor
@@ -419,7 +420,7 @@ struct TimelineItemFactoryTests {
                                               attributedStringBuilder: AttributedStringBuilder(mentionBuilder: MentionBuilder()),
                                               stateEventStringBuilder: RoomStateEventStringBuilder(userID: ownUserID))
         
-        let reaction = Reaction(key: "👍", senders: [.init(senderId: ownUserID, timestamp: 1_700_000_000_000)])
+        let reaction = Reaction(key: "👍", senders: [.init(senderId: ownUserID, timestamp: 1_700_000_000_000, sendState: nil)])
         let receipt = Receipt(timestamp: 1_700_000_000_000)
         
         let eventTimelineItem = EventTimelineItem.mockInteractivePost(sender: senderUserID,
@@ -434,7 +435,7 @@ struct TimelineItemFactoryTests {
         
         #expect(item.properties.reactions.map(\.key) == ["👍"])
         #expect(item.properties.reactions.first?.senders.map(\.id) == [ownUserID])
-        #expect(item.properties.orderedReadReceipts.map(\.userID) == [senderUserID])
+        #expect(item.properties.orderedReadReceipts.isEmpty) // AGENT-PLATFORM (Brief 0083, question 359): a receipt moving changes no row.
         #expect(item.properties.isEdited)
         
         // Taken from the SDK rather than invented here. `canBeRepliedTo` was
@@ -502,6 +503,52 @@ struct TimelineItemFactoryTests {
         #expect(item.content.body == "fallback")
     }
     
+    // AGENT-PLATFORM (decision 371): the summary's card is a message, for what a person does with it; from a person,
+    // or in a shape this build doesn't know, it's the plain text it says.
+    @Test
+    func aCallSummaryIsACardOnlyFromAnAgent() throws {
+        let factory = RoomTimelineItemFactory(userID: "@alice:spiral.md",
+                                              attributedStringBuilder: AttributedStringBuilder(mentionBuilder: MentionBuilder()),
+                                              stateEventStringBuilder: RoomStateEventStringBuilder(userID: "@alice:spiral.md"))
+        let facts = #"{"kind":"call_summary","title":"Call summary","summary":"We agreed.","decisions":["Ship it"],"action_items":["Send it"]}"#
+        
+        let fromAgent = EventTimelineItemProxy(item: .mockCallSummary(sender: "@assistant-alice:spiral.md", facts: facts), uniqueID: .init("0"))
+        let card = try #require(factory.buildTimelineItem(for: fromAgent, isDM: true) as? CallSummaryRoomTimelineItem)
+        #expect(card.summary == SpiralCallSummary(title: "Call summary", text: "We agreed.", decisions: ["Ship it"], actionItems: ["Send it"]))
+        #expect(card.body == "The whole summary")
+        #expect(card.isCopyable)
+        #expect(!card.isEditable)
+        
+        let fromPerson = EventTimelineItemProxy(item: .mockCallSummary(sender: "@mallory:spiral.md", facts: facts), uniqueID: .init("1"))
+        #expect(factory.buildTimelineItem(for: fromPerson, isDM: true) is TextRoomTimelineItem)
+        
+        let newerShape = #"{"kind":"call_summary","summary":{"paragraphs":["We agreed."]},"decisions":[],"action_items":[]}"#
+        let unknown = EventTimelineItemProxy(item: .mockCallSummary(sender: "@assistant-alice:spiral.md", facts: newerShape), uniqueID: .init("2"))
+        let text = try #require(factory.buildTimelineItem(for: unknown, isDM: true) as? TextRoomTimelineItem)
+        #expect(text.content.body == "The whole summary")
+    }
+    
+    // AGENT-PLATFORM (security pass 2, M1): a draft card publishes its code
+    // as the reader with one tap, into the room it names — so only an agent's
+    // draft is one. Anyone else's reads as the text it is.
+    @Test
+    func aDraftIsAPublishCardOnlyFromAnAgent() throws {
+        let factory = RoomTimelineItemFactory(userID: "@alice:spiral.md",
+                                              attributedStringBuilder: AttributedStringBuilder(mentionBuilder: MentionBuilder()),
+                                              stateEventStringBuilder: RoomStateEventStringBuilder(userID: "@alice:spiral.md"))
+        
+        let fromAgent = EventTimelineItemProxy(item: .mockInteractiveDraft(sender: "@assistant-alice:spiral.md"), uniqueID: .init("0"))
+        #expect(factory.buildTimelineItem(for: fromAgent, isDM: true) is InteractiveDraftRoomTimelineItem)
+        
+        let fromPerson = EventTimelineItemProxy(item: .mockInteractiveDraft(sender: "@mallory:spiral.md", body: "Draft: Poll"), uniqueID: .init("1"))
+        let item = try #require(factory.buildTimelineItem(for: fromPerson, isDM: true) as? TextRoomTimelineItem)
+        #expect(item.content.body == "Draft: Poll")
+        
+        // N6: the agent namespaces are this server's; elsewhere they are names.
+        let fromAForeignAssistant = EventTimelineItemProxy(item: .mockInteractiveDraft(sender: "@assistant-alice:evil.example"), uniqueID: .init("2"))
+        #expect(factory.buildTimelineItem(for: fromAForeignAssistant, isDM: true) is TextRoomTimelineItem)
+    }
+    
     @Test
     func agentToolsFallbackBecomesAStateRow() throws {
         let ownUserID = "@alice:matrix.org"
@@ -524,5 +571,100 @@ struct TimelineItemFactoryTests {
         let unknown = #"{"type":"com.example.unknown","sender":"@bob:matrix.org","content":{}}"#
         let other = EventTimelineItemProxy(item: .mockOtherMessageLike(sender: "@bob:matrix.org", originalJSON: unknown), uniqueID: .init("1"))
         #expect(factory.buildTimelineItem(for: other, isDM: false) == nil, "any other custom event stays hidden")
+    }
+    
+    @Test
+    func agentToolRowsAreMarkedForTheFold() throws {
+        let agent = "@assistant-alice:matrix.org"
+        let factory = RoomTimelineItemFactory(userID: "@alice:matrix.org",
+                                              attributedStringBuilder: AttributedStringBuilder(mentionBuilder: MentionBuilder()),
+                                              stateEventStringBuilder: RoomStateEventStringBuilder(userID: "@alice:matrix.org"))
+        let json = """
+        {"type":"com.spiral.tools","state_key":"\(agent)","sender":"\(agent)",
+         "content":{"by":"@alice:matrix.org","at":1000,"tools":[{"tool":"summarize","enabled":true}],
+                    "changes":[{"action":"armed","tool":"summarize","actor":"owner"}]}}
+        """
+        let content = TimelineItemContent.state(stateKey: agent, content: .custom(eventType: "com.spiral.tools"))
+        let item = EventTimelineItemProxy(item: .init(configuration: .init(sender: agent, originalJSON: json, content: content)), uniqueID: .init("0"))
+        let row = try #require(factory.buildTimelineItem(for: item, isDM: false) as? StateRoomTimelineItem)
+        #expect(row.isAgentToolChange)
+        #expect(row.isAgentToolChangeByYou)
+        
+        let otherRow = StateRoomTimelineItem(id: .randomVirtual, body: "", timestamp: .mock, isOutgoing: false, isEditable: false, canBeRepliedTo: false, sender: .init(id: ""))
+        #expect(CollapsibleTimelineItem(items: [row, row]).isOnlyAgentToolChanges)
+        #expect(!CollapsibleTimelineItem(items: [row, otherRow]).isOnlyAgentToolChanges)
+    }
+    
+    @Test
+    func anEventThatChangedNothingHasNoRow() {
+        let agent = "@assistant-alice:matrix.org"
+        let factory = RoomTimelineItemFactory(userID: "@alice:matrix.org",
+                                              attributedStringBuilder: AttributedStringBuilder(mentionBuilder: MentionBuilder()),
+                                              stateEventStringBuilder: RoomStateEventStringBuilder(userID: "@alice:matrix.org"))
+        let content = #""content":{"by":"@alice:matrix.org","at":1000,"tools":[{"tool":"summarize","enabled":true}],"changes":[]}"#
+        let state = #"{"type":"com.spiral.tools","state_key":"\#(agent)","sender":"\#(agent)",\#(content)}"#
+        let stateItem = EventTimelineItemProxy(item: .init(configuration: .init(sender: agent,
+                                                                                originalJSON: state,
+                                                                                content: .state(stateKey: agent, content: .custom(eventType: "com.spiral.tools")))),
+                                               uniqueID: .init("0"))
+        #expect(factory.buildTimelineItem(for: stateItem, isDM: false) == nil)
+        
+        let fallback = #"{"type":"com.spiral.tools.changed","sender":"\#(agent)",\#(content)}"#
+        let fallbackItem = EventTimelineItemProxy(item: .mockOtherMessageLike(sender: agent, originalJSON: fallback), uniqueID: .init("1"))
+        #expect(factory.buildTimelineItem(for: fallbackItem, isDM: false) == nil)
+    }
+    
+    // AGENT-PLATFORM (S4): opening a thread on a message leaves the SDK an empty summary for it.
+    @Test
+    func aThreadWithNoRepliesHasNoSummary() throws {
+        for latestEvent in [EmbeddedEventDetails.unavailable, .pending] {
+            let item = try Self.textItem(threadSummary: Self.threadSummary(numberOfReplies: 0, latestEvent: latestEvent))
+            #expect(item.properties.threadSummary == nil)
+        }
+    }
+    
+    @Test
+    func aThreadWithRepliesSummarisesItsLatestReply() throws {
+        let reply = EventTimelineItem.mockMessage.content
+        let latestEvent = EmbeddedEventDetails.ready(content: reply, sender: Self.peer, senderProfile: .pending,
+                                                     timestamp: Self.at(5), eventOrTransactionId: .eventId(eventId: "$reply"))
+        let item = try Self.textItem(threadSummary: Self.threadSummary(numberOfReplies: 2, latestEvent: latestEvent))
+        
+        guard case .loaded(let senderID, _, _, let numberOfReplies) = item.properties.threadSummary else {
+            Issue.record("Expected a loaded summary, got \(String(describing: item.properties.threadSummary))")
+            return
+        }
+        #expect(senderID == Self.peer)
+        #expect(numberOfReplies == 2)
+    }
+    
+    /// A thread with replies keeps its placeholder until the latest reply arrives.
+    @Test
+    func aThreadWithRepliesNotYetLoadedShowsThePlaceholder() throws {
+        let item = try Self.textItem(threadSummary: Self.threadSummary(numberOfReplies: 1, latestEvent: .unavailable))
+        #expect(item.properties.threadSummary == .notLoaded)
+    }
+    
+    private static func threadSummary(numberOfReplies: UInt64, latestEvent: EmbeddedEventDetails) -> ThreadSummarySDKMock {
+        let summary = ThreadSummarySDKMock()
+        summary.numRepliesReturnValue = numberOfReplies
+        summary.latestEventReturnValue = latestEvent
+        return summary
+    }
+    
+    private static func textItem(threadSummary: ThreadSummary) throws -> TextRoomTimelineItem {
+        let factory = RoomTimelineItemFactory(userID: me,
+                                              attributedStringBuilder: AttributedStringBuilder(mentionBuilder: MentionBuilder()),
+                                              stateEventStringBuilder: RoomStateEventStringBuilder(userID: me))
+        let body = "Interactive post"
+        let content = TimelineItemContent.msgLike(content: .init(kind: .message(content: .init(msgType: .text(content: .init(body: body, formatted: nil)),
+                                                                                               body: body,
+                                                                                               isEdited: false,
+                                                                                               mentions: nil)),
+                                                                 inReplyTo: nil,
+                                                                 threadRoot: nil,
+                                                                 threadSummary: threadSummary))
+        let proxy = EventTimelineItemProxy(item: .init(configuration: .init(sender: me, isOwn: true, content: content)), uniqueID: .init("0"))
+        return try #require(factory.buildTimelineItem(for: proxy, isDM: true) as? TextRoomTimelineItem, "Incorrect item type")
     }
 }

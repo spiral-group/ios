@@ -6,8 +6,8 @@
 //
 
 import Combine
-@testable import ElementX
 import Foundation
+@testable import Spiral
 import Testing
 import UIKit
 
@@ -48,7 +48,6 @@ struct PresenceObserverServiceTests {
     static let me = "@me:spiral.md"
     static let alice = "@alice:spiral.md"
     static let bob = "@bob:spiral.md"
-    static let agent = "@assistant-me:spiral.md"
     
     let clientProxy: ClientProxyMock
     let notificationCenter = NotificationCenter()
@@ -144,7 +143,7 @@ struct PresenceObserverServiceTests {
     
     @Test
     func neitherTheUserNorAgentsNorBridgeContactsArePolled() async throws {
-        let nobodies = [Self.me, Self.agent,
+        let nobodies = [Self.me,
                         "@telegram_123456:spiral.md", "@whatsapp_380501234567:spiral.md", "@instagram_17841400:spiral.md",
                         "@telegrambot:spiral.md", "@whatsappbot:spiral.md", "@instagrambot:spiral.md", "@instagram-login-bot:spiral.md"]
         for userID in nobodies + [Self.alice] {

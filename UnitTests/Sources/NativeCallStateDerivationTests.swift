@@ -2,7 +2,8 @@
 // Copyright 2026 the Spiral authors. AGPL-3.0-or-later.
 //
 
-@testable import ElementX
+import Foundation
+@testable import Spiral
 import Testing
 
 /// Pins for the pure function the whole call screen is derived from.
@@ -14,30 +15,28 @@ struct NativeCallStateDerivationTests {
     private let agentIdentity = "@agent:matrix.org:AGENT"
     private let bobIdentity = "@bob:matrix.org:BOB"
 
-    /// A v3 document as the runtime publishes it: one translation function
-    /// with its style and its booths (`anyone` unless `booth` narrows it).
+    /// A v6 document as the runtime publishes it (ADR-0094 A.6): one translation function with its style and its
+    /// lanes — every human of these tests into each language, unless `speakers` names them. Inactive, it stands by.
     private func agentDocument(languages: [String],
                                active: Bool = true,
                                style: String = "simultaneous",
-                               booth: String? = nil,
+                               speakers: [String] = ["@alice:matrix.org", "@bob:matrix.org", "@carol:matrix.org"],
                                lifecycle: String = "live") -> [String: String] {
-        let targets = languages.map { "\"\($0)\"" }.joined(separator: ",")
-        let booths = booth ?? #"{"speaker_scope":"anyone","speaker_members":[],"target_languages":[\#(targets)]}"#
+        let lanes = active
+            ? speakers.flatMap { speaker in languages.map { #"{"speaker":"\#(speaker)","input":"voice","language":"\#($0)"}"# } }.joined(separator: ",")
+            : ""
+        let intent = languages.count == 2
+            ? #""pocket":["\#(languages[0])","\#(languages[1])"]"#
+            : #""for_language":"\#(languages.first ?? "")""#
         let functions = languages.isEmpty
             ? "[]"
-            : #"[{"kind":"translation","active":\#(active),"target_languages":[\#(targets)],"style":"\#(style)","booths":[\#(booths)]}]"#
-        return [SpiralAgentStateReader.attributeKey: #"{"v":3,"agent":true,"lifecycle":"\#(lifecycle)","functions":\#(functions)}"#]
-    }
-
-    private func membersBooth(_ members: [String], languages: [String]) -> String {
-        let targets = languages.map { "\"\($0)\"" }.joined(separator: ",")
-        let names = members.map { "\"\($0)\"" }.joined(separator: ",")
-        return #"{"speaker_scope":"members","speaker_members":[\#(names)],"target_languages":[\#(targets)]}"#
+            : #"[{"kind":"translation","active":\#(active),\#(intent),"style":"\#(style)","lanes":[\#(lanes)]}]"#
+        return [SpiralAgentStateReader.attributeKey: #"{"v":6,"agent":true,"lifecycle":"\#(lifecycle)","functions":\#(functions)}"#]
     }
 
     private func inputs(agentAttributes: [String: String] = [:],
                         tracks: [NativeCallTransportTrack] = [],
-                        choice: NativeCallListeningChoice = .translation) -> NativeCallDerivationInputs {
+                        choice: NativeCallListeningChoice = .language("uk")) -> NativeCallDerivationInputs {
         var inputs = NativeCallDerivationInputs()
         inputs.ownIdentity = "@alice:matrix.org:DEVICE"
         inputs.transportLocalIdentity = "@alice:matrix.org:DEVICE"
@@ -64,13 +63,105 @@ struct NativeCallStateDerivationTests {
                                                             tracks: [stale, microphone]))
 
         #expect(state.listening.producedLanguages.isEmpty)
-        #expect(state.listening.channel == .everything)
+        // A language nobody produces is heard as the original (Brief 0085).
+        #expect(state.listening.channel == .original)
         #expect(state.subscriptionPlan.isTrackExcluded(identity: agentIdentity, name: "lt:uk:@bob:matrix.org", kind: .audio))
         #expect(!state.subscriptionPlan.isTrackExcluded(identity: bobIdentity, name: "microphone", kind: .audio))
         // A stale lane must not mark its speaker as translated either —
         // that would hide the raw voice (fail silent).
         #expect(state.listening.translatedSpeakers.isEmpty)
         #expect(state.participants.first { $0.userID == "@bob:matrix.org" }?.isTranslated == false)
+    }
+
+    /// Bug S2: an assistant kicked from the room leaves the call at once — the SDK takes its membership out, and
+    /// its media, still on the SFU until its runtime hangs up, must not bring it back as a participant.
+    @Test
+    func anAgentWhoseMembershipEndedIsGoneThoughItsMediaLingers() {
+        var inCall = inputs(agentAttributes: agentDocument(languages: ["uk"]))
+        inCall.transportParticipants = [.init(identity: bobIdentity, isSpeaking: false, isAudioEnabled: true),
+                                        .init(identity: agentIdentity, isSpeaking: true, isAudioEnabled: true,
+                                              isAgent: true, attributes: agentDocument(languages: ["uk"]))]
+        var kicked = inCall
+        kicked.memberships.removeAll { $0.userID == "@agent:matrix.org" }
+        kicked.departedIdentities = NativeCallStateDerivation.departedIdentities(previous: inCall, inputs: kicked)
+
+        let state = NativeCallStateDerivation.derive(kicked)
+
+        #expect(kicked.departedIdentities == [agentIdentity])
+        #expect(state.participants.map(\.userID) == ["@alice:matrix.org", "@bob:matrix.org"])
+        #expect(state.agentClaims.documents.isEmpty)
+        #expect(state.agentStateDocuments.isEmpty)
+        #expect(state.listening.translatedSpeakers.isEmpty, "its claim no longer quiets anyone's voice")
+        #expect(!state.subscriptionPlan.authorizedIdentities.contains(agentIdentity))
+    }
+
+    /// A membership can blip — a spuriously fired delayed leave, re-published a moment later. Presence still reads
+    /// the media on the SFU, so neither a talking peer nor an agent ends the call in between.
+    @Test
+    func aMembershipBlipDoesNotEndTheCall() {
+        var inCall = inputs()
+        inCall.transportParticipants = [.init(identity: bobIdentity, isSpeaking: true, isAudioEnabled: true),
+                                        .init(identity: agentIdentity, isSpeaking: false, isAudioEnabled: true, isAgent: true)]
+        var blip = inCall
+        blip.memberships = []
+        blip.departedIdentities = NativeCallStateDerivation.departedIdentities(previous: inCall, inputs: blip)
+        #expect(blip.departedIdentities == [bobIdentity, agentIdentity])
+
+        let state = NativeCallStateDerivation.derive(blip)
+
+        #expect(state.hasHumanRemote)
+        #expect(state.hasHumanOnTransport)
+        #expect(state.hasAgentRemote)
+        #expect(state.participants.map(\.userID) == ["@alice:matrix.org"], "the roster still drops them")
+    }
+
+    /// LiveKit can beat MatrixRTC to the client: an agent on the SFU that never had a membership has not departed.
+    @Test
+    func anAgentAheadOfItsMembershipIsNotDeparted() {
+        var arriving = inputs(agentAttributes: agentDocument(languages: ["uk"]))
+        arriving.memberships.removeAll { $0.userID == "@agent:matrix.org" }
+        arriving.transportParticipants = [.init(identity: agentIdentity, isSpeaking: false, isAudioEnabled: true, isAgent: true)]
+
+        #expect(NativeCallStateDerivation.departedIdentities(previous: arriving, inputs: arriving).isEmpty)
+        #expect(NativeCallStateDerivation.derive(arriving).participants.contains { $0.userID == "@agent:matrix.org" })
+    }
+
+    /// A departure ends when the membership comes back (re-added) or the media leaves the SFU.
+    @Test
+    func aDepartureEndsWithAReturnOrTheHangUp() {
+        let inCall = inputs()
+        var kicked = inCall
+        kicked.memberships.removeAll { $0.userID == "@agent:matrix.org" }
+        kicked.departedIdentities = NativeCallStateDerivation.departedIdentities(previous: inCall, inputs: kicked)
+        #expect(kicked.departedIdentities == [agentIdentity])
+
+        var stillLingering = kicked
+        stillLingering.isLocalSpeaking = true
+        #expect(NativeCallStateDerivation.departedIdentities(previous: kicked, inputs: stillLingering) == [agentIdentity],
+                "an unrelated input change keeps it")
+
+        var back = kicked
+        back.memberships = inCall.memberships
+        #expect(NativeCallStateDerivation.departedIdentities(previous: kicked, inputs: back).isEmpty)
+
+        var hungUp = kicked
+        hungUp.transportParticipants.removeAll { $0.identity == agentIdentity }
+        #expect(NativeCallStateDerivation.departedIdentities(previous: kicked, inputs: hungUp).isEmpty)
+    }
+
+    /// Question 383: the plan names the staged person's video devices, and no one's without a stage.
+    @Test
+    func thePlanNamesTheStagedPersonsVideo() {
+        var camera = NativeCallTransportTrack(identity: bobIdentity, name: "camera", isSubscribed: true)
+        camera.kind = .video
+        var staged = inputs(tracks: [camera])
+        #expect(NativeCallStateDerivation.derive(staged).subscriptionPlan.stagedVideoIdentities.isEmpty)
+
+        staged.stagedUserID = "@bob:matrix.org"
+        #expect(NativeCallStateDerivation.derive(staged).subscriptionPlan.stagedVideoIdentities == [bobIdentity])
+
+        staged.stagedUserID = "@carol:matrix.org"
+        #expect(NativeCallStateDerivation.derive(staged).subscriptionPlan.stagedVideoIdentities.isEmpty)
     }
 
     @Test
@@ -81,7 +172,7 @@ struct NativeCallStateDerivationTests {
                                                             tracks: [live, microphone]))
 
         #expect(state.listening.producedLanguages == ["uk"])
-        #expect(state.listening.channel == .everything)
+        #expect(state.listening.channel == .translation(language: "uk"))
         #expect(state.listening.translatedSpeakers == ["@bob:matrix.org": "uk"])
         #expect(!state.subscriptionPlan.isTrackExcluded(identity: agentIdentity, name: "lt:uk:@bob:matrix.org", kind: .audio))
         // Brief 0066: Bob's raw microphone STAYS subscribed and is ducked
@@ -108,20 +199,21 @@ struct NativeCallStateDerivationTests {
         let state = NativeCallStateDerivation.derive(inputs(agentAttributes: agentDocument(languages: ["uk"], style: "consecutive"),
                                                             tracks: [aired, microphone]))
 
-        #expect(state.listening.channel == .everything)
+        #expect(state.listening.channel == .translation(language: "uk"))
         #expect(!state.subscriptionPlan.isTrackExcluded(identity: agentIdentity, name: "lt:uk", kind: .audio))
     }
 
-    /// And "original voices" must now actually silence it.
+    /// Brief 0085: consecutive is only the pocket interpreter the owner set up for themself, so the original still
+    /// plays it.
     @Test
-    func aConsecutiveTrackIsUnsubscribedForOriginalVoices() {
+    func aConsecutiveTrackIsHeardInTheOriginalToo() {
         let aired = NativeCallTransportTrack(identity: agentIdentity, name: "lt:uk", isSubscribed: true)
         let state = NativeCallStateDerivation.derive(inputs(agentAttributes: agentDocument(languages: ["uk"], style: "consecutive"),
                                                             tracks: [aired],
                                                             choice: .original))
 
         #expect(state.listening.channel == .original)
-        #expect(state.subscriptionPlan.isTrackExcluded(identity: agentIdentity, name: "lt:uk", kind: .audio))
+        #expect(!state.subscriptionPlan.isTrackExcluded(identity: agentIdentity, name: "lt:uk", kind: .audio))
     }
 
     /// ADR-0075 D8 — consecutive stays communal: EVERY configured language
@@ -170,18 +262,17 @@ struct NativeCallStateDerivationTests {
     }
 
     /// Two simultaneous lanes in different languages for the same speaker
-    /// (two agents, or one reconfigured): both are heard, and the roster
-    /// names whichever lane is live for that speaker.
+    /// (Brief 0085: two listeners' choices): only the chosen one is heard.
     @Test
-    func everySimultaneousLaneIsSubscribed() {
+    func onlyTheChosenLanguagesLaneIsSubscribed() {
         let uk = NativeCallTransportTrack(identity: agentIdentity, name: "lt:uk:@bob:matrix.org", isSubscribed: true)
         let de = NativeCallTransportTrack(identity: agentIdentity, name: "lt:de:@bob:matrix.org", isSubscribed: true)
         let state = NativeCallStateDerivation.derive(inputs(agentAttributes: agentDocument(languages: ["uk", "de"]),
                                                             tracks: [uk, de]))
-        #expect(state.listening.channel == .everything)
+        #expect(state.listening.channel == .translation(language: "uk"))
         #expect(!state.subscriptionPlan.isTrackExcluded(identity: agentIdentity, name: "lt:uk:@bob:matrix.org", kind: .audio))
-        #expect(!state.subscriptionPlan.isTrackExcluded(identity: agentIdentity, name: "lt:de:@bob:matrix.org", kind: .audio))
-        #expect(state.listening.translatedSpeakers["@bob:matrix.org"] == "de", "the smallest tag wins, deterministically")
+        #expect(state.subscriptionPlan.isTrackExcluded(identity: agentIdentity, name: "lt:de:@bob:matrix.org", kind: .audio))
+        #expect(state.listening.translatedSpeakers["@bob:matrix.org"] == "uk")
     }
 
     /// Audit B11: before the own membership syncs the local row rendered
@@ -205,15 +296,47 @@ struct NativeCallStateDerivationTests {
         #expect(state.participants.contains { $0.userID == "@bob:matrix.org" })
     }
 
-    /// An agent with no document at all (its fail-soft publish did not land)
-    /// keeps its tracks as the truth — the fallback that lets a non-owner
-    /// see translations.
+    /// Security (pre-merge review): a track name proves nothing. A person
+    /// publishing `lt:uk:@bob` would be heard as Bob's translation — over
+    /// Bob's real voice, ducked by an agent that does cover him. A
+    /// publisher with no document is never subscribed for it.
     @Test
-    func anUndocumentedPublisherKeepsItsTracksAsTheTruth() {
-        let track = NativeCallTransportTrack(identity: agentIdentity, name: "lt:uk:@bob:matrix.org", isSubscribed: true)
-        let state = NativeCallStateDerivation.derive(inputs(tracks: [track]))
-        #expect(state.listening.producedLanguages == ["uk"])
-        #expect(!state.subscriptionPlan.isTrackExcluded(identity: agentIdentity, name: "lt:uk:@bob:matrix.org", kind: .audio))
+    func aTranslationTrackFromAPublisherWithoutADocumentIsNeverSubscribed() {
+        let forged = NativeCallTransportTrack(identity: bobIdentity, name: "lt:uk:@carol:matrix.org", isSubscribed: true)
+        let agentLane = NativeCallTransportTrack(identity: agentIdentity, name: "lt:uk:@bob:matrix.org", isSubscribed: true)
+        let state = NativeCallStateDerivation.derive(inputs(tracks: [forged, agentLane]))
+
+        #expect(state.listening.producedLanguages.isEmpty)
+        #expect(state.subscriptionPlan.isTrackExcluded(identity: bobIdentity, name: "lt:uk:@carol:matrix.org", kind: .audio))
+        #expect(state.subscriptionPlan.isTrackExcluded(identity: agentIdentity, name: "lt:uk:@bob:matrix.org", kind: .audio))
+    }
+
+    /// D12: an `ltd:` track is reserved — never subscribed, even from an
+    /// agent whose document covers that speaker in that language, and even
+    /// published as screen-share audio, which is otherwise always heard.
+    @Test
+    func aReservedDeviceTrackIsNeverSubscribed() {
+        let state = NativeCallStateDerivation.derive(inputs(agentAttributes: agentDocument(languages: ["uk"]),
+                                                            tracks: [.init(identity: agentIdentity, name: "ltd:uk:@bob:matrix.org", isSubscribed: false)]))
+
+        #expect(state.subscriptionPlan.isTrackExcluded(identity: agentIdentity, name: "ltd:uk:@bob:matrix.org", kind: .audio))
+        #expect(state.subscriptionPlan.isTrackExcluded(identity: agentIdentity, name: "ltd:uk:@bob:matrix.org", kind: .audio,
+                                                       source: .screenShareAudio))
+    }
+
+    /// A.6: an agent's track is heard only for a lane its own document
+    /// lists — Bob's, in this language. Its document airing Ukrainian for
+    /// others is no licence for a lane it doesn't list.
+    @Test
+    func anAgentsTrackItsDocumentDoesNotListIsNeverSubscribed() {
+        let listed = NativeCallTransportTrack(identity: agentIdentity, name: "lt:uk:@carol:matrix.org", isSubscribed: true)
+        let unlisted = NativeCallTransportTrack(identity: agentIdentity, name: "lt:uk:@bob:matrix.org", isSubscribed: true)
+        let state = NativeCallStateDerivation.derive(inputs(agentAttributes: agentDocument(languages: ["uk"], speakers: ["@carol:matrix.org"]),
+                                                            tracks: [listed, unlisted]))
+
+        #expect(!state.subscriptionPlan.isTrackExcluded(identity: agentIdentity, name: "lt:uk:@carol:matrix.org", kind: .audio))
+        #expect(state.subscriptionPlan.isTrackExcluded(identity: agentIdentity, name: "lt:uk:@bob:matrix.org", kind: .audio))
+        #expect(state.listening.translatedSpeakers.isEmpty, "nobody listed covers Bob, so his voice isn't ducked")
     }
 
     /// Brief 0068 Slice 1: a peer that announced a hold is never speaking
@@ -358,7 +481,7 @@ struct NativeCallStateDerivationTests {
     /// document alone decides who is quiet for us.
     private func groupInputs(agentAttributes: [String: String],
                              tracks: [NativeCallTransportTrack] = [],
-                             choice: NativeCallListeningChoice = .translation,
+                             choice: NativeCallListeningChoice = .language("en"),
                              lanesSeenLive: Set<NativeCallLaneKey> = []) -> NativeCallDerivationInputs {
         var inputs = inputs(agentAttributes: agentAttributes, tracks: tracks, choice: choice)
         inputs.memberships.append(.init(userID: "@carol:matrix.org", deviceID: "CAROL", identity: carolIdentity))
@@ -373,7 +496,7 @@ struct NativeCallStateDerivationTests {
     /// mirror — Bob's device ducking Alice — is scenario 1b.
     @Test
     func aBoothCoveringOnlyMeDucksNobodyForMe() {
-        let document = agentDocument(languages: ["en"], booth: membersBooth(["@alice:matrix.org"], languages: ["en"]))
+        let document = agentDocument(languages: ["en"], speakers: ["@alice:matrix.org"])
         let state = NativeCallStateDerivation.derive(groupInputs(agentAttributes: document))
 
         #expect(state.listening.translatedSpeakers.isEmpty)
@@ -384,7 +507,7 @@ struct NativeCallStateDerivationTests {
     /// him from the moment the document says so, no lane needed.
     @Test
     func aBoothCoveringAnotherSpeakerDucksThemBeforeTheirFirstWord() {
-        let document = agentDocument(languages: ["en"], booth: membersBooth(["@bob:matrix.org"], languages: ["en"]))
+        let document = agentDocument(languages: ["en"], speakers: ["@bob:matrix.org"])
         let state = NativeCallStateDerivation.derive(groupInputs(agentAttributes: document))
 
         #expect(state.listening.translatedSpeakers == ["@bob:matrix.org": "en"])
@@ -440,11 +563,10 @@ struct NativeCallStateDerivationTests {
         #expect(state.subscriptionPlan.originalDucking.identitiesBySpeaker["@bob:matrix.org"] == [bobIdentity, "@bob:matrix.org:PAD"])
     }
 
-    /// An `everyone_except` booth reads as the runtime resolves it.
+    /// A speaker with no lane is heard in the original (D10).
     @Test
-    func anExceptBoothSparesTheNamedSpeaker() {
-        let booth = #"{"speaker_scope":"everyone_except","speaker_members":["@bob:matrix.org"],"target_languages":["en"]}"#
-        let state = NativeCallStateDerivation.derive(groupInputs(agentAttributes: agentDocument(languages: ["en"], booth: booth)))
+    func aSpeakerWithoutALaneIsSpared() {
+        let state = NativeCallStateDerivation.derive(groupInputs(agentAttributes: agentDocument(languages: ["en"], speakers: ["@carol:matrix.org"])))
 
         #expect(state.listening.translatedSpeakers == ["@carol:matrix.org": "en"])
     }
@@ -527,6 +649,147 @@ struct NativeCallStateDerivationTests {
 
         #expect(state.listening.falteredSpeakers.isEmpty)
         #expect(state.subscriptionPlan.duckedSpeakers.isEmpty)
+    }
+
+    // MARK: - Never aired after 4 s of speech (operator, 2026-11-12)
+
+    private let start = Date(timeIntervalSinceReferenceDate: 800_000_000)
+
+    /// One input write `seconds` into the call: Bob speaking or not, his lane into English on the air (unmuted, the
+    /// agent speaking) or not, the agent speaking for someone else, and his coverage standing or not. The lane memory is
+    /// folded as the session does, so a rule that read it would see the same airing.
+    private func look(_ memory: [NativeCallCoverageKey: NativeCallUnairedCoverage],
+                      at seconds: TimeInterval,
+                      bobSpeaks: Bool,
+                      bobsLaneAired: Bool = false,
+                      agentSpeaks: Bool = false,
+                      bobCovered: Bool = true,
+                      isOneToOne: Bool = false) -> [NativeCallCoverageKey: NativeCallUnairedCoverage] {
+        let document = bobCovered ? agentDocument(languages: ["en"]) : agentDocument(languages: ["en"], speakers: ["@carol:matrix.org"])
+        let tracks = bobsLaneAired ? [airingLane()] : []
+        var call = isOneToOne ? inputs(agentAttributes: document, tracks: tracks, choice: .language("en"))
+            : groupInputs(agentAttributes: document, tracks: tracks)
+        let speakers = Set([bobSpeaks ? bobIdentity : nil, bobsLaneAired || agentSpeaks ? agentIdentity : nil].compactMap(\.self))
+        call = speaking(call, speakers)
+        call.lanesSeenLive = NativeCallStateDerivation.lanesSeenLive(previous: [], inputs: call)
+        return NativeCallStateDerivation.unairedCoverage(previous: memory, inputs: call, now: start.addingTimeInterval(seconds))
+    }
+
+    private func ducked(_ memory: [NativeCallCoverageKey: NativeCallUnairedCoverage], bobSpeaks: Bool = false) -> Set<String> {
+        var inputs = speaking(groupInputs(agentAttributes: agentDocument(languages: ["en"])), bobSpeaks ? [bobIdentity] : [])
+        inputs.unairedCoverage = memory
+        return NativeCallStateDerivation.derive(inputs).subscriptionPlan.duckedSpeakers
+    }
+
+    /// A Russian UI, Ukrainian speech: Bob's lane exists and never airs. After 4 s of his speech he is heard in full —
+    /// not a falter, nothing says so — and stays so through a long pause.
+    @Test
+    func aSpeakerWhoseLaneNeverAirsIsHeardInFullAfterFourSecondsOfSpeech() {
+        var memory = look([:], at: 0, bobSpeaks: true)
+        memory = look(memory, at: 2, bobSpeaks: true)
+        #expect(ducked(memory, bobSpeaks: true) == ["@bob:matrix.org", "@carol:matrix.org"])
+
+        memory = look(memory, at: 4.1, bobSpeaks: true)
+        #expect(memory[.init(speaker: "@bob:matrix.org", language: "en")]?.isReleased == true)
+        var inputs = speaking(groupInputs(agentAttributes: agentDocument(languages: ["en"])), [bobIdentity])
+        inputs.unairedCoverage = memory
+        let state = NativeCallStateDerivation.derive(inputs)
+        #expect(state.subscriptionPlan.duckedSpeakers == ["@carol:matrix.org"])
+        #expect(state.listening.unairedSpeakers == ["@bob:matrix.org"])
+        #expect(state.listening.falteredSpeakers.isEmpty)
+        #expect(state.listening.falteredAgents.isEmpty)
+
+        memory = look(memory, at: 5, bobSpeaks: false)
+        memory = look(memory, at: 600, bobSpeaks: false)
+        #expect(ducked(memory) == ["@carol:matrix.org"])
+    }
+
+    /// Speech, not wall time: two seconds, a long pause, two more — released; silence alone releases nobody.
+    @Test
+    func theReleaseCountsSpeechNotTime() {
+        var memory = look([:], at: 0, bobSpeaks: true)
+        memory = look(memory, at: 2, bobSpeaks: false)
+        memory = look(memory, at: 300, bobSpeaks: false)
+        #expect(ducked(memory) == ["@bob:matrix.org", "@carol:matrix.org"])
+        #expect(memory[.init(speaker: "@bob:matrix.org", language: "en")]?.releaseDate == nil)
+
+        memory = look(memory, at: 310, bobSpeaks: true)
+        #expect(memory[.init(speaker: "@bob:matrix.org", language: "en")]?.releaseDate == start.addingTimeInterval(312))
+        memory = look(memory, at: 312.1, bobSpeaks: false)
+        #expect(ducked(memory) == ["@carol:matrix.org"])
+    }
+
+    /// A real foreign speaker: the lane airs 2.5 s into the first sentence. Ducked from the first word, and still after
+    /// long speech.
+    @Test
+    func aSpeakerWhoseLaneAirsStaysDuckedFromTheFirstWord() {
+        var memory = look([:], at: 0, bobSpeaks: true)
+        #expect(ducked(memory, bobSpeaks: true).contains("@bob:matrix.org"))
+        memory = look(memory, at: 2.5, bobSpeaks: true, bobsLaneAired: true)
+        memory = look(memory, at: 3, bobSpeaks: true, bobsLaneAired: true)
+        memory = look(memory, at: 3.5, bobSpeaks: true)
+        memory = look(memory, at: 10, bobSpeaks: true)
+        memory = look(memory, at: 11, bobSpeaks: false)
+        #expect(ducked(memory, bobSpeaks: true).contains("@bob:matrix.org"))
+        #expect(memory[.init(speaker: "@bob:matrix.org", language: "en")]?.releaseDate == nil)
+    }
+
+    /// Released, then a lane of his airs at last: ducked again, as today.
+    @Test
+    func aReleasedSpeakerIsDuckedAgainWhenHisLaneAirs() {
+        var memory = look([:], at: 0, bobSpeaks: true)
+        memory = look(memory, at: 5, bobSpeaks: true)
+        #expect(!ducked(memory).contains("@bob:matrix.org"))
+
+        memory = look(memory, at: 6, bobSpeaks: true, bobsLaneAired: true)
+        memory = look(memory, at: 20, bobSpeaks: true)
+        #expect(ducked(memory).contains("@bob:matrix.org"))
+    }
+
+    /// Review of 2026-11-12: Bob's lane sitting published unmuted while the agent voices Carol isn't Bob's translation.
+    /// He is still released after 4 s of his own speech.
+    @Test
+    func aLaneAiringWhileTheAgentVoicesSomeoneElseIsntHisTranslation() {
+        var memory = look([:], at: 0, bobSpeaks: false, bobsLaneAired: true)
+        memory = look(memory, at: 1, bobSpeaks: false, agentSpeaks: true)
+        memory = look(memory, at: 20, bobSpeaks: true)
+        memory = look(memory, at: 24.5, bobSpeaks: true)
+        #expect(!ducked(memory).contains("@bob:matrix.org"))
+    }
+
+    /// …nor is a lane unmuted for a beat (under half a second) before the runtime mutes it.
+    @Test
+    func aBeatOfAiringIsntHisTranslation() {
+        var memory = look([:], at: 0, bobSpeaks: true)
+        memory = look(memory, at: 1, bobSpeaks: true, bobsLaneAired: true)
+        memory = look(memory, at: 1.2, bobSpeaks: true)
+        memory = look(memory, at: 4.5, bobSpeaks: true)
+        #expect(!ducked(memory).contains("@bob:matrix.org"))
+    }
+
+    /// A 1:1 with Bob the same (operator, 2026-11-12).
+    @Test
+    func theReleaseHoldsInAOneToOneCall() {
+        var memory = look([:], at: 0, bobSpeaks: true, isOneToOne: true)
+        memory = look(memory, at: 4.5, bobSpeaks: true, isOneToOne: true)
+        var inputs = speaking(inputs(agentAttributes: agentDocument(languages: ["en"]), choice: .language("en")), [bobIdentity])
+        inputs.unairedCoverage = memory
+        let state = NativeCallStateDerivation.derive(inputs)
+        #expect(state.listening.translatedSpeakers == ["@bob:matrix.org": "en"])
+        #expect(state.subscriptionPlan.duckedSpeakers.isEmpty)
+    }
+
+    /// Coverage that ends and comes back counts from zero.
+    @Test
+    func coverageStartingAnewCountsFromZero() {
+        var memory = look([:], at: 0, bobSpeaks: true)
+        memory = look(memory, at: 3, bobSpeaks: false)
+        memory = look(memory, at: 4, bobSpeaks: false, bobCovered: false)
+        #expect(memory[.init(speaker: "@bob:matrix.org", language: "en")] == nil)
+
+        memory = look(memory, at: 5, bobSpeaks: true)
+        memory = look(memory, at: 7, bobSpeaks: false)
+        #expect(ducked(memory).contains("@bob:matrix.org"))
     }
 
     // MARK: - The lane memory

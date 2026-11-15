@@ -6,6 +6,7 @@
 // Please see LICENSE files in the repository root for full details.
 //
 
+import SpiralComponents // AGENT-PLATFORM (Brief 0083)
 import SwiftUI
 
 struct RoomListFiltersEmptyStateView: View {
@@ -16,6 +17,8 @@ struct RoomListFiltersEmptyStateView: View {
             switch state.activeFilters[0] {
             case .unreads:
                 return L10n.screenRoomlistFilterUnreadsEmptyStateTitle
+            case .mentions:
+                return L10n.screenRoomlistFilterMentionEmptyStateTitle
             case .people:
                 return L10n.screenRoomlistFilterPeopleEmptyStateTitle
             case .rooms:
@@ -38,19 +41,9 @@ struct RoomListFiltersEmptyStateView: View {
         return L10n.screenRoomlistFilterMixedEmptyStateSubtitle
     }
     
+    // AGENT-PLATFORM (Brief 0083): Spiral's empty state.
     var body: some View {
-        VStack(spacing: 24) {
-            Text(emptyStateTitle)
-                .multilineTextAlignment(.center)
-                .font(.compound.headingSMSemibold)
-                .foregroundColor(.compound.textPrimary)
-            
-            Text(emptyStateSubtitle)
-                .multilineTextAlignment(.center)
-                .font(.compound.bodyMD)
-                .foregroundColor(.compound.textSecondary)
-        }
-        .padding(.horizontal, 60)
+        SpiralEmptyState(symbol: .line3HorizontalDecrease, title: emptyStateTitle, message: emptyStateSubtitle)
     }
 }
 
@@ -59,10 +52,10 @@ struct RoomListFiltersEmptyStateView_Previews: PreviewProvider, TestablePreview 
         VStack(spacing: 24) {
             ForEach(RoomListFilter.allCases) { filter in
                 RoomListFiltersEmptyStateView(state: .init(activeFilters: [filter],
-                                                           appSettings: .volatile()))
+                                                           userSettings: .mock()))
             }
             RoomListFiltersEmptyStateView(state: .init(activeFilters: [.people, .favourites],
-                                                       appSettings: .volatile()))
+                                                       userSettings: .mock()))
         }
         .padding(.bottom)
         .previewLayout(.sizeThatFits)

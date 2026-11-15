@@ -6,36 +6,51 @@
 // Please see LICENSE files in the repository root for full details.
 //
 
+import Compound
+import SpiralComponents // AGENT-PLATFORM (Brief 0083)
 import SwiftUI
 
 struct ReadReceiptsSummaryView: View {
     let orderedReadReceipts: [ReadReceipt]
     @EnvironmentObject private var context: TimelineViewModel.Context
     
+    // AGENT-PLATFORM (Brief 0083): iOS's grouped sheet, as the message's menu: the title centred as a sheet's
+    // title, the readers as rows of one card.
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(spacing: CompoundDesignTokens.space4X) {
             Text(L10n.commonSeenBy)
                 .font(.compound.bodyLGSemibold)
                 .foregroundColor(.compound.textPrimary)
-                .padding(.horizontal, 16)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, CompoundDesignTokens.space4X)
             ScrollView {
-                LazyVStack(spacing: 0) {
-                    ForEach(orderedReadReceipts) { receipt in
-                        ReadReceiptCell(readReceipt: receipt,
-                                        memberState: context.viewState.members[receipt.userID],
-                                        mediaProvider: context.mediaProvider)
+                SpiralCard(on: .groupedSheet) {
+                    LazyVStack(spacing: 0) {
+                        ForEach(orderedReadReceipts) { receipt in
+                            ReadReceiptCell(readReceipt: receipt,
+                                            memberState: context.viewState.members[receipt.userID],
+                                            mediaProvider: context.mediaProvider)
+                                .overlay(alignment: .bottom) {
+                                    if receipt.id != orderedReadReceipts.last?.id {
+                                        SpiralCardSeparator(leadingInset: ReadReceiptCell.textInset)
+                                    }
+                                }
+                        }
                     }
                 }
+                .padding(.horizontal, CompoundDesignTokens.space4X)
+                .padding(.bottom, CompoundDesignTokens.space4X)
             }
         }
-        .padding(.top, 24)
+        .padding(.top, CompoundDesignTokens.space6X)
+        .background(Color.compound.bgSubtleSecondaryLevel0.ignoresSafeArea())
         .presentationDetents([.medium, .large])
-        .presentationBackground(Color.compound.bgCanvasDefault)
+        .presentationBackground(Color.compound.bgSubtleSecondaryLevel0)
         .presentationDragIndicator(.visible)
     }
 }
 
-struct ReadReceiptsSummaryView_Previews: PreviewProvider, TestablePreview {
+struct ReadReceiptsSummaryView_Previews: PreviewProvider, TestablePreview, SpiralGatedPreview { // AGENT-PLATFORM (Brief 0083): Spiral's gates
     static let viewModel = {
         let members: [RoomMemberProxyMock] = [
             .mockAlice,
@@ -45,17 +60,14 @@ struct ReadReceiptsSummaryView_Previews: PreviewProvider, TestablePreview {
         ]
         let roomProxyMock = JoinedRoomProxyMock(.init(name: "Room", members: members))
         
-        let appSettings = AppSettings.volatile()
-        
         return TimelineViewModel(roomProxy: roomProxyMock,
                                  timelineController: TimelineControllerMock(.init()),
                                  userSession: UserSessionMock(.init()),
                                  mediaPlayerProvider: MediaPlayerProviderMock(),
                                  userIndicatorController: UserIndicatorControllerMock(),
                                  appMediator: AppMediatorMock(.init()),
-                                 appSettings: appSettings,
                                  analyticsService: AnalyticsServiceMock(.init()),
-                                 emojiProvider: EmojiProvider(appSettings: appSettings),
+                                 emojiProvider: EmojiProvider(userSettings: .mock()),
                                  linkMetadataProvider: LinkMetadataProvider(),
                                  timelineControllerFactory: TimelineControllerFactoryMock(.init()))
     }()

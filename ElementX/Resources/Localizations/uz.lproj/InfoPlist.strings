@@ -1,6 +1,4 @@
 "NSCameraUsageDescription" = "Video qoʻngʻiroqlar qilish hamda rasmlar yoki videolar olib, ularni xabar sifatida yuborish uchun Spiral kameraga ruxsat talab qiladi.";
 "NSFaceIDUsageDescription" = "Face ID ilovangizdan foydalanish uchun ishlatiladi.";
-"NSLocationAlwaysAndWhenInUseUsageDescription" = "Jonli joylashuvingizni ulashish uchun Spiral ilovasiga u fonda ishlayotganda ham joylashuv ma’lumotlaridan foydalanishga ruxsat kerak bo‘ladi.";
-"NSLocationWhenInUseUsageDescription" = "Spiral joylashuvingizni ulashishi uchun joylashuv axborotiga ruxsat bering.";
 "NSMicrophoneUsageDescription" = "Qoʻngʻiroqlar qilish hamda audio xabarlarni yozib olish va yuborish uchun Spiral mikrofondan foydalanishga ruxsat olishi kerak.";
 "NSPhotoLibraryUsageDescription" = "Bu sizga rasm va videolarni fotosuratlar kutubxonangizga saqlash imkonini beradi.";

@@ -6,8 +6,8 @@
 //
 
 import Combine
-@testable import ElementX
 import Foundation
+@testable import Spiral
 import Testing
 
 @MainActor
@@ -15,6 +15,7 @@ struct PresenceObservationTests {
     static let me = "@me:spiral.md"
     static let alice = "@alice:spiral.md"
     static let bob = "@bob:spiral.md"
+    static let agent = "@assistant-me:spiral.md"
     
     let service = PresenceObserverServiceMock()
     let presences = CurrentValueSubject<[String: UserPresence], Never>([:])
@@ -64,12 +65,87 @@ struct PresenceObservationTests {
     
     @Test
     func nobodyWorthObservingIsNil() {
-        let nobodies: [String?] = [nil, Self.me, "@assistant-me:spiral.md", "@telegram_123:spiral.md", "@whatsappbot:spiral.md"]
+        let nobodies: [String?] = [nil, Self.me, "@telegram_123:spiral.md", "@whatsappbot:spiral.md"]
         for userID in nobodies {
             #expect(PresenceObservation(userID: userID, ownUserID: Self.me, service: service) { _ in } == nil, "\(userID ?? "nil")")
         }
         #expect(PresenceObservation(userID: Self.alice, ownUserID: Self.me, service: nil) { _ in } == nil, "no service")
         #expect(service.observeCallsCount == 0)
+    }
+    
+    // MARK: - An agent's pause
+    
+    @Test
+    func aPausedAgentIsMarkedAndFollowsTheStore() async throws {
+        let platform = agentPlatform(cards: [card(isPaused: true)])
+        let store = AgentsStore(service: platform)
+        let changes = PassthroughSubject<UserPresence?, Never>()
+        let observation = PresenceObservation(userID: Self.agent, ownUserID: Self.me, service: service, agentsStore: store) { changes.send($0) }
+        presences.send([Self.agent: offlineAgent])
+        
+        let paused = deferFulfillment(changes) { $0?.isAgentPaused == true }
+        try await paused.fulfill()
+        
+        platform.fetchAgentSpaceOrgIDReturnValue = .success(space(cards: [card(isPaused: false)]))
+        let resumed = deferFulfillment(changes) { $0?.isAgentPaused == false }
+        await store.reread(.spaces)
+        try await resumed.fulfill()
+        _ = observation
+    }
+    
+    /// Someone else's agent has no card, and a failed read says nothing: neither reads as paused.
+    @Test(arguments: [false, true])
+    func anAgentWithoutACardIsNotPaused(readFails: Bool) async {
+        let platform = agentPlatform(cards: [])
+        if readFails {
+            platform.listMyAgentSpacesReturnValue = .failure(.serverError(status: 500))
+        }
+        let store = AgentsStore(service: platform)
+        var delivered: [UserPresence?] = []
+        let observation = PresenceObservation(userID: Self.agent, ownUserID: Self.me, service: service, agentsStore: store) { delivered.append($0) }
+        presences.send([Self.agent: offlineAgent])
+        await store.reread(.spaces)
+        await settle { delivered.contains { $0 != nil } }
+        
+        #expect(delivered.contains { $0 != nil })
+        #expect(delivered.allSatisfy { $0?.isAgentPaused != true })
+        _ = observation
+    }
+    
+    @Test
+    func aPersonReadsNoSpacesAndAnAgentStopsShowingThem() {
+        let platform = agentPlatform(cards: [])
+        let store = AgentsStore(service: platform)
+        
+        let person = PresenceObservation(userID: Self.alice, ownUserID: Self.me, service: service, agentsStore: store) { _ in }
+        #expect(!store.isShown(.spaces))
+        person?.cancel()
+        
+        let agent = PresenceObservation(userID: Self.agent, ownUserID: Self.me, service: service, agentsStore: store) { _ in }
+        #expect(store.isShown(.spaces))
+        agent?.cancel()
+        #expect(!store.isShown(.spaces))
+    }
+    
+    private var offlineAgent: UserPresence {
+        UserPresence(userID: Self.agent, state: .offline, lastActiveAgo: 780, currentlyActive: false, receivedAt: .now)
+    }
+    
+    private func agentPlatform(cards: [AgentSpaceAgentCard]) -> AgentPlatformServiceMock {
+        let platform = AgentPlatformServiceMock()
+        platform.listMyAgentSpacesReturnValue = .success(.init(spaces: [.init(orgID: "org", name: "Personal", kind: .solo, avatarMXC: nil, agentCount: cards.count)],
+                                                               provisioningStatus: .ready))
+        platform.fetchAgentSpaceOrgIDReturnValue = .success(space(cards: cards))
+        return platform
+    }
+    
+    private func space(cards: [AgentSpaceAgentCard]) -> AgentSpaceDetail {
+        .init(orgID: "org", name: "Personal", kind: .solo, avatarMXC: nil, industry: nil, website: nil, agents: cards)
+    }
+    
+    private func card(isPaused: Bool) -> AgentSpaceAgentCard {
+        .init(agentID: "agent-1", matrixUserID: Self.agent, displayName: "Assistant", avatarMXC: nil, kind: "personal_assistant",
+              visibility: "private", lifecycleState: "active", roomCount: 1, activeToolCount: 0, isPaused: isPaused)
     }
     
     // MARK: - A list's rows

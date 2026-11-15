@@ -16,7 +16,7 @@ struct AnalyticsSettingsScreen: View {
         Form {
             analyticsSection
         }
-        .compoundList()
+        .spiralGroupedList() // AGENT-PLATFORM (Brief 0083): Spiral's grouped list, was `compoundList()`.
         .navigationTitle(L10n.commonAnalytics)
         .navigationBarTitleDisplayMode(.inline)
     }
@@ -37,10 +37,11 @@ struct AnalyticsSettingsScreen: View {
 
 // MARK: - Previews
 
-struct AnalyticsSettingsScreen_Previews: PreviewProvider, TestablePreview {
+// AGENT-PLATFORM (Brief 0083, lane settings): gated.
+struct AnalyticsSettingsScreen_Previews: PreviewProvider, TestablePreview, SpiralGatedPreview {
     static var previews: some View {
-        let appSettings = AppSettings.volatile()
-        let viewModel = AnalyticsSettingsScreenViewModel(appSettings: appSettings,
+        let userSettings = UserSettings.mock()
+        let viewModel = AnalyticsSettingsScreenViewModel(userSettings: userSettings,
                                                          analytics: AnalyticsServiceMock(.init()))
         AnalyticsSettingsScreen(context: viewModel.context)
     }

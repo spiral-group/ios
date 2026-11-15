@@ -7,6 +7,7 @@
 // SPIRAL_DEV_STACK=1 — without it the Debug build talks to prod.
 //
 
+import os
 import XCTest
 
 /// What `Tools/Scripts/run-dev-e2e.sh` prepared for this run: the accounts,
@@ -31,6 +32,10 @@ struct DevE2EFixture: Decodable {
     let registrant: Person
     /// Registers in the app through the owner's own invitation (G5).
     let newcomer: Person
+    /// Posts to the feed and has the account deleted (FD8, Brief 0082).
+    let feedAuthor: Person
+    /// Has MAS admin rights: removes the reported post (FD5, Brief 0082).
+    let moderator: Person
     /// First-contact visitors of the owner's assistant, one per approval
     /// scenario (G13, G14): a card decided once cannot be made again by the
     /// same person (decision 148).
@@ -92,8 +97,11 @@ class DevE2ETestCase: XCTestCase {
         }
 
         self.fixture = fixture
+        _ = WebSheetQuiescence.installed
         helper = DevE2EHelper(baseURL: fixture.helperURL, token: fixture.helperToken)
         try await helper.ping()
+        // A fresh sign-in sheet process per test (the helper explains why).
+        try await helper.sim("reset-web-sheet")
         // Decision 149: the scripted AI mock, when the runner has one, answers
         // by this scenario's rules ("testS04AssistantChat" → S04,
         // "testG13aEditDraftThenSend" → G13).
@@ -255,6 +263,47 @@ class DevE2ETestCase: XCTestCase {
         attachment.lifetime = .keepAlways
         add(attachment)
     }
+}
+
+/// Before and after every event XCUITest waits up to 60 s for the target
+/// app's animations to finish. SafariViewService (the sign-in sheet) at
+/// times stops reporting them finished after a tap in it, in a fresh process
+/// too, and from then on every web step costs those 60 s ("App animations
+/// complete notification not received, will attempt to continue"): G05 ran
+/// out of its 10 minutes, S02 took 522 s instead of 45 (2026-10-20). Once one
+/// wait of that process has timed out like that, its later waits skip the
+/// animations part, which XCUITest would give up on anyway; the run-loop
+/// part stays, and every other process keeps the full wait.
+enum WebSheetQuiescence {
+    private static let stalled = OSAllocatedUnfairLock(initialState: Set<ObjectIdentifier>())
+
+    static let installed: Bool = {
+        let selector = NSSelectorFromString("waitForQuiescenceIncludingAnimationsIdle:usingActivity:isPreEvent:")
+        guard let processClass = NSClassFromString("XCUIApplicationProcess"),
+              let method = class_getInstanceMethod(processClass, selector) else {
+            XCTFail("XCUIApplicationProcess no longer has \(selector): a stuck web sheet costs 60 s a step again")
+            return false
+        }
+        typealias Wait = @convention(c) (AnyObject, Selector, Bool, Bool, Bool) -> Void
+        let original = unsafeBitCast(method_getImplementation(method), to: Wait.self)
+        let wait: @convention(block) (AnyObject, Bool, Bool, Bool) -> Void = { process, animationsIdle, usingActivity, isPreEvent in
+            guard animationsIdle, process.value(forKey: "bundleID") as? String == "com.apple.SafariViewService" else {
+                return original(process, selector, animationsIdle, usingActivity, isPreEvent)
+            }
+            let id = ObjectIdentifier(process)
+            if stalled.withLock({ $0.contains(id) }) {
+                return original(process, selector, false, usingActivity, isPreEvent)
+            }
+            let start = ContinuousClock.now
+            original(process, selector, true, usingActivity, isPreEvent)
+            if ContinuousClock.now - start > .seconds(50) {
+                NSLog("SafariViewService did not report its animations finished: its later waits skip them")
+                stalled.withLock { _ = $0.insert(id) }
+            }
+        }
+        method_setImplementation(method, imp_implementationWithBlock(wait))
+        return true
+    }()
 }
 
 /// The runner's helper on 127.0.0.1: the peer script, a fixed list of

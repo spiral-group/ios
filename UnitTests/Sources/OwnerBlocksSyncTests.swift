@@ -6,8 +6,8 @@
 //
 
 import Combine
-@testable import ElementX
 import Foundation
+@testable import Spiral
 import Testing
 
 /// The platform as the sync sees it: every PUT it was sent, and the lists it

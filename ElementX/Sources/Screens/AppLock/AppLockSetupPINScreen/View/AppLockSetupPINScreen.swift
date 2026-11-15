@@ -33,7 +33,8 @@ struct AppLockSetupPINScreen: View {
                 header
                 
                 PINTextField(pinCode: $context.pinCode,
-                             isSecure: true)
+                             isSecure: true,
+                             digitFill: .compound.bgSubtleSecondary) // AGENT-PLATFORM: the field sits on the canvas
                     .focused($textFieldFocus)
                 
                 if context.viewState.mode == .unlock {

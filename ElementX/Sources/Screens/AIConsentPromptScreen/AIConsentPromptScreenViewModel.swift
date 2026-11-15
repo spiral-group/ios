@@ -15,15 +15,15 @@ typealias AIConsentPromptScreenViewModelType = StateStoreViewModelV2<AIConsentPr
 /// writes or says reaches third-party AI, and records the answer on the
 /// server, which applies it.
 class AIConsentPromptScreenViewModel: AIConsentPromptScreenViewModelType, AIConsentPromptScreenViewModelProtocol {
-    private let agentPlatformService: AgentPlatformServiceProtocol
+    private let store: AgentsStore
     private let actionsSubject: PassthroughSubject<AIConsentPromptScreenViewModelAction, Never> = .init()
     
     var actionsPublisher: AnyPublisher<AIConsentPromptScreenViewModelAction, Never> {
         actionsSubject.eraseToAnyPublisher()
     }
     
-    init(agentPlatformService: AgentPlatformServiceProtocol, privacyURL: URL) {
-        self.agentPlatformService = agentPlatformService
+    init(store: AgentsStore, privacyURL: URL) {
+        self.store = store
         super.init(initialViewState: .init(privacyURL: privacyURL))
     }
     
@@ -42,7 +42,7 @@ class AIConsentPromptScreenViewModel: AIConsentPromptScreenViewModelType, AICons
     /// Once answered the buttons stay off: the screen is still on screen
     /// while the next one comes in, and a tap then must not answer again.
     private func record(granted: Bool) async {
-        switch await agentPlatformService.setAIConsent(granted: granted) {
+        switch await store.setAIConsent(granted: granted) {
         case .success:
             MXLog.info("Recorded the AI consent decision (granted: \(granted)).")
             actionsSubject.send(.done)

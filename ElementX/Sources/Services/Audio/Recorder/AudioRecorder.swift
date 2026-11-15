@@ -46,7 +46,7 @@ nonisolated class AudioRecorder: AudioRecorderProtocol, @unchecked Sendable {
         audioEngine?.isRunning ?? false
     }
     
-    private let dispatchQueue = DispatchQueue(label: "io.element.elementx.audio_recorder", qos: .userInitiated)
+    private let dispatchQueue = DispatchQueue(label: "com.spiral.audio_recorder", qos: .userInitiated) // AGENT-PLATFORM (Brief 0083 L1b)
     private var stopped = false
     
     init(audioSession: AudioSessionProtocol = AVAudioSession.sharedInstance()) {

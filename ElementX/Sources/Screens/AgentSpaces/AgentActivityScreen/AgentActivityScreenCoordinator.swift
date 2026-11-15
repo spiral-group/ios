@@ -15,7 +15,7 @@ import SwiftUI
 struct AgentActivityScreenCoordinatorParameters {
     let agentID: String
     var initialFilter: ActionOutcomeFilter = .all
-    let agentPlatformService: any AgentPlatformServiceProtocol
+    let store: AgentsStore
     /// Names the rooms rows happened in (coverage walk F9).
     let clientProxy: any ClientProxyProtocol
 }
@@ -37,7 +37,7 @@ final class AgentActivityScreenCoordinator: CoordinatorProtocol {
     init(parameters: AgentActivityScreenCoordinatorParameters) {
         viewModel = AgentActivityScreenViewModel(agentID: parameters.agentID,
                                                  initialFilter: parameters.initialFilter,
-                                                 agentPlatformService: parameters.agentPlatformService,
+                                                 store: parameters.store,
                                                  clientProxy: parameters.clientProxy)
     }
 

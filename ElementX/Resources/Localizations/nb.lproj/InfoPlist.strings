@@ -1,6 +1,4 @@
 "NSCameraUsageDescription" = "For å ringe videosamtaler, og for å ta bilder eller videoer og sende dem som en melding, trenger Spiral tilgang til kameraet.";
 "NSFaceIDUsageDescription" = "Face ID brukes til å beskytte tilgangen til kontoen din.";
-"NSLocationAlwaysAndWhenInUseUsageDescription" = "For å dele lokasjonen din live i chatter, må appen ha tilgang til lokasjonsdata når den kjører i bakgrunnen.";
-"NSLocationWhenInUseUsageDescription" = "Dette lar deg sende din nåværende lokasjon eller steder i nærheten i chatter.";
 "NSMicrophoneUsageDescription" = "For å ringe, og for å ta opp og sende meldinger med lyd, må Spiral ha tilgang til mikrofonen.";
 "NSPhotoLibraryUsageDescription" = "Dette lar deg lagre bilder og videoer i bildebiblioteket ditt.";

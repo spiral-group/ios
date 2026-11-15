@@ -3,6 +3,7 @@
 //
 
 import Compound
+import SpiralComponents
 import SwiftUI
 
 // Brief 0039 canon pass (docs/project/CODEBASE/14-element-ui-canon.md §8).
@@ -20,31 +21,6 @@ enum AgentRelativeTime {
         formatter.unitsStyle = .short
         formatter.locale = locale
         return formatter.localizedString(for: min(date, now), relativeTo: now)
-    }
-}
-
-/// A centred loading spinner that only appears after a short delay
-/// (~250 ms). Our Agent-Spaces data loads fast and rarely, so a skeleton
-/// or an immediate spinner just flickers (operator feedback 2026-07-11);
-/// the member-list canon delays the indicator so quick loads show nothing
-/// at all and only genuinely slow loads get a quiet spinner.
-struct DelayedProgressView: View {
-    var delay: Duration = .milliseconds(250)
-    @State private var isVisible = false
-    
-    var body: some View {
-        Group {
-            if isVisible {
-                ProgressView()
-            } else {
-                Color.clear
-            }
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .task {
-            try? await Task.sleep(for: delay)
-            isVisible = true
-        }
     }
 }
 
@@ -93,77 +69,21 @@ struct AgentStatusBadge: View {
     }
 }
 
-/// The one presence dot (F3): the agent's name with a token-coloured,
-/// Dynamic-Type-scaled dot set in the text, so a name that wraps keeps the
-/// dot right after its last word instead of beside the whole block. An
-/// offline agent shows its name alone: being offline says nothing useful
-/// about an agent, which answers when a message comes.
-struct AgentNameWithPresence: View {
-    let name: String
-    let isOnline: Bool
-    
-    @ScaledMetric(relativeTo: .title) private var dotSize = 8
-    /// Lifts the dot from the baseline to the middle of the capitals.
-    @ScaledMetric(relativeTo: .title) private var dotOffset = 7
-    
-    var body: some View {
-        if isOnline {
-            (Text(name) + Text(verbatim: "\u{00A0}") + dot)
-                .accessibilityLabel("\(name), \(UntranslatedL10n.screenAgentSpaceAgentPresenceOnline)")
-        } else {
-            Text(name)
-        }
-    }
-    
-    private var dot: Text {
-        Text(Image(systemName: "circle.fill"))
-            .font(.system(size: dotSize))
-            .foregroundColor(.compound.iconSuccessPrimary)
-            .baselineOffset(dotOffset)
-    }
-}
-
-/// The one in-Form failure section (F2): the ApprovalDetail `failedSection`
-/// anatomy (canon §5 — icon + title + retry), replacing four icon-less
-/// hand-rolled duplicates across the Form-based Agent-Spaces lists.
+/// The one in-Form failure section (F2), with the one Retry: Spiral's empty
+/// state (Brief 0083, decision 330). The title says what couldn't be loaded.
 struct AgentSpacesRetryErrorSection: View {
-    var title = L10n.errorUnknown
+    let title: String
     var subtitle: String?
     let retryAction: () -> Void
     
     var body: some View {
-        errorSection
-            .accessibilityIdentifier(A11yIdentifiers.agentSpacesScreen.error)
-    }
-    
-    private var errorSection: some View {
         Section {
-            ListRow(kind: .custom {
-                VStack(spacing: 16) {
-                    BigIcon(icon: \.errorSolid, style: .alertSolid)
-                    
-                    VStack(spacing: 8) {
-                        Text(title)
-                            .font(.compound.headingSMSemibold)
-                            .foregroundStyle(.compound.textPrimary)
-                            .multilineTextAlignment(.center)
-                        
-                        if let subtitle {
-                            Text(subtitle)
-                                .font(.compound.bodyMD)
-                                .foregroundStyle(.compound.textSecondary)
-                                .multilineTextAlignment(.center)
-                        }
-                    }
-                    
-                    Button(L10n.actionRetry, action: retryAction)
-                        .buttonStyle(.compound(.secondary, size: .medium))
-                }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 40)
-                .padding(.horizontal, 16)
-            })
+            SpiralEmptyState(symbol: .exclamationmarkCircle,
+                             title: title,
+                             message: subtitle,
+                             action: .init(L10n.actionRetry, perform: retryAction))
+                .listRowBackground(Color.clear)
         }
-        .listRowBackground(Color.clear)
+        .accessibilityIdentifier(A11yIdentifiers.agentSpacesScreen.error)
     }
 }

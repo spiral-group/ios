@@ -27,6 +27,8 @@ enum RoomDetailsScreenViewModelAction: Equatable {
     case startCall(isVoiceCall: Bool)
     case displayPinnedEventsTimeline
     case displayMediaEventsTimeline
+    case displayThreadList // AGENT-PLATFORM (Brief 0083, decision 344)
+    case openAgentRow(AgentPageRow, card: AgentSpaceAgentCard) // AGENT-PLATFORM (Brief 0083, question 359)
     case displayKnockingRequests
     case displaySecurityAndPrivacy
     case displayReportRoom
@@ -67,23 +69,56 @@ struct RoomDetailsScreenViewState: BindableState {
     var canKickUsers = false
     var canBanUsers = false
     var notificationSettingsState: RoomDetailsNotificationSettingsState = .loading
+    var isCallingEnabled = true
+    var isNativeCallingEnabled = false
     var canJoinCall = false
+    // AGENT-PLATFORM (Brief 0083, decision 344)
+    var hasOngoingCall = false
+    var activeRoomCallIntent: CallIntent?
     var pinnedEventsActionState = RoomDetailsScreenPinnedEventsActionState.loading
     
     var isKnockableRoom = false
     var knockRequestsCount = 0
     
     var reportRoomEnabled = false
+    var areThreadsEnabled = false // AGENT-PLATFORM (Brief 0083, decision 344)
     
     // AGENT-PLATFORM (Brief 0072, ADR-0083): the other person of a DM.
     var dmRecipientPresence: UserPresence?
+    // AGENT-PLATFORM (Brief 0083, question 359): the DM's other side: from the room info at `init`, so that the page
+    // has its shape before it's pushed, and from the members once they're read.
+    var dmUserID: String?
+    var agentOwnership = AgentOwnership.unknown(isReading: false)
+    
+    /// The DM's other side, when it is an agent.
+    var agentProfile: SpiralAgentProfile? {
+        dmUserID.flatMap { SpiralAgentProfile(userID: $0, ownership: agentOwnership) }
+    }
+    
+    var ownAgentCard: AgentSpaceAgentCard? {
+        agentProfile?.ownCard
+    }
+    
+    /// The action row's Settings, the agent's own screen, instead of Mute: only in a chat with the person's own agent
+    /// (question 391). Every other chat reaches the agents' tools through its Agents row and the composer's «+».
+    var showsAgentSettings: Bool {
+        ownAgentCard != nil
+    }
+    
+    var showsBlockRow: Bool {
+        agentProfile?.offersBlock(isBlocked: dmRecipientInfo?.member.isIgnored == true) ?? true
+    }
+    
+    var showsLeaveRow: Bool {
+        agentProfile?.offersLeave ?? true
+    }
     
     var canSeeKnockingRequests: Bool {
-        dmRecipientInfo == nil && isKnockableRoom && (canInviteUsers || canKickUsers || canBanUsers)
+        dmUserID == nil && isKnockableRoom && (canInviteUsers || canKickUsers || canBanUsers)
     }
     
     var canSeeSecurityAndPrivacy: Bool {
-        dmRecipientInfo == nil && canEditSecurityAndPrivacy
+        dmUserID == nil && canEditSecurityAndPrivacy
     }
     
     var canEditBaseInfo: Bool {
@@ -101,14 +136,18 @@ struct RoomDetailsScreenViewState: BindableState {
     
     var shortcuts: [RoomDetailsScreenViewShortcut] {
         var shortcuts: [RoomDetailsScreenViewShortcut] = [.mute]
-        if !ProcessInfo.processInfo.isiOSAppOnMac, canJoinCall {
-            if isDirect {
+        // AGENT-PLATFORM (Brief 0083, decision 344): as the room's bar: Join while a call is on, which its view
+        // disables without `canJoinCall`, else voice and video in every room (ADR-0079 D3).
+        if !ProcessInfo.processInfo.isiOSAppOnMac || isNativeCallingEnabled, isCallingEnabled {
+            if hasOngoingCall {
+                shortcuts.append(.joinCall(isVoiceCall: activeRoomCallIntent == .audio))
+            } else if canJoinCall {
                 shortcuts.append(.voiceCall)
+                shortcuts.append(.videoCall)
             }
-            shortcuts.append(.videoCall)
         }
         // The invite flow is different for DMs
-        if dmRecipientInfo == nil, canInviteUsers {
+        if dmUserID == nil, canInviteUsers {
             shortcuts.append(.invite)
         }
         if let permalink = dmRecipientInfo?.member.permalink {
@@ -242,6 +281,10 @@ enum RoomDetailsScreenViewAction {
     case processTapCall(isVoiceCall: Bool)
     case processTapPinnedEvents
     case processTapMediaEvents
+    case processTapThreads // AGENT-PLATFORM (Brief 0083, decision 344)
+    case processTapAgentRow(AgentPageRow) // AGENT-PLATFORM (Brief 0083, question 359)
+    case copyAgentHandle // AGENT-PLATFORM (Brief 0083, question 359)
+    case appeared // AGENT-PLATFORM (Brief 0083, question 359): reads the person's agents again after a failed read.
     case processTapRequestsToJoin
     case processTapReport
 }
@@ -251,10 +294,21 @@ enum RoomDetailsScreenViewShortcut {
     case mute
     case videoCall
     case voiceCall
+    case joinCall(isVoiceCall: Bool) // AGENT-PLATFORM (Brief 0083, decision 344)
     case invite
 }
 
-extension RoomDetailsScreenViewShortcut: Hashable { }
+extension RoomDetailsScreenViewShortcut: Hashable {
+    // AGENT-PLATFORM (Brief 0083, decision 344): «More» holds the share link.
+    var shareLink: URL? {
+        if case .share(let link) = self { link } else { nil }
+    }
+    
+    // AGENT-PLATFORM (Brief 0083, decision 344)
+    var joinCallIsVoice: Bool? {
+        if case .joinCall(let isVoiceCall) = self { isVoiceCall } else { nil }
+    }
+}
 
 enum RoomDetailsNotificationSettingsState {
     case loading

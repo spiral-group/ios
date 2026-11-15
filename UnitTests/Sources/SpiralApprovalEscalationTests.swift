@@ -6,8 +6,8 @@
 // `escalation_reason` tag. Each tag the platform writes now has its own line, and a tag
 // this build does not know gets one generic line.
 
-@testable import ElementX
 import Foundation
+@testable import Spiral
 import Testing
 
 struct SpiralApprovalEscalationTests {

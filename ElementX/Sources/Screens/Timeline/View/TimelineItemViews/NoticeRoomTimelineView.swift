@@ -26,7 +26,7 @@ struct NoticeRoomTimelineView: View, TextBasedRoomTimelineViewProtocol {
                 }
             } icon: {
                 CompoundIcon(\.info, size: .small, relativeTo: .compound.bodyLG)
-                    .foregroundColor(.compound.iconSecondary)
+                    .bubbleForegroundStyle(.secondaryIcon) // AGENT-PLATFORM (Brief 0083): white on an own bubble
             }
             .labelStyle(.custom(spacing: 6.0, alignment: .top))
             .padding(.leading, 4) // Trailing padding is provided by FormattedBodyText

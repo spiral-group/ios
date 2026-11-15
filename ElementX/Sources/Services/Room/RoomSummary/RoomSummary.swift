@@ -30,6 +30,7 @@ nonisolated struct RoomSummary {
     let id: String
     
     let joinRequestType: JoinRequestType?
+    let isJoined: Bool
     
     let name: String
     let isDirect: Bool
@@ -72,27 +73,31 @@ nonisolated struct RoomSummary {
         notificationMode == .mute
     }
     
-    /// Whether this room is asking for the user's attention — the single
-    /// definition behind BOTH the room-list dot and the app icon badge.
+    /// Whether this room shows the room-list dot.
     ///
-    /// AGENT-PLATFORM: the two used to be computed from different sources
-    /// entirely. The dot came from the SDK's client-side unread counters
-    /// (decrypted, and deliberately blind to the event types we hide); the
-    /// badge came from the homeserver's push count, which in an encrypted
-    /// room can only apply the "all encrypted events" rule and therefore
-    /// counts everything — call notices, agent control flips, reactions.
-    /// Sharing one predicate is what makes "badge says 2, nothing is
-    /// unread" structurally impossible rather than merely fixed once.
-    func needsAttention(activityVisibility: RoomListActivityVisibility,
+    /// AGENT-PLATFORM: computed from the SDK's client-side unread counters
+    /// (decrypted, and deliberately blind to the event types we hide), like
+    /// ``countsTowardsBadge(seenInvites:)``, never from the homeserver's push
+    /// count, which in an encrypted room counts every event — call notices,
+    /// agent control flips, reactions.
+    func needsAttention(showAllActivity: Bool,
                         seenInvites: Set<String>) -> Bool {
         let isUnseenInvite = joinRequestType?.isInvite == true && !seenInvites.contains(id)
         
-        return switch activityVisibility {
-        case .current:
+        return if showAllActivity {
             hasUnreadMessages || hasUnreadMentions || hasUnreadNotifications || isMarkedUnread || isUnseenInvite
-        case .hide, .show:
+        } else {
             (!isMuted && (hasUnreadNotifications || hasUnreadMentions)) || isMarkedUnread || isUnseenInvite
         }
+    }
+    
+    // AGENT-PLATFORM: badge (decision 256).
+    /// Whether this room counts on the Chats-tab and app-icon badges: what matters, whatever
+    /// "show all activity" says — unread notifications or mentions in a room that isn't muted
+    /// (a mentions-only room counts its mentions; a muted one counts nothing), a room marked
+    /// unread, or an unseen invite. Plain unread messages that notify nobody don't count.
+    func countsTowardsBadge(seenInvites: Set<String>) -> Bool {
+        needsAttention(showAllActivity: false, seenInvites: seenInvites)
     }
 }
 
@@ -141,6 +146,7 @@ nonisolated extension RoomSummary {
         RoomSummary(room: room,
                     id: room.id(),
                     joinRequestType: nil,
+                    isJoined: false,
                     name: room.id(),
                     isDirect: false,
                     isSpace: false,
@@ -188,6 +194,7 @@ nonisolated extension RoomSummary {
         activeCallIntent = nil
         
         joinRequestType = nil
+        isJoined = true
         isMarkedUnread = false
         isFavourite = false
         isTombstoned = false
@@ -199,13 +206,7 @@ nonisolated extension RoomSummary {
             return .tombstoned
         }
         
-        if isSpace {
-            return .space(id: id, name: name, avatarURL: avatarURL)
-        } else if isDirect, avatarURL == nil, heroes.count == 1 {
-            return .heroes(heroes)
-        } else {
-            return .room(id: id, name: name, avatarURL: avatarURL)
-        }
+        return .make(id: id, name: name, avatarURL: avatarURL, isDirect: isDirect, isSpace: isSpace, heroes: heroes)
     }
     
     var statusEmoji: Character? {

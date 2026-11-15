@@ -185,6 +185,9 @@ nonisolated struct MatrixRTCParticipant: Hashable {
     let deviceID: String
     /// The identity this participant uses on the SFU.
     let identity: String
+    /// "My language" as this membership publishes it (ADR-0094 A.1, `com.matrixagent.language`): opaque, nil when
+    /// absent or empty. Only a catalog code is ever published; anything else reads as no language.
+    var language: String?
 }
 
 /// Credentials for the SFU carrying the call's media.
@@ -221,7 +224,12 @@ protocol MatrixRTCSessionProtocol: AnyObject {
     
     /// Publish our membership and start driving the session. `notification`
     /// is what a FRESH call tells the room; `nil` joins silently.
-    func join(encryptMedia: Bool, notification: NativeCallNotification?, media: NativeCallMedia) async -> Result<Void, MatrixRTCSessionError>
+    /// `language` is "my language" as a catalog code (ADR-0094 A.1); nil publishes none.
+    func join(encryptMedia: Bool, notification: NativeCallNotification?, media: NativeCallMedia, language: String?) async -> Result<Void, MatrixRTCSessionError>
+
+    /// Republish our live membership with a new language (ADR-0094 A.1), everything else unchanged. The same value
+    /// again is a no-op; fails when not joined.
+    func updateLanguage(_ language: String?) async -> Result<Void, MatrixRTCSessionError>
 
     /// Republish our live membership with a new per-participant media intent.
     func setMedia(_ media: NativeCallMedia) async -> Result<Void, MatrixRTCSessionError>
@@ -243,6 +251,7 @@ protocol MatrixRTCSessionProtocol: AnyObject {
     
     /// The call memberships in the room's state now, this device's own
     /// included. Read from the local store: a leave counts only once it has
-    /// synced back.
+    /// synced back. The SDK counts only joined members of the room (bug S2),
+    /// and fails while a call member's room membership can't be told yet.
     func memberships() async -> Result<[MatrixRTCParticipant], MatrixRTCSessionError>
 }

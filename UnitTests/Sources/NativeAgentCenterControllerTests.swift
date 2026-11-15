@@ -2,8 +2,8 @@
 // Copyright 2026 the Spiral authors. AGPL-3.0-or-later.
 //
 
-@testable import ElementX
 import Foundation
+@testable import Spiral
 import Synchronization
 import Testing
 
@@ -235,11 +235,23 @@ struct NativeAgentCenterControllerTests {
         #expect(controller.snapshot.pendingOwnerWrites["@assistant-red:spiral.md"]?.count == 2)
     }
 
-    /// The translation write is bridged in the DOCUMENT's currency — base
-    /// codes — so it can settle against what the reader reads back.
+    /// The translation write is bridged in the DOCUMENT's currency — the intent's catalog codes, exactly as written —
+    /// so it settles against what the reader reads back (ADR-0094 A.6).
     @Test
-    func aTranslationWriteIsBridgedInBaseCodes() {
-        #expect(NativeAgentCenterController.documentLanguages([.init(speakerScope: "anyone", speakerMembers: [], targetLanguages: ["en-US", "UK", "uk_UA"])]) == ["en", "uk"])
+    func aTranslationWriteIsBridgedInTheIntentsExactCodes() async {
+        let service = makeService(contexts: [makeContext()], controls: makeControls(recordingEnabled: false, recordingRevision: 0))
+        let controller = makeController(service: service)
+        await controller.reload()
+        service.setVoiceTranslationSessionIDParamsRevisionReturnValue = .success(makeControls(recordingEnabled: false, recordingRevision: 0,
+                                                                                              forLanguage: "pt-BR", overrideRevision: 1))
+
+        _ = await controller.setTranslation(sessionID: "session-1", params: .forLanguage("pt-BR"))
+
+        #expect(controller.snapshot.pendingOwnerWrites["@assistant-red:spiral.md"]?.map(\.fact) == [.translation(languages: ["pt-BR"])])
+        var claims = NativeCallAgentClaims()
+        claims.documents["@assistant-red:spiral.md"] = .make(translation: .producing("pt-BR", speakers: ["@bob:spiral.md"]))
+        controller.settleOwnerWrites(against: claims)
+        #expect(controller.snapshot.pendingOwnerWrites["@assistant-red:spiral.md"] == nil)
     }
 
     /// A transient re-read failure is not "no sessions": the last control
@@ -518,7 +530,8 @@ struct NativeAgentCenterControllerTests {
 
         #expect(didSucceed == false)
         #expect(inviteRecorder.mxids.isEmpty)
-        #expect(controller.snapshot.lastError == .rejected("voice disabled for this agent"))
+        // Question 387 (F3): the refusal lands on the agent's own add row.
+        #expect(controller.snapshot.joinFailures["agent-1"] == .failed)
     }
 
     /// Inviting a bot into a private room must depend on the backend's `type`
@@ -567,6 +580,42 @@ struct NativeAgentCenterControllerTests {
         #expect(controller.snapshot.sessions.first?.summary.delivery == .failed)
     }
 
+    // MARK: - One recording per call (question 404)
+
+    /// A start refused because someone else's assistant records is the cover the call screen shows, not a red retry,
+    /// and the tap's optimism is withdrawn.
+    @Test
+    func aCoveredRecordingStartIsTheCoverNotAnError() async {
+        let service = makeService(contexts: [makeContext()], controls: makeControls(recordingEnabled: false, recordingRevision: 1))
+        let controller = makeController(service: service)
+        await controller.reload()
+        let cover = VoiceRecordingCover(agentMxid: "@assistant-mira:spiral.md", ownerMxid: "@mira:spiral.md")
+        service.setVoiceSwitchSessionIDControlEnabledRevisionReturnValue = .failure(.recordingCovered(cover))
+
+        #expect(await controller.setSwitch(sessionID: "session-1", control: .recording, enabled: true) == false)
+
+        #expect(controller.snapshot.recordingRefusal?.cover == cover)
+        #expect(controller.snapshot.lastError == nil)
+        #expect((controller.snapshot.pendingOwnerWrites["@assistant-red:spiral.md"] ?? []).contains { $0.fact == .recording(true) } == false)
+        await controller.reload()
+        #expect(controller.snapshot.recordingRefusal?.cover == cover, "a re-read keeps it")
+    }
+
+    /// The same on an add for recording: the agent didn't come, and its add row says nothing went wrong.
+    @Test
+    func aCoveredRecordingAttachIsNoJoinFailure() async {
+        let service = makeService(contexts: [], controls: nil)
+        let cover = VoiceRecordingCover(agentMxid: "@assistant-mira:spiral.md", ownerMxid: nil)
+        service.attachVoiceAgentAgentIDRoomIDParamsReturnValue = .failure(.recordingCovered(cover))
+        let controller = makeController(service: service)
+        await controller.reload()
+
+        #expect(await controller.attach(agentID: "agent-1", params: makeAttachParams()) == false)
+
+        #expect(controller.snapshot.joinFailures["agent-1"] == nil)
+        #expect(controller.snapshot.recordingRefusal?.cover == cover)
+    }
+
     // MARK: - Helpers
 
     @MainActor
@@ -590,22 +639,25 @@ struct NativeAgentCenterControllerTests {
     private func makeController(service: AgentPlatformServiceProtocol?,
                                 members: Set<String> = ["@assistant-red:spiral.md"],
                                 endingRecheckInterval: Duration = .seconds(1),
+                                port: TranslationPortStub = TranslationPortStub(),
                                 inviteAgent: @escaping @MainActor (String) async -> Bool = { _ in true }) -> NativeAgentCenterController {
         NativeAgentCenterController(agentPlatformService: service,
                                     roomID: "!room:spiral.md",
                                     roomMemberMxids: { members },
                                     inviteAgent: inviteAgent,
-                                    endingRecheckInterval: endingRecheckInterval)
+                                    translationPort: port,
+                                    endingRecheckInterval: endingRecheckInterval,
+                                    joinPollInterval: .milliseconds(1))
     }
 
+    /// A.3: what the owner reads is the intent, the lanes it holds and whether it stands by, with the override's CAS
+    /// token.
     @Test
-    func translationStateIsDerivedFromTheEffectiveBooths() async {
-        // Slice 4 booth item: what the picker shows is what the engine
-        // RUNS (effective booths), with the override's CAS token.
+    func translationStateIsReadFromTheEffectiveIntent() async {
         let controls = makeControls(recordingEnabled: false,
                                     recordingRevision: 0,
-                                    booths: [.init(speakerScope: "anyone", speakerMembers: [], targetLanguages: ["uk", "en"]),
-                                             .init(speakerScope: "anyone", speakerMembers: [], targetLanguages: ["en"])],
+                                    forLanguage: "uk",
+                                    lanes: [.init(speaker: "@bob:spiral.md", language: "uk")],
                                     overrideRevision: 7)
         let service = makeService(contexts: [makeContext()], controls: controls)
         let controller = makeController(service: service)
@@ -613,110 +665,69 @@ struct NativeAgentCenterControllerTests {
 
         let translation = controller.snapshot.sessions.first?.translation
         #expect(translation?.isOn == true)
-        #expect(translation?.languages == ["en", "uk"])
-        // Brief 0062 parity: the FULL booth list + style + source ride
-        // the snapshot — the editor edits them, never a flat union.
-        #expect(translation?.booths.count == 2)
+        #expect(translation?.languages == ["uk"])
+        #expect(translation?.effective.lanes == [.init(speaker: "@bob:spiral.md", language: "uk")])
+        #expect(translation?.isStandby == false)
         #expect(translation?.style == "simultaneous")
         #expect(translation?.source == "override")
         #expect(translation?.revision == 7)
-        #expect(controller.snapshot.availableLanguages.map(\.code) == ["en", "uk"])
     }
 
-    @Test
-    func settingTranslationWritesTheFullBoothListWithTheSnapshotRevision() async {
-        // Brief 0062's central rule: the write carries EXACTLY what the
-        // owner configured — a multi-booth, per-speaker setup must not
-        // be flattened into one `anyone` booth (the regression the
-        // operator caught in the first native editor).
+    /// Rows 7–8: the write is the intent alone, with the snapshot's revision.
+    @Test(arguments: [VoiceTranslationParams.forLanguage("zh-Hans"), .pocket("uk", "en")])
+    func settingTranslationWritesTheIntentWithTheSnapshotRevision(params: VoiceTranslationParams) async {
         let service = makeService(contexts: [makeContext()],
                                   controls: makeControls(recordingEnabled: false, recordingRevision: 0, overrideRevision: 3))
         let controller = makeController(service: service)
         await controller.reload()
 
-        let params = VoiceTranslationParams(booths: [.init(speakerScope: "owner_only", speakerMembers: [], targetLanguages: ["uk"]),
-                                                     .init(speakerScope: "specific_senders",
-                                                           speakerMembers: ["@bob:spiral.md"],
-                                                           targetLanguages: ["en", "de"])],
-                                            style: "consecutive")
         service.setVoiceTranslationSessionIDParamsRevisionReturnValue =
-            .success(makeControls(recordingEnabled: false,
-                                  recordingRevision: 0,
-                                  booths: params.booths,
-                                  overrideRevision: 4))
+            .success(makeControls(recordingEnabled: false, recordingRevision: 0, forLanguage: "zh-Hans", overrideRevision: 4))
         let ok = await controller.setTranslation(sessionID: "session-1", params: params)
 
         #expect(ok)
         let call = service.setVoiceTranslationSessionIDParamsRevisionReceivedArguments
         #expect(call?.revision == 3)
         #expect(call?.params == params)
-        #expect(controller.snapshot.sessions.first?.translation.booths == params.booths)
     }
 
-    @Test
-    func anInvalidBoothListIsRejectedBeforeTheWire() async {
-        let service = makeService(contexts: [makeContext()],
-                                  controls: makeControls(recordingEnabled: false, recordingRevision: 0))
+    /// Row 12: a pause or limit refusal says why on the call screen and on the translation row; nothing changed.
+    @Test(arguments: [(VoiceTranslationRefusal(reason: .translationPaused, pauseUntil: Date(timeIntervalSince1970: 1_794_787_200)),
+                       NativeAgentCenterLimitStop.categoryPaused(.callTranslation, until: Date(timeIntervalSince1970: 1_794_787_200))),
+                      (.init(reason: .aiLimit, pauseUntil: nil), .limitReached(isWeekly: false)),
+                      (.init(reason: .callCap, pauseUntil: nil), .categoryPaused(.callTranslation, until: nil))])
+    func aPausedRefusalSaysWhyAndChangesNothing(refusal: VoiceTranslationRefusal, stop: NativeAgentCenterLimitStop) async {
+        let service = makeService(contexts: [makeContext()], controls: makeControls(recordingEnabled: false, recordingRevision: 0))
         let controller = makeController(service: service)
         await controller.reload()
+        service.setVoiceTranslationSessionIDParamsRevisionReturnValue = .failure(.translationPaused(refusal))
 
-        // A named booth without members must not reach the backend.
-        let ok = await controller.setTranslation(sessionID: "session-1",
-                                                 params: .init(booths: [.init(speakerScope: "specific_senders",
-                                                                              speakerMembers: [],
-                                                                              targetLanguages: ["uk"])],
-                                                               style: "consecutive"))
+        let ok = await controller.setTranslation(sessionID: "session-1", params: .forLanguage("uk"))
+
         #expect(!ok)
-        #expect(service.setVoiceTranslationSessionIDParamsRevisionCallsCount == 0)
-    }
-
-    @Test
-    func clearingTheOverrideFallsBackToTheRoomRule() async {
-        let service = makeService(contexts: [makeContext()],
-                                  controls: makeControls(recordingEnabled: false,
-                                                         recordingRevision: 0,
-                                                         booths: [.init(speakerScope: "anyone", speakerMembers: [], targetLanguages: ["uk"])],
-                                                         overrideRevision: 5))
-        let controller = makeController(service: service)
-        await controller.reload()
-
-        service.clearVoiceTranslationOverrideSessionIDReturnValue =
-            .success(makeControls(recordingEnabled: false, recordingRevision: 0))
-        let ok = await controller.clearTranslationOverride(sessionID: "session-1")
-
-        #expect(ok)
+        #expect(controller.snapshot.limitStop == stop)
+        #expect(controller.snapshot.lastError == .translationPaused(refusal))
+        #expect(controller.snapshot.lastErrorScope == .session("session-1", .translation))
         #expect(controller.snapshot.sessions.first?.translation.isOn == false)
     }
 
+    /// Row 12: the form refused for the room is the app's own mistake: quiet, no card.
     @Test
-    func aSystemCoverageShrinkMarksTheSessionDisplaced() async {
-        // W5: another participant brought their own agent and the
-        // backend narrowed our booth — a shrink WE did not write.
-        let broad = makeControls(recordingEnabled: false,
-                                 recordingRevision: 0,
-                                 booths: [.init(speakerScope: "anyone", speakerMembers: [], targetLanguages: ["uk"])],
-                                 overrideRevision: 2)
-        let service = makeService(contexts: [makeContext()], controls: broad)
+    func anUnavailableIntentIsRefusedQuietly() async {
+        let service = makeService(contexts: [makeContext()], controls: makeControls(recordingEnabled: false, recordingRevision: 0))
         let controller = makeController(service: service)
         await controller.reload()
-        #expect(controller.snapshot.displacedSessionIDs.isEmpty)
+        service.setVoiceTranslationSessionIDParamsRevisionReturnValue = .failure(.intentUnavailable(roomKind: "owner_dm"))
 
-        // The doorbell reload brings in the narrowed state.
-        service.voiceSessionControlsSessionIDReturnValue =
-            .success(makeControls(recordingEnabled: false,
-                                  recordingRevision: 0,
-                                  booths: [.init(speakerScope: "everyone_except",
-                                                 speakerMembers: ["@bob:spiral.md"],
-                                                 targetLanguages: ["uk"])],
-                                  overrideRevision: 3))
-        await controller.reload()
-        #expect(controller.snapshot.displacedSessionIDs == ["session-1"])
+        let ok = await controller.setTranslation(sessionID: "session-1", params: .forLanguage("uk"))
+
+        #expect(!ok)
+        #expect(controller.snapshot.lastError == nil)
     }
 
-    // MARK: - Decision 180: the catalog before the first attach
+    // MARK: - ADR-0094 A.8: the catalog before the first attach
 
-    /// The Add sheet's language picker has languages with no session in the
-    /// call: they are read for the owner's agent.
+    /// The language lists have the catalog with no session and no agent: it is read through the port.
     @Test
     func theLanguagesAreThereBeforeTheFirstAttach() async {
         let service = makeService(contexts: [], controls: nil)
@@ -724,21 +735,36 @@ struct NativeAgentCenterControllerTests {
 
         await controller.reload()
 
-        #expect(controller.snapshot.availableLanguages.map(\.code) == ["en", "uk"])
-        #expect(service.voiceControlsCatalogAgentIDReceivedAgentID == "agent-1")
+        #expect(controller.snapshot.availableLanguages.map(\.code) == ["en", "uk", "zh-Hans"])
     }
 
     /// A failed catalog read is not "no languages": the known ones stay.
     @Test
     func aFailedCatalogReadKeepsTheKnownLanguages() async {
         let service = makeService(contexts: [], controls: nil)
-        let controller = makeController(service: service)
+        let port = TranslationPortStub()
+        let controller = makeController(service: service, port: port)
         await controller.reload()
 
-        service.voiceControlsCatalogAgentIDReturnValue = .failure(.unavailable("status 500"))
+        port.catalog = nil
         await controller.reload()
 
-        #expect(controller.snapshot.availableLanguages.map(\.code) == ["en", "uk"])
+        #expect(controller.snapshot.availableLanguages.map(\.code) == ["en", "uk", "zh-Hans"])
+    }
+
+    /// Row 3: the memberships' languages reach the snapshot without a platform read, and a failed read keeps them.
+    @Test
+    func theParticipantsLanguagesComeFromTheMemberships() async {
+        let port = TranslationPortStub()
+        port.membershipLanguages = ["@bob:spiral.md": "pt-BR"]
+        let controller = makeController(service: makeService(contexts: [], controls: nil), port: port)
+
+        await controller.refreshParticipantLanguages()
+        #expect(controller.snapshot.translationFacts.languages == ["@bob:spiral.md": "pt-BR"])
+
+        port.membershipLanguages = nil
+        await controller.refreshParticipantLanguages()
+        #expect(controller.snapshot.translationFacts.languages == ["@bob:spiral.md": "pt-BR"])
     }
 
     private func makeService(contexts: [VoiceSessionControlContext],
@@ -748,9 +774,6 @@ struct NativeAgentCenterControllerTests {
         if let controls {
             service.voiceSessionControlsSessionIDReturnValue = .success(controls)
         }
-        service.voiceControlsCatalogAgentIDReturnValue =
-            .success(.init(voiceTranslationLanguages: [.init(code: "en", label: "English"),
-                                                       .init(code: "uk", label: "Ukrainian")]))
         service.listMyPersonalAgentsReturnValue = .success(.init(agents: [.init(id: "agent-1",
                                                                                 matrixUserID: "@assistant-red:spiral.md",
                                                                                 displayName: "Red's Assistant",
@@ -758,6 +781,7 @@ struct NativeAgentCenterControllerTests {
                                                                                 visibility: "private",
                                                                                 lifecycleState: "active")],
                                                                  provisioningStatus: .ready))
+        service.voiceSessionProgressSessionIDReturnValue = .success(.active)
         return service
     }
 
@@ -775,14 +799,15 @@ struct NativeAgentCenterControllerTests {
                               recordingDeliveryTarget: String? = nil,
                               summaryDelivery: String? = nil,
                               summaryEnabled: Bool = true,
-                              booths: [VoiceTranslationBooth] = [],
+                              forLanguage: String? = nil,
+                              lanes: [VoiceTranslationLane] = [],
                               overrideRevision: Int32? = nil,
-                              conversation: VoiceConversationState = .init(active: false, available: false, revision: 0),
-                              canSaveAsRoomDefault: Bool = false) -> VoiceControlsState {
+                              conversation: VoiceConversationState = .init(active: false, available: false, revision: 0)) -> VoiceControlsState {
         VoiceControlsState(sessionID: "session-1",
-                           effective: .init(source: booths.isEmpty ? "off" : "override",
-                                            style: booths.isEmpty ? nil : "simultaneous",
-                                            booths: booths),
+                           effective: .init(source: forLanguage == nil ? "off" : "override",
+                                            style: forLanguage == nil ? nil : "simultaneous",
+                                            forLanguage: forLanguage,
+                                            lanes: lanes),
                            override: overrideRevision.map { .init(state: "enabled", revision: $0) },
                            artifacts: .init(recording: .init(enabled: recordingEnabled,
                                                              revision: recordingRevision,
@@ -794,8 +819,7 @@ struct NativeAgentCenterControllerTests {
                                                            delivery: summaryDelivery,
                                                            deliveryTarget: nil,
                                                            stopped: false)),
-                           conversation: conversation,
-                           canSaveAsRoomDefault: canSaveAsRoomDefault)
+                           conversation: conversation)
     }
 
     private func makeAttachParams() -> VoiceAttachParams {
@@ -1127,66 +1151,6 @@ extension NativeAgentCenterControllerTests {
     }
 }
 
-// MARK: - Room-default promotion (audit 1.4)
-
-extension NativeAgentCenterControllerTests {
-    /// The editor's "Saved as the room standard" label used to latch on the
-    /// tap. The view model drops actions while one is in flight and the
-    /// backend can refuse, so the row could read "saved" and disable itself
-    /// having promoted nothing. The flag now comes from the controller,
-    /// which records it only after the write succeeded.
-    @Test
-    func promotionIsRecordedOnlyWhenTheBackendAcceptsIt() async {
-        let service = makeService(contexts: [makeContext()],
-                                  controls: makeControls(recordingEnabled: false, recordingRevision: 0))
-        let controller = makeController(service: service)
-        await controller.reload()
-        #expect(controller.snapshot.savedAsRoomDefaultSessionIDs.isEmpty)
-
-        service.saveVoiceTranslationAsRoomDefaultSessionIDReturnValue = .failure(.rejected("no enabled override"))
-        let refused = await controller.saveTranslationAsRoomDefault(sessionID: "session-1")
-        #expect(!refused)
-        #expect(controller.snapshot.savedAsRoomDefaultSessionIDs.isEmpty, "a refused write must not claim a promotion")
-
-        service.saveVoiceTranslationAsRoomDefaultSessionIDReturnValue = .success(())
-        let promoted = await controller.saveTranslationAsRoomDefault(sessionID: "session-1")
-        #expect(promoted)
-        #expect(controller.snapshot.savedAsRoomDefaultSessionIDs.contains("session-1"))
-    }
-
-    /// Review #2: the controls read carries the server's answer, and it
-    /// rides the snapshot to the editor; nothing else decides it.
-    @Test(arguments: [true, false])
-    func theServerSaysWhetherTheTranslationCanBecomeTheRoomRule(canSave: Bool) async {
-        let service = makeService(contexts: [makeContext()],
-                                  controls: makeControls(recordingEnabled: false, recordingRevision: 0, canSaveAsRoomDefault: canSave))
-        let controller = makeController(service: service)
-        #expect(controller.snapshot.sessions.first?.canSaveAsRoomDefault != true, "unknown until read")
-
-        await controller.reload()
-
-        #expect(controller.snapshot.sessions.first?.canSaveAsRoomDefault == canSave)
-    }
-
-    /// ADR-0088: the save is refused like an arm (all-or-nothing), and the
-    /// owner reads the arm form's words for it.
-    @Test(arguments: [RoomToolRefusal.capReached, .duplicate, .doesNotFireHere(reason: "1:1 room")])
-    func aRefusedPromotionSaysWhatTheArmFormSays(refusal: RoomToolRefusal) async {
-        let service = makeService(contexts: [makeContext()],
-                                  controls: makeControls(recordingEnabled: false, recordingRevision: 0))
-        let controller = makeController(service: service)
-        await controller.reload()
-
-        service.saveVoiceTranslationAsRoomDefaultSessionIDReturnValue = .failure(.toolRefused(refusal))
-        let promoted = await controller.saveTranslationAsRoomDefault(sessionID: "session-1")
-
-        #expect(!promoted)
-        #expect(controller.snapshot.savedAsRoomDefaultSessionIDs.isEmpty)
-        #expect(controller.snapshot.lastError == .rejected(refusal.message))
-        #expect(controller.snapshot.lastError?.localizedDescription == refusal.message)
-    }
-}
-
 /// Holds a switch write inside the "backend" until the test answers it —
 /// the seconds a call that started silent takes to start its conversation.
 private final nonisolated class HeldSwitchWrite: Sendable {
@@ -1209,5 +1173,444 @@ private final nonisolated class HeldSwitchWrite: Sendable {
             held?.resume(returning: result)
             held = nil
         }
+    }
+}
+
+// MARK: - Question 395: the AI limit mid-call (D7, D10)
+
+extension NativeAgentCenterControllerTests {
+    /// Monday 16 November 2026, 00:00 UTC.
+    private static let monday = Date(timeIntervalSince1970: 1_794_787_200)
+
+    /// The owner's session that ends on a category's cap gives the call screen its line, with the pause's date from
+    /// the agent's usage, and the reason on the agent's add row.
+    @Test
+    func aCategoryCapMidCallGivesTheOwnerTheLine() async {
+        let service = makeService(contexts: [makeContext()], controls: makeControls(recordingEnabled: false, recordingRevision: 0))
+        service.fetchAgentUsageAgentIDReturnValue = .success(Self.limitUsage(categories: [.init(category: .callTranslation, usedPercent: 30,
+                                                                                                pause: .until(Self.monday))]))
+        let controller = makeController(service: service)
+        await controller.reload()
+
+        service.voiceSessionControlContextsRoomIDReturnValue = .success([])
+        service.voiceSessionProgressSessionIDReturnValue = .success(.ended(.categoryPaused(.callTranslation)))
+        await controller.reload()
+
+        #expect(controller.snapshot.limitStop == .categoryPaused(.callTranslation, until: Self.monday))
+        #expect(controller.snapshot.joinFailures["agent-1"] == .categoryPaused(.callTranslation, .until(Self.monday)))
+        #expect(service.fetchAgentUsageAgentIDReceivedAgentID == "agent-1")
+    }
+
+    @Test
+    func theWholeLimitMidCallSaysTheWeek() async {
+        let service = makeService(contexts: [makeContext()], controls: makeControls(recordingEnabled: false, recordingRevision: 0))
+        service.fetchAgentUsageAgentIDReturnValue = .success(Self.limitUsage(categories: []))
+        let controller = makeController(service: service)
+        await controller.reload()
+
+        service.voiceSessionControlContextsRoomIDReturnValue = .success([])
+        service.voiceSessionProgressSessionIDReturnValue = .success(.ended(.budgetReached))
+        await controller.reload()
+
+        #expect(controller.snapshot.limitStop == .limitReached(isWeekly: true))
+        #expect(controller.snapshot.joinFailures["agent-1"] == .budgetReached)
+    }
+
+    /// A usage read that fails is no answer: the line names no period and no date rather than guess.
+    @Test
+    func anUnreadableLimitGivesTheLineWithoutADate() async {
+        let service = makeService(contexts: [makeContext()], controls: makeControls(recordingEnabled: false, recordingRevision: 0))
+        service.fetchAgentUsageAgentIDReturnValue = .failure(.serverError(status: 500))
+        let controller = makeController(service: service)
+        await controller.reload()
+
+        service.voiceSessionControlContextsRoomIDReturnValue = .success([])
+        service.voiceSessionProgressSessionIDReturnValue = .success(.ended(.categoryPaused(.calls)))
+        await controller.reload()
+
+        #expect(controller.snapshot.limitStop == .categoryPaused(.calls, until: nil))
+    }
+
+    /// Only the owner sees it: someone else's assistant leaving says nothing, and neither does an ordinary end.
+    @Test(arguments: [(canControl: false, reason: VoiceSessionEndReason.budgetReached), (canControl: true, reason: .manual), (canControl: true, reason: .callEnded)])
+    func noLineForOthersOrAnOrdinaryEnd(canControl: Bool, reason: VoiceSessionEndReason) async {
+        let service = makeService(contexts: [makeContext(canControl: canControl)], controls: makeControls(recordingEnabled: false, recordingRevision: 0))
+        let controller = makeController(service: service)
+        await controller.reload()
+
+        service.voiceSessionControlContextsRoomIDReturnValue = .success([])
+        service.voiceSessionProgressSessionIDReturnValue = .success(.ended(reason))
+        await controller.reload()
+
+        #expect(controller.snapshot.limitStop == nil)
+        #expect(service.fetchAgentUsageAgentIDCallsCount == 0)
+    }
+
+    /// Adding the assistant again takes the line away.
+    @Test
+    func anAcceptedAddClearsTheLine() async {
+        let service = makeService(contexts: [makeContext()], controls: makeControls(recordingEnabled: false, recordingRevision: 0))
+        service.fetchAgentUsageAgentIDReturnValue = .success(Self.limitUsage(categories: []))
+        let controller = makeController(service: service)
+        await controller.reload()
+        service.voiceSessionControlContextsRoomIDReturnValue = .success([])
+        service.voiceSessionProgressSessionIDReturnValue = .success(.ended(.budgetReached))
+        await controller.reload()
+        #expect(controller.snapshot.limitStop != nil)
+
+        service.attachVoiceAgentAgentIDRoomIDParamsReturnValue = .success("session-9")
+        service.voiceSessionProgressSessionIDReturnValue = .success(.active)
+        #expect(await controller.attach(agentID: "agent-1", params: makeAttachParams()))
+
+        #expect(controller.snapshot.limitStop == nil)
+    }
+
+    /// Calls paused by their cap: the join check names no date, so the agent's usage says until when, and the add row
+    /// says it in the Limit page's words.
+    @Test
+    func aCallsPauseOnTheJoinCheckReadsItsDate() async {
+        let service = makeService(contexts: [], controls: nil)
+        service.voiceJoinCheckAgentIDRoomIDReturnValue = .success(.categoryPaused(nil))
+        service.fetchAgentUsageAgentIDReturnValue = .success(Self.limitUsage(categories: [.init(category: .calls, usedPercent: 40, pause: .until(Self.monday))]))
+        let controller = makeController(service: service)
+        await controller.reload()
+
+        await controller.refreshJoinChecks()
+
+        #expect(controller.snapshot.joinChecks == ["agent-1": .categoryPaused(.until(Self.monday))])
+        #expect(NativeAgentCenterJoinFailure(.categoryPaused(.until(Self.monday))) == .categoryPaused(.calls, .until(Self.monday)))
+    }
+
+    @Test
+    func theLineSaysWhatStoppedAndUntilWhen() {
+        var utc = Calendar(identifier: .gregorian)
+        utc.timeZone = .gmt
+        let thursday = Self.monday.addingTimeInterval(-3.5 * 86400)
+
+        #expect(NativeAgentCenterLimitStop.limitReached(isWeekly: true).line() == UntranslatedL10n.screenNativeCallLimitUsedUpThisWeek)
+        #expect(NativeAgentCenterLimitStop.limitReached(isWeekly: false).line() == UntranslatedL10n.screenNativeCallLimitUsedUp)
+        #expect(NativeAgentCenterLimitStop.categoryPaused(.callTranslation, until: Self.monday).line(now: thursday, calendar: utc)
+            == UntranslatedL10n.screenNativeCallLimitTranslationPausedUntil(UntranslatedL10n.screenAgentUsageUntilMonday))
+        #expect(NativeAgentCenterLimitStop.categoryPaused(.callTranslation, until: nil).line() == UntranslatedL10n.screenNativeCallLimitTranslationPaused)
+        #expect(NativeAgentCenterLimitStop.categoryPaused(.calls, until: Self.monday).line(now: thursday, calendar: utc)
+            == UntranslatedL10n.screenNativeCallLimitAssistantPausedUntil(UntranslatedL10n.screenAgentUsageUntilMonday))
+        #expect(NativeAgentCenterLimitStop.categoryPaused(.other, until: nil).line() == UntranslatedL10n.screenNativeCallLimitAssistantPaused)
+    }
+
+    private static func limitUsage(categories: [AgentUsage.CategoryShare]) -> AgentUsage {
+        AgentUsage(current: .init(period: .week, startsAt: monday.addingTimeInterval(-7 * 86400), resetsAt: monday,
+                                  usedPercent: 100, limitReached: false, categories: categories),
+                   days: [])
+    }
+}
+
+// MARK: - Question 387: why an assistant can't come
+
+extension NativeAgentCenterControllerTests {
+    /// B1 — an accepted attach is followed until the session says why it never reached the call.
+    @Test(arguments: [(VoiceSessionEndReason.aiConsentRoom, NativeAgentCenterJoinFailure.aiConsentRoom),
+                      (.aiConsentOwner, .aiConsentOwner),
+                      (.budgetReached, .budgetReached),
+                      (.failed, .failed),
+                      (.unknown("newer"), .needsUpdate)])
+    func anEndedJoinSaysWhyOnTheAgentsRow(reason: VoiceSessionEndReason, failure: NativeAgentCenterJoinFailure) async {
+        let service = makeService(contexts: [], controls: nil)
+        service.attachVoiceAgentAgentIDRoomIDParamsReturnValue = .success("session-9")
+        service.voiceSessionProgressSessionIDReturnValue = .success(.ended(reason))
+        let controller = makeController(service: service)
+        await controller.reload()
+
+        #expect(await controller.attach(agentID: "agent-1", params: makeAttachParams()))
+        await controller.pendingJoinFollow["session-9"]?.value
+
+        #expect(controller.snapshot.joinFailures["agent-1"] == failure)
+        #expect(controller.snapshot.joinStartedAt["session-9"] == nil)
+    }
+
+    /// An ordinary end (the owner's Remove, the call over) is no refusal.
+    @Test
+    func anOrdinaryEndIsNoRefusal() async {
+        let service = makeService(contexts: [], controls: nil)
+        service.attachVoiceAgentAgentIDRoomIDParamsReturnValue = .success("session-9")
+        service.voiceSessionProgressSessionIDReturnValue = .success(.ended(.manual))
+        let controller = makeController(service: service)
+        await controller.reload()
+
+        _ = await controller.attach(agentID: "agent-1", params: makeAttachParams())
+        await controller.pendingJoinFollow["session-9"]?.value
+
+        #expect(controller.snapshot.joinFailures.isEmpty)
+    }
+
+    /// A failed progress read is not an end: the follow keeps asking.
+    @Test
+    func aFailedProgressReadKeepsFollowing() async {
+        let service = makeService(contexts: [], controls: nil)
+        service.attachVoiceAgentAgentIDRoomIDParamsReturnValue = .success("session-9")
+        let reads = AttachCounter()
+        service.voiceSessionProgressSessionIDClosure = { _ in
+            reads.increment()
+            return reads.count < 3 ? .failure(.unavailable("offline")) : .success(.active)
+        }
+        let controller = makeController(service: service)
+        await controller.reload()
+
+        _ = await controller.attach(agentID: "agent-1", params: makeAttachParams())
+        await controller.pendingJoinFollow["session-9"]?.value
+
+        #expect(reads.count == 3)
+        #expect(controller.snapshot.joinFailures.isEmpty)
+    }
+
+    /// F3 — a refused attach lands on the agent's add row with the reason the owner can act on.
+    @Test(arguments: [(VoiceControlsError.agentPaused, NativeAgentCenterJoinFailure.paused),
+                      (.conflict, .cannotJoinCalls),
+                      (.translationPaused(.init(reason: .aiLimit, pauseUntil: nil)), .budgetReached),
+                      (.translationPaused(.init(reason: .callCap, pauseUntil: nil)), .categoryPaused(.callTranslation, .untilChanged)),
+                      (.intentUnavailable(roomKind: "owner_dm"), .failed),
+                      (.serviceUnavailable(retryAfter: .seconds(5)), .failed),
+                      (.unavailable("offline"), .failed)])
+    func aRefusedAttachLandsOnTheAddRow(error: VoiceControlsError, failure: NativeAgentCenterJoinFailure) async {
+        let service = makeService(contexts: [], controls: nil)
+        service.attachVoiceAgentAgentIDRoomIDParamsReturnValue = .failure(error)
+        let controller = makeController(service: service)
+        await controller.reload()
+
+        #expect(await controller.attach(agentID: "agent-1", params: makeAttachParams()) == false)
+        #expect(controller.snapshot.joinFailures["agent-1"] == failure)
+    }
+
+    /// D8 — an ask-to-join room refuses the client's invite: "only admins can add members".
+    @Test
+    func aRefusedInviteIsAnAskToJoinRoom() async {
+        let service = makeService(contexts: [], controls: nil)
+        service.attachVoiceAgentAgentIDRoomIDParamsReturnValue = .failure(.inviteRequired("invite it first"))
+        let controller = makeController(service: service, members: []) { _ in false }
+        await controller.reload()
+
+        #expect(await controller.attach(agentID: "agent-1", params: makeAttachParams()) == false)
+        #expect(controller.snapshot.joinFailures["agent-1"] == .askToJoin)
+    }
+
+    /// B4 — the check runs for own agents not in the call; one that could not be read leaves no verdict.
+    @Test
+    func joinChecksAreKeptOnlyWhenTheyWereRead() async {
+        let service = makeService(contexts: [], controls: nil)
+        service.listMyPersonalAgentsReturnValue = .success(.init(agents: [.init(id: "agent-1", matrixUserID: "@assistant-red:spiral.md",
+                                                                                displayName: "Red", avatarMXC: nil, visibility: "private",
+                                                                                lifecycleState: "active"),
+                                                                          .init(id: "agent-2", matrixUserID: "@assistant-red-2:spiral.md",
+                                                                                displayName: "Red 2", avatarMXC: nil, visibility: "private",
+                                                                                lifecycleState: "active")],
+                                                                 provisioningStatus: .ready))
+        service.voiceJoinCheckAgentIDRoomIDClosure = { agentID, _ in
+            agentID == "agent-1" ? .success(.aiConsentRoom) : .failure(.unavailable("status 503"))
+        }
+        let controller = makeController(service: service)
+        await controller.reload()
+
+        await controller.refreshJoinChecks()
+
+        #expect(controller.snapshot.joinChecks == ["agent-1": .aiConsentRoom])
+    }
+
+    /// F3a / audit F7 — a paused agent is offered with Resume, and every own agent counts as "mine".
+    @Test
+    func pausedAgentsAreOfferedAndAllOwnAgentsAreMine() async {
+        let service = makeService(contexts: [], controls: nil)
+        service.listMyPersonalAgentsReturnValue = .success(.init(agents: [.init(id: "agent-1", matrixUserID: "@assistant-red:spiral.md",
+                                                                                displayName: "Red", avatarMXC: nil, visibility: "private",
+                                                                                lifecycleState: "suspended"),
+                                                                          .init(id: "agent-3", matrixUserID: "@assistant-old:spiral.md",
+                                                                                displayName: "Old", avatarMXC: nil, visibility: "private",
+                                                                                lifecycleState: "archived")],
+                                                                 provisioningStatus: .ready))
+        let controller = makeController(service: service)
+
+        await controller.reload()
+
+        #expect(controller.snapshot.candidates.map(\.id) == ["agent-1"])
+        #expect(controller.snapshot.candidates.first?.isPaused == true)
+        #expect(controller.snapshot.ownAgentMxids == ["@assistant-red:spiral.md", "@assistant-old:spiral.md"])
+    }
+
+    @Test
+    func resumingTakesThePauseOffAndAsksAgain() async {
+        let service = makeService(contexts: [], controls: nil)
+        service.editAgentAgentIDPatchReturnValue = .failure(.serverError(status: 500))
+        service.editAgentAgentIDPatchClosure = { _, patch in
+            #expect(patch.paused == false)
+            return .failure(.serverError(status: 0))
+        }
+        let controller = makeController(service: service)
+        await controller.reload()
+
+        #expect(await controller.resume(agentID: "agent-1") == false)
+        #expect(service.editAgentAgentIDPatchCallsCount == 1)
+        #expect(controller.snapshot.lastErrorScope == .agent("agent-1"), "on the add row, not the whole-sheet card")
+    }
+
+    /// D6 — a refused kick stays on that assistant, not the whole-sheet "unavailable" card.
+    @Test
+    func aRefusedRemovalFromTheChatStaysOnThatAssistant() async {
+        let service = makeService(contexts: [], controls: nil)
+        let controller = NativeAgentCenterController(agentPlatformService: service,
+                                                     roomID: "!room:spiral.md",
+                                                     roomMemberMxids: { [] },
+                                                     inviteAgent: { _ in false },
+                                                     kickAgent: { _ in false })
+        await controller.reload()
+
+        #expect(await controller.removeFromChat(agentMxid: "@assistant-blue:spiral.md") == false)
+        #expect(controller.snapshot.lastErrorScope == .foreign("@assistant-blue:spiral.md"))
+    }
+}
+
+// MARK: - Question 401: the sheet never shows a failure or a gap as "no assistants"
+
+extension NativeAgentCenterControllerTests {
+    /// Remark 4: the dock knows the platform is there before it answers, so it never grows a button late.
+    @Test
+    func theDockKnowsThePlatformBeforeItAnswers() {
+        #expect(makeController(service: AgentPlatformServiceMock()).snapshot.isConfigured)
+        #expect(!makeController(service: AgentPlatformServiceMock()).snapshot.isAvailable)
+        #expect(!makeController(service: nil).snapshot.isConfigured)
+    }
+
+    /// Remark 10: the snapshot that drops the owner's stopped session already says why, so the sheet never shows
+    /// "No assistants in this call yet" in between.
+    @Test
+    func aLimitStopArrivesWithTheSnapshotThatDropsTheSession() async {
+        let service = makeService(contexts: [makeContext()], controls: makeControls(recordingEnabled: false, recordingRevision: 0))
+        service.fetchAgentUsageAgentIDReturnValue = .success(Self.limitUsage(categories: []))
+        let controller = makeController(service: service)
+        await controller.reload()
+        var published: [NativeAgentCenterSnapshot] = []
+        let subscription = controller.snapshotPublisher.sink { published.append($0) }
+
+        service.voiceSessionControlContextsRoomIDReturnValue = .success([])
+        service.voiceSessionProgressSessionIDReturnValue = .success(.ended(.budgetReached))
+        await controller.reload()
+        subscription.cancel()
+
+        let withoutTheSession = published.filter(\.sessions.isEmpty)
+        #expect(!withoutTheSession.isEmpty)
+        #expect(withoutTheSession.allSatisfy { $0.joinFailures["agent-1"] == .budgetReached })
+    }
+
+    /// Flows N6: a consent stop mid-call puts its reason on the owner's add row; it is no limit, so no call line.
+    @Test(arguments: [(VoiceSessionEndReason.aiConsentRoom, NativeAgentCenterJoinFailure.aiConsentRoom),
+                      (.optOut, .aiConsentRoom),
+                      (.aiConsentOwner, .aiConsentOwner)])
+    func aConsentStopMidCallSaysWhyOnTheOwnersRow(reason: VoiceSessionEndReason, failure: NativeAgentCenterJoinFailure) async {
+        let service = makeService(contexts: [makeContext()], controls: makeControls(recordingEnabled: false, recordingRevision: 0))
+        let controller = makeController(service: service)
+        await controller.reload()
+
+        service.voiceSessionControlContextsRoomIDReturnValue = .success([])
+        service.voiceSessionProgressSessionIDReturnValue = .success(.ended(reason))
+        await controller.reload()
+
+        #expect(controller.snapshot.joinFailures["agent-1"] == failure)
+        #expect(controller.snapshot.limitStop == nil)
+    }
+
+    /// Remark 8: the re-read that a write's own effect rings keeps the refusal on its row; the sheet's global state
+    /// is what a good read answers.
+    @Test
+    func aReReadKeepsARowsRefusal() async {
+        let service = makeService(contexts: [makeContext()], controls: makeControls(recordingEnabled: false, recordingRevision: 0))
+        service.setVoiceTranslationSessionIDParamsRevisionReturnValue = .failure(.rejected("not now"))
+        let controller = makeController(service: service)
+        await controller.reload()
+        #expect(await controller.setTranslation(sessionID: "session-1", params: .forLanguage("en")) == false)
+
+        await controller.reload()
+
+        #expect(controller.snapshot.lastError == .rejected("not now"))
+        #expect(controller.snapshot.lastErrorScope == .session("session-1", .translation))
+    }
+
+    /// Board A: the add form closes when the backend accepts the add, before the re-read; a refusal keeps it open.
+    @Test
+    func anAcceptedAddIsKnownAndARefusedOneIsNot() async {
+        let service = makeService(contexts: [], controls: nil)
+        service.attachVoiceAgentAgentIDRoomIDParamsReturnValue = .success("session-9")
+        service.voiceSessionProgressSessionIDReturnValue = .success(.active)
+        let controller = makeController(service: service)
+        await controller.reload()
+
+        #expect(await controller.attach(agentID: "agent-1", params: makeAttachParams()))
+        #expect(controller.snapshot.acceptedAttaches == ["agent-1"])
+
+        service.attachVoiceAgentAgentIDRoomIDParamsReturnValue = .failure(.agentPaused)
+        #expect(await controller.attach(agentID: "agent-1", params: makeAttachParams()) == false)
+        #expect(controller.snapshot.acceptedAttaches.isEmpty)
+        #expect(controller.snapshot.joinFailures["agent-1"] == .paused)
+    }
+
+    /// Checklist 1: an unread list of one's own agents is "couldn't check", never "you don't have an assistant".
+    @Test
+    func anUnreadAgentListIsNotNoAssistant() async {
+        let service = makeService(contexts: [], controls: nil)
+        service.listMyPersonalAgentsReturnValue = .failure(.serverError(status: 503))
+        let controller = makeController(service: service)
+
+        await controller.reload()
+
+        guard case .unavailable = controller.snapshot.lastError else {
+            Issue.record("Expected the platform to read as unavailable, got \(String(describing: controller.snapshot.lastError))")
+            return
+        }
+        #expect(controller.snapshot.lastErrorScope == .global)
+    }
+
+    /// The agents already known stay when a later list fails.
+    @Test
+    func aFailedAgentListKeepsTheAgentsAlreadyKnown() async {
+        let service = makeService(contexts: [], controls: nil)
+        let controller = makeController(service: service)
+        await controller.reload()
+        #expect(controller.snapshot.candidates.map(\.id) == ["agent-1"])
+
+        service.listMyPersonalAgentsReturnValue = .failure(.serverError(status: 503))
+        await controller.reload()
+
+        #expect(controller.snapshot.candidates.map(\.id) == ["agent-1"])
+        #expect(controller.snapshot.lastError == nil)
+    }
+}
+
+/// The translation port's sources (ADR-0094), in memory.
+final class TranslationPortStub: NativeCallTranslationPortProtocol {
+    var catalog: [VoiceControlsCatalogLanguage]? = [.init(code: "en", label: "English"),
+                                                    .init(code: "uk", label: "Ukrainian"),
+                                                    .init(code: "zh-Hans", label: "Chinese (Simplified)")]
+    var membershipLanguages: [String: String]? = [:]
+    var tool: Result<NativeCallTranslationTool?, NativeCallTranslationPortError> = .success(nil)
+    private(set) var published: [String] = []
+    private(set) var stored: [NativeCallTranslationTool] = []
+
+    func languages() async -> [VoiceControlsCatalogLanguage]? {
+        catalog
+    }
+
+    func participantLanguages(roomID: String) async -> [String: String]? {
+        membershipLanguages
+    }
+
+    func publishMyLanguage(_ language: String, roomID: String) async -> Bool {
+        published.append(language)
+        return true
+    }
+
+    func tool(roomID: String) async -> Result<NativeCallTranslationTool?, NativeCallTranslationPortError> {
+        tool
+    }
+
+    func setTool(_ tool: NativeCallTranslationTool, roomID: String) async -> Bool {
+        stored.append(tool)
+        self.tool = .success(tool.isEnabled ? tool : nil)
+        return true
     }
 }

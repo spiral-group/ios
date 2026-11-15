@@ -2,7 +2,7 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<key>screen_agent_detail_rooms_section</key>
+	<key>screen_native_call_assistants_count</key>
 	<dict>
 		<key>COUNT</key>
 		<dict>
@@ -11,84 +11,21 @@
 			<key>NSStringFormatValueTypeKey</key>
 			<string>d</string>
 			<key>few</key>
-			<string>%1$d miestnostiach</string>
+			<string>%1$d asistenti</string>
+			<key>many</key>
+			<string>%1$d asistenta</string>
 			<key>one</key>
-			<string>%1$d miestnosti</string>
+			<string>%1$d asistent</string>
 			<key>other</key>
-			<string>%1$d miestnostiach</string>
-		</dict>
-		<key>NSStringLocalizedFormatKey</key>
-		<string>Žije v %#@COUNT@</string>
-	</dict>
-	<key>screen_agent_detail_tool_count</key>
-	<dict>
-		<key>COUNT</key>
-		<dict>
-			<key>NSStringFormatSpecTypeKey</key>
-			<string>NSStringPluralRuleType</string>
-			<key>NSStringFormatValueTypeKey</key>
-			<string>d</string>
-			<key>few</key>
-			<string>%1$d nástroje</string>
-			<key>one</key>
-			<string>%1$d nástroj</string>
-			<key>other</key>
-			<string>%1$d nástrojov</string>
-		</dict>
-		<key>NSStringLocalizedFormatKey</key>
-		<string>%#@COUNT@</string>
-	</dict>
-	<key>screen_agent_space_agent_status</key>
-	<dict>
-		<key>NSStringLocalizedFormatKey</key>
-		<string>V %#@ROOMS@ · %#@TOOLS@</string>
-		<key>ROOMS</key>
-		<dict>
-			<key>NSStringFormatSpecTypeKey</key>
-			<string>NSStringPluralRuleType</string>
-			<key>NSStringFormatValueTypeKey</key>
-			<string>d</string>
-			<key>few</key>
-			<string>%1$d miestnostiach</string>
-			<key>one</key>
-			<string>%1$d miestnosti</string>
-			<key>other</key>
-			<string>%1$d miestnostiach</string>
-		</dict>
-		<key>TOOLS</key>
-		<dict>
-			<key>NSStringFormatSpecTypeKey</key>
-			<string>NSStringPluralRuleType</string>
-			<key>NSStringFormatValueTypeKey</key>
-			<string>d</string>
-			<key>few</key>
-			<string>%2$d aktívne nástroje</string>
-			<key>one</key>
-			<string>%2$d aktívny nástroj</string>
-			<key>other</key>
-			<string>%2$d aktívnych nástrojov</string>
-		</dict>
-	</dict>
-	<key>screen_agent_spaces_agent_count</key>
-	<dict>
-		<key>COUNT</key>
-		<dict>
-			<key>NSStringFormatSpecTypeKey</key>
-			<string>NSStringPluralRuleType</string>
-			<key>NSStringFormatValueTypeKey</key>
-			<string>d</string>
-			<key>few</key>
-			<string>%1$d agenti</string>
-			<key>one</key>
-			<string>%1$d agent</string>
-			<key>other</key>
-			<string>%1$d agentov</string>
+			<string>%1$d asistentov</string>
 		</dict>
 		<key>NSStringLocalizedFormatKey</key>
 		<string>%#@COUNT@</string>
 	</dict>
 	<key>screen_native_call_status_agent_count</key>
 	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@COUNT@</string>
 		<key>COUNT</key>
 		<dict>
 			<key>NSStringFormatSpecTypeKey</key>
@@ -97,13 +34,35 @@
 			<string>d</string>
 			<key>one</key>
 			<string>%1$d agent</string>
+			<key>few</key>
+			<string>%1$d agenti</string>
+			<key>many</key>
+			<string>%1$d agenta</string>
 			<key>other</key>
-			<string>%1$d agents</string>
+			<string>%1$d agentov</string>
 		</dict>
-		<key>NSStringLocalizedFormatKey</key>
-		<string>%#@COUNT@</string>
 	</dict>
 	<key>screen_native_call_status_people_count</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@COUNT@</string>
+		<key>COUNT</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%1$d osoba</string>
+			<key>few</key>
+			<string>%1$d osoby</string>
+			<key>many</key>
+			<string>%1$d osoby</string>
+			<key>other</key>
+			<string>%1$d osôb</string>
+		</dict>
+	</dict>
+	<key>screen_feed_new_posts</key>
 	<dict>
 		<key>COUNT</key>
 		<dict>
@@ -112,12 +71,451 @@
 			<key>NSStringFormatValueTypeKey</key>
 			<string>d</string>
 			<key>one</key>
-			<string>%1$d person</string>
+			<string>%1$d nový príspevok</string>
+			<key>few</key>
+			<string>%1$d nové príspevky</string>
+			<key>many</key>
+			<string>%1$d nového príspevku</string>
 			<key>other</key>
-			<string>%1$d people</string>
+			<string>%1$d nových príspevkov</string>
 		</dict>
 		<key>NSStringLocalizedFormatKey</key>
 		<string>%#@COUNT@</string>
+	</dict>
+	<key>a11y_feed_images</key>
+	<dict>
+		<key>COUNT</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%1$d obrázok</string>
+			<key>few</key>
+			<string>%1$d obrázky</string>
+			<key>many</key>
+			<string>%1$d obrázka</string>
+			<key>other</key>
+			<string>%1$d obrázkov</string>
+		</dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@COUNT@</string>
+	</dict>
+	<key>screen_feed_composer_characters_left</key>
+	<dict>
+		<key>COUNT</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>Zostáva %1$d znak</string>
+			<key>few</key>
+			<string>Zostávajú %1$d znaky</string>
+			<key>many</key>
+			<string>Zostáva %1$d znaku</string>
+			<key>other</key>
+			<string>Zostáva %1$d znakov</string>
+		</dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@COUNT@</string>
+	</dict>
+	<key>screen_feed_composer_characters_over</key>
+	<dict>
+		<key>COUNT</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%1$d znak nad limit</string>
+			<key>few</key>
+			<string>%1$d znaky nad limit</string>
+			<key>many</key>
+			<string>%1$d znaku nad limit</string>
+			<key>other</key>
+			<string>%1$d znakov nad limit</string>
+		</dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@COUNT@</string>
+	</dict>
+	<key>screen_feed_composer_error_rate_limited_minutes</key>
+	<dict>
+		<key>COUNT</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>Skúste to znova o %1$d minútu.</string>
+			<key>few</key>
+			<string>Skúste to znova o %1$d minúty.</string>
+			<key>many</key>
+			<string>Skúste to znova o %1$d minúty.</string>
+			<key>other</key>
+			<string>Skúste to znova o %1$d minút.</string>
+		</dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@COUNT@</string>
+	</dict>
+	<key>screen_feed_composer_daily_cap_notice</key>
+	<dict>
+		<key>COUNT</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>Dnešný limit je vyčerpaný: %1$d príspevok. Znova môžete zverejňovať po polnoci UTC.</string>
+			<key>few</key>
+			<string>Dnešný limit je vyčerpaný: %1$d príspevky. Znova môžete zverejňovať po polnoci UTC.</string>
+			<key>many</key>
+			<string>Dnešný limit je vyčerpaný: %1$d príspevku. Znova môžete zverejňovať po polnoci UTC.</string>
+			<key>other</key>
+			<string>Dnešný limit je vyčerpaný: %1$d príspevkov. Znova môžete zverejňovať po polnoci UTC.</string>
+		</dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@COUNT@</string>
+	</dict>
+	<key>a11y_feed_likes</key>
+	<dict>
+		<key>COUNT</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%1$d lajk</string>
+			<key>few</key>
+			<string>%1$d lajky</string>
+			<key>many</key>
+			<string>%1$d lajku</string>
+			<key>other</key>
+			<string>%1$d lajkov</string>
+		</dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@COUNT@</string>
+	</dict>
+	<key>a11y_feed_comments</key>
+	<dict>
+		<key>COUNT</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%1$d komentár</string>
+			<key>few</key>
+			<string>%1$d komentáre</string>
+			<key>many</key>
+			<string>%1$d komentára</string>
+			<key>other</key>
+			<string>%1$d komentárov</string>
+		</dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@COUNT@</string>
+	</dict>
+	<key>a11y_feed_shares</key>
+	<dict>
+		<key>COUNT</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%1$d zdieľanie</string>
+			<key>few</key>
+			<string>%1$d zdieľania</string>
+			<key>many</key>
+			<string>%1$d zdieľania</string>
+			<key>other</key>
+			<string>%1$d zdieľaní</string>
+		</dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@COUNT@</string>
+	</dict>
+	<key>screen_feed_shared_partly</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@SENT@, %#@FAILED@</string>
+		<key>SENT</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>Zdieľané do %1$d chatu</string>
+			<key>few</key>
+			<string>Zdieľané do %1$d chatov</string>
+			<key>many</key>
+			<string>Zdieľané do %1$d chatu</string>
+			<key>other</key>
+			<string>Zdieľané do %1$d chatov</string>
+		</dict>
+		<key>FAILED</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%2$d sa nepodarilo zdieľať</string>
+			<key>few</key>
+			<string>%2$d sa nepodarilo zdieľať</string>
+			<key>many</key>
+			<string>%2$d sa nepodarilo zdieľať</string>
+			<key>other</key>
+			<string>%2$d sa nepodarilo zdieľať</string>
+		</dict>
+	</dict>
+	<key>screen_feed_shared</key>
+	<dict>
+		<key>COUNT</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>Zdieľané do %1$d chatu</string>
+			<key>few</key>
+			<string>Zdieľané do %1$d chatov</string>
+			<key>many</key>
+			<string>Zdieľané do %1$d chatu</string>
+			<key>other</key>
+			<string>Zdieľané do %1$d chatov</string>
+		</dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@COUNT@</string>
+	</dict>
+	<key>screen_feed_comment_daily_cap_notice</key>
+	<dict>
+		<key>COUNT</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>Dnešný limit je %1$d komentár. Znova môžete komentovať po polnoci UTC.</string>
+			<key>few</key>
+			<string>Dnešný limit je %1$d komentáre. Znova môžete komentovať po polnoci UTC.</string>
+			<key>many</key>
+			<string>Dnešný limit je %1$d komentára. Znova môžete komentovať po polnoci UTC.</string>
+			<key>other</key>
+			<string>Dnešný limit je %1$d komentárov. Znova môžete komentovať po polnoci UTC.</string>
+		</dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@COUNT@</string>
+	</dict>
+	<key>screen_feed_comment_error_rate_limited_minutes</key>
+	<dict>
+		<key>COUNT</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>Skúste to znova o %1$d minútu.</string>
+			<key>few</key>
+			<string>Skúste to znova o %1$d minúty.</string>
+			<key>many</key>
+			<string>Skúste to znova o %1$d minúty.</string>
+			<key>other</key>
+			<string>Skúste to znova o %1$d minút.</string>
+		</dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@COUNT@</string>
+	</dict>
+	<key>a11y_feed_notices_unread</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@COUNT@</string>
+		<key>COUNT</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>Neprečítané: %1$d</string>
+			<key>few</key>
+			<string>Neprečítané: %1$d</string>
+			<key>many</key>
+			<string>Neprečítané: %1$d</string>
+			<key>other</key>
+			<string>Neprečítané: %1$d</string>
+		</dict>
+	</dict>
+	<key>screen_feed_report_rate_limited_message_hours</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@COUNT@</string>
+		<key>COUNT</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>Dnes ste odoslali 10 nahlásení. Ďalšie môžete odoslať približne o %1$d hodinu.</string>
+			<key>few</key>
+			<string>Dnes ste odoslali 10 nahlásení. Ďalšie môžete odoslať približne o %1$d hodiny.</string>
+			<key>many</key>
+			<string>Dnes ste odoslali 10 nahlásení. Ďalšie môžete odoslať približne o %1$d hodiny.</string>
+			<key>other</key>
+			<string>Dnes ste odoslali 10 nahlásení. Ďalšie môžete odoslať približne o %1$d hodín.</string>
+		</dict>
+	</dict>
+	<key>screen_feed_activity_others</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@COUNT@</string>
+		<key>COUNT</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%1$d ďalší</string>
+			<key>few</key>
+			<string>%1$d ďalší</string>
+			<key>many</key>
+			<string>%1$d ďalšieho</string>
+			<key>other</key>
+			<string>%1$d ďalších</string>
+		</dict>
+	</dict>
+	<key>a11y_feed_activity_unread</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@COUNT@</string>
+		<key>COUNT</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>Aktivita, neprečítané: %1$d</string>
+			<key>few</key>
+			<string>Aktivita, neprečítané: %1$d</string>
+			<key>many</key>
+			<string>Aktivita, neprečítané: %1$d</string>
+			<key>other</key>
+			<string>Aktivita, neprečítané: %1$d</string>
+		</dict>
+	</dict>
+	<key>a11y_album_items</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@COUNT@</string>
+		<key>COUNT</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>Album, %1$d položka</string>
+			<key>few</key>
+			<string>Album, %1$d položky</string>
+			<key>many</key>
+			<string>Album, %1$d položky</string>
+			<key>other</key>
+			<string>Album, %1$d položiek</string>
+		</dict>
+	</dict>
+	<key>a11y_tab_badge_count</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@COUNT@</string>
+		<key>COUNT</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%1$d čaká</string>
+			<key>few</key>
+			<string>%1$d čakajú</string>
+			<key>many</key>
+			<string>%1$d čaká</string>
+			<key>other</key>
+			<string>%1$d čaká</string>
+		</dict>
+	</dict>
+	<key>screen_agents_chat_count</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@COUNT@</string>
+		<key>COUNT</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%1$d chat</string>
+			<key>few</key>
+			<string>%1$d chaty</string>
+			<key>many</key>
+			<string>%1$d chatu</string>
+			<key>other</key>
+			<string>%1$d chatov</string>
+		</dict>
+	</dict>
+	<key>screen_agents_tool_count</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@COUNT@</string>
+		<key>COUNT</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%1$d nástroj</string>
+			<key>few</key>
+			<string>%1$d nástroje</string>
+			<key>many</key>
+			<string>%1$d nástroja</string>
+			<key>other</key>
+			<string>%1$d nástrojov</string>
+		</dict>
+	</dict>
+	<key>screen_room_timeline_tool_changes</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@COUNT@</string>
+		<key>COUNT</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>Nástroje sa zmenili %1$d-krát</string>
+			<key>few</key>
+			<string>Nástroje sa zmenili %1$d-krát</string>
+			<key>many</key>
+			<string>Nástroje sa zmenili %1$d-krát</string>
+			<key>other</key>
+			<string>Nástroje sa zmenili %1$d-krát</string>
+		</dict>
 	</dict>
 </dict>
 </plist>

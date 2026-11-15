@@ -35,7 +35,7 @@ struct AppearanceAndMediaSettingsScreen: View {
                     }
             }
         }
-        .compoundList()
+        .spiralGroupedList() // AGENT-PLATFORM (Brief 0083): Spiral's grouped list, was `compoundList()`.
         .navigationTitle(UntranslatedL10n.screenSettingsAppearanceMediaTitle)
         .navigationBarTitleDisplayMode(.inline)
     }
@@ -56,7 +56,8 @@ private extension AppAppearance {
 
 // MARK: - Previews
 
-struct AppearanceAndMediaSettingsScreen_Previews: PreviewProvider, TestablePreview {
+// AGENT-PLATFORM (Brief 0083, lane settings): gated.
+struct AppearanceAndMediaSettingsScreen_Previews: PreviewProvider, TestablePreview, SpiralGatedPreview {
     static let viewModel = AppearanceAndMediaSettingsScreenViewModel(settings: AppSettings.volatile(),
                                                                      analytics: AnalyticsServiceMock(.init()))
     

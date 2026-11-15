@@ -13,7 +13,7 @@ import WysiwygComposer
 typealias GenericKeyHandler = (_ key: UIKeyboardHIDUsage) -> Void
 typealias PasteHandler = ([NSItemProvider]) -> Void
 
-struct MessageComposer: View {
+struct MessageComposer<Trailing: View>: View { // AGENT-PLATFORM (Brief 0083): the field's action is inside it
     @Binding var plainComposerText: NSAttributedString
     @Binding var presendCallback: (() -> Void)?
     @Binding var selectedRange: NSRange
@@ -25,6 +25,7 @@ struct MessageComposer: View {
     let composerFormattingEnabled: Bool
     let showResizeGrabber: Bool
     @Binding var isExpanded: Bool
+    let trailing: Trailing // AGENT-PLATFORM (Brief 0083): send or the microphone, inside the field's trailing end
     
     let sendAction: () -> Void
     let editAction: () -> Void
@@ -41,7 +42,9 @@ struct MessageComposer: View {
             }
             
             composerTextField
-                .messageComposerStyle(header: header)
+                // AGENT-PLATFORM (Brief 0083): on the field only, so the send button in its trailing end keeps its own.
+                .accessibilityIdentifier(A11yIdentifiers.roomScreen.messageComposer)
+                .messageComposerStyle(header: header, trailing: trailing) // AGENT-PLATFORM (Brief 0083): Spiral's composer field
                 // Explicitly disable all animations to fix weirdness with the header immediately
                 // appearing whilst the text field and keyboard are still animating up to it.
                 .animation(.noAnimation, value: mode)
@@ -74,7 +77,8 @@ struct MessageComposer: View {
                                      selectedRange: $selectedRange,
                                      maxHeight: ComposerConstant.maxHeight,
                                      keyHandler: { handleKeyPress($0) },
-                                     pasteHandler: pasteAction)
+                                     pasteHandler: pasteAction,
+                                     placeholderColor: SpiralComposerMetrics.chatPlaceholder) // AGENT-PLATFORM (Brief 0083, question 359)
         }
     }
     
@@ -138,18 +142,12 @@ private struct MessageComposerReplyHeader: View {
     let replyDetails: TimelineItemReplyDetails
     let action: () -> Void
     
+    // AGENT-PLATFORM (Brief 0083): the timeline's quote in a translucent block above the text, its close button inside.
+    // The close button sat over the quote's top trailing corner.
     var body: some View {
-        TimelineReplyView(placement: .composer, timelineItemReplyDetails: replyDetails, maxWidth: .infinity)
-            .overlay(alignment: .topTrailing) {
-                Button(action: action) {
-                    CompoundIcon(\.close, size: .small, relativeTo: .compound.bodySMSemibold)
-                        .foregroundColor(.compound.iconTertiary)
-                        .padding(4.0)
-                }
-                .accessibilityLabel(L10n.actionClose)
-            }
-            .padding(.vertical, 8.0)
-            .padding(.horizontal, -4.0)
+        SpiralComposerHeader(closeLabel: L10n.actionClose, close: action) {
+            TimelineReplyView(placement: .composer, timelineItemReplyDetails: replyDetails, maxWidth: .infinity)
+        }
     }
 }
 
@@ -166,16 +164,9 @@ private struct MessageComposerEditHeader: View {
     }
     
     var body: some View {
-        HStack(alignment: .center, spacing: 8) {
+        SpiralComposerHeader(closeLabel: L10n.actionClose, close: action) { // AGENT-PLATFORM (Brief 0083): the reply's block, its close button inside
             Label(title, icon: \.editSolid, iconSize: .xSmall, relativeTo: .compound.bodySMSemibold)
                 .labelStyle(MessageComposerHeaderLabelStyle())
-            Spacer()
-            Button(action: action) {
-                CompoundIcon(\.close, size: .small, relativeTo: .compound.bodySMSemibold)
-                    .foregroundColor(.compound.iconTertiary)
-                    .padding([.leading, .vertical], 6.0)
-            }
-            .accessibilityLabel(L10n.actionClose)
         }
     }
 }
@@ -189,58 +180,6 @@ private struct MessageComposerHeaderLabelStyle: LabelStyle {
         .font(.compound.bodySMSemibold)
         .foregroundColor(.compound.textSecondary)
         .lineLimit(1)
-    }
-}
-
-// MARK: - Style
-
-extension View {
-    func messageComposerStyle(header: some View = EmptyView()) -> some View {
-        modifier(MessageComposerStyleModifier(header: header))
-    }
-}
-
-private struct MessageComposerStyleModifier<Header: View>: ViewModifier {
-    @Environment(\.isEnabled) private var isEnabled
-    
-    let header: Header
-    
-    private let composerShape = RoundedRectangle(cornerRadius: 21, style: .circular)
-    
-    func body(content: Content) -> some View {
-        if #available(iOS 26, *) {
-            if isEnabled {
-                mainContent(content: content)
-                    .snapshotableGlassEffect(.regular.interactive(), // Doesn't need to be interactive but Apple does it 🤷‍♂️
-                                             snapshotBackground: .compound.bgSubtleSecondary,
-                                             in: composerShape)
-            } else {
-                mainContent(content: content)
-                    .background(.compound.bgSubtlePrimary, in: composerShape)
-            }
-        } else {
-            mainContent(content: content)
-                .background {
-                    ZStack {
-                        composerShape
-                            .fill(Color.compound.bgSubtleSecondary)
-                        composerShape
-                            .stroke(Color.compound.borderInteractiveSecondary, lineWidth: 0.5)
-                    }
-                }
-        }
-    }
-    
-    func mainContent(content: Content) -> some View {
-        VStack(alignment: .leading, spacing: -6) {
-            header
-            
-            content
-                .tint(.compound.iconAccentTertiary)
-                .padding(.vertical, Compound.supportsGlass ? 11 : 10)
-        }
-        .padding(.horizontal, Compound.supportsGlass ? 16 : 12)
-        .clipShape(composerShape)
     }
 }
 
@@ -293,7 +232,7 @@ struct MessageComposer_Previews: PreviewProvider, TestablePreview {
     
     static func messageComposer(_ content: NSAttributedString = .init(string: ""),
                                 mode: ComposerMode = .default,
-                                placeholder: String = L10n.richTextEditorComposerPlaceholder) -> MessageComposer {
+                                placeholder: String = L10n.richTextEditorComposerPlaceholder) -> MessageComposer<EmptyView> { // AGENT-PLATFORM (Brief 0083)
         let viewModel = WysiwygComposerViewModel(minHeight: 22,
                                                  maxExpandedHeight: 250)
         viewModel.setMarkdownContent(content.string)
@@ -313,6 +252,7 @@ struct MessageComposer_Previews: PreviewProvider, TestablePreview {
                                composerFormattingEnabled: false,
                                showResizeGrabber: false,
                                isExpanded: .constant(false),
+                               trailing: EmptyView(), // AGENT-PLATFORM (Brief 0083)
                                sendAction: { },
                                editAction: { },
                                pasteAction: { _ in },
@@ -343,7 +283,7 @@ struct MessageComposer_Previews: PreviewProvider, TestablePreview {
                             mode: .edit(originalEventOrTransactionID: .eventID(UUID().uuidString), type: .editCaption))
         }
         .padding(.horizontal)
-        .environmentObject(viewModel.context)
+        .environment(\.timelineContext, viewModel.context)
         
         ScrollView {
             VStack(spacing: 8) {
@@ -354,7 +294,7 @@ struct MessageComposer_Previews: PreviewProvider, TestablePreview {
             }
         }
         .padding(.horizontal)
-        .environmentObject(viewModel.context)
+        .environment(\.timelineContext, viewModel.context)
         .previewDisplayName("Replying")
         
         ScrollView {
@@ -367,7 +307,7 @@ struct MessageComposer_Previews: PreviewProvider, TestablePreview {
             }
         }
         .padding(.horizontal)
-        .environmentObject(viewModel.context)
+        .environment(\.timelineContext, viewModel.context)
         .previewDisplayName("Replying in thread")
     }
 }

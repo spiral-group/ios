@@ -1,6 +1,4 @@
 "NSCameraUsageDescription" = "För att ringa videosamtal och ta bilder eller videor och skicka dem som ett meddelande behöver Spiral åtkomst till kameran.";
 "NSFaceIDUsageDescription" = "Face ID används för att komma åt din app.";
-"NSLocationAlwaysAndWhenInUseUsageDescription" = "To share your location live in chats, location access is needed when the app is in the background.";
-"NSLocationWhenInUseUsageDescription" = "Ge platsåtkomst så att Spiral kan dela din plats.";
 "NSMicrophoneUsageDescription" = "För att ringa samtal och spela in och skicka meddelanden med ljud måste Spiral komma åt mikrofonen.";
 "NSPhotoLibraryUsageDescription" = "Detta låter dig spara bilder och videor i ditt fotobibliotek.";

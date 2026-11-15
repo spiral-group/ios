@@ -27,6 +27,7 @@ struct KnockRequestsBannerView: View {
     var body: some View {
         mainContent
             .padding(16)
+            // swiftlint:disable:next spiral_raw_corner_radius - predates the rule
             .background(.compound.bgCanvasDefaultLevel1, in: RoundedRectangle(cornerRadius: 12))
             .padding(.horizontal, 16)
     }
