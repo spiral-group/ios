@@ -161,12 +161,15 @@ final class FeedStore {
     /// Set by `PlatformSync`.
     var connectionState: PlatformSyncConnectionState = .idle {
         didSet {
-            // A stream that never gets ready (a 429, the server away) leaves the bell
-            // unread otherwise: its first wait reads it, as `ready` would have.
-            if case .waiting = connectionState {
+            // A stream that never gets ready (a 429, the server away, a refusal) leaves the
+            // bell unread otherwise: each wait reads it until read, as `ready` would have.
+            switch connectionState {
+            case .waiting, .refused:
                 for badge in [FeedListID.activity, .notices] where !badgesRead.contains(badge) && !isShown(badge) {
                     rereadBadge(badge)
                 }
+            case .idle, .connecting, .live:
+                break
             }
         }
     }
@@ -181,6 +184,9 @@ final class FeedStore {
     @ObservationIgnored private var postFactsClock = 0
     @ObservationIgnored private var staleLists: Set<FeedListID> = []
     @ObservationIgnored private var stalePosts: Set<String> = []
+    /// Someone else's posts seen before and released since: their `feed.post_published` (after the
+    /// state, migration 0122) is no new post for the pill.
+    @ObservationIgnored private var releasedPostIDs: Set<String> = []
     @ObservationIgnored private var shownLists: [FeedListID: [ObjectIdentifier: @MainActor @Sendable () async -> Bool]] = [:]
     @ObservationIgnored private var shownPosts: [String: Set<ObjectIdentifier>] = [:]
     @ObservationIgnored private var listRereadsInFlight: Set<FeedListID> = []
@@ -424,7 +430,8 @@ final class FeedStore {
     private func apply(_ change: FeedSyncChange) {
         switch change {
         case .postPublished(let postID, let authorID):
-            if authorID != currentUserID, lists[.latest]?.ids.contains(postID) != true, posts[postID]?.viewer.isAuthor != true {
+            let isReleased = releasedPostIDs.remove(postID) != nil
+            if !isReleased, authorID != currentUserID, lists[.latest]?.ids.contains(postID) != true, posts[postID]?.viewer.isAuthor != true {
                 newPostIDs.insert(postID)
             }
             markStale(.author(userID: authorID))
@@ -434,18 +441,30 @@ final class FeedStore {
         case .postState(let postID, let newState):
             if newState != .visible {
                 newPostIDs.remove(postID)
+                releasedPostIDs.remove(postID)
             }
             recordFact(postID) { $0.state = newState }
             guard var post = posts[postID] else { return }
             let wasVisible = post.state == .visible
             post.state = newState
             posts[postID] = post
+            if newState == .visible, !wasVisible, !post.viewer.isAuthor {
+                releasedPostIDs.insert(postID)
+                // An open post screen reads it again: a block hides it there too (404, gone).
+                markStale(postID: postID)
+            }
             if newState != .visible {
                 removeFromLists(postID, keepingOwn: post.viewer.isAuthor)
             } else if !wasVisible, !post.viewer.hidden {
-                // Released (the author's held post): back where it was, not only after a pull.
-                insertInPlace(postID, of: .latest)
-                insertInPlace(postID, of: .author(userID: post.author.userID))
+                // Released: back where it was, not only after a pull.
+                if post.viewer.isAuthor {
+                    insertInPlace(postID, of: .latest)
+                    insertInPlace(postID, of: .author(userID: post.author.userID))
+                } else {
+                    // Someone else's: only the server knows the blocks both ways and the language filter.
+                    markStale(.latest)
+                    markStale(.author(userID: post.author.userID))
+                }
             }
             if post.viewer.isAuthor, newState == .held || newState == .removed {
                 // The author's banner names why: that comes with the post.

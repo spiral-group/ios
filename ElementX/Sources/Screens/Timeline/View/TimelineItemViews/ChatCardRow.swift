@@ -48,11 +48,15 @@ private struct ChatCardBubbleModifier: ViewModifier {
 
 struct ChatCardRow<Content: View>: View {
     @Environment(\.ownBubbleInk) private var ink
+    @Environment(\.colorScheme) private var colorScheme
     
     @ScaledMetric(relativeTo: .subheadline) private var titleSize = 15.5
     @ScaledMetric private var discSize = 38
     
     let icon: KeyPath<CompoundIcons, Image>
+    /// An SF Symbol Compound has no key for (Apple's logo, 1.0.3), drawn instead of `icon` the way
+    /// Spiral draws Compound's keys; `icon` stays the fallback.
+    var systemSymbol: (name: String, label: String)?
     var isCritical = false
     /// In a group, who a card that isn't yours came from.
     var sender: TimelineItemSender?
@@ -81,19 +85,28 @@ struct ChatCardRow<Content: View>: View {
     }
     
     private var disc: some View {
-        CompoundIcon(icon, size: .custom(19), relativeTo: .compound.bodyMD)
+        glyph
             .foregroundStyle(glyphColor)
             .frame(width: min(discSize, 57), height: min(discSize, 57)) // Unbounded, AX3 made it a third of the card.
             .background(discFill, in: .circle)
             .accessibilityHidden(true)
     }
     
+    private var glyph: CompoundIcon {
+        if let systemSymbol {
+            CompoundIcon(systemName: systemSymbol.name, label: systemSymbol.label, size: .custom(19), relativeTo: .compound.bodyMD)
+        } else {
+            CompoundIcon(icon, size: .custom(19), relativeTo: .compound.bodyMD)
+        }
+    }
+    
     private var titleColor: Color {
         if let ink {
             ink.text // Red reads about 1.1:1 on the own blue, so the disc says it there.
-        } else if isCritical {
+        } else if isCritical, colorScheme == .light {
             .compound.textCriticalPrimary
         } else {
+            // Dark's red read 3.66:1 on the card (#E06060 on #323234) and no red token reaches 4.5:1: the disc says it.
             .compound.textPrimary
         }
     }

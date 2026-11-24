@@ -39,13 +39,18 @@ private struct TimelineItemAccessibilityModifier: ViewModifier {
             } else {
                 interactions(for: content)
             }
-        // AGENT-PLATFORM (question 413): an album is one element, read as how many it holds and its caption. Each of its
-        // pictures opens from an action, as each opens from a tap on its tile.
+        // AGENT-PLATFORM (question 413): an album is one element, read as a photo is: who sent it, what it replies to,
+        // how many it holds and its caption; the send info follows. Each of its pictures opens from an action, as each
+        // opens from a tap on its tile.
         case let timelineItem as GalleryRoomTimelineItem where !timelineItem.usesListLayout:
-            // Combined as a photo is, so that what its parts offer stays, and labelled anew: its tiles' own labels go.
+            // Combined as a photo is, so that the reply and what the parts offer stay. The tiles are hidden in the view.
             let album = content
                 .accessibilityElement(children: .combine)
-                .accessibilityLabel { _ in Text(timelineItem.albumAccessibilityLabel) }
+                .accessibilityLabel { label in
+                    Text(timelineItem.sender.displayName ?? timelineItem.sender.id)
+                    label
+                    Text(timelineItem.albumAccessibilityLabel)
+                }
                 .accessibilityAddTraits(.isImage)
             if isSelecting {
                 interactions(for: album)
@@ -179,14 +184,13 @@ extension View {
     }
 }
 
-private extension GalleryRoomTimelineItem {
-    /// Who sent it, how many it holds, its caption, and when.
+extension GalleryRoomTimelineItem {
+    /// How many it holds and its caption. The sender and the reply are read before it, the send info after it.
     var albumAccessibilityLabel: String {
-        var parts = [sender.displayName ?? sender.id, UntranslatedL10n.a11yAlbumItems(content.items.count)]
+        var parts = [UntranslatedL10n.a11yAlbumItems(content.items.count)]
         if let caption = content.caption, !caption.isBlank {
             parts.append(caption)
         }
-        parts.append(localizedSendInfo)
         return parts.joined(separator: ", ")
     }
 }

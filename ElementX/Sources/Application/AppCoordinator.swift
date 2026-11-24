@@ -38,6 +38,7 @@ class AppCoordinator: AppCoordinatorProtocol, AuthenticationFlowCoordinatorDeleg
     
     private var backgroundRefreshSyncObserver: AnyCancellable?
     
+    /// AGENT-PLATFORM (1.0.3): set when this launch updated the app or ran upstream migrations; each account migrates from its own baseline.
     private var userSessionMigrationsOldVersion: Version?
     /// The accounts migrated since launch, so restoring one again (e.g. after clearing the cache) never migrates it twice.
     private var migratedUserIDs: Set<String> = []
@@ -172,17 +173,34 @@ class AppCoordinator: AppCoordinatorProtocol, AuthenticationFlowCoordinatorDeleg
         
         configureNotificationManager()
         
+        // AGENT-PLATFORM (Brief 0086): taken before the migrations, as a first launch's wipe clears the App Group's
+        // defaults, where the App Clip left the invitation.
+        let clipInvite = ClipInviteHandOff(bundle: .main)?.take()
+        
         guard let currentVersion = Version(InfoPlistReader(bundle: .main).bundleShortVersionString) else {
             fatalError("The app's version number **must** use semver for migration purposes.")
         }
         
-        if let previousVersion = appSettings.lastVersionLaunched.flatMap(Version.init) {
-            performMigrationsIfNecessary(from: previousVersion, to: currentVersion)
+        // AGENT-PLATFORM (1.0.3): upstream's migrations compare Element X releases, not our 1.0.x (`UpstreamMigrationBaseline`).
+        let previousVersion = appSettings.lastVersionLaunched.flatMap(Version.init)
+        let upstreamBaseline = UpstreamMigrationBaseline(marker: appSettings.upstreamMigrationsVersion,
+                                                         accountFallback: appSettings.upstreamAccountMigrationsFallback,
+                                                         previousAppVersion: previousVersion,
+                                                         appVersion: currentVersion)
+        if let previousVersion {
+            performMigrationsIfNecessary(from: previousVersion, to: currentVersion, upstreamBaseline: upstreamBaseline)
         } else {
             // The app has been deleted since the previous run. Reset everything.
             wipeUserData(includingSettings: true)
         }
+        // AGENT-PLATFORM (1.0.3): the fallback and marker first; a launch that kept only `lastVersionLaunched`
+        // would derive 26.10.8 from it next time, and a 1.0.1 account would skip its 26.10.x migrations.
+        appSettings.upstreamAccountMigrationsFallback = upstreamBaseline.accountFallbackAfterLaunch // AGENT-PLATFORM (1.0.3)
+        appSettings.upstreamMigrationsVersion = upstreamBaseline.markerAfterLaunch // AGENT-PLATFORM (1.0.3)
         appSettings.lastVersionLaunched = currentVersion.description
+        
+        // AGENT-PLATFORM (Brief 0086): before the start screen shows, so its invitation banner is there from the start.
+        adoptClipInvite(clipInvite)
         
         setupStateMachine()
         
@@ -429,7 +447,7 @@ class AppCoordinator: AppCoordinatorProtocol, AuthenticationFlowCoordinatorDeleg
     
     func authenticationFlowCoordinator(didLoginWithSession userSession: UserSessionProtocol) {
         // A new login has nothing to migrate.
-        migratedUserIDs.insert(userSession.clientProxy.userID)
+        markMigrated(userSession) // AGENT-PLATFORM (1.0.3): also writes the account's upstream marker
         userSessionManager.add(userSession)
         configureActiveSession()
         authenticationFlowCoordinator = nil
@@ -558,13 +576,15 @@ class AppCoordinator: AppCoordinatorProtocol, AuthenticationFlowCoordinatorDeleg
     // MARK: - Private
     
     /// Perform any required migrations for the app to function correctly.
-    private func performMigrationsIfNecessary(from oldVersion: Version, to newVersion: Version) {
-        guard oldVersion != newVersion else { return }
+    private func performMigrationsIfNecessary(from oldAppVersion: Version, to newVersion: Version, upstreamBaseline: UpstreamMigrationBaseline) {
+        // AGENT-PLATFORM (1.0.3): the thresholds below are Element X releases; compare the one already migrated to, not our 1.0.x.
+        guard upstreamBaseline.needsMigrations else { return }
+        let oldVersion = upstreamBaseline.appliedRelease
         
         // Be tidy and clean up after ourselves every now and then (because Apple is lazy)
         clearTemporaryDirectories()
         
-        MXLog.info("The app was upgraded from \(oldVersion) to \(newVersion)")
+        MXLog.info("The app was upgraded from \(oldAppVersion) to \(newVersion), upstream migrations from \(oldVersion)") // AGENT-PLATFORM (1.0.3)
         
         if oldVersion < Version(1, 6, 7) {
             Tracing.deleteLogFiles(in: Tracing.legacyLogsDirectory)
@@ -599,10 +619,14 @@ class AppCoordinator: AppCoordinatorProtocol, AuthenticationFlowCoordinatorDeleg
     
     // swiftlint:disable:next cyclomatic_complexity
     private func performUserSessionMigrations(_ userSession: UserSessionProtocol) async {
-        guard let oldVersion = userSessionMigrationsOldVersion,
+        // AGENT-PLATFORM (1.0.3): per account, so one a launch ended before restoring still migrates on a later launch.
+        let accountBaseline = UpstreamMigrationBaseline.Account(marker: userSession.userSettings.account.upstreamMigrationsVersion,
+                                                                fallback: appSettings.upstreamAccountMigrationsFallback)
+        guard userSessionMigrationsOldVersion != nil || accountBaseline.needsMigrations,
               migratedUserIDs.insert(userSession.clientProxy.userID).inserted else {
             return
         }
+        let oldVersion = accountBaseline.appliedRelease
         
         MXLog.info("Migrating user session from \(oldVersion)")
         
@@ -669,6 +693,15 @@ class AppCoordinator: AppCoordinatorProtocol, AuthenticationFlowCoordinatorDeleg
             MXLog.info("Migrating to version 26.10.4, moving the seen invites into the account.")
             userSession.userSettings.account.migrateAppSettingsValue(\.seenInvitesKey)
         }
+        
+        userSession.userSettings.account.upstreamMigrationsVersion = accountBaseline.markerAfterMigrations // AGENT-PLATFORM (1.0.3)
+    }
+    
+    // AGENT-PLATFORM (1.0.3): a new login starts on this code's settings. Not after a soft logout:
+    // that account's settings are older, so its pending migrations still run on a later launch.
+    private func markMigrated(_ userSession: UserSessionProtocol) {
+        migratedUserIDs.insert(userSession.clientProxy.userID)
+        userSession.userSettings.account.upstreamMigrationsVersion = UpstreamMigrationBaseline.syncedRelease.description
     }
     
     /// This could be removed once the adoption of 25.06.x is widespread.
@@ -914,35 +947,51 @@ class AppCoordinator: AppCoordinatorProtocol, AuthenticationFlowCoordinatorDeleg
         }
         handleAppRoute(.inviteLink(link), windowType: windowType)
         
-        Task {
-            let resolution = await inviteLinkResolver.resolve(link)
-            guard appSettings.pendingInvite?.token == link.token else { return }
-            switch resolution {
-            case .success(.valid(let inviter)):
-                appSettings.pendingInvite = PendingInvite(token: link.token,
-                                                          inviterDisplayName: inviter?.displayName,
-                                                          inviterUserID: inviter?.mxid)
-            case .success:
-                // Dead link: no banner, no token on the OAuth URL.
-                appSettings.pendingInvite = nil
-            case .failure:
-                break // Could not check; keep it, identity-login decides.
-            }
+        Task { await PendingInviteRefresh.refresh(link, resolver: inviteLinkResolver, appSettings: appSettings) } // AGENT-PLATFORM (Brief 0086)
+    }
+    
+    // AGENT-PLATFORM (Brief 0086): the invitation the App Clip carried across the install, on a launch with no session.
+    // The Clip may have saved a bare token (offline, or Install tapped before its answer) and the invitation may have
+    // been used up since, so the server is asked again, as for a tapped link — on every launch with no session, not
+    // only the adopting one: a first check that failed would leave a bare token, and a used-up one a live banner.
+    private func adoptClipInvite(_ clipInvite: ClipInvite?) {
+        let hasSession = !userSessionManager.userIDs.isEmpty
+        if let pendingInvite = ClipInviteAdoption.pendingInvite(from: clipInvite, existing: appSettings.pendingInvite, hasSession: hasSession) {
+            appSettings.pendingInvite = pendingInvite
+        }
+
+        if let link = ClipInviteAdoption.inviteToRecheck(appSettings.pendingInvite, hasSession: hasSession) {
+            Task { await PendingInviteRefresh.refresh(link, resolver: inviteLinkResolver, appSettings: appSettings) }
         }
     }
     
     // AGENT-PLATFORM (Brief 0073): the first session after arriving by
     // invitation opens the welcome screen — who invited you and «Message
-    // <name>», the DM made by this client (ADR-0082). The bare inviter
-    // profile it replaces did not say why it was there. The inviter's
+    // <name>», the DM made by this client (ADR-0082). The inviter's
     // assistant has meanwhile told them who joined (the referral notice).
-    private func offerInviterAfterLogin() {
-        guard let pendingInvite = appSettings.pendingInvite else { return }
+    // 1.0.3 (operator 2026-11-21): the platform says whether the welcome is
+    // owed (`fetchInviteWelcome`: a fresh seat of a personal link, by its own
+    // clock, not yet welcomed), not the link this client carried — so an
+    // invitation pasted on the web page counts and a sign-in to an account
+    // registered otherwise is never greeted. Asked at every session start until
+    // settled, so a failed request is retried; once shown, the platform records
+    // it, so no later sign-in, second device or reinstall shows it again.
+    private func offerInviteWelcome() {
         appSettings.pendingInvite = nil
-        
-        guard let inviterUserID = pendingInvite.inviterUserID,
-              inviterUserID != userSession?.clientProxy.userID else { return }
-        userSessionFlowCoordinator?.presentInviteWelcome(inviterUserID: inviterUserID)
+        guard let userSession, let service = userSession.agentPlatformService else { return }
+        let account = userSession.userSettings.account
+        let ownUserID = userSession.clientProxy.userID
+        weak var flowCoordinator = userSessionFlowCoordinator
+        Task { [weak self] in
+            await InviteWelcomeOffer.run(service: service,
+                                         account: account,
+                                         ownUserID: ownUserID,
+                                         // A sign-out and another sign-in meanwhile must not get this account's welcome.
+                                         isStillCurrent: { self?.userSession?.clientProxy.userID == ownUserID && flowCoordinator != nil },
+                                         present: { inviter, onShown in
+                                             flowCoordinator?.presentInviteWelcome(inviterUserID: inviter, onShown: onShown)
+                                         })
+        }
     }
     
     private func runPostSessionSetupTasks() async {
@@ -964,11 +1013,9 @@ class AppCoordinator: AppCoordinatorProtocol, AuthenticationFlowCoordinatorDeleg
         if storedAppRoute?.isAuthenticationRoute == false,
            let storedAppRoute = storedAppRoute.take() {
             userSessionFlowCoordinator.handleAppRoute(storedAppRoute, animated: false)
-            // The invitation was for a registration that is now behind us.
-            appSettings.pendingInvite = nil
-        } else {
-            offerInviterAfterLogin()
         }
+        // After the stored route too: the welcome waits until onboarding has settled, over whatever the route opened.
+        offerInviteWelcome()
     }
     
     private func startAuthenticationSoftLogout() {

@@ -66,8 +66,11 @@ struct UserSessionFlowCoordinatorTests {
     
     /// A fresh coordinator over `callKitService`: the mock, or a real service
     /// for the call paths whose state lives in it.
-    private mutating func startCoordinator(callKitService: CallKitServiceProtocol, configureSettings: (AppSettings) -> Void = { _ in }) {
+    private mutating func startCoordinator(callKitService: CallKitServiceProtocol, signInCover: CoordinatorProtocol? = nil,
+                                           signInCoverTimeout: TimeInterval = 3,
+                                           configureSettings: (AppSettings) -> Void = { _ in }) {
         rootCoordinator = NavigationRootCoordinator()
+        rootCoordinator.setCoverCoordinator(signInCover) // AGENT-PLATFORM (1.0.3): the logo the OAuth sign-in leaves.
         
         let networkMonitor = NetworkMonitorMock(.init())
         networkMonitor.reachabilityPublisher = networkReachabilitySubject.asCurrentValuePublisher()
@@ -93,6 +96,7 @@ struct UserSessionFlowCoordinatorTests {
                                                                 navigationRootCoordinator: rootCoordinator,
                                                                 appLockService: AppLockServiceMock(),
                                                                 flowParameters: flowParameters)
+        userSessionFlowCoordinator.signInCoverTimeout = signInCoverTimeout // AGENT-PLATFORM (1.0.3)
         
         userSessionFlowCoordinator.start()
     }
@@ -110,6 +114,38 @@ struct UserSessionFlowCoordinatorTests {
         try await process(route: .settings)
         #expect(tabCoordinator?.selectedTab == .settings)
         #expect(settingsStack?.rootCoordinator is SettingsScreenCoordinator)
+    }
+    
+    /// AGENT-PLATFORM (DEBT B10): a notification tap under the Link new device sheet opened the room behind it.
+    @Test
+    mutating func aRouteToAnotherTabClosesTheSheetOverSettings() async throws {
+        try await process(route: .settings)
+        let linkNewDevice = NavigationStackCoordinator()
+        linkNewDevice.setRootCoordinator(BlankFormCoordinator())
+        try #require(settingsStack).setSheetCoordinator(linkNewDevice)
+        
+        try await process(route: .room(roomID: "1", via: []), expectedChatsState: .roomList(detailState: .room(roomID: "1")))
+        
+        #expect(tabCoordinator?.selectedTab == .chats)
+        #expect(settingsStack?.sheetCoordinator == nil)
+        
+        try #require(settingsStack).setSheetCoordinator(linkNewDevice)
+        try await process(route: .feedPost(postID: "1"))
+        #expect(tabCoordinator?.selectedTab == .feed)
+        #expect(settingsStack?.sheetCoordinator == nil)
+    }
+    
+    /// AGENT-PLATFORM (DEBT B10): a route keeps what a call keeps, a recovery key being noted down, say.
+    @Test
+    mutating func aRouteToAnotherTabKeepsTheSheetsTheirPersonCantSwipeAway() async throws {
+        try await process(route: .settings)
+        let keyStack = NavigationStackCoordinator()
+        keyStack.setRootCoordinator(SwipeRefusingScreen())
+        try #require(settingsStack).setSheetCoordinator(keyStack)
+        
+        try await process(route: .room(roomID: "1", via: []), expectedChatsState: .roomList(detailState: .room(roomID: "1")))
+        
+        #expect(settingsStack?.sheetCoordinator === keyStack)
     }
     
     // AGENT-PLATFORM (decisions 150, 187): «Open Settings» lands on Privacy,
@@ -378,7 +414,7 @@ struct UserSessionFlowCoordinatorTests {
     
     /// A session whose only onboarding step is the AI consent prompt, whose
     /// consent read waits on `gate`.
-    private mutating func startWithAIConsentRead(needsDecision: Bool, gate: LookupGate) {
+    private mutating func startWithAIConsentRead(needsDecision: Bool, gate: LookupGate, signInCover: CoordinatorProtocol? = nil) {
         let platform = AgentPlatformServiceMock()
         platform.fetchAIConsentClosure = {
             await gate.wait()
@@ -392,7 +428,7 @@ struct UserSessionFlowCoordinatorTests {
         userSession.agentPlatformService = platform
         userSession.agentsStore = AgentsStore(service: platform) // AGENT-PLATFORM (Brief 0083, question 359): the consent's read goes through it.
         userSession.userSettings.account.hasRunIdentityConfirmationOnboarding = true
-        startCoordinator(callKitService: callKitService) { settings in
+        startCoordinator(callKitService: callKitService, signInCover: signInCover) { settings in
             settings.hasRunNotificationPermissionsOnboarding = true
         }
     }
@@ -419,18 +455,22 @@ struct UserSessionFlowCoordinatorTests {
         let gate = LookupGate()
         startWithAIConsentRead(needsDecision: false, gate: gate)
         
-        userSessionFlowCoordinator.presentInviteWelcome(inviterUserID: "@inviter:spiral.md")
+        var shownCount = 0
+        userSessionFlowCoordinator.presentInviteWelcome(inviterUserID: "@inviter:spiral.md") { shownCount += 1 }
         #expect(tabCoordinator?.fullScreenCoverCoordinator == nil)
+        #expect(shownCount == 0, "queued, not shown: nothing to record yet")
         
         gate.open()
         try await waitForCover { $0 is InviteWelcomeScreenCoordinator }
         #expect(tabCoordinator?.fullScreenCoverCoordinator is InviteWelcomeScreenCoordinator)
+        #expect(shownCount == 1, "recorded once it is on screen")
     }
     
     /// A session that starts unverified, so onboarding opens on identity
     /// confirmation; the consent read (nothing to ask) waits on `gate`.
     @discardableResult
-    private mutating func startUnverified(gate: LookupGate) -> CurrentValueSubject<SessionSecurityState, Never> {
+    private mutating func startUnverified(gate: LookupGate, signInCover: CoordinatorProtocol? = nil,
+                                          signInCoverTimeout: TimeInterval = 3) -> CurrentValueSubject<SessionSecurityState, Never> {
         let securityState = CurrentValueSubject<SessionSecurityState, Never>(.init(verificationState: .unverified, recoveryState: .enabled))
         userSession.sessionSecurityStatePublisher = securityState.asCurrentValuePublisher()
         let platform = AgentPlatformServiceMock()
@@ -445,15 +485,17 @@ struct UserSessionFlowCoordinatorTests {
         platform.listMyAgentSpacesReturnValue = .success(.init(spaces: [], provisioningStatus: .ready))
         userSession.agentPlatformService = platform
         userSession.agentsStore = AgentsStore(service: platform) // AGENT-PLATFORM (Brief 0083, question 359): the consent's read goes through it.
-        startCoordinator(callKitService: callKitService) { settings in
+        startCoordinator(callKitService: callKitService, signInCover: signInCover, signInCoverTimeout: signInCoverTimeout) { settings in
             settings.hasRunNotificationPermissionsOnboarding = true
         }
         return securityState
     }
     
     /// Taps Skip on the identity confirmation screen onboarding is showing.
-    private func skipIdentityConfirmation() throws {
+    private func skipIdentityConfirmation() async throws {
         let onboarding = try #require(onboardingStack)
+        // AGENT-PLATFORM (1.0.3): the screen opens once the account's identity is found, after a wait on the logo.
+        try await waitFor { onboarding.rootCoordinator is IdentityConfirmationScreenCoordinator }
         let screen = try #require(onboarding.rootCoordinator as? IdentityConfirmationScreenCoordinator)
         let viewModel = try #require(Mirror(reflecting: screen).descendant("viewModel") as? IdentityConfirmationScreenViewModelProtocol)
         viewModel.context.send(viewAction: .skip)
@@ -477,7 +519,7 @@ struct UserSessionFlowCoordinatorTests {
         
         gate.open()
         try await Task.sleep(for: .milliseconds(50)) // the consent read's task
-        try skipIdentityConfirmation()
+        try await skipIdentityConfirmation()
         try await waitForCover { $0 is InviteWelcomeScreenCoordinator }
         #expect(tabCoordinator?.fullScreenCoverCoordinator is InviteWelcomeScreenCoordinator)
     }
@@ -492,7 +534,7 @@ struct UserSessionFlowCoordinatorTests {
         userSessionFlowCoordinator.presentInviteWelcome(inviterUserID: "@inviter:spiral.md")
         // Past identity confirmation, onboarding waits for the consent answer. Verified
         // meanwhile, so an unverified session doesn't start onboarding over again.
-        try skipIdentityConfirmation()
+        try await skipIdentityConfirmation()
         securityState.send(.init(verificationState: .verified, recoveryState: .enabled))
         
         let call = BlankFormCoordinator()
@@ -1578,3 +1620,168 @@ extension UserSessionFlowCoordinatorTests {
 
 /// A screen its person can't swipe away, like the recovery key's.
 private final class SwipeRefusingScreen: HoldsItsModalAboveACall { }
+
+// MARK: - Sign-in cover (AGENT-PLATFORM, 1.0.3)
+
+extension UserSessionFlowCoordinatorTests {
+    /// Operator, 2026-11-23: Chats showed for a moment between the sign-in and onboarding's cover. The sign-in's
+    /// logo stays over the tabs while onboarding's cover is on its way.
+    @Test
+    mutating func theSignInLogoStaysWhileOnboardingCoversTheTabs() async throws {
+        let gate = LookupGate()
+        startUnverified(gate: gate, signInCover: PlaceholderScreenCoordinator(hideBrandChrome: false))
+        #expect(tabCoordinator?.fullScreenCoverCoordinator is NavigationStackCoordinator, "onboarding is presenting")
+        #expect(rootCoordinator.coverCoordinator is PlaceholderScreenCoordinator, "the tabs stay hidden until it is on screen")
+        
+        // Onboarding ends before its cover ever appeared (no window here): the logo goes with it.
+        gate.open()
+        try await Task.sleep(for: .milliseconds(50)) // the consent read's task
+        try await skipIdentityConfirmation()
+        try await waitFor { tabCoordinator?.fullScreenCoverCoordinator == nil }
+        try await waitFor { rootCoordinator.coverCoordinator == nil }
+    }
+    
+    /// Fable review (1.0.3 sign-up flashes): a cover that never appears (one doesn't show over a sheet a route opened
+    /// meanwhile) left the logo over the app until relaunch. It goes after the timeout.
+    @Test
+    mutating func theSignInLogoGoesWhenOnboardingsCoverNeverAppears() async throws {
+        startUnverified(gate: LookupGate(), signInCover: PlaceholderScreenCoordinator(hideBrandChrome: false), signInCoverTimeout: 0.2)
+        #expect(rootCoordinator.coverCoordinator is PlaceholderScreenCoordinator)
+        
+        try await waitFor { rootCoordinator.coverCoordinator == nil }
+        #expect(tabCoordinator?.fullScreenCoverCoordinator is NavigationStackCoordinator, "onboarding itself stays")
+    }
+    
+    /// The timeout takes only the logo it was set for, not a later one.
+    @Test
+    mutating func theSignInLogosTimeoutLeavesALaterCover() async throws {
+        startUnverified(gate: LookupGate(), signInCover: PlaceholderScreenCoordinator(hideBrandChrome: false), signInCoverTimeout: 0.2)
+        let laterCover = PlaceholderScreenCoordinator(hideBrandChrome: false)
+        rootCoordinator.setCoverCoordinator(laterCover)
+        
+        try await Task.sleep(for: .milliseconds(400))
+        #expect(rootCoordinator.coverCoordinator === laterCover)
+    }
+    
+    /// Fable review: a session that ends (sign-out, soft logout, clear cache) takes its logo with it.
+    @Test
+    mutating func stoppingTheSessionTakesTheSignInLogoAway() {
+        startUnverified(gate: LookupGate(), signInCover: PlaceholderScreenCoordinator(hideBrandChrome: false))
+        #expect(rootCoordinator.coverCoordinator != nil)
+        
+        userSessionFlowCoordinator.stop()
+        #expect(rootCoordinator.coverCoordinator == nil)
+    }
+    
+    /// With nothing for onboarding to show yet, the tabs are what the person gets: the logo goes at once.
+    @Test
+    mutating func theSignInLogoGoesWhenOnboardingHasNothingToShow() {
+        let gate = LookupGate()
+        startWithAIConsentRead(needsDecision: false, gate: gate, signInCover: PlaceholderScreenCoordinator(hideBrandChrome: false))
+        #expect(tabCoordinator?.fullScreenCoverCoordinator == nil)
+        #expect(rootCoordinator.coverCoordinator == nil)
+        gate.open()
+    }
+}
+
+/// AGENT-PLATFORM (1.0.3, Fable review of the sign-up flashes): the logo the OAuth sign-in puts up while the callback
+/// is exchanged goes again whenever the sign-in doesn't go through.
+@MainActor
+struct AuthenticationFlowSignInCoverTests {
+    @Test
+    func aSignInThatDoesNotGoThroughTakesTheLogoAway() {
+        let rootCoordinator = NavigationRootCoordinator()
+        let appSettings = AppSettings.volatile()
+        let service = AuthenticationService(userSessionManager: UserSessionManagerMock(.init()),
+                                            encryptionKeyProvider: EncryptionKeyProvider(),
+                                            clientFactory: ClientFactoryMock(.init()),
+                                            appSettings: appSettings,
+                                            appHooks: AppHooks())
+        let flow = AuthenticationFlowCoordinator(authenticationService: service,
+                                                 bugReportService: BugReportServiceMock(.init()),
+                                                 navigationRootCoordinator: rootCoordinator,
+                                                 appMediator: AppMediatorMock(.init()),
+                                                 appSettings: appSettings,
+                                                 appHooks: AppHooks(),
+                                                 userIndicatorController: UserIndicatorControllerMock())
+        flow.start()
+        
+        rootCoordinator.setCoverCoordinator(PlaceholderScreenCoordinator(hideBrandChrome: false))
+        flow.finishOAuthAuthentication(with: .failure(.oAuthError(.unknown)))
+        #expect(rootCoordinator.coverCoordinator == nil, "a failed exchange")
+        
+        rootCoordinator.setCoverCoordinator(PlaceholderScreenCoordinator(hideBrandChrome: false))
+        flow.finishOAuthAuthentication(with: .success(UserSessionMock(.init())))
+        #expect(rootCoordinator.coverCoordinator != nil, "a sign-in keeps it for the session")
+        
+        flow.finishOAuthAuthentication(with: .success(UserSessionMock(.init())))
+        #expect(rootCoordinator.coverCoordinator == nil, "a sign-in the flow no longer takes")
+    }
+}
+
+/// AGENT-PLATFORM (1.0.3, Fable review): a cancel on the web page comes back as an OAuth error response; it gets no logo
+/// (which only flashed before the start screen came back), a callback that can sign in does.
+@MainActor
+struct OAuthCallbackErrorResponseTests {
+    @Test
+    func aCancelOrErrorIsAnErrorResponse() throws {
+        let cancelled = try #require(URL(string: "io.element:/callback?error=access_denied&state=abc"))
+        let inFragment = try #require(URL(string: "io.element:/callback#error=server_error&state=abc"))
+        #expect(OAuthAuthenticationPresenter.isErrorResponse(cancelled))
+        #expect(OAuthAuthenticationPresenter.isErrorResponse(inFragment))
+    }
+    
+    @Test
+    func aCodeIsNotAnErrorResponse() throws {
+        let code = try #require(URL(string: "io.element:/callback?code=xyz&state=abc"))
+        let codeInFragment = try #require(URL(string: "io.element:/callback#code=xyz&state=abc"))
+        #expect(!OAuthAuthenticationPresenter.isErrorResponse(code))
+        #expect(!OAuthAuthenticationPresenter.isErrorResponse(codeInFragment))
+    }
+}
+
+// MARK: - Signing out (AGENT-PLATFORM, 1.0.3)
+
+extension UserSessionFlowCoordinatorTests {
+    /// AGENT-PLATFORM (1.0.3): a deleted or signed out account kept polling
+    /// presence with its dead token on every foreground (the operator's log,
+    /// 2026-11-23). The session flow's stop, which every sign-out path runs,
+    /// ends the presence poll for good.
+    @Test
+    mutating func signOutStopsThePresencePoll() async throws {
+        let notificationCenter = NotificationCenter()
+        let asked = Asked()
+        let presenceClient = ClientProxyMock(.init(userID: "hi@bob"))
+        presenceClient.userPresenceForClosure = { userID in
+            asked.count.withLock { $0 += 1 }
+            return .success(UserPresence(userID: userID, state: .online, lastActiveAgo: 5, currentlyActive: true, receivedAt: Date()))
+        }
+        let service = PresenceObserverService(clientProxy: presenceClient,
+                                              notificationCenter: notificationCenter,
+                                              initialApplicationState: .active,
+                                              tickInterval: 0.05,
+                                              focusedInterval: 0.1,
+                                              listInterval: 0.1)
+        userSession.presenceObserverService = service
+        startCoordinator(callKitService: callKitService)
+        service.observe("@alice:spiral.md")
+        for _ in 0..<300 where asked.count.withLock({ $0 }) == 0 {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        #expect(asked.count.withLock { $0 } > 0)
+        
+        userSessionFlowCoordinator.stop()
+        try await Task.sleep(for: .milliseconds(100))
+        let before = asked.count.withLock { $0 }
+        notificationCenter.post(name: UIApplication.willResignActiveNotification, object: nil)
+        notificationCenter.post(name: UIApplication.didBecomeActiveNotification, object: nil)
+        service.observe("@alice:spiral.md")
+        try await Task.sleep(for: .milliseconds(400))
+        
+        #expect(asked.count.withLock { $0 } == before, "the ended session kept polling presence")
+    }
+    
+    fileprivate final class Asked: Sendable {
+        let count = Mutex(0)
+    }
+}

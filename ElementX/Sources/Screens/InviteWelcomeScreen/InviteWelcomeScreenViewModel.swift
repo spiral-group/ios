@@ -24,7 +24,13 @@ class InviteWelcomeScreenViewModel: InviteWelcomeScreenViewModelType, InviteWelc
     
     init(inviterUserID: String, clientProxy: ClientProxyProtocol, mediaProvider: MediaProviderProtocol?) {
         self.clientProxy = clientProxy
-        super.init(initialViewState: .init(inviterUserID: inviterUserID), mediaProvider: mediaProvider)
+        super.init(initialViewState: .init(inviterUserID: inviterUserID, ownProfile: clientProxy.userProfilePublisher.value),
+                   mediaProvider: mediaProvider)
+        
+        clientProxy.userProfilePublisher
+            .receive(on: DispatchQueue.main)
+            .weakAssign(to: \.state.ownProfile, on: self)
+            .store(in: &cancellables)
         
         Task { await loadProfile() }
     }

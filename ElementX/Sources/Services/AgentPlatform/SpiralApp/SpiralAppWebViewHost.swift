@@ -658,15 +658,20 @@ final class SpiralAppWebViewHost: NSObject, SpiralAppHostProtocol {
     func waitForLayout(_ size: CGSize) async -> Bool {
         guard mounted != nil else { return false }
 
-        // Every frame until the shell's page has the new size, at most two
-        // seconds' worth, then two more frames for the app inside it to draw.
+        // Every frame until the shell's page has the new size, for at most
+        // `layoutBudget` by the clock (411 review, M1), then two more
+        // frames for the app inside it to draw. A count of frames ran past the
+        // deadline at 30 fps (Low Power Mode) or when the row changed size during
+        // the wait, and a healthy app was replaced as silent. A page that never
+        // reaches the size still answers, so only a page that answers nothing is.
         let script = """
         return await new Promise(done => {
+            const start = performance.now()
             let frames = 0
             const settled = () => Math.abs(innerWidth - width) <= 1 && Math.abs(innerHeight - height) <= 1
             const tick = () => {
                 frames += 1
-                if (settled() || frames > 120) {
+                if (settled() || performance.now() - start > budget) {
                     requestAnimationFrame(() => requestAnimationFrame(() => done(`${innerWidth}x${innerHeight} ${settled()} ${frames}`)))
                 } else {
                     requestAnimationFrame(tick)
@@ -675,8 +680,9 @@ final class SpiralAppWebViewHost: NSObject, SpiralAppHostProtocol {
             tick()
         })
         """
+        let arguments: [String: Any] = ["width": size.width, "height": size.height, "budget": Self.layoutBudget / .milliseconds(1)]
         do {
-            let answer = try await callShell(script, arguments: ["width": size.width, "height": size.height], deadline: Self.paintDeadline)
+            let answer = try await callShell(script, arguments: arguments, deadline: Self.paintDeadline)
             #if DEBUG || SPIRAL_STAGING
             if let instanceID = mounted?.instanceID {
                 SpiralAppReturnTrace.step(instanceID, "page laid out at \(answer ?? "?") (asked \(Int(size.width))x\(Int(size.height)), settled, frames)")
@@ -693,6 +699,9 @@ final class SpiralAppWebViewHost: NSObject, SpiralAppHostProtocol {
     private static let snapshotDeadline = Duration.milliseconds(500)
     /// The same patience as an unmount's: a page silent for this long is wedged.
     private static let paintDeadline = Duration.seconds(2)
+    /// How long a page may take to reach its row's size, with room under
+    /// `paintDeadline` for the two frames after it at 30 fps.
+    private static let layoutBudget = Duration.milliseconds(1500)
 
     /// The host's own bound on an unmount, a second past the pool's (2 s), so
     /// the pool always decides first that a silent host is wedged and destroys it.

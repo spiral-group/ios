@@ -17,4 +17,5 @@ protocol InteractivePostCatalogScreenViewModelProtocol {
     var context: InteractivePostCatalogScreenViewModelType.Context { get }
 
     func stop()
+    func agentsRead(_ assistant: InteractivePostCatalogAssistant, dms: [JoinedRoomProxyProtocol])
 }

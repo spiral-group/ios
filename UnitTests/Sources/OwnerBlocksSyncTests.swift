@@ -18,7 +18,7 @@ private final class IgnoreListPlatform: @unchecked Sendable {
     private var accepted: [[String]] = []
     private var inFlight = 0
     private var maxInFlight = 0
-    private var fails = false
+    private var failure: IgnoreListRefusal?
     private var delay: Duration = .zero
     let attemptsSubject = PassthroughSubject<[String], Never>()
     let startedSubject = PassthroughSubject<[String], Never>()
@@ -36,7 +36,11 @@ private final class IgnoreListPlatform: @unchecked Sendable {
     }
     
     func setFails(_ fails: Bool) {
-        lock.withLock { self.fails = fails }
+        setFailure(fails ? .serverError : nil)
+    }
+    
+    func setFailure(_ failure: IgnoreListRefusal?) {
+        lock.withLock { self.failure = failure }
     }
     
     func setDelay(_ delay: Duration) {
@@ -51,16 +55,30 @@ private final class IgnoreListPlatform: @unchecked Sendable {
         }
         startedSubject.send(list)
         try? await Task.sleep(for: delay)
-        let failed = lock.withLock {
+        let failure = lock.withLock {
             inFlight -= 1
             attempts.append(list)
-            if !fails {
+            if self.failure == nil {
                 accepted.append(list)
             }
-            return fails
+            return self.failure
         }
         attemptsSubject.send(list)
-        return failed ? .failure(.serverError(status: 500)) : .success(())
+        return failure.map { .failure($0.error) } ?? .success(())
+    }
+}
+
+/// How the platform answers a PUT it does not accept.
+enum IgnoreListRefusal: CaseIterable, Sendable {
+    case serverError, validation, forbidden, notFound
+    
+    var error: AgentPlatformError {
+        switch self {
+        case .serverError: .serverError(status: 500)
+        case .validation: .validation(detail: "user_ids")
+        case .forbidden: .forbidden
+        case .notFound: .notFound
+        }
     }
 }
 
@@ -82,8 +100,9 @@ struct OwnerBlocksSyncTests {
         }
     }
     
-    private func makeSync() -> OwnerBlocksSync {
-        OwnerBlocksSync(clientProxy: clientProxy, agentPlatformService: service, debounce: .milliseconds(30), syncThrottle: .milliseconds(10))
+    private func makeSync(firstRetryDelay: Duration = .milliseconds(10)) -> OwnerBlocksSync {
+        OwnerBlocksSync(clientProxy: clientProxy, agentPlatformService: service, debounce: .milliseconds(30), syncThrottle: .milliseconds(10),
+                        firstRetryDelay: firstRetryDelay, longestRetryDelay: firstRetryDelay * 4)
     }
     
     /// The next PUT the platform answered.
@@ -228,6 +247,79 @@ struct OwnerBlocksSyncTests {
         _ = try await retried.fulfill()
         
         #expect(platform.acceptedLists == [["@bob:spiral.md"]])
+        _ = sync
+    }
+    
+    /// B20: a validation refusal (a list over the cap) can't change on a
+    /// retry: it is not sent again on every sync; the next change goes.
+    @Test
+    func aValidationRefusalIsNotRetriedUntilTheListChanges() async throws {
+        platform.setFailure(.validation)
+        let sync = makeSync()
+        syncActions.send(.receivedSyncUpdate)
+        ignoredUsers.send(["@bob:spiral.md"])
+        _ = try await nextAttempt()
+        
+        let nothing = deferFailure(platform.attemptsSubject, timeout: .milliseconds(300)) { _ in true }
+        for _ in 0..<5 {
+            try await Task.sleep(for: .milliseconds(30))
+            syncActions.send(.receivedSyncUpdate)
+        }
+        try await nothing.fulfill()
+        
+        platform.setFailure(nil)
+        ignoredUsers.send(["@bob:spiral.md", "@eve:spiral.md"])
+        #expect(try await nextAttempt() == ["@bob:spiral.md", "@eve:spiral.md"])
+        #expect(platform.recordedAttempts.count == 2)
+        _ = sync
+    }
+    
+    /// B20 review: the route never answers 403 or 404, so one is a proxy or
+    /// a deploy: it is retried, or the agents keep talking to someone blocked.
+    @Test(arguments: [IgnoreListRefusal.forbidden, .notFound])
+    func aForbiddenOrNotFoundIsRetried(_ refusal: IgnoreListRefusal) async throws {
+        platform.setFailure(refusal)
+        let sync = makeSync()
+        syncActions.send(.receivedSyncUpdate)
+        ignoredUsers.send(["@bob:spiral.md"])
+        _ = try await nextAttempt()
+        
+        platform.setFailure(nil)
+        let retried = deferFulfillment(platform.attemptsSubject) { _ in true }
+        try await Task.sleep(for: .milliseconds(20))
+        syncActions.send(.receivedSyncUpdate)
+        _ = try await retried.fulfill()
+        
+        #expect(platform.acceptedLists == [["@bob:spiral.md"]])
+        _ = sync
+    }
+    
+    /// B20: each transient failure in a row waits longer before the next
+    /// sync retries it; a sync inside the wait sends nothing.
+    @Test
+    func aTransientFailureWaitsLongerEachTime() async throws {
+        platform.setFails(true)
+        let sync = makeSync(firstRetryDelay: .milliseconds(400))
+        syncActions.send(.receivedSyncUpdate)
+        ignoredUsers.send(["@bob:spiral.md"])
+        _ = try await nextAttempt()
+        
+        let notYet = deferFailure(platform.attemptsSubject, timeout: .milliseconds(200)) { _ in true }
+        try await Task.sleep(for: .milliseconds(20))
+        syncActions.send(.receivedSyncUpdate)
+        try await notYet.fulfill()
+        
+        try await Task.sleep(for: .milliseconds(300))
+        let retried = deferFulfillment(platform.attemptsSubject) { _ in true }
+        syncActions.send(.receivedSyncUpdate)
+        _ = try await retried.fulfill()
+        
+        // The second wait is twice the first: a sync after the first one's length is still inside it.
+        try await Task.sleep(for: .milliseconds(450))
+        let stillWaiting = deferFailure(platform.attemptsSubject, timeout: .milliseconds(150)) { _ in true }
+        syncActions.send(.receivedSyncUpdate)
+        try await stillWaiting.fulfill()
+        #expect(platform.recordedAttempts.count == 2)
         _ = sync
     }
     

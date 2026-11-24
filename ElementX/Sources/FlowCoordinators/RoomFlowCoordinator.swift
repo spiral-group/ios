@@ -1279,25 +1279,42 @@ class RoomFlowCoordinator: FlowCoordinatorProtocol {
     /// show only for someone who has one, and a failed read of the agents is
     /// not "no agents" — it only hides those paths. «+» keeps its own gate.
     private func presentInteractivePostCatalogForLink(templateID: String) async {
-        var agents: [AgentPickerItem] = []
-        let assistant: InteractivePostCatalogAssistant
+        let (agents, assistant) = await readAgentsForCatalogue()
+        await presentInteractivePostCatalog(agents: agents, assistant: assistant, focusing: templateID)
+    }
+
+    /// The person's agents, and what the catalogue makes of them.
+    private func readAgentsForCatalogue() async -> (agents: [AgentPickerItem], assistant: InteractivePostCatalogAssistant) {
         switch await userSession.agentPlatformService?.listMyPersonalAgents() {
         case .success(let view):
-            agents = view.agents.map { AgentPickerItem(agentID: $0.id, matrixUserID: $0.matrixUserID, displayName: $0.displayName, activeToolCount: 0) }
-            assistant = if !agents.isEmpty {
+            let agents = view.agents.map { AgentPickerItem(agentID: $0.id, matrixUserID: $0.matrixUserID, displayName: $0.displayName, activeToolCount: 0) }
+            let assistant: InteractivePostCatalogAssistant = if !agents.isEmpty {
                 .available
             } else if view.provisioningStatus == .inProgress {
                 .settingUp
             } else {
                 .none
             }
+            return (agents, assistant)
         case .failure(let error):
             MXLog.error("[SpiralApp] catalogue link without the agents: \(error)")
-            assistant = .unknown
+            return ([], .unknown)
         case nil:
-            assistant = .unknown
+            return ([], .unknown)
         }
-        await presentInteractivePostCatalog(agents: agents, assistant: assistant, focusing: templateID)
+    }
+
+    /// The DM with each agent, where its generation threads are.
+    private func directMessages(with agents: [AgentPickerItem]) async -> [JoinedRoomProxyProtocol] {
+        let clientProxy = userSession.clientProxy
+        var dms: [JoinedRoomProxyProtocol] = []
+        for agent in agents {
+            if case .success(let existing?) = clientProxy.directRoomForUserID(agent.matrixUserID),
+               case .joined(let dm) = await clientProxy.roomForIdentifier(existing) {
+                dms.append(dm)
+            }
+        }
+        return dms
     }
 
     /// The catalogue: describe a new one, or pick one of yours — a
@@ -1307,14 +1324,8 @@ class RoomFlowCoordinator: FlowCoordinatorProtocol {
     private func presentInteractivePostCatalog(agents: [AgentPickerItem],
                                                assistant: InteractivePostCatalogAssistant = .available,
                                                focusing templateID: String? = nil) async {
-        let clientProxy = userSession.clientProxy
-        var dms: [JoinedRoomProxyProtocol] = []
-        for agent in agents {
-            if case .success(let existing?) = clientProxy.directRoomForUserID(agent.matrixUserID),
-               case .joined(let dm) = await clientProxy.roomForIdentifier(existing) {
-                dms.append(dm)
-            }
-        }
+        // Read again in place by Retry, so every path below takes what is known now.
+        let known = await CatalogueAgents(agents: agents, dms: directMessages(with: agents))
 
         let roomName = roomProxy.infoPublisher.value.displayName ?? roomProxy.id
         let room: JoinedRoomProxyProtocol = roomProxy
@@ -1322,7 +1333,7 @@ class RoomFlowCoordinator: FlowCoordinatorProtocol {
         let appSettings = userSession.userSettings.app
         let coordinator = InteractivePostCatalogScreenCoordinator(parameters: .init(roomName: roomName,
                                                                                     catalogURL: appSettings.interactiveCatalogURL,
-                                                                                    dms: dms,
+                                                                                    dms: known.dms,
                                                                                     ownUserID: roomProxy.ownUserID,
                                                                                     initialTemplateID: templateID,
                                                                                     assistant: assistant,
@@ -1347,11 +1358,11 @@ class RoomFlowCoordinator: FlowCoordinatorProtocol {
             // closed first and the thread opened as its own sheet (operator,
             // 2026-09-25; § 5.61). Publishing closes the whole sheet.
             case .startNew(let description):
-                chooseAgent(from: agents, onto: stackCoordinator) { [weak self] agent in
+                chooseAgent(from: known.agents, onto: stackCoordinator) { [weak self] agent in
                     Task { await self?.presentInteractivePostThread(with: agent, describing: description, onto: stackCoordinator) }
                 }
             case .openThread(let thread):
-                guard let dm = dms.first(where: { $0.id == thread.dmRoomID }) else { return }
+                guard let dm = known.dms.first(where: { $0.id == thread.dmRoomID }) else { return }
                 let here = SpiralPublishRoom(id: roomProxy.id, name: roomName)
                 Task {
                     await self.presentInteractivePostSheet(dm: dm,
@@ -1364,7 +1375,7 @@ class RoomFlowCoordinator: FlowCoordinatorProtocol {
                 navigationStackCoordinator.setSheetCoordinator(nil)
                 Task { await self.publishInteractiveTemplate(template, roomName: roomName) }
             case .changeTemplate(let template):
-                chooseAgent(from: agents, onto: stackCoordinator) { [weak self] agent in
+                chooseAgent(from: known.agents, onto: stackCoordinator) { [weak self] agent in
                     Task {
                         guard let self, let seed = await self.seed(of: template) else { return }
                         await self.presentInteractivePostThread(with: agent, seed: seed, onto: stackCoordinator)
@@ -1375,10 +1386,15 @@ class RoomFlowCoordinator: FlowCoordinatorProtocol {
                 // one, so there is no "created" to come back here on (question 412).
                 navigationStackCoordinator.setSheetCoordinator(nil)
                 actionsSubject.send(.presentAgentsTab)
-            case .retryAgents(let templateID):
-                // Only a link's catalogue can fail to read the agents (decision 129); it reads them again, on its post.
-                navigationStackCoordinator.setSheetCoordinator(nil)
-                Task { await self.presentInteractivePostCatalogForLink(templateID: templateID) }
+            case .retryAgents:
+                // Only a link's catalogue can fail to read the agents (decision 129). It reads them again where it
+                // is: closed for the read, the room showed bare and a sheet or a call in the gap was covered (B15).
+                Task {
+                    let (agents, assistant) = await self.readAgentsForCatalogue()
+                    known.agents = agents
+                    known.dms = await self.directMessages(with: agents)
+                    coordinator.agentsRead(assistant, dms: known.dms)
+                }
             case .showPost:
                 stackCoordinator.push(coordinator.postCoordinator())
             case .showYours:
@@ -1559,20 +1575,46 @@ class RoomFlowCoordinator: FlowCoordinatorProtocol {
 
         // The live post first, then the code: a seed the agent has to repair
         // is then repaired knowing the post has been played (§ 5.55).
-        if let live,
-           let marker = live.markerContent(action: "editing",
-                                           body: UntranslatedL10n.screenRoomInteractivePostMarkerEditing(seed?.title ?? "", live.roomName),
-                                           threadRootEventID: rootEventID) {
-            _ = await dm.sendSpiralRawEventReturningEventID(type: "m.room.message", content: marker)
+        let marker = live.flatMap { live in
+            live.markerContent(action: "editing",
+                               body: UntranslatedL10n.screenRoomInteractivePostMarkerEditing(seed?.title ?? "", live.roomName),
+                               threadRootEventID: rootEventID)
         }
-        if let seed, let content = Self.seedContent(seed, threadRootEventID: rootEventID) {
-            _ = await dm.sendSpiralRawEventReturningEventID(type: "m.room.message", content: content)
-        }
-        if let description, let content = Self.descriptionContent(description, threadRootEventID: rootEventID) {
-            _ = await dm.sendSpiralRawEventReturningEventID(type: "m.room.message", content: content)
+        let post = [marker, seed.flatMap { Self.seedContent($0, threadRootEventID: rootEventID) }].compactMap(\.self)
+        let words = description.flatMap { Self.descriptionContent($0, threadRootEventID: rootEventID) }
+        // A thread missing its code or the person's words would wait for nothing: say which, and what to do.
+        let isPostSent = await Self.sendThreadOpeners(post, into: dm)
+        let isWordsSent = await Self.sendThreadOpeners(words.map { [$0] } ?? [], into: dm)
+        if let notice = Self.threadOpenerNotice(isPostSent: isPostSent, isWordsSent: isWordsSent) {
+            flowParameters.userIndicatorController.submitIndicator(.init(title: notice))
         }
 
         await presentInteractivePostSheet(dm: dm, threadRootEventID: rootEventID, targetRoomName: roomName, onto: stack)
+    }
+
+    /// What the person is told when part of a thread's opening didn't go: the post (its code or the live post's marker)
+    /// can only be started again from the post; their words can be typed again in the thread. Nil when all went.
+    static func threadOpenerNotice(isPostSent: Bool, isWordsSent: Bool) -> String? {
+        if !isPostSent {
+            UntranslatedL10n.screenRoomInteractivePostCodeNotSent
+        } else if !isWordsSent {
+            UntranslatedL10n.screenRoomInteractivePostDescriptionNotSent
+        } else {
+            nil
+        }
+    }
+
+    /// The thread's first messages after its root, in order. False when one didn't go: the thread still
+    /// opens, with what did, and the caller tells the person.
+    static func sendThreadOpeners(_ contents: [String], into dm: JoinedRoomProxyProtocol) async -> Bool {
+        var isComplete = true
+        for content in contents {
+            if case .failure(let error) = await dm.sendSpiralRawEventReturningEventID(type: "m.room.message", content: content) {
+                MXLog.error("[SpiralApp] a thread's opening message didn't send: \(error)")
+                isComplete = false
+            }
+        }
+        return isComplete
     }
 
     /// An Interactive Post's raw send (§ 5.87): when encryption refuses a
@@ -2472,5 +2514,16 @@ class RoomFlowCoordinator: FlowCoordinatorProtocol {
     
     private func showErrorIndicator() {
         flowParameters.userIndicatorController.submitIndicator(.init(title: L10n.errorUnknown))
+    }
+}
+
+/// AGENT-PLATFORM (1.0.3, B15): what an open catalogue knows of the person's agents, read again in place by its Retry.
+private final class CatalogueAgents {
+    var agents: [AgentPickerItem]
+    var dms: [JoinedRoomProxyProtocol]
+    
+    init(agents: [AgentPickerItem], dms: [JoinedRoomProxyProtocol]) {
+        self.agents = agents
+        self.dms = dms
     }
 }

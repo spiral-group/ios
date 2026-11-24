@@ -71,8 +71,8 @@ struct SpiralInviteLinkTests {
     func pendingInviteRoundTripsThroughAppSettings() {
         let appSettings = AppSettings.volatile()
         #expect(appSettings.pendingInvite == nil)
-        appSettings.pendingInvite = PendingInvite(token: "Qz8Hf72Kd91", inviterDisplayName: "Andrii", inviterUserID: "@alice:spiral.md")
-        #expect(appSettings.pendingInvite?.inviterDisplayName == "Andrii")
+        appSettings.pendingInvite = PendingInvite(token: "Qz8Hf72Kd91", inviterDisplayName: "Alice", inviterUserID: "@alice:spiral.md")
+        #expect(appSettings.pendingInvite?.inviterDisplayName == "Alice")
         #expect(appSettings.pendingInvite?.link?.webURL.absoluteString == "https://spiral.md/join/Qz8Hf72Kd91")
         appSettings.pendingInvite = nil
         #expect(appSettings.pendingInvite == nil)

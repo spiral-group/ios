@@ -14,7 +14,9 @@
 import Foundation
 
 enum SecuritySettingsScreenViewModelAction: Equatable {
-    case newPhrase
+    /// `addsFirstPhrase`: the account has no phrase yet (made with Sign in with Apple).
+    case newPhrase(addsFirstPhrase: Bool)
+    case addApple
     case manageAccount(url: URL)
     case linkNewDevice
     case secureBackup
@@ -26,6 +28,14 @@ struct SecuritySettingsScreenViewState: BindableState {
     var showLinkNewDeviceButton: Bool
     var showEncryption = false
     var showEncryptionBadge = false
+    /// `.unknown` until `GET /me/sign-in-methods` answers, and after a failure.
+    var signInMethods = SignInMethods.unknown
+    
+    /// «Add sign-in phrase» only for an account known to have none; the row
+    /// is the same either way, so nothing moves when the answer arrives.
+    var phraseRowTitle: String {
+        signInMethods.addsFirstPhrase ? UntranslatedL10n.screenSettingsAddPhraseTitle : UntranslatedL10n.screenSettingsNewPhraseTitle
+    }
     
     var bindings = SecuritySettingsScreenViewStateBindings()
 }
@@ -42,6 +52,7 @@ enum SecuritySettingsScreenAlertType: Hashable {
 enum SecuritySettingsScreenViewAction {
     case newPhrase
     case confirmNewPhrase
+    case addApple
     case manageAccount(url: URL)
     case linkNewDevice
     case secureBackup

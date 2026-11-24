@@ -65,6 +65,9 @@
 "screen_agent_edit_persona_greeting" = "給您的問候語";
 "screen_agent_edit_persona_visitor_greeting" = "給訪客的問候語";
 "screen_agent_edit_failure" = "無法儲存變更";
+"error_agent_name_reserved" = "此名稱保留給 Spiral 自己的帳號使用。請選擇其他名稱。";
+"error_agent_name_invalid_characters" = "名稱包含無法使用的字元。";
+"error_agent_name_unchecked" = "無法檢查名稱。請再試一次。";
 "screen_agent_edit_load_failure" = "無法載入編輯表單";
 "screen_agent_edit_avatar_failure" = "無法上傳相片";
 "action_agent_activity" = "動態";
@@ -250,7 +253,6 @@
 "screen_language_picker_title" = "語言";
 "screen_language_picker_empty" = "沒有符合您搜尋的語言。";
 "screen_start_sign_in" = "登入";
-"screen_start_welcome_subtitle" = "透過您的個人智慧代理進行快速、私密的傳訊。";
 
 // AGENT-PLATFORM (Brief 0072, ADR-0083, ADR-0084): presence, worded as Telegram does
 "common_presence_online" = "線上";
@@ -491,6 +493,16 @@
 "screen_native_call_assistants_record_confirm_title" = "錄製通話？";
 "screen_native_call_assistants_record_confirm_message" = "所有人都會在通話頂端看到 REC。錄音會在通話結束後出現在聊天中。";
 "screen_native_call_assistants_record_confirm_action" = "錄製";
+"screen_native_call_assistants_notes_confirm_title" = "記錄通話筆記？";
+"screen_native_call_assistants_notes_confirm_message" = "你的助理會聆聽通話，並在通話結束後將摘要發佈到聊天中。其他人看得到它正在記筆記。";
+"screen_native_call_assistants_notes_confirm_action" = "記筆記";
+"screen_native_call_assistants_talk_confirm_title" = "與你的助理對話？";
+"screen_native_call_assistants_talk_confirm_message" = "它只聽得到你的聲音，並大聲回答——通話中所有人都聽得到。";
+"screen_native_call_assistants_talk_confirm_action" = "開始對話";
+"screen_native_call_assistants_translate_question_title" = "翻譯成";
+"screen_native_call_assistants_listen_question_title" = "收聽語言";
+"screen_native_call_assistants_talk_info_title" = "你的助理正在大聲回答";
+"screen_native_call_assistants_talk_info_message" = "它只聽得到你的聲音，通話中所有人都聽得到它。對話期間不翻譯。";
 "screen_native_call_assistants_none_of_your_own" = "你還沒有助理";
 "screen_native_call_assistants_which" = "選擇助理";
 "screen_native_call_assistants_reason_paused" = "你的助理已暫停";
@@ -571,7 +583,6 @@
 "screen_native_call_assistants_job_conversation" = "對話";
 "screen_native_call_assistants_translating" = "正在翻譯成%1$@";
 "screen_native_call_assistants_stop_translation" = "停止翻譯";
-"screen_native_call_assistants_talk_caption" = "會大聲回答你，所有人都聽得到。對話期間不翻譯。";
 "screen_native_call_assistants_pick_footer" = "已為此聊天記住";
 "screen_native_call_assistants_neighbour_language" = "你身邊那個人的語言";
 "screen_native_call_assistants_pocket_detail" = "每句話之後 · 雙向";
@@ -591,10 +602,9 @@
 "screen_native_call_assistants_status_both_ways" = "正在雙向翻譯";
 "screen_native_call_assistants_translate_into" = "翻譯成";
 "screen_native_call_assistants_translate_into_detail" = "你用這種語言收聽通話";
+"screen_native_call_assistants_translate_into_language" = "翻譯成: %1$@";
 "screen_native_call_assistants_in_call" = "通話中";
 "screen_native_call_assistants_in_call_more" = "通話中：還有 %1$d 個";
-"screen_native_call_assistants_new_translation" = "新翻譯";
-"screen_native_call_assistants_new_translation_detail" = "你的助理將翻譯這次通話";
 "screen_native_call_assistants_new_translation_others" = "你的助理翻譯%1$@的話。其他人已在免費翻譯中。";
 "screen_native_call_assistants_start_translation" = "開始翻譯";
 "screen_native_call_assistants_start_translation_detail" = "使用你的額度。選擇此語言的人都可免費收聽。";
@@ -1044,7 +1054,6 @@
 "notice_phrase_changed_title" = "登入片語已變更";
 "a11y_message_read" = "已讀";
 "screen_legal_information_source_code_spiral" = "原始碼";
-"screen_invite_people_seats_label" = "剩餘邀請名額";
 "screen_native_call_tile_not_joined" = "您未加入";
 "screen_agent_settings_show_in_search_footer" = "是否讓其他人能在搜尋中找到它。知道它地址的人仍可傳訊息給它。";
 "screen_agent_edit_tone_calm" = "沉穩";
@@ -1056,7 +1065,6 @@
 "screen_room_interactive_draft_published" = "已發佈";
 "screen_agent_activity_reason_visitor_policy_reply" = "您允許了立即回覆";
 "screen_agent_in_room_no_tools" = "此聊天室尚無工具。";
-"notice_welcome_assistant_body" = "我是%1$@，您的個人助理。您不在時，我可以轉達訊息、記住您的聯絡人，並摘要聊天室內容。若要在聊天室中開啟我的工具，請在該聊天室點選 +，然後選擇「智慧代理」。像平常一樣傳訊息給我就好——我一直都在。";
 "screen_room_interactive_post_pick_agent_title" = "要由誰來製作？";
 "screen_agent_settings_visitor_ask_first_description" = "新聯絡人需等待您同意";
 "screen_ai_consent_prompt_failed" = "無法儲存您的選擇。請檢查網路連線後再試一次。";
@@ -1086,10 +1094,8 @@
 "screen_agent_activity_reason_block_needs_owner" = "封鎖需要您的同意";
 "screen_create_company_title" = "新公司";
 "a11y_native_call_disable_speaker" = "關閉擴音";
-"screen_invite_paste_placeholder" = "spiral.md/join/…";
 "a11y_native_call_end" = "結束通話";
 "screen_agent_activity_action_published_post" = "發佈了一則貼文";
-"screen_invite_people_joined_footer" = "透過您的連結建立帳號的人。點選即可開始聊天。";
 "screen_arm_tool_turn_off_confirm_message" = "智慧代理將不再為此聊天室中的所有人執行此動作。您隨時可以重新開啟。";
 "spiral_app_card_line_by" = "來自 %1$@";
 "state_event_spiral_tool_language_changed_by_you" = "您變更了翻譯：%1$@ → %2$@";
@@ -1114,7 +1120,6 @@
 "screen_native_call_agent_block_recording" = "錄音";
 "screen_native_call_control_video" = "影片";
 "screen_agent_detail_pause" = "暫停";
-"screen_invite_paste_expired" = "此邀請已失效。請索取新的邀請。";
 "screen_security_messages_section" = "訊息";
 "screen_agent_activity_reason_relationship_unavailable" = "無法確認聯絡人";
 "screen_ai_consent_prompt_allow" = "允許";
@@ -1144,15 +1149,12 @@
 "state_event_spiral_tool_off_by_system" = "已為%2$@關閉%1$@";
 "a11y_native_call_swap_to_held_call" = "切換到與%@的通話";
 "screen_native_call_audio_route_iphone" = "iPhone";
-"screen_invite_people_seats_value" = "%1$d / %2$d";
 "screen_agent_activity_reason_first_contact_with_unknown_visitor" = "新聯絡人的第一則訊息";
 "screen_deactivate_account_spiral_list_item_3" = "從我們的身分伺服器中刪除您的帳號資料。";
 "a11y_native_call_bar" = "正在與%1$@通話。點選以返回。";
-"screen_invite_paste_unavailable" = "無法檢查邀請。請再試一次。";
 "screen_agent_activity_action_read_call_summary" = "讀取了一份通話摘要";
 "screen_ai_consent_prompt_title" = "要允許第三方 AI 嗎？";
 "screen_agent_edit_voice_language_footer" = "助理一律用您說的語言回答。此設定決定它在通話中聆聽的語言，以及通話摘要的語言。";
-"screen_invite_welcome_title" = "歡迎來到 Spiral";
 "screen_agent_activity_reason_blocked_visitor" = "已封鎖的人";
 "screen_deactivate_account_spiral_list_item_1_bold_part" = "永久停用";
 "screen_native_call_agent_center_recording_live" = "正在錄音…";
@@ -1220,7 +1222,6 @@
 "screen_deactivate_account_spiral_failed" = "無法刪除帳號。請稍後再試。";
 "screen_agent_activity_action_changed_call_mode" = "變更了它參與通話的方式";
 "a11y_native_call_unmute_microphone" = "取消麥克風靜音";
-"screen_invite_paste_label" = "連結或邀請碼";
 "screen_media_viewer_position" = "%1$d / %2$d";
 "screen_native_call_status_reconnecting_detail" = "您的網路連線已中斷";
 "screen_approval_detail_block_blocked_subtitle" = "從現在起，您的智慧代理會忽略對方的訊息。";
@@ -1256,6 +1257,13 @@
 "screen_agent_activity_reason_no_contact_relationship" = "不是您的聯絡人";
 "screen_room_alias_link_not_found" = "此連結沒有指向任何聊天室。";
 "screen_invite_people_title" = "邀請加入 Spiral";
+"screen_invite_people_you" = "你";
+"screen_invite_people_invited_count" = "已邀請 %1$d / %2$d";
+"screen_invite_people_invited_you" = "邀請你加入了 Spiral";
+"screen_invite_people_seat_invite" = "邀請";
+"screen_invite_people_seat_taken" = "已佔用";
+"screen_invite_people_chain_footer" = "一個連結可供 %1$d 人使用，且不會更新。輕點某人即可開啟其個人檔案。";
+"screen_invite_people_all_used" = "邀請已全部用完";
 "screen_approval_detail_escalation_cold_outreach" = "您的智慧代理想要第一次傳訊息給某人。";
 "screen_start_invited_by" = "%1$@ 邀請您加入 Spiral";
 "screen_agent_spaces_section_retry" = "點選以再試一次。";
@@ -1263,7 +1271,6 @@
 "screen_settings_new_phrase_done" = "登入片語已變更";
 "screen_agent_activity_reason_outside_conversation" = "不在此對話中";
 "a11y_native_call_switch_camera" = "切換相機";
-"screen_invite_people_joined" = "透過您的邀請加入：%1$d";
 "screen_agent_activity_action_searched_agents" = "搜尋了智慧代理";
 "screen_agent_activity_reason_strategy_no_op" = "無需動作";
 "action_dismiss_visitor_message" = "移除";
@@ -1272,7 +1279,6 @@
 "screen_approval_detail_block_action_dont_block" = "不要封鎖";
 "screen_agent_settings_people_title" = "與他人交談";
 "screen_native_call_agent_center_error_not_owner" = "只有此工作階段的擁有者可以變更。";
-"notice_welcome_agent_body" = "%1$@ 已準備就緒。直接傳訊息給我吧。";
 "screen_agent_detail_already_in_chat" = "智慧代理已在此聊天室中";
 "screen_native_call_agent_center_booth_members" = "%1$@，譯成%2$@";
 "screen_settings_devices_title" = "裝置與工作階段";
@@ -1290,7 +1296,6 @@
 "screen_agent_activity_action_remembered" = "記住了關於某位聯絡人的資訊";
 "screen_room_interactive_post_link_needs_update" = "此貼文需要較新版本的 Spiral。請更新 App 後使用。";
 "screen_room_member_details_erase_assistant_memory" = "清除我的助理對對方的了解";
-"screen_invite_paste_without" = "不使用邀請並繼續";
 "screen_agent_edit_tone_friendly" = "友善";
 "screen_room_interactive_post_update" = "更新貼文";
 "screen_agent_detail_archive_refused" = "您的個人助理與您的帳號綁定，無法封存。";
@@ -1307,9 +1312,7 @@
 "screen_native_call_agent_center_talking" = "助理正在說話";
 "screen_native_call_tile_call_back" = "點選以回撥";
 "notice_reply_failed_body" = "我這邊出了點問題。請再傳送一次。";
-"screen_invite_people_joined_title" = "透過您的邀請加入";
 "screen_native_call_status_connecting_detail" = "正在設定加密";
-"screen_invite_paste_title" = "有邀請嗎？";
 "screen_edit_profile_bio_too_long" = "簡介最多 %1$d 個字元。請縮短後再儲存。";
 "a11y_native_call_agent_block_role" = "%1$@，%2$@";
 "a11y_native_call_recording" = "此通話正在錄音";
@@ -1322,12 +1325,25 @@
 "screen_agent_spaces_assistant_pending" = "您的助理仍在設定中";
 "screen_room_member_details_erase_assistant_memory_alert_title" = "要清除您的助理對%1$@的了解嗎？";
 "screen_settings_new_phrase_failed" = "無法開始變更片語。請再試一次。";
+/* AGENT-PLATFORM (1.0.3): sign-in methods — the first phrase for an account made with Apple, Sign in with Apple for a phrase account. */
+"screen_settings_add_phrase_title" = "新增登入片語";
+"screen_settings_add_phrase_message" = "您將選擇 12 個單字。除了使用 Apple 登入，它們也能在任何裝置上開啟您的帳號。您在此裝置上會保持登入，您的訊息也不受影響。";
+"screen_settings_add_phrase_auth_reason" = "驗證您的身分以新增登入片語";
+"screen_settings_add_phrase_done" = "已新增登入片語";
+"screen_settings_add_phrase_failed" = "無法開始新增片語。請再試一次。";
+"screen_settings_sign_in_passcode_required" = "請先設定裝置密碼——它用來保護您的登入方式";
+"screen_settings_apple_title" = "使用 Apple 登入";
+"screen_settings_apple_connected" = "已連結";
+"screen_settings_apple_add_title" = "新增使用 Apple 登入";
+"screen_settings_apple_auth_reason" = "驗證您的身分以新增使用 Apple 登入";
+"screen_settings_apple_linked" = "已新增使用 Apple 登入";
+"screen_settings_apple_taken" = "此 Apple 帳號已被另一個 Spiral 帳號使用";
+"screen_settings_apple_failed" = "無法開始新增使用 Apple 登入。請再試一次。";
 "screen_deactivate_account_spiral_description" = "刪除帳號是%1$@的操作，將會：";
 "screen_agent_activity_action_set_reminder" = "設定了一則提醒";
 "screen_agent_activity_action_cancelled_reminder" = "取消了一則提醒";
 "screen_agent_activity_reason_capability_always_allowed" = "一律允許";
 "screen_agent_activity_action_blocked_someone" = "封鎖了某人";
-"screen_invite_paste_message" = "貼上 Spiral 使用者傳給您的連結，或輸入邀請碼。";
 "screen_native_call_error_title" = "通話失敗";
 "notification_approval_action_not_found_title" = "此請求已不存在";
 "state_event_spiral_tool_changed_by_you" = "您變更了%1$@";
@@ -1354,7 +1370,6 @@
 "screen_native_call_control_sound" = "音效";
 "screen_native_call_status_reconnecting" = "正在重新連線…";
 "notice_phrase_changed_body" = "舊片語已無法用來登入。";
-"screen_invite_people_seats_footer" = "每個人都有一個含 %1$d 個名額的連結。名額不會補充，請分享給您真正想邀請的人。";
 "screen_room_member_details_agent_unblock_action" = "解除封鎖";
 "screen_agent_activity_reason_unknown_capability" = "它做不到的事";
 "screen_settings_new_phrase_passcode_required" = "請先設定裝置密碼——它用來保護片語的變更";
@@ -1426,10 +1441,11 @@
 "screen_your_data_calls_footer" = "匯出單一通話：其逐字稿、摘要和同意記錄。";
 "screen_arm_tool_error_agent_does_not_join_calls" = "此智慧代理不會加入通話，因此無法使用通話工具。";
 "screen_room_interactive_generating_hint" = "通常不到一分鐘";
-"screen_invite_paste_exhausted" = "此邀請允許的人都已加入。請索取新的邀請。";
 "notice_phrase_changed_on_device" = "在「%1$@」上變更。";
+/* AGENT-PLATFORM (1.0.3): the owner-DM card when Sign in with Apple is added. It names no device (security review); a new phrase disconnects Apple. */
+"notice_apple_linked_title" = "已新增使用 Apple 登入";
+"notice_apple_linked_body" = "如果不是您本人，請變更登入片語：這會中斷與 Apple 的連結。";
 "screen_ai_consent_prompt_openai" = "OpenAI：助理讀取的訊息、您在與它們通話時的語音，以及它們轉錄的錄音。";
-"screen_invite_welcome_message" = "%1$@ 邀請了您，而且已經知道您來了。打聲招呼吧！";
 "screen_agent_activity_action_used_tool" = "對一則訊息使用了工具";
 "screen_approval_detail_escalation_first_contact" = "有人第一次傳訊息給您的智慧代理，因此它會在回覆前先問您。";
 "screen_agent_activity_action_drafted_post" = "草擬了一則貼文";
@@ -1444,7 +1460,6 @@
 "screen_room_interactive_post_updated" = "貼文已更新";
 "screen_native_call_camera_failed_message" = "相機無法啟動，因此通話將以語音繼續。請稍後再點一次相機按鈕。";
 "screen_media_viewer_open" = "開啟";
-"screen_invite_paste_invalid" = "沒有這個邀請。";
 "screen_agent_room_tool_audience_except_named" = "除了%1$@以外的所有人";
 "notification_spiral_needs_update_body" = "請更新 App 以查看此內容。";
 "screen_agent_edit_tone_brief" = "簡潔扼要";
@@ -1452,7 +1467,6 @@
 "screen_invite_people_seats_left" = "尚餘 %1$d 個邀請名額（共 %2$d 個）";
 "screen_agent_activity_reason_wrong_room_kind" = "不允許在此類聊天室中使用";
 "screen_native_call_failure_audio_reset" = "系統重設了通話音訊。";
-"screen_invite_people_body" = "註冊需要邀請。分享您的專屬連結——透過它建立帳號的人會先看到您。";
 "notification_approval_action_target_blocked_title" = "未傳送——您已封鎖此人";
 "screen_notifications_hub_visitor_other" = "新內容";
 "screen_agent_activity_empty_pending_title" = "沒有待決定的請求";
@@ -1476,3 +1490,61 @@
 "screen_notifications_hub_visitors_section" = "來自他人";
 "screen_agent_settings_visitor_reply_description" = "回覆所有人，您封鎖的人除外";
 "screen_deactivate_account_spiral_auth_reason" = "驗證您的身分以刪除帳號";
+
+// AGENT-PLATFORM (1.0.3 A2): the assistant's first invite in Chats, its chat before consent and its welcome.
+"screen_roomlist_assistant_invite_name" = "你的助理";
+"screen_roomlist_assistant_invite_subtitle" = "你好！點一下即可開始 👋";
+"screen_roomlist_assistant_invite_start" = "開始";
+"a11y_assistant_invite_start" = "開始與你的助理對話";
+"a11y_assistant_invite_start_hint" = "接受助理的邀請並開啟你與它的聊天。";
+"screen_assistant_invite_title" = "你好！我是你的助理";
+"screen_assistant_invite_reminders" = "我會提醒你各種事情";
+"screen_assistant_invite_contacts" = "我會記住你的聯絡人";
+"screen_assistant_invite_summaries" = "我會摘要任何聊天";
+"screen_assistant_invite_privacy" = "我只看得到這段對話。你可以隨時關閉我。";
+"screen_assistant_invite_start" = "開始對話";
+"notice_welcome_body" = "我在這裡，隨時為你提供協助。我們從哪裡開始？";
+"notice_welcome_starter_summary" = "摘要聊天";
+"notice_welcome_starter_summary_message" = "幫我摘要一個聊天";
+"notice_welcome_starter_contact" = "記住聯絡人";
+"notice_welcome_starter_contact_message" = "幫我記住關於某位聯絡人的事";
+"notice_welcome_starter_reminder" = "提醒我…";
+"notice_welcome_starter_reminder_message" = "幫我設定一個提醒";
+"notice_welcome_allow_ai_reason" = "請允許 AI，這樣我才能讀到你在這裡寫的內容。";
+"notice_welcome_allow_ai_action" = "允許 AI";
+
+// AGENT-PLATFORM (1.0.3 onboarding): the start screen's stories, the notifications prompt and the invited welcome.
+"screen_start_slide_privacy_title" = "你的對話屬於你";
+"screen_start_slide_privacy_subtitle" = "端對端加密。不需要手機號碼，助理只在你允許時行動";
+"screen_start_slide_calls_title" = "通話即時翻譯";
+"screen_start_slide_calls_subtitle" = "助理加入通話，即時翻譯";
+"screen_start_slide_assistant_title" = "助理就在身邊";
+"screen_start_slide_assistant_subtitle" = "你忙碌時代為回覆，每一步新動作前都會先問你";
+"screen_start_slide_games_title" = "在聊天中一起玩";
+"screen_start_slide_games_subtitle" = "遊戲與工具，免安裝";
+"screen_start_invited_by_hint" = "建立帳號，%1$@ 就會知道你來了";
+"a11y_start_slides_position" = "第 %1$d 張，共 %2$d 張";
+"screen_notification_optin_spiral_title" = "保持聯繫";
+"screen_notification_optin_spiral_subtitle" = "有真正重要的事時，Spiral 會通知你。你隨時可以在設定中更改。";
+"screen_notification_optin_messages_title" = "新訊息";
+"screen_notification_optin_messages_subtitle" = "來自與你聊天的人和群組";
+"screen_notification_optin_calls_title" = "來電";
+"screen_notification_optin_calls_subtitle" = "即使 Spiral 已關閉";
+"screen_notification_optin_assistant_title" = "助理的提問";
+"screen_notification_optin_assistant_subtitle" = "需要你同意時";
+"screen_notification_optin_allow" = "允許通知";
+"screen_invite_welcome_together_title" = "你和 %1$@ 都在 Spiral 了";
+"screen_invite_welcome_step_say_hello_title" = "跟 %1$@ 打聲招呼";
+"screen_invite_welcome_step_say_hello_subtitle" = "%1$@ 正在等你";
+"screen_invite_welcome_step_assistant_title" = "認識你的助理";
+"screen_invite_welcome_step_assistant_subtitle" = "它的邀請在「聊天」中等你";
+"screen_invite_welcome_step_play_title" = "一起玩點什麼";
+"screen_invite_welcome_step_play_subtitle" = "聊天中就能玩的遊戲與工具";
+"a11y_invite_welcome_avatars" = "%1$@ 和你";
+"screen_approval_detail_already_closed_title" = "此請求已關閉";
+"screen_approval_detail_already_closed_message" = "它已過期或已獲回覆。";
+"screen_room_interactive_post_description_not_sent" = "你的描述未送出。請在討論串中重新傳送。";
+"screen_room_interactive_post_code_not_sent" = "貼文未送達代理。請從貼文重試。";
+"screen_invites_assistant_decline_warning_spiral" = "如果這是你自己的助理，拒絕後將無法恢復它的聊天。";
+"a11y_roomlist_remove_filter" = "移除篩選：%1$@";
+"a11y_settings_share_profile" = "分享我的個人檔案";

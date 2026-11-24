@@ -222,6 +222,28 @@ final class InviteUsersScreenViewModelTests {
         #expect(args.aliasLocalPart == nil)
     }
     
+    // AGENT-PLATFORM (1.0.3): Suggestions are people only, like the search.
+    @Test
+    func suggestionsShowOnlyPeople() async throws {
+        userDiscoveryService = UserDiscoveryServiceMock()
+        userDiscoveryService.searchProfilesWithReturnValue = .success([])
+        clientProxy = ClientProxyMock(.init(userID: "@me:matrix.org"))
+        clientProxy.recentConversationCounterpartsReturnValue = [UserProfile(userID: "@agent-shop-1:matrix.org"), .mockAlice,
+                                                                 UserProfile(userID: "@whatsappbot:matrix.org"),
+                                                                 UserProfile(userID: "@_lk_jwt_service:matrix.org"), .mockBob]
+        viewModel = InviteUsersScreenViewModel(userSession: UserSessionMock(.init(clientProxy: clientProxy)),
+                                               roomType: .existingRoom(roomProxy: JoinedRoomProxyMock(.init(name: "room", members: []))),
+                                               isSkippable: true,
+                                               userDiscoveryService: userDiscoveryService,
+                                               userIndicatorController: UserIndicatorControllerMock())
+        
+        let deferred = deferFulfillment(viewModel.context.$viewState) { !$0.usersSection.users.isEmpty }
+        try await deferred.fulfill()
+        
+        #expect(context.viewState.usersSection.type == .suggestions)
+        #expect(context.viewState.usersSection.users.map(\.id) == [UserProfile.mockAlice.id, UserProfile.mockBob.id])
+    }
+    
     // MARK: - Helpers
     
     private func setupViewModel(roomProxy: JoinedRoomProxyProtocol, isSkippable: Bool) {

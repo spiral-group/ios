@@ -111,7 +111,7 @@ struct AgentRow_Previews: PreviewProvider, TestablePreview, SpiralGatedPreview {
     static var previews: some View {
         Form {
             Section {
-                AgentRow(title: "Anna Kovalchuk · assistant",
+                AgentRow(title: "Anna Sampleton · assistant",
                          role: "Your personal assistant",
                          presence: .online("Online"),
                          description: "4 chats · 2 tools",
@@ -157,11 +157,11 @@ struct AgentRow_Previews: PreviewProvider, TestablePreview, SpiralGatedPreview {
         Form {
             Section {
                 SpiralAgentCard(layout: .profile,
-                                name: "Anna Kovalchuk · assistant",
+                                name: "Anna Sampleton · assistant",
                                 subtitle: "@assistant-owner:spiral.md",
                                 role: "Your personal assistant",
                                 status: .online("Online")) {
-                    LoadableAvatarImage(url: nil, name: "Anna Kovalchuk", contentID: "@assistant-owner:spiral.md",
+                    LoadableAvatarImage(url: nil, name: "Anna Sampleton", contentID: "@assistant-owner:spiral.md",
                                         avatarSize: .user(on: .memberDetails), mediaProvider: nil)
                 } actions: {
                     HStack(spacing: CompoundDesignTokens.space3X) {

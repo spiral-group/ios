@@ -82,16 +82,8 @@ class InteractivePostCatalogScreenViewModel: InteractivePostCatalogScreenViewMod
             .store(in: &cancellables)
         observeApp()
 
-        threadLists = dms.map { ($0.id, $0.threadListService()) }
-        for (dmRoomID, list) in threadLists {
-            list.itemsPublisher
-                .receive(on: DispatchQueue.main)
-                .sink { [weak self] _ in self?.rebuild() }
-                .store(in: &cancellables)
-            MXLog.info("[SpiralApp] catalogue reading the threads of \(dmRoomID)")
-        }
-
-        Task { await load() }
+        let lists = observeThreads(of: dms)
+        Task { await load(lists) }
         Task {
             // No people at all is a read that failed: there is always the viewer.
             peopleInRoom = await countPeople().flatMap { $0 > 0 ? $0 : nil }
@@ -107,6 +99,18 @@ class InteractivePostCatalogScreenViewModel: InteractivePostCatalogScreenViewMod
         fetchStill = { _, _ in nil }
         introductionSeen = { }
         super.init(initialViewState: previewState)
+    }
+
+    /// The agents read again (1.0.3, B15): the catalogue stays where it is, and an agent's DM brings its threads.
+    func agentsRead(_ assistant: InteractivePostCatalogAssistant, dms: [JoinedRoomProxyProtocol]) {
+        state.assistant = assistant
+        state.isReadingAgents = false
+        let known = Set(threadLists.map(\.dmRoomID))
+        let lists = observeThreads(of: dms.filter { !known.contains($0.id) })
+        guard !lists.isEmpty else { return }
+        // Placeholders until the new agent's threads are read, not «none» and then a list; shown threads stay.
+        state.threadsLoad = .loading
+        Task { await load(lists) }
     }
 
     /// The sheet is gone, however it went: nothing may keep the web view after it.
@@ -142,14 +146,16 @@ class InteractivePostCatalogScreenViewModel: InteractivePostCatalogScreenViewMod
             actionsSubject.send(.changeTemplate(template))
         case .showAgents:
             actionsSubject.send(.showAgents)
-        case .retryAgents(let templateID):
-            actionsSubject.send(.retryAgents(templateID: templateID))
+        case .retryAgents:
+            guard !state.isReadingAgents else { return }
+            state.isReadingAgents = true
+            actionsSubject.send(.retryAgents)
         case .retryCatalog:
             state.catalogLoad = .loading
             Task { await loadCatalog(from: state.catalogURL) }
         case .retryThreads:
             state.threadsLoad = .loading
-            Task { await load() }
+            Task { await load(threadLists.map(\.list)) }
         case .screenAppeared(let screen):
             screensShowing.insert(screen)
             updateLiveCard()
@@ -283,11 +289,25 @@ class InteractivePostCatalogScreenViewModel: InteractivePostCatalogScreenViewMod
         return UIImage(data: data)
     }
 
-    private func load() async {
+    /// Held from now on, and rebuilt from whenever one changes.
+    private func observeThreads(of dms: [JoinedRoomProxyProtocol]) -> [RoomThreadListServiceProxyProtocol] {
+        let lists = dms.map { (dmRoomID: $0.id, list: $0.threadListService()) }
+        for (dmRoomID, list) in lists {
+            list.itemsPublisher
+                .receive(on: DispatchQueue.main)
+                .sink { [weak self] _ in self?.rebuild() }
+                .store(in: &cancellables)
+            MXLog.info("[SpiralApp] catalogue reading the threads of \(dmRoomID)")
+        }
+        threadLists += lists
+        return lists.map(\.list)
+    }
+
+    private func load(_ lists: [RoomThreadListServiceProxyProtocol]) async {
         // Two pages: a thread list page is a few dozen threads, and a
         // catalogue is for the recent ones.
         var failed = false
-        for (_, list) in threadLists {
+        for list in lists {
             for _ in 0..<2 {
                 if case .idle(endReached: true) = list.paginationStatePublisher.value { break }
                 if case .failure = await list.paginate() {

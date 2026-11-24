@@ -231,7 +231,12 @@ struct HomeScreenRoom: Identifiable, Equatable {
     // row shows. `nil` for everything that is not such a DM.
     var dmUserID: String?
     var isOnline = false
-    
+
+    /// AGENT-PLATFORM (1.0.3 A2): an invite from the person's own assistant is pinned on top and can't be declined.
+    var assistantInvite = AssistantInvite.none
+    /// AGENT-PLATFORM (question 359): the person's own assistant stays with their account, so its chat offers no Leave.
+    var offersLeave = true
+
     var displayedLastMessage: AttributedString? {
         if isTombstoned {
             AttributedString(L10n.screenRoomlistTombstonedRoomDescription)

@@ -62,26 +62,6 @@
 			<string>%1$d osoby</string>
 		</dict>
 	</dict>
-	<key>common_member_count</key>
-	<dict>
-		<key>COUNT</key>
-		<dict>
-			<key>NSStringFormatSpecTypeKey</key>
-			<string>NSStringPluralRuleType</string>
-			<key>NSStringFormatValueTypeKey</key>
-			<string>d</string>
-			<key>one</key>
-			<string>%1$d członek</string>
-			<key>few</key>
-			<string>%1$d członkowie</string>
-			<key>many</key>
-			<string>%1$d członków</string>
-			<key>other</key>
-			<string>%1$d członka</string>
-		</dict>
-		<key>NSStringLocalizedFormatKey</key>
-		<string>%#@COUNT@</string>
-	</dict>
 	<key>screen_feed_new_posts</key>
 	<dict>
 		<key>COUNT</key>

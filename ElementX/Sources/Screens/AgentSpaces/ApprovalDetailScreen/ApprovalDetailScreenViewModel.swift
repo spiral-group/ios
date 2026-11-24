@@ -184,6 +184,16 @@ class ApprovalDetailScreenViewModel: ApprovalDetailScreenViewModelType, Approval
                 showCardGoneAlert()
                 return
             }
+            if case .conflict = error {
+                // Already decided: it expired, or another device answered it. OK leaves it.
+                state.bindings.alertInfo = AlertInfo(id: .alreadyClosed,
+                                                     title: UntranslatedL10n.screenApprovalDetailAlreadyClosedTitle,
+                                                     message: UntranslatedL10n.screenApprovalDetailAlreadyClosedMessage,
+                                                     primaryButton: .init(title: L10n.actionOk) { [weak self] in
+                                                         self?.actionsSubject.send(.decisionFinalised)
+                                                     })
+                return
+            }
             if case .agentPaused = error {
                 // Nothing was decided: the card stays, to approve after the resume.
                 state.bindings.alertInfo = AlertInfo(id: .agentPaused,

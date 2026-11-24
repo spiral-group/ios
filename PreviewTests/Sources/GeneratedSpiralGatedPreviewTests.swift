@@ -10,6 +10,7 @@ import Testing
 extension SpiralGatedPreviewTests {
     /// The tests' names, which are those of upstream's tests of the same previews (`SpiralGlassRendering`).
     static let suites: Set<String> = [
+        "aIConsentPromptScreen",
         "addAgentPickerScreen",
         "addToolScreen",
         "agentActivityScreen",
@@ -45,6 +46,7 @@ extension SpiralGatedPreviewTests {
         "feedReportScreen",
         "feedRulesSheet",
         "feedScreen",
+        "homeScreenAssistantInviteCell",
         "homeScreenRecoveryKeyConfirmationBanner",
         "homeScreenRoomList",
         "homeScreen",
@@ -53,8 +55,9 @@ extension SpiralGatedPreviewTests {
         "interactivePostCatalogScreen",
         "interactivePostCatalogYoursScreen",
         "interactivePostTimeline",
-        "invitePasteSheet",
         "invitePeopleScreen",
+        "inviteWelcomeScreen",
+        "joinRoomAssistantInviteView",
         "legalInformationScreen",
         "loginScreen",
         "mediaUploadQualitySettingsScreen",
@@ -64,6 +67,7 @@ extension SpiralGatedPreviewTests {
         "nativeCallBar",
         "nativeCallIncomingScreen",
         "nativeCallScreen",
+        "notificationPermissionsScreen",
         "notificationSettingsEditScreen",
         "notificationSettingsScreen",
         "notificationsHubScreen",
@@ -93,6 +97,7 @@ extension SpiralGatedPreviewTests {
         "spiralNoticeRoomTimelineView",
         "spiralPreloader",
         "spiralTabAvatar",
+        "spiralWelcomeNoticeView",
         "timelineItemMenu",
         "toolDetailScreen",
         "toolExampleCard",
@@ -100,6 +105,13 @@ extension SpiralGatedPreviewTests {
         "userProfileScreen",
         "yourDataScreen",
     ]
+
+    @Test
+    func aIConsentPromptScreen() async throws {
+        for (index, preview) in AIConsentPromptScreen_Previews._allPreviews.enumerated() {
+            try await assertSnapshots(matching: preview, step: index)
+        }
+    }
 
     @Test
     func addAgentPickerScreen() async throws {
@@ -347,6 +359,13 @@ extension SpiralGatedPreviewTests {
     }
 
     @Test
+    func homeScreenAssistantInviteCell() async throws {
+        for (index, preview) in HomeScreenAssistantInviteCell_Previews._allPreviews.enumerated() {
+            try await assertSnapshots(matching: preview, step: index)
+        }
+    }
+
+    @Test
     func homeScreenRecoveryKeyConfirmationBanner() async throws {
         for (index, preview) in HomeScreenRecoveryKeyConfirmationBanner_Previews._allPreviews.enumerated() {
             try await assertSnapshots(matching: preview, step: index)
@@ -403,15 +422,22 @@ extension SpiralGatedPreviewTests {
     }
 
     @Test
-    func invitePasteSheet() async throws {
-        for (index, preview) in InvitePasteSheet_Previews._allPreviews.enumerated() {
+    func invitePeopleScreen() async throws {
+        for (index, preview) in InvitePeopleScreen_Previews._allPreviews.enumerated() {
             try await assertSnapshots(matching: preview, step: index)
         }
     }
 
     @Test
-    func invitePeopleScreen() async throws {
-        for (index, preview) in InvitePeopleScreen_Previews._allPreviews.enumerated() {
+    func inviteWelcomeScreen() async throws {
+        for (index, preview) in InviteWelcomeScreen_Previews._allPreviews.enumerated() {
+            try await assertSnapshots(matching: preview, step: index)
+        }
+    }
+
+    @Test
+    func joinRoomAssistantInviteView() async throws {
+        for (index, preview) in JoinRoomAssistantInviteView_Previews._allPreviews.enumerated() {
             try await assertSnapshots(matching: preview, step: index)
         }
     }
@@ -475,6 +501,13 @@ extension SpiralGatedPreviewTests {
     @Test
     func nativeCallScreen() async throws {
         for (index, preview) in NativeCallScreen_Previews._allPreviews.enumerated() {
+            try await assertSnapshots(matching: preview, step: index)
+        }
+    }
+
+    @Test
+    func notificationPermissionsScreen() async throws {
+        for (index, preview) in NotificationPermissionsScreen_Previews._allPreviews.enumerated() {
             try await assertSnapshots(matching: preview, step: index)
         }
     }
@@ -678,6 +711,13 @@ extension SpiralGatedPreviewTests {
     @Test
     func spiralTabAvatar() async throws {
         for (index, preview) in SpiralTabAvatar_Previews._allPreviews.enumerated() {
+            try await assertSnapshots(matching: preview, step: index)
+        }
+    }
+
+    @Test
+    func spiralWelcomeNoticeView() async throws {
+        for (index, preview) in SpiralWelcomeNoticeView_Previews._allPreviews.enumerated() {
             try await assertSnapshots(matching: preview, step: index)
         }
     }

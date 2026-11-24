@@ -80,16 +80,17 @@ struct ApprovalActionRunnerTests {
         #expect(notificationCenter.addReceivedRequest?.identifier == "agent-platform.approval-paused.appr-1")
     }
 
-    /// Already decided elsewhere: idempotent, nothing to tell.
+    /// Already decided (expired, or answered elsewhere): it leaves the queue, and the owner hears the card is closed —
+    /// a quiet drop read as if this tap had gone through.
     @Test
-    func anAlreadyDecidedApproveIsDroppedQuietly() async {
+    func anAlreadyDecidedApproveLeavesTheQueueAndSaysTheCardIsClosed() async {
         pendingStore.enqueue(approvalID: "appr-1", decision: .approve)
         service.decideApprovalIdDecisionReturnValue = .failure(.conflict(detail: "approval has already been decided"))
 
         await runner.run(approvalID: "appr-1", decision: .approve, userInfo: Self.userInfo, threadIdentifier: nil)
 
         #expect(pendingStore.allPending().isEmpty)
-        #expect(!notificationCenter.addCalled)
+        #expect(notificationCenter.addReceivedRequest?.identifier == "agent-platform.approval-closed.appr-1")
     }
 
     /// Anything else is queued for the next foreground, with a notification
@@ -162,6 +163,36 @@ struct ApprovalActionRunnerTests {
         #expect(!notificationCenter.addCalled)
     }
 
+    // MARK: - A card already closed
+
+    /// A 409 `/errors/conflict`: the card was decided already (it expired, or another device answered). The tap
+    /// decided nothing, so the owner hears the card is closed instead of nothing, which read as done; not queued.
+    @Test
+    func aDecideOfAClosedCardSaysSoAndIsNotQueued() async {
+        service.decideApprovalIdDecisionReturnValue = .failure(.conflict(detail: "already decided"))
+
+        await runner.run(approvalID: "appr-1", decision: .approve, userInfo: Self.userInfo, threadIdentifier: "thread-1")
+
+        #expect(pendingStore.allPending().isEmpty)
+        let request = notificationCenter.addReceivedRequest
+        #expect(request?.identifier == "agent-platform.approval-closed.appr-1")
+        #expect(request?.content.title == Self.strings.closedTitle)
+        #expect(request?.content.body == Self.strings.closedBody)
+        #expect(request?.content.categoryIdentifier.isEmpty == true, "no actions on a closed card")
+        #expect(notificationCenter.removeDeliveredNotificationsWithIdentifiersReceivedIdentifiers == ["agent-platform.approval-failed.appr-1"])
+    }
+
+    @Test
+    func aQueuedDecideOfAClosedCardLeavesTheQueueAndSaysSo() async {
+        pendingStore.enqueue(approvalID: "appr-1", decision: .reject)
+        service.decideApprovalIdDecisionReturnValue = .failure(.conflict(detail: "already decided"))
+
+        await runner.reconcile()
+
+        #expect(pendingStore.allPending().isEmpty)
+        #expect(notificationCenter.addReceivedRequest?.identifier == "agent-platform.approval-closed.appr-1")
+    }
+
     // MARK: - Replayed on the next foreground
 
     /// A queued approve that the platform now refuses leaves the queue and
@@ -202,7 +233,9 @@ struct ApprovalActionRunnerTests {
                                                      notFoundTitle: "Gone",
                                                      notFoundBody: "Nothing was sent",
                                                      agentPausedTitle: "Paused",
-                                                     agentPausedBody: "Resume it")
+                                                     agentPausedBody: "Resume it",
+                                                     closedTitle: "Already closed",
+                                                     closedBody: "Expired or answered")
 
     static let userInfo: [AnyHashable: Any] = [NotificationConstants.UserInfoKey.agentApprovalIdentifier: "appr-1"]
 }

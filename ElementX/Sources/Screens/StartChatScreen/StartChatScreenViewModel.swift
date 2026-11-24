@@ -39,7 +39,9 @@ class StartChatScreenViewModel: StartChatScreenViewModelType, StartChatScreenVie
         setupBindings()
         
         Task {
-            suggestedUsers = await userSession.clientProxy.recentConversationCounterparts()
+            // AGENT-PLATFORM (1.0.3): Suggestions are people only, like the search (operator, 2026-11-19).
+            suggestedUsers = await UserDiscoveryService.peopleOnly(userSession.clientProxy.recentConversationCounterparts(),
+                                                                   clientProxy: userSession.clientProxy)
             
             if state.usersSection.type == .suggestions {
                 state.usersSection = .init(type: .suggestions, users: suggestedUsers)

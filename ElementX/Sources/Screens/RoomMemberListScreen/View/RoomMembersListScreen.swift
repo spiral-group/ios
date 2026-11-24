@@ -29,7 +29,9 @@ struct RoomMembersListScreen: View {
             if context.viewState.shouldShowEmptyState {
                 // AGENT-PLATFORM (Brief 0083, decision 357): a room always has a member, so with no search this is the
                 // first read. It said "No results for “”".
-                if context.searchQuery.isEmpty {
+                if context.searchQuery.isEmpty, context.viewState.hasFailedToLoad {
+                    loadFailedView // AGENT-PLATFORM (1.0.3 B14)
+                } else if context.searchQuery.isEmpty {
                     SpiralPreloader(label: L10n.commonLoading) {
                         SpiralPlaceholderRows(count: 6, leading: .avatar(Avatars.Size.user(on: .roomMembersList).value))
                     }
@@ -131,6 +133,15 @@ struct RoomMembersListScreen: View {
         }
     }
     
+    // AGENT-PLATFORM (1.0.3 B14): the members read failed and there is nobody to show.
+    private var loadFailedView: some View {
+        SpiralEmptyState(symbol: .exclamationmarkCircle,
+                         title: L10n.commonSomethingWentWrong,
+                         message: L10n.commonSomethingWentWrongMessage,
+                         action: .init(L10n.actionRetry) { context.send(viewAction: .retry) })
+            .padding(.top, 40)
+    }
+    
     private var emptySearchView: some View {
         VStack(spacing: 16) {
             BigIcon(icon: \.search, style: .default)
@@ -197,6 +208,7 @@ struct RoomMembersListScreen_Previews: PreviewProvider, TestablePreview {
     static let emptyBannedViewModel = makeViewModel(withBanned: false, isAdmin: false, initialMode: .members)
     static let activeRoomCallViewModel = makeViewModel(hasActiveRoomCall: true, isAdmin: true)
     static let loadingViewModel = makeViewModel(hasMembers: false) // AGENT-PLATFORM (Brief 0083, decision 357)
+    static let failedViewModel = makeViewModel(hasMembers: false, failsToLoad: true) // AGENT-PLATFORM (1.0.3 B14)
     
     static var previews: some View {
         ElementNavigationStack {
@@ -253,6 +265,13 @@ struct RoomMembersListScreen_Previews: PreviewProvider, TestablePreview {
                 .environment(\.spiralPreloaderDelay, .zero)
         }
         .previewDisplayName("Loading")
+        
+        // AGENT-PLATFORM (1.0.3 B14)
+        ElementNavigationStack {
+            RoomMembersListScreen(context: failedViewModel.context)
+        }
+        .snapshotPreferences(expect: failedViewModel.context.$viewState.map(\.hasFailedToLoad))
+        .previewDisplayName("Failed")
     }
     
     static func makeViewModel(hasMembers: Bool = true,
@@ -260,7 +279,8 @@ struct RoomMembersListScreen_Previews: PreviewProvider, TestablePreview {
                               withBanned: Bool = true,
                               hasActiveRoomCall: Bool = false,
                               isAdmin: Bool = false,
-                              initialMode: RoomMembersListScreenMode = .members) -> RoomMembersListScreenViewModel {
+                              initialMode: RoomMembersListScreenMode = .members,
+                              failsToLoad: Bool = false) -> RoomMembersListScreenViewModel {
         let mockAdmin = RoomMemberProxyMock.mockAdmin
         
         let ownUserID = isAdmin ? mockAdmin.userID : RoomMemberProxyMock.mockMe.userID
@@ -307,13 +327,18 @@ struct RoomMembersListScreen_Previews: PreviewProvider, TestablePreview {
             return .success(identity)
         }
         
+        let roomProxy = JoinedRoomProxyMock(.init(name: "Some room",
+                                                  activeRoomCallParticipants: activeRoomCallParticipants,
+                                                  members: members,
+                                                  ownUserID: ownUserID,
+                                                  powerLevelsConfiguration: .init(canUserInvite: false)))
+        if failsToLoad {
+            roomProxy.updateMembersClosure = { .failure(.eventNotFound) }
+        }
+        
         return RoomMembersListScreenViewModel(initialMode: initialMode,
                                               userSession: UserSessionMock(.init(clientProxy: clientProxyMock)),
-                                              roomProxy: JoinedRoomProxyMock(.init(name: "Some room",
-                                                                                   activeRoomCallParticipants: activeRoomCallParticipants,
-                                                                                   members: members,
-                                                                                   ownUserID: ownUserID,
-                                                                                   powerLevelsConfiguration: .init(canUserInvite: false))),
+                                              roomProxy: roomProxy,
                                               userIndicatorController: UserIndicatorControllerMock(),
                                               analytics: AnalyticsServiceMock(.init()))
     }

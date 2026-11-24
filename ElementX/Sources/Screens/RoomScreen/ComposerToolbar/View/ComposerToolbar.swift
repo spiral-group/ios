@@ -429,6 +429,9 @@ struct ComposerToolbar_Previews: PreviewProvider, TestablePreview, SpiralGatedPr
             ComposerToolbar(context: voiceMessageRecordingViewModel.context)
             ComposerToolbar(context: voiceMessagePreviewViewModel.context)
             ComposerToolbar(context: voiceMessageUploadingViewModel.context)
+                // AGENT-PLATFORM: the upload's spinner, still. A spinning one is a new frame on every render through
+                // the key window, so the snapshot never settled.
+                .progressViewStyle(StillSpinnerStyle())
                 .padding(.bottom)
             
             ComposerToolbar(context: disabledViewModel.context)
@@ -438,9 +441,11 @@ struct ComposerToolbar_Previews: PreviewProvider, TestablePreview, SpiralGatedPr
         }
         
         // Putting them in a VStack allows the completion suggestion preview to work properly in tests
+        // AGENT-PLATFORM: the floating card alone. Stacked over a toolbar, iOS 27's image renderer stops the preview
+        // host («accessing attribute in a different namespace»), so every later step went unrendered; the toolbar
+        // under it drew as the plain one above anyway — the card floats over the bar, outside it.
         VStack(spacing: 8) {
             ComposerToolbar(context: suggestionsViewModel.context).floatingSuggestions
-            ComposerToolbar(context: suggestionsViewModel.context)
         }
         .previewDisplayName("With Suggestions")
         
@@ -463,4 +468,22 @@ struct ComposerToolbar_Previews: PreviewProvider, TestablePreview, SpiralGatedPr
         }
         .previewDisplayName("Formatting")
     }
+}
+
+/// AGENT-PLATFORM: the system's spinner, not spinning: one frame of it, the same on every render, for a snapshot.
+private struct StillSpinnerStyle: ProgressViewStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        StillActivityIndicator()
+    }
+}
+
+private struct StillActivityIndicator: UIViewRepresentable {
+    func makeUIView(context: Context) -> UIActivityIndicatorView {
+        let indicator = UIActivityIndicatorView(style: .medium)
+        indicator.hidesWhenStopped = false
+        indicator.stopAnimating()
+        return indicator
+    }
+
+    func updateUIView(_ indicator: UIActivityIndicatorView, context: Context) { }
 }

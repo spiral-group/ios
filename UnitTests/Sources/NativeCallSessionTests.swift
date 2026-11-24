@@ -1196,6 +1196,57 @@ extension NativeCallSessionTests {
         #expect(await session.languages() == ["@bob:matrix.org": "zh-Hans"])
     }
 
+    /// A peer switching «Я говорю» mid-call changes only their membership's language: the roster stays equal, and
+    /// the screen is told on its own, or this phone kept the old language until someone spoke or muted.
+    @Test
+    func aLanguageOnlyMembershipChangeIsTold() async throws {
+        let updates = PassthroughSubject<MatrixRTCSessionUpdate, Never>()
+        let rtcSession = makeRTCSession()
+        rtcSession.underlyingUpdates = updates.eraseToAnyPublisher()
+        let session = NativeCallSession(rtcSession: rtcSession,
+                                        isRoomEncrypted: false,
+                                        notifyRoom: false,
+                                        configuration: .init(media: .audio, scope: .group),
+                                        transport: makeTransport())
+        let delegate = DelegateSpy()
+        session.delegate = delegate
+
+        updates.send(.participantsChanged([.init(userID: "@bob:matrix.org", deviceID: "BOB", identity: "@bob:matrix.org:BOB", language: "uk")]))
+        try await waitUntil { delegate.rosterChanges == 1 }
+        #expect(delegate.languageChanges == 0, "a new roster is told as one")
+
+        updates.send(.participantsChanged([.init(userID: "@bob:matrix.org", deviceID: "BOB", identity: "@bob:matrix.org:BOB", language: "en")]))
+        try await waitUntil { delegate.languageChanges == 1 }
+        #expect(delegate.rosterChanges == 1)
+        #expect(await session.languages() == ["@bob:matrix.org": "en"])
+
+        updates.send(.participantsChanged([.init(userID: "@bob:matrix.org", deviceID: "BOB", identity: "@bob:matrix.org:BOB", language: "en")]))
+        try await Task.sleep(for: .milliseconds(50))
+        #expect(delegate.languageChanges == 1, "the same language says nothing")
+    }
+
+    /// DEBT B6: with two live memberships the newest can't be told (no timestamp over the FFI), so a person's
+    /// memberships count only when they agree. A stale one with a language beside a live one without (or with
+    /// another) reads as undetermined — never «already speaks» from the stale one. This device's own membership wins.
+    @Test
+    func aPersonsDisagreeingMembershipsReadAsNoLanguage() {
+        let memberships: [MatrixRTCParticipant] = [.init(userID: "@bob:matrix.org", deviceID: "IPAD", identity: "@bob:matrix.org:IPAD", language: "uk"),
+                                                   .init(userID: "@bob:matrix.org", deviceID: "PHONE", identity: "@bob:matrix.org:PHONE"),
+                                                   .init(userID: "@carol:matrix.org", deviceID: "IPAD", identity: "@carol:matrix.org:IPAD", language: "uk"),
+                                                   .init(userID: "@carol:matrix.org", deviceID: "PHONE", identity: "@carol:matrix.org:PHONE", language: "en"),
+                                                   .init(userID: "@dave:matrix.org", deviceID: "IPAD", identity: "@dave:matrix.org:IPAD", language: "pt-BR"),
+                                                   .init(userID: "@dave:matrix.org", deviceID: "PHONE", identity: "@dave:matrix.org:PHONE", language: "pt-BR"),
+                                                   .init(userID: "@alice:matrix.org", deviceID: "IPAD", identity: "@alice:matrix.org:IPAD", language: "en"),
+                                                   .init(userID: "@alice:matrix.org", deviceID: "PHONE", identity: "@alice:matrix.org:PHONE", language: "uk")]
+
+        let languages = NativeCallSession.membershipLanguages(memberships, ownIdentity: "@alice:matrix.org:PHONE")
+
+        #expect(languages == ["@bob:matrix.org": NativeCallLanguageCode.undetermined,
+                              "@carol:matrix.org": NativeCallLanguageCode.undetermined,
+                              "@dave:matrix.org": "pt-BR",
+                              "@alice:matrix.org": "uk"])
+    }
+
     /// Another device of the same user in the call is somebody: this device
     /// joins without a ring.
     @Test
@@ -1324,6 +1375,170 @@ extension NativeCallSessionTests {
     }
 }
 
+// MARK: - A join that finds its SFU room closed (bug B3)
+
+extension NativeCallSessionTests {
+    /// Staging, rc.15: the last participant left, lk-jwt handed the next
+    /// caller a token for the existing room, LiveKit closed that room 170 ms
+    /// later and refused the join with a 404. The call failed; a redial
+    /// worked. Now the start fetches a fresh token and joins once more —
+    /// without a second membership or a second ring.
+    @Test
+    func aClosedSFURoomIsJoinedOnceMoreWithAFreshToken() async throws {
+        let rtcSession = makeRTCSession()
+        let url = try #require(URL(string: "wss://rtc.example.org"))
+        rtcSession.transportCredentialsClosure = { [rtcSession] in
+            let token = rtcSession.transportCredentialsCallsCount == 1 ? "stale" : "fresh"
+            return .success(.init(url: url, token: token, identity: "@alice:matrix.org:DEVICE"))
+        }
+        let transport = makeTransport()
+        transport.connectUrlTokenClosure = { _, token in
+            if token == "stale" { throw NativeCallTransportError.roomNotFound("HTTP 404: requested room does not exist") }
+        }
+        let session = NativeCallSession(rtcSession: rtcSession,
+                                        isRoomEncrypted: false,
+                                        notifyRoom: true,
+                                        configuration: .init(media: .audio, scope: .group),
+                                        transport: transport)
+
+        await session.start()
+
+        #expect(session.state == .connected)
+        #expect(transport.connectUrlTokenReceivedInvocations.map(\.token) == ["stale", "fresh"])
+        #expect(rtcSession.transportCredentialsCallsCount == 2)
+        #expect(rtcSession.joinEncryptMediaNotificationMediaLanguageCallsCount == 1, "the membership is published once")
+        #expect(rtcSession.rtcNotificationEventIDCallsCount == 1, "the room rings once")
+        #expect(transport.setMicrophoneEnabledCallsCount == 1)
+        await session.stop()
+    }
+
+    /// One retry, not a loop: a room that is still gone fails the call.
+    @Test
+    func aSecondClosedRoomFailsTheCall() async {
+        let rtcSession = makeRTCSession()
+        let transport = makeTransport()
+        transport.connectUrlTokenClosure = { _, _ in throw NativeCallTransportError.roomNotFound("HTTP 404") }
+        let session = NativeCallSession(rtcSession: rtcSession,
+                                        isRoomEncrypted: false,
+                                        notifyRoom: false,
+                                        configuration: .init(media: .audio, scope: .group),
+                                        transport: transport)
+
+        await session.start()
+
+        #expect(session.state == .ended(reason: .failed(.couldNotConnect)))
+        #expect(transport.connectUrlTokenCallsCount == 2)
+        #expect(rtcSession.transportCredentialsCallsCount == 2)
+        #expect(rtcSession.leaveCallsCount == 1)
+    }
+
+    /// An auth refusal (401/403 arrive as LiveKit `.validation`) or any other
+    /// failure is not a closed room: no fresh token, no second connect.
+    @Test(arguments: ["HTTP 401: invalid token", "HTTP 403: permission denied", "Network error"])
+    func otherConnectFailuresAreNotRetried(_ detail: String) async {
+        let rtcSession = makeRTCSession()
+        let transport = makeTransport()
+        transport.connectUrlTokenClosure = { _, _ in throw NativeCallTransportError.connectionFailed(detail) }
+        let session = NativeCallSession(rtcSession: rtcSession,
+                                        isRoomEncrypted: false,
+                                        notifyRoom: false,
+                                        configuration: .init(media: .audio, scope: .group),
+                                        transport: transport)
+
+        await session.start()
+
+        #expect(session.state == .ended(reason: .failed(.couldNotConnect)))
+        #expect(transport.connectUrlTokenCallsCount == 1)
+        #expect(rtcSession.transportCredentialsCallsCount == 1)
+    }
+
+    /// The user hangs up while the retry fetches its token: the retry stops
+    /// there and never reaches the SFU.
+    @Test
+    func hangUpWhileTheRetryFetchesItsTokenStopsIt() async throws {
+        let rtcSession = makeRTCSession()
+        let credentials = try #require(rtcSession.transportCredentialsReturnValue)
+        let gate = Gate()
+        rtcSession.transportCredentialsClosure = { [rtcSession] in
+            if rtcSession.transportCredentialsCallsCount > 1 { await gate.wait() }
+            return credentials
+        }
+        let transport = makeTransport()
+        transport.connectUrlTokenClosure = { _, _ in throw NativeCallTransportError.roomNotFound("HTTP 404") }
+        let session = NativeCallSession(rtcSession: rtcSession,
+                                        isRoomEncrypted: false,
+                                        notifyRoom: false,
+                                        configuration: .init(media: .audio, scope: .group),
+                                        transport: transport)
+
+        let startTask = Task { await session.start() }
+        try await waitUntil { rtcSession.transportCredentialsCallsCount == 2 }
+        await session.stop()
+        gate.open()
+        await startTask.value
+
+        #expect(session.state == .ended(reason: .userHungUp))
+        #expect(transport.connectUrlTokenCallsCount == 1, "a hung-up call must not reach the SFU again")
+    }
+
+    /// The user hangs up while the retry's connect is in flight: the late
+    /// connection is put back and no microphone is published.
+    @Test
+    func hangUpDuringTheRetryConnectDisconnectsIt() async throws {
+        let transport = makeTransport()
+        let gate = Gate()
+        transport.connectUrlTokenClosure = { [transport] _, _ in
+            if transport.connectUrlTokenCallsCount == 1 { throw NativeCallTransportError.roomNotFound("HTTP 404") }
+            await gate.wait()
+        }
+        let session = NativeCallSession(rtcSession: makeRTCSession(),
+                                        isRoomEncrypted: false,
+                                        notifyRoom: false,
+                                        configuration: .init(media: .audio, scope: .group),
+                                        transport: transport)
+
+        let startTask = Task { await session.start() }
+        try await waitUntil { transport.connectUrlTokenCallsCount == 2 }
+        await session.stop()
+        gate.open()
+        await startTask.value
+
+        #expect(session.state == .ended(reason: .userHungUp))
+        #expect(transport.setMicrophoneEnabledCallsCount == 0)
+        #expect(transport.disconnectCallsCount == 1, "the retry's late connection is its own to put back")
+    }
+}
+
+/// Which LiveKit connect errors count as a closed room (bug B3). The SDK
+/// maps the validate endpoint's 404 alone to `.serviceNotFound`.
+struct LiveKitConnectFailureTests {
+    @Test(arguments: [LiveKitErrorType.serviceNotFound, .roomDeleted])
+    func aMissingRoomIsRetryable(_ type: LiveKitErrorType) {
+        let failure = LiveKitCallTransport.connectFailure(for: LiveKitError(type, message: "HTTP 404: requested room does not exist"))
+        guard case .roomNotFound = failure else {
+            Issue.record("expected roomNotFound, got \(failure)")
+            return
+        }
+    }
+
+    @Test(arguments: [LiveKitErrorType.validation, .network, .timedOut, .unknown])
+    func otherLiveKitFailuresAreNot(_ type: LiveKitErrorType) {
+        let failure = LiveKitCallTransport.connectFailure(for: LiveKitError(type, message: "HTTP 401: invalid token"))
+        guard case .connectionFailed = failure else {
+            Issue.record("expected connectionFailed, got \(failure)")
+            return
+        }
+    }
+
+    @Test
+    func aNonLiveKitErrorIsNot() {
+        guard case .connectionFailed = LiveKitCallTransport.connectFailure(for: URLError(.notConnectedToInternet)) else {
+            Issue.record("expected connectionFailed")
+            return
+        }
+    }
+}
+
 /// A manually-opened suspension point for scripting "the call ended while
 /// this step was in flight".
 private final class Gate: @unchecked Sendable {
@@ -1355,12 +1570,21 @@ private final class Gate: @unchecked Sendable {
 @MainActor
 private final class DelegateSpy: NativeCallSessionDelegate {
     private(set) var states: [NativeCallSessionState] = []
+    private(set) var rosterChanges = 0
+    private(set) var languageChanges = 0
 
     func nativeCallSession(_ session: NativeCallSession, didChangeState state: NativeCallSessionState) {
         states.append(state)
     }
 
-    func nativeCallSession(_ session: NativeCallSession, didChangeParticipants participants: [NativeCallParticipant]) { }
+    func nativeCallSession(_ session: NativeCallSession, didChangeParticipants participants: [NativeCallParticipant]) {
+        rosterChanges += 1
+    }
+
+    func nativeCallSessionDidChangeParticipantLanguages(_ session: NativeCallSession) {
+        languageChanges += 1
+    }
+
     func nativeCallSession(_ session: NativeCallSession, didSendRingNotification eventID: String) { }
     func nativeCallSession(_ session: NativeCallSession, didChangeListening listening: NativeCallListeningState) { }
     func nativeCallSession(_ session: NativeCallSession, didChangeVideoTiles tiles: [NativeCallVideoTile]) { }

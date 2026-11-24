@@ -113,10 +113,24 @@ struct RoomHeaderTypingTests {
         #expect(L10n.commonMemberCount(4) == "4 участника")
         #expect(L10n.commonMemberCount(5) == "5 участников")
         #expect(L10n.commonMemberCount(22) == "22 участника")
+        // Upstream's own Polish: «członków» after every number but 1, 22 included.
         Bundle.overrideLocalizations = ["pl"]
-        #expect(L10n.commonMemberCount(3) == "3 członkowie")
+        #expect(L10n.commonMemberCount(1) == "1 członek")
+        #expect(L10n.commonMemberCount(3) == "3 członków")
+        #expect(L10n.commonMemberCount(22) == "22 członków")
         Bundle.overrideLocalizations = ["uk"]
         #expect(L10n.commonMemberCount(4) == "4 учасники")
+        // AGENT-PLATFORM (1.0.3): Spiral's overrides of upstream's plural, each where upstream's read wrong.
+        Bundle.overrideLocalizations = ["tr"]
+        #expect(L10n.commonMemberCount(5) == "5 üye")
+        Bundle.overrideLocalizations = ["uz"]
+        #expect(L10n.commonMemberCount(5) == "5 a'zo")
+        Bundle.overrideLocalizations = ["ka"]
+        #expect(L10n.commonMemberCount(5) == "5 წევრი")
+        Bundle.overrideLocalizations = ["ar"]
+        #expect(L10n.commonMemberCount(2) == "عضوان")
+        #expect(L10n.commonMemberCount(5) == "5 أعضاء")
+        #expect(L10n.commonMemberCount(11) == "11 عضوًا")
     }
     
     @Test(arguments: [["Alex Sample"], ["Alex Sample", "Mira Testova", "Bob"]])

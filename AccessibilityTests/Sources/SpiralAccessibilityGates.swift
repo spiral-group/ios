@@ -24,6 +24,8 @@ extension AccessibilityTests {
         var isContrastRecheck = false
         /// Where the navigation bars end, as the first audit read them: the recheck's, for contrast triage J.
         var headerBottom: CGFloat?
+        /// The app's scroll views that can't scroll, on the screen: the recheck's, for contrast triage L.
+        var fixedScrollViewFrames: [CGRect] = []
 
         var contrastRecheck: Audit {
             Audit(appearance: appearance, types: .contrast, isContrastRecheck: true)
@@ -59,6 +61,19 @@ extension AccessibilityTests {
         static func emptyState(_ title: String) -> KnownFailure {
             KnownFailure(description: "Contrast failed", elementType: .staticText, elementLabel: title)
         }
+        
+        /// White on the start screen's light blue, kept by the operator (`knownFailures`, 2026-11-20).
+        static func startScreenBlue(_ label: String, _ elementType: XCUIElement.ElementType = .staticText, nearlyPassed: Bool = false) -> KnownFailure {
+            KnownFailure(description: nearlyPassed ? "Contrast nearly passed" : "Contrast failed", elementType: elementType, elementLabel: label)
+        }
+    }
+    
+    /// The start screen's slide, brand and frosted button on the blue, in every light state.
+    private static func startScreenBlueFailures(frostedButton: String, invitation: [KnownFailure] = []) -> [ExpectedFailure] {
+        ([KnownFailure.startScreenBlue("Spiral"),
+          .startScreenBlue("Your conversations are yours"),
+          .startScreenBlue("End-to-end encryption. No phone number, and your assistant only with your permission"),
+          .startScreenBlue(frostedButton, .button)] + invitation).map { .knownContrast($0) }
     }
 
     /// Known failures that wait for a later fix, by state and appearance: the failures the state must have, in the audit
@@ -77,18 +92,8 @@ extension AccessibilityTests {
         // colours by the app's light traits rather than the window's dark, as the selected Agents glyph is light-mode blue
         // (#2A61CF) there too. Whether a phone in dark mode shows them right is step 8's check (DEBT). Strict.
         "ApprovalDetailScreen_Previews-In the Agents tab (dark)": [.badgeContrast(in: "tab bar", label: "Agents"),
-                                                                    .unreadableBarElement(in: "tab bar", label: "Chats"),
-                                                                    .unreadableBarElement(in: "tab bar", label: "Feed")],
-        // A false failure: on the audit's iPhone 17 the list's bottom edge, just above the decision bar, cuts the cold
-        // outreach's "Expires" row through its glyphs, and the audit judges the visible third of the letters; the text
-        // colour passes, and the row scrolls into view. Only that label's "Contrast failed", in this state's recheck;
-        // any other contrast issue here still fails. Strict: once the row isn't cut (a layout or sample change), the
-        // state stops failing and the test fails, so whoever changed it removes these entries.
-        // DEBT: the audit judges a list row cut by the list's edge; Brief 0083 slice.
-        "ApprovalDetailScreen_Previews-Cold outreach (light)":
-            [.knownContrast(KnownFailure(description: "Contrast failed", elementType: .staticText, elementLabel: "Expires"))],
-        "ApprovalDetailScreen_Previews-Cold outreach (dark)":
-            [.knownContrast(KnownFailure(description: "Contrast failed", elementType: .staticText, elementLabel: "Expires"))],
+                                                                   .unreadableBarElement(in: "tab bar", label: "Chats"),
+                                                                   .unreadableBarElement(in: "tab bar", label: "Feed")],
         // Must-fail states for contrast triage K (`SpiralGatesPixelFixture`): small text at about 4:1 on the Mist, a square
         // button whose label is text at 4.05:1, and 17 pt text with «(» and «Ї» at 3.55:1. Apple's audit fails each, and the
         // runner's reading of their pixels must not rescue any (Opus review, 2026-11-14). Apple's audit calls each "Contrast
@@ -126,10 +131,29 @@ extension AccessibilityTests {
         // no one background (read by its extreme it is #FFFFFF on #8C75B4, 3.95:1, in light). The audit's screenshots
         // show the title and the Peek clear in both appearances. DEBT (end stage 2026-11-14): teach the reader a
         // capsule's avatar.
+        // The start screen keeps the 1.0.2 App Store blue (#6C9BF4 → #2E62DE): the operator decided on 2026-11-20 to leave
+        // it as it is («Лишай як є») after seeing the numbers. In light, the white slide text, the brand name, the frosted
+        // button and the invitation's lines read 2.8–3.5:1 by the audit's pixels (the slide's top is the lightest); dark
+        // passes, and Increase Contrast deepens the blue (its colour sets). Strict, each on its label: if the blue or the
+        // layout changes, the state stops failing there and the test fails, so the entry goes.
+        "AuthenticationStartScreen_Previews-Default (light)": startScreenBlueFailures(frostedButton: "Create account"),
+        "AuthenticationStartScreen_Previews-Invited (light)": startScreenBlueFailures(frostedButton: "Sign in", invitation: [
+            .startScreenBlue("Alice invited you to Spiral", nearlyPassed: true),
+            .startScreenBlue("Create an account and Alice will know you're here")
+        ]),
+        "AuthenticationStartScreen_Previews-Invited by a campaign (light)": startScreenBlueFailures(frostedButton: "Sign in", invitation: [
+            .startScreenBlue("You were invited to Spiral", nearlyPassed: true),
+            .startScreenBlue("Create an account to join.")
+        ]),
         "RoomScreen_Previews-Assistant DM (light)": [.unreadableBarElement(in: "navigation bar", label: "App Review · assistant"),
                                                      .unreadableBarElement(in: "navigation bar", label: "spiral.peek.fill")],
         "RoomScreen_Previews-Assistant DM (dark)": [.unreadableBarElement(in: "navigation bar", label: "App Review · assistant"),
-                                                    .unreadableBarElement(in: "navigation bar", label: "spiral.peek.fill")]
+                                                    .unreadableBarElement(in: "navigation bar", label: "spiral.peek.fill")],
+        // 1.0.3 A2: the assistant's chat before consent has the same capsule header as its chat, so the same misread.
+        "JoinRoomAssistantInviteView_Previews-Own assistant (light)": [.unreadableBarElement(in: "navigation bar", label: "Your assistant"),
+                                                                       .unreadableBarElement(in: "navigation bar", label: "spiral.peek.fill")],
+        "JoinRoomAssistantInviteView_Previews-Own assistant (dark)": [.unreadableBarElement(in: "navigation bar", label: "Your assistant"),
+                                                                      .unreadableBarElement(in: "navigation bar", label: "spiral.peek.fill")]
     ]
     /// The must-fail states the current launch showed, and those whose contrast recheck hasn't run yet.
     private static var mustFailStatesShown = Set<String>()
@@ -260,11 +284,12 @@ extension AccessibilityTests {
     }
 
     /// Whether Spiral's audit leaves a contrast issue out (Brief 0083): a colour emoji's own colours (contrast triage H),
-    /// text its list has scrolled out of sight (I) or its header cuts (J), or an inactive control (B), each
-    /// printed as an `A11Y EXEMPT` line for a review to check. It needs the issue's element: on iOS 27 only the recheck's
+    /// text its list has scrolled out of sight (I), its header cuts (J) or its list's bottom edge cuts (L), or an
+    /// inactive control (B), each printed as an `A11Y EXEMPT` line for a review to check. It needs the issue's element: on iOS 27 only the recheck's
     /// contrast issues carry one, so the first audit holds these too and the recheck names them.
     static func isExemptContrastIssue(_ issue: XCUIAccessibilityAuditIssue, in app: XCUIApplication, previewNamed name: String,
-                                      headerBottom: CGFloat? = nil, readsOwnPixels: Bool = false) -> Bool {
+                                      headerBottom: CGFloat? = nil, fixedScrollViewFrames: [CGRect] = [],
+                                      readsOwnPixels: Bool = false) -> Bool {
         guard issue.auditType == .contrast, let element = issue.element else { return false }
 
         let cause: String
@@ -274,6 +299,8 @@ extension AccessibilityTests {
             cause = "I (scrolled out of sight)"
         } else if let headerBottom, isCutByHeader(element, headerBottom: headerBottom, previewNamed: name, in: app) {
             cause = "J (cut by the header)"
+        } else if let shown = shownAboveListBottom(element, fixedScrollViewFrames: fixedScrollViewFrames, in: app) {
+            cause = String(format: "L (cut by its list's bottom edge, %.0f%% of it shows)", shown * 100)
         } else if element.elementType == .button, !element.isEnabled {
             // WCAG 1.4.3 exempts an inactive control. The app covers the ones it finds for the recheck
             // (`SpiralContrastExemptions`), and this is the same rule for one it can't cover: the runner reads the
@@ -358,6 +385,39 @@ extension AccessibilityTests {
         return list.hasDescendant { !$0.frame.isClose(to: frame) && !$0.frame.isEmpty && $0.frame.minY < headerBottom }
     }
     
+    /// Text that its own list's bottom edge cuts through its glyphs (contrast triage L): a row the list has half scrolled
+    /// into view, such as a cold outreach's "Expires" just above ApprovalDetailScreen's decision bar (1.0.3 carry-over).
+    /// The audit measures only the visible strip of the letters and calls it faint (1.23:1), though the text colour
+    /// passes; the row scrolls into clear view. All of:
+    /// - it is static text, never a button, an image or an avatar;
+    /// - its nearest scroll container is a list (a table or a collection view: SwiftUI's `List` and `Form`), not a
+    ///   plain scroll view, which may draw what crosses its edge whole (`scrollClipDisabled`);
+    /// - that list can scroll (the app reports the ones that can't, such as a list under `scrollDisabled`);
+    /// - the list's bottom edge runs through it, and less than half of its height shows above the edge: the audit read
+    ///   too little of it to judge, while text that mostly shows stays audited;
+    /// - it is no taller than `cutRowMaxHeight`: a row's title or value, never a paragraph whose top lines show whole.
+    /// Text wholly inside the list stays audited, and wholly outside it is triage I.
+    /// - Returns: The share of the element's height that shows, or `nil` when it isn't such a row.
+    private static func shownAboveListBottom(_ element: XCUIElement, fixedScrollViewFrames: [CGRect], in app: XCUIApplication) -> CGFloat? {
+        let frame = element.frame
+        guard element.elementType == .staticText,
+              frame.height <= cutRowMaxHeight,
+              let root = try? app.snapshot(),
+              let list = root.list(holding: element.elementType, label: element.label, frame: frame, nearestList: nil),
+              [.table, .collectionView].contains(list.elementType) else {
+            return nil
+        }
+        let bottom = list.frame.maxY
+        let shown = bottom - frame.minY
+        guard shown > 0, shown < frame.height / 2 else { return nil }
+        // A list that can't scroll: the app's frame for it ends where the list does and holds the element's top.
+        let isFixed = fixedScrollViewFrames.contains { abs($0.maxY - bottom) < 2 && $0.minY <= frame.minY && $0.minX <= frame.midX && $0.maxX >= frame.midX }
+        return isFixed ? nil : shown / frame.height
+    }
+
+    /// The tallest element triage L takes for a cut row's text: two lines of body text at the default size.
+    private static let cutRowMaxHeight: CGFloat = 48
+
     /// Upstream ignores every issue without an element as a false positive. A contrast or clipping
     /// issue on SwiftUI text often has none (its detail names a `SwiftUI.AccessibilityNode`), and
     /// ignoring it would let the gate pass on a real failure, so those count and are printed here.

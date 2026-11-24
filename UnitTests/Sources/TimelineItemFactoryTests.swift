@@ -668,3 +668,55 @@ struct TimelineItemFactoryTests {
         return try #require(factory.buildTimelineItem(for: proxy, isDM: true) as? TextRoomTimelineItem, "Incorrect item type")
     }
 }
+
+// AGENT-PLATFORM: what stands in for a message — reply quotes, thread summaries, the pinned banner.
+extension TimelineItemFactoryTests {
+    /// A quoted notice reads as one only from an agent, as the row does.
+    @Test
+    func aQuotedNoticeReadsAsANoticeOnlyFromAnAgent() throws {
+        let factory = RoomTimelineItemFactory(userID: "@alice:spiral.md",
+                                              attributedStringBuilder: AttributedStringBuilder(mentionBuilder: MentionBuilder()),
+                                              stateEventStringBuilder: RoomStateEventStringBuilder(userID: "@alice:spiral.md"))
+        let data = #"{"com.spiral.notice":{"kind":"phrase_changed","device_name":"iPhone"}}"#
+        let notice = try #require(SpiralNotice(msgtype: SpiralNotice.msgtype, data: data))
+        let quoted = MessageType.other(msgtype: SpiralNotice.msgtype, body: "fallback", data: data)
+        
+        guard case .text(let fromAgent) = factory.buildMessageTimelineItemContent(messageType: quoted, senderID: "@assistant-bob:spiral.md", senderDisplayName: nil),
+              case .text(let fromPerson) = factory.buildMessageTimelineItemContent(messageType: quoted, senderID: "@mallory:spiral.md", senderDisplayName: nil) else {
+            Issue.record("a quoted notice stopped being text")
+            return
+        }
+        #expect(fromAgent.body == notice.plainText)
+        #expect(fromPerson.body == "fallback")
+    }
+    
+    /// The quote and the thread stand-in title a template's post as its card does, in the reader's language.
+    @Test
+    func aQuotedTemplatePostReadsInTheReadersLanguage() throws {
+        let suite = "TimelineItemFactoryTests-\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let index = """
+        {"runtime":"1","sections":[],"items":[{"id":"tug-of-war","title":"Перетягування каната","titles":{"en":"Tug of war"},
+         "description":"","aspect":"1:1","source":"tug-of-war/app.jsx","manifest":"tug-of-war/manifest.json"}]}
+        """
+        let titles = SpiralAppTemplateTitles(defaults: defaults)
+        try titles.store(JSONDecoder().decode(SpiralAppCatalog.self, from: Data(index.utf8)))
+        let factory = RoomTimelineItemFactory(userID: "@alice:spiral.md",
+                                              attributedStringBuilder: AttributedStringBuilder(mentionBuilder: MentionBuilder()),
+                                              stateEventStringBuilder: RoomStateEventStringBuilder(userID: "@alice:spiral.md"),
+                                              templateTitles: titles)
+        let post = MessageType.interactivePost(content: .init(body: "", appId: "tpl-tug-of-war", runtime: "1", title: "Перетягування каната",
+                                                              aspect: "1:1", stateChannel: "matrix", sha256: String(repeating: "a", count: 64),
+                                                              url: "mxc://spiral.md/abc", fileJson: nil))
+        let readerTitle = try #require(titles.title(forAppID: "tpl-tug-of-war"))
+        
+        #expect(factory.buildEventContent(messageType: post, senderID: "@bob:spiral.md", senderDisplayName: nil) == .interactivePost(title: readerTitle))
+        guard case .text(let pinned) = factory.buildMessageTimelineItemContent(messageType: post, senderID: "@bob:spiral.md", senderDisplayName: nil) else {
+            Issue.record("a quoted post stopped being text")
+            return
+        }
+        #expect(pinned.body == readerTitle)
+        #expect(readerTitle == "Tug of war", "the test simulator reads English")
+    }
+}

@@ -368,6 +368,37 @@ struct ApprovalDetailScreenViewModelTests {
         try await finalised.fulfill()
     }
 
+    /// A 409 `/errors/conflict` on decide means the card was already decided: it
+    /// expired, or another device answered it. It showed a generic error and kept
+    /// the card open; now it says so, and OK leaves it.
+    @Test(arguments: [ApprovalDecision.approve, .reject])
+    func aDecideOfAClosedCardSaysSoAndLeavesTheCard(decision: ApprovalDecision) async throws {
+        let service = AgentPlatformServiceMock()
+        service.fetchApprovalIdReturnValue = .success(Self.genericFixture)
+        service.decideApprovalIdDecisionReturnValue = .failure(.conflict(detail: "already decided"))
+        let viewModel = ApprovalDetailScreenViewModel(approvalID: "appr-1", agentPlatformService: service, clientProxy: ClientProxyMock(.init()))
+        let loaded = deferFulfillment(viewModel.context.observe(\.viewState.loadState)) {
+            if case .loaded = $0 { return true }
+            return false
+        }
+        viewModel.context.send(viewAction: .appeared)
+        try await loaded.fulfill()
+
+        let alerted = deferFulfillment(viewModel.context.observe(\.viewState.bindings.alertInfo?.id)) { $0 != nil }
+        viewModel.context.send(viewAction: decision == .approve ? .approve : .reject)
+        try await alerted.fulfill()
+
+        let alert = viewModel.context.viewState.bindings.alertInfo
+        #expect(alert?.id == .alreadyClosed)
+        #expect(alert?.title == UntranslatedL10n.screenApprovalDetailAlreadyClosedTitle)
+        let finalised = deferFulfillment(viewModel.actionsPublisher) { action in
+            if case .decisionFinalised = action { return true }
+            return false
+        }
+        alert?.primaryButton.action?()
+        try await finalised.fulfill()
+    }
+
     /// A card opened after it was deleted (its person erased; a push, a stale
     /// list) has nothing to retry: it says so, and OK leaves it.
     @Test

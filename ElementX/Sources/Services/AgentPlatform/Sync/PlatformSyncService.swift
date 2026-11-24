@@ -21,9 +21,14 @@ protocol PlatformSyncServiceProtocol {
 
 final class PlatformSyncService: PlatformSyncServiceProtocol {
     private let client: AgentPlatformClient
+    /// The app's language, sent with the stream as the feed's reads send it, so what the stream
+    /// carries in words can be in it. Explicit, as the ephemeral session would send the device's list, or nothing.
+    private let language: String?
 
-    init(client: AgentPlatformClient) {
+    /// - Parameter language: the reader's language, the app's own unless a test says otherwise.
+    init(client: AgentPlatformClient, language: String? = FeedAppLanguage.current) {
         self.client = client
+        self.language = language
     }
 
     func open(since position: String?) async -> Result<PlatformSyncEventStream, PlatformSyncError> {
@@ -39,7 +44,8 @@ final class PlatformSyncService: PlatformSyncServiceProtocol {
     /// `since` and `Last-Event-ID`, the same position: the header wins on the server.
     private func request(since position: String?) async -> Result<PlatformSyncEventStream, PlatformSyncError> {
         do {
-            switch try await client.underlying.getSync(.init(query: .init(since: position), headers: .init(lastEventID: position))) {
+            switch try await client.underlying.getSync(.init(query: .init(since: position),
+                                                             headers: .init(lastEventID: position, acceptLanguage: language))) {
             case .ok(let ok):
                 return try .success(Self.events(from: ok.body.textEventStream))
             case .badRequest:
@@ -60,10 +66,11 @@ final class PlatformSyncService: PlatformSyncServiceProtocol {
             // The app went to the background during the open: that closed it on purpose.
             if Self.isCancellation(error) {
                 MXLog.debug("The sync stream's open was cancelled")
-            } else {
-                MXLog.error("The sync stream failed in transport: \(type(of: error))")
+                return .failure(.transport)
             }
-            return .failure(.transport)
+            let failure = PlatformSyncError(thrown: error)
+            MXLog.error("The sync stream failed in transport: \(type(of: error)), \(failure)")
+            return .failure(failure)
         }
     }
 
@@ -109,11 +116,35 @@ final class PlatformSyncService: PlatformSyncServiceProtocol {
         if let body = payload.body, let data = try? await Data(collecting: body, upTo: 64 * 1024) {
             problemType = (try? JSONDecoder().decode(Problem.self, from: data))?.type
         }
-        // Any other 404 (a proxy) is retried.
+        // Any other 404 (a proxy) is a refusal, not a backend without sync.
         return problemType == FeedError.routeNotFoundType ? .unavailable : .server(status: 404)
     }
 
     private struct Problem: Decodable {
         let type: String?
     }
+}
+
+extension PlatformSyncError {
+    /// What a thrown error says of the connection, also inside the generated client's wrapper:
+    /// only a network that is not there is `transport` ("No connection").
+    nonisolated init(thrown error: any Error) {
+        switch error {
+        case let error as ClientError:
+            self.init(thrown: error.underlyingError)
+        case let error as URLError where Self.offlineCodes.contains(error.code):
+            self = .transport
+        case let error as URLError where Self.certificateCodes.contains(error.code):
+            self = .untrustedServer
+        default:
+            self = .badResponse
+        }
+    }
+
+    private nonisolated static let offlineCodes: Set<URLError.Code> = [.notConnectedToInternet, .networkConnectionLost, .timedOut,
+                                                                       .cannotFindHost, .cannotConnectToHost, .dnsLookupFailed,
+                                                                       .internationalRoamingOff, .callIsActive, .dataNotAllowed]
+    private nonisolated static let certificateCodes: Set<URLError.Code> = [.serverCertificateUntrusted, .serverCertificateHasBadDate,
+                                                                           .serverCertificateHasUnknownRoot, .serverCertificateNotYetValid,
+                                                                           .clientCertificateRejected, .clientCertificateRequired]
 }

@@ -315,7 +315,116 @@ struct RoomMembersListScreenViewModelTests {
         try await deferred.fulfill()
     }
     
+    // MARK: - Failed reads (AGENT-PLATFORM, 1.0.3 B14)
+    
+    @Test
+    mutating func failedReadOffersRetry() async throws {
+        setup(members: []) { .failure(.eventNotFound) }
+        
+        try await waitUntil { context.viewState.hasFailedToLoad }
+        
+        #expect(context.viewState.hasFailedToLoad)
+        #expect(context.viewState.shouldShowEmptyState)
+    }
+    
+    @Test
+    mutating func retryReadsAgainAndSuccessClearsTheFailure() async throws {
+        let members = CurrentValueSubject<[RoomMemberProxyProtocol], Never>([])
+        setup(members: [], membersSubject: members) { .failure(.eventNotFound) }
+        try await waitUntil { context.viewState.hasFailedToLoad }
+        // Let the screen's other first reads (the power levels' sink) finish failing too.
+        try await Task.sleep(for: .milliseconds(100))
+        let readsBeforeRetry = roomProxy.updateMembersCallsCount
+        
+        roomProxy.updateMembersClosure = {
+            members.send([RoomMemberProxyMock.mockAlice, RoomMemberProxyMock.mockBob])
+            return .success(())
+        }
+        context.send(viewAction: .retry)
+        
+        try await waitUntil { context.viewState.visibleJoinedMembers.count == 2 }
+        #expect(roomProxy.updateMembersCallsCount == readsBeforeRetry + 1)
+        #expect(!context.viewState.hasFailedToLoad)
+        #expect(!context.viewState.shouldShowEmptyState)
+    }
+    
+    @Test
+    mutating func retryThatFailsAgainStaysFailed() async throws {
+        setup(members: []) { .failure(.eventNotFound) }
+        try await waitUntil { context.viewState.hasFailedToLoad }
+        try await Task.sleep(for: .milliseconds(100))
+        let readsBeforeRetry = roomProxy.updateMembersCallsCount
+        
+        context.send(viewAction: .retry)
+        // Retry shows the preloader again until the read answers.
+        #expect(!context.viewState.hasFailedToLoad)
+        
+        try await waitUntil { context.viewState.hasFailedToLoad }
+        #expect(roomProxy.updateMembersCallsCount == readsBeforeRetry + 1)
+    }
+    
+    @Test
+    mutating func failedReadWithCachedMembersShowsThemNotTheFailure() async throws {
+        // Offline: the disk read has the members, the server read fails before their rows are built.
+        setup(members: [.mockAlice, .mockBob]) { .failure(.eventNotFound) }
+        var sawFailure = context.viewState.hasFailedToLoad
+        let cancellable = context.$viewState.sink { if $0.hasFailedToLoad { sawFailure = true } }
+        
+        try await waitUntil { context.viewState.visibleJoinedMembers.count == 2 }
+        try await Task.sleep(for: .milliseconds(100))
+        
+        #expect(!sawFailure)
+        #expect(!context.viewState.hasFailedToLoad)
+        cancellable.cancel()
+    }
+    
+    @Test
+    mutating func membersArrivingAfterAFailureKeepItForTheEmptySearch() async throws {
+        let members = CurrentValueSubject<[RoomMemberProxyProtocol], Never>([])
+        setup(members: [], membersSubject: members) { .failure(.eventNotFound) }
+        try await waitUntil { context.viewState.hasFailedToLoad }
+        
+        members.send([RoomMemberProxyMock.mockAlice])
+        
+        try await waitUntil { context.viewState.visibleJoinedMembers.count == 1 }
+        #expect(context.viewState.hasFailedToLoad)
+    }
+    
+    @Test
+    mutating func anOlderReadDoesNotOverrideANewerOne() async throws {
+        setup(members: [])
+        try await Task.sleep(for: .milliseconds(100))
+        #expect(!context.viewState.hasFailedToLoad)
+        
+        let readsBefore = roomProxy.updateMembersCallsCount
+        let reads = ReadCounter()
+        roomProxy.updateMembersClosure = {
+            // The first read is slow and fails; the next one answers at once.
+            if await reads.next() == 1 {
+                try? await Task.sleep(for: .milliseconds(300))
+                return .failure(.eventNotFound)
+            }
+            return .success(())
+        }
+        context.send(viewAction: .retry)
+        try await waitUntil { roomProxy.updateMembersCallsCount == readsBefore + 1 }
+        context.send(viewAction: .retry)
+        
+        try await Task.sleep(for: .milliseconds(500))
+        #expect(await reads.count == 2)
+        #expect(!context.viewState.hasFailedToLoad)
+    }
+    
     // MARK: - Helpers
+    
+    private actor ReadCounter {
+        private(set) var count = 0
+        
+        func next() -> Int {
+            count += 1
+            return count
+        }
+    }
     
     // MARK: - Presence (AGENT-PLATFORM, Brief 0072, ADR-0083)
     
@@ -392,8 +501,16 @@ struct RoomMembersListScreenViewModelTests {
     
     private mutating func setup(members: [RoomMemberProxyMock],
                                 activeRoomCallParticipants: [String] = [],
-                                presenceObserverService: PresenceObserverServiceProtocol? = nil) {
+                                presenceObserverService: PresenceObserverServiceProtocol? = nil,
+                                membersSubject: CurrentValueSubject<[RoomMemberProxyProtocol], Never>? = nil,
+                                updateMembers: (() async -> Result<Void, RoomProxyError>)? = nil) {
         roomProxy = JoinedRoomProxyMock(.init(name: "test", activeRoomCallParticipants: activeRoomCallParticipants, members: members))
+        if let membersSubject {
+            roomProxy.membersPublisher = membersSubject.asCurrentValuePublisher()
+        }
+        if let updateMembers {
+            roomProxy.updateMembersClosure = updateMembers
+        }
         let userSession = UserSessionMock(.init())
         userSession.presenceObserverService = presenceObserverService
         viewModel = RoomMembersListScreenViewModel(userSession: userSession,

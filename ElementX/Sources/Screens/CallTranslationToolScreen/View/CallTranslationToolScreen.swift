@@ -134,7 +134,7 @@ struct CallTranslationToolScreen_Previews: PreviewProvider, TestablePreview {
         CallTranslationToolScreenViewModel(service: PreviewService(tool: tool),
                                            myLanguageStore: NativeCallMyLanguageStore(defaults: UserDefaults(suiteName: "CallTranslationToolPreview") ?? .standard) { "uk_UA" },
                                            cachedCatalog: PreviewService.catalog,
-                                           agentDisplayName: "Andrii Sample · assistant")
+                                           agentDisplayName: "Alice Sample · assistant")
     }
 
     private final class PreviewService: CallTranslationToolServiceProtocol {

@@ -65,6 +65,9 @@
 "screen_agent_edit_persona_greeting" = "Zuretzako agurra";
 "screen_agent_edit_persona_visitor_greeting" = "Gonbidatuentzako agurra";
 "screen_agent_edit_failure" = "Ezin izan dira aldaketak gorde";
+"error_agent_name_reserved" = "Izen hau Spiral-en kontuetarako gordeta dago. Aukeratu beste izen bat.";
+"error_agent_name_invalid_characters" = "Izenak erabili ezin diren karaktereak ditu.";
+"error_agent_name_unchecked" = "Ezin izan da izena egiaztatu. Saiatu berriro.";
 "screen_agent_edit_load_failure" = "Ezin izan da edizio-formularioa kargatu";
 "screen_agent_edit_avatar_failure" = "Ezin izan da argazkia igo";
 "action_agent_activity" = "Jarduera";
@@ -250,7 +253,6 @@
 "screen_language_picker_title" = "Hizkuntza";
 "screen_language_picker_empty" = "Ez dago zure bilaketarekin bat datorren hizkuntzarik.";
 "screen_start_sign_in" = "Hasi saioa";
-"screen_start_welcome_subtitle" = "Mezularitza azkarra eta pribatua zure agente pertsonalarekin.";
 
 // AGENT-PLATFORM (Brief 0072, ADR-0083, ADR-0084): presence, worded as Telegram does
 "common_presence_online" = "linean";
@@ -491,6 +493,16 @@
 "screen_native_call_assistants_record_confirm_title" = "Deia grabatu?";
 "screen_native_call_assistants_record_confirm_message" = "Denek ikusten dute REC deiaren goialdean. Grabazioa txatean agertuko da deiaren ondoren.";
 "screen_native_call_assistants_record_confirm_action" = "Grabatu";
+"screen_native_call_assistants_notes_confirm_title" = "Deiaren oharrak hartu?";
+"screen_native_call_assistants_notes_confirm_message" = "Zure laguntzaileak deia entzuten du, eta ondoren laburpen bat argitaratzen du txatean. Besteek ikusten dute oharrak hartzen ari dela.";
+"screen_native_call_assistants_notes_confirm_action" = "Hartu oharrak";
+"screen_native_call_assistants_talk_confirm_title" = "Zure laguntzailearekin hitz egin?";
+"screen_native_call_assistants_talk_confirm_message" = "Zu bakarrik entzuten zaitu eta ozen erantzuten du — deiko denek entzuten dute.";
+"screen_native_call_assistants_talk_confirm_action" = "Hasi hitz egiten";
+"screen_native_call_assistants_translate_question_title" = "Xede-hizkuntza";
+"screen_native_call_assistants_listen_question_title" = "Entzuteko hizkuntza";
+"screen_native_call_assistants_talk_info_title" = "Zure laguntzaileak ozen erantzuten du";
+"screen_native_call_assistants_talk_info_message" = "Zu bakarrik entzuten zaitu, eta deiko denek entzuten dute. Hitz egiten duen bitartean ez da itzulpenik.";
 "screen_native_call_assistants_none_of_your_own" = "Ez duzu laguntzailerik";
 "screen_native_call_assistants_which" = "Zein laguntzaile";
 "screen_native_call_assistants_reason_paused" = "Zure laguntzailea pausatuta dago";
@@ -571,7 +583,6 @@
 "screen_native_call_assistants_job_conversation" = "Hitz egin";
 "screen_native_call_assistants_translating" = "Itzultzen → %1$@";
 "screen_native_call_assistants_stop_translation" = "Gelditu itzulpena";
-"screen_native_call_assistants_talk_caption" = "Ozen erantzuten dizu, eta denek entzuten dute. Hitz egiten duen bitartean ez da itzulpenik.";
 "screen_native_call_assistants_pick_footer" = "Txat honetarako gogoratuta";
 "screen_native_call_assistants_neighbour_language" = "Ondoan duzun pertsonaren hizkuntza";
 "screen_native_call_assistants_pocket_detail" = "Esaldi bakoitzaren ondoren · bi norabideetan";
@@ -591,10 +602,9 @@
 "screen_native_call_assistants_status_both_ways" = "Bi norabideetan itzultzen";
 "screen_native_call_assistants_translate_into" = "Xede-hizkuntza";
 "screen_native_call_assistants_translate_into_detail" = "Deia hizkuntza honetan entzuten duzu";
+"screen_native_call_assistants_translate_into_language" = "Xede-hizkuntza: %1$@";
 "screen_native_call_assistants_in_call" = "Deian";
 "screen_native_call_assistants_in_call_more" = "Deian: beste %1$d";
-"screen_native_call_assistants_new_translation" = "Itzulpen berria";
-"screen_native_call_assistants_new_translation_detail" = "Zure laguntzaileak deia itzuliko du";
 "screen_native_call_assistants_new_translation_others" = "Zure laguntzaileak itzultzen ditu: %1$@. Besteak dagoeneko itzultzen ari dira, doan.";
 "screen_native_call_assistants_start_translation" = "Hasi itzulpena";
 "screen_native_call_assistants_start_translation_detail" = "Zure muga erabiltzen du. Hizkuntza hau aukeratzen duenak doan entzuten du.";
@@ -1044,7 +1054,6 @@
 "notice_phrase_changed_title" = "Saio-hasierako esaldia aldatu da";
 "a11y_message_read" = "Irakurrita";
 "screen_legal_information_source_code_spiral" = "Iturburu-kodea";
-"screen_invite_people_seats_label" = "Geratzen diren gonbidapenak";
 "screen_native_call_tile_not_joined" = "Ez zara sartu";
 "screen_agent_settings_show_in_search_footer" = "Jendeak bilaketan aurki dezakeen ala ez. Bere helbidea duen edonork idatz diezaioke hala ere.";
 "screen_agent_edit_tone_calm" = "Lasaia";
@@ -1056,7 +1065,6 @@
 "screen_room_interactive_draft_published" = "Argitaratuta";
 "screen_agent_activity_reason_visitor_policy_reply" = "Berehala erantzutea baimendu duzu";
 "screen_agent_in_room_no_tools" = "Oraindik ez dago tresnarik txat honetan.";
-"notice_welcome_assistant_body" = "%1$@ naiz, zure laguntzaile pertsonala. Kanpoan zaudenean mezuak helaraz ditzaket, zure kontaktuak gogoratu eta gelak laburbildu. Gela batean nire tresnak pizteko, sakatu + han eta aukeratu Agenteak. Idatzi niri modu naturalean — hemen nago.";
 "screen_room_interactive_post_pick_agent_title" = "Nork eraiki behar du?";
 "screen_agent_settings_visitor_ask_first_description" = "Pertsona berri batek itxaron egiten du zuk onartu arte";
 "screen_ai_consent_prompt_failed" = "Ezin izan da zure aukera gorde. Egiaztatu konexioa eta saiatu berriro.";
@@ -1086,10 +1094,8 @@
 "screen_agent_activity_reason_block_needs_owner" = "Blokeatzeko zure baimena behar da";
 "screen_create_company_title" = "Enpresa berria";
 "a11y_native_call_disable_speaker" = "Desgaitu bozgorailua";
-"screen_invite_paste_placeholder" = "spiral.md/join/…";
 "a11y_native_call_end" = "Amaitu deia";
 "screen_agent_activity_action_published_post" = "Argitalpen bat argitaratu du";
-"screen_invite_people_joined_footer" = "Zure estekaren bidez kontua sortu duten pertsonak. Sakatu txat bat hasteko.";
 "screen_arm_tool_turn_off_confirm_message" = "Agenteak txat honetan hau egiteari utziko dio guztientzat. Edozein unetan piz dezakezu berriro.";
 "spiral_app_card_line_by" = "Egilea: %1$@";
 "state_event_spiral_tool_language_changed_by_you" = "«Itzuli» aldatu duzu: %1$@ → %2$@";
@@ -1114,7 +1120,6 @@
 "screen_native_call_agent_block_recording" = "Grabatzen";
 "screen_native_call_control_video" = "Bideoa";
 "screen_agent_detail_pause" = "Eten";
-"screen_invite_paste_expired" = "Gonbidapen hau ez da baliozkoa jada. Eskatu berri bat.";
 "screen_security_messages_section" = "Mezuak";
 "screen_agent_activity_reason_relationship_unavailable" = "Ezin izan da kontaktua egiaztatu";
 "screen_ai_consent_prompt_allow" = "Baimendu";
@@ -1144,15 +1149,12 @@
 "state_event_spiral_tool_off_by_system" = "%1$@ itzali da %2$@(r)entzat";
 "a11y_native_call_swap_to_held_call" = "Aldatu %@(r)ekin duzun deira";
 "screen_native_call_audio_route_iphone" = "iPhone";
-"screen_invite_people_seats_value" = "%1$d / %2$d";
 "screen_agent_activity_reason_first_contact_with_unknown_visitor" = "Norbait berriren lehen mezua";
 "screen_deactivate_account_spiral_list_item_3" = "Ezabatu zure kontuaren datuak gure identitate-zerbitzaritik.";
 "a11y_native_call_bar" = "%1$@(r)ekin deia abian. Sakatu itzultzeko.";
-"screen_invite_paste_unavailable" = "Ezin izan da gonbidapena egiaztatu. Saiatu berriro.";
 "screen_agent_activity_action_read_call_summary" = "Deiaren laburpen bat irakurri du";
 "screen_ai_consent_prompt_title" = "Hirugarrenen AA baimendu?";
 "screen_agent_edit_voice_language_footer" = "Laguntzaileak beti hitz egiten duzun hizkuntzan erantzuten du. Honek zehazten du nola entzuten dituen deiak eta zein den deien laburpenen hizkuntza.";
-"screen_invite_welcome_title" = "Ongi etorri Spiralera";
 "screen_agent_activity_reason_blocked_visitor" = "Blokeatutako pertsona";
 "screen_deactivate_account_spiral_list_item_1_bold_part" = "Ezgaitu betiko";
 "screen_native_call_agent_center_recording_live" = "Grabatzen…";
@@ -1220,7 +1222,6 @@
 "screen_deactivate_account_spiral_failed" = "Ezin izan da kontua ezabatu. Saiatu berriro minutu bat barru.";
 "screen_agent_activity_action_changed_call_mode" = "Dei batean parte hartzeko modua aldatu du";
 "a11y_native_call_unmute_microphone" = "Aktibatu mikrofonoa";
-"screen_invite_paste_label" = "Esteka edo kodea";
 "screen_media_viewer_position" = "%1$d / %2$d";
 "screen_native_call_status_reconnecting_detail" = "Zure konexioa eten da";
 "screen_approval_detail_block_blocked_subtitle" = "Zure agenteak ez die jaramonik egingo haren mezuei hemendik aurrera.";
@@ -1256,6 +1257,13 @@
 "screen_agent_activity_reason_no_contact_relationship" = "Ez da zure kontaktuetako bat";
 "screen_room_alias_link_not_found" = "Esteka honek ez darama inongo txatera.";
 "screen_invite_people_title" = "Gonbidatu Spiralera";
+"screen_invite_people_you" = "Zu";
+"screen_invite_people_invited_count" = "%2$d-tik %1$d gonbidatuta";
+"screen_invite_people_invited_you" = "Spiral-era gonbidatu zaitu";
+"screen_invite_people_seat_invite" = "Gonbidatu";
+"screen_invite_people_seat_taken" = "Hartuta";
+"screen_invite_people_chain_footer" = "Esteka bat %1$d pertsonentzat, eta ez da berritzen. Sakatu pertsona bat haren profila irekitzeko.";
+"screen_invite_people_all_used" = "Gonbidapen guztiak erabili dira";
 "screen_approval_detail_escalation_cold_outreach" = "Zure agenteak norbaiti lehen aldiz idatzi nahi dio.";
 "screen_start_invited_by" = "%1$@(e)k Spiralera gonbidatu zaitu";
 "screen_agent_spaces_section_retry" = "Sakatu berriro saiatzeko.";
@@ -1263,7 +1271,6 @@
 "screen_settings_new_phrase_done" = "Saio-hasierako esaldia aldatu da";
 "screen_agent_activity_reason_outside_conversation" = "Elkarrizketa honetatik kanpo";
 "a11y_native_call_switch_camera" = "Aldatu kamera";
-"screen_invite_people_joined" = "Zure gonbidapenaren bidez sartuak: %1$d";
 "screen_agent_activity_action_searched_agents" = "Agenteak bilatu ditu";
 "screen_agent_activity_reason_strategy_no_op" = "Ez dago ezer egiteko";
 "action_dismiss_visitor_message" = "Kendu";
@@ -1272,7 +1279,6 @@
 "screen_approval_detail_block_action_dont_block" = "Ez blokeatu";
 "screen_agent_settings_people_title" = "Jendearekin hitz egitea";
 "screen_native_call_agent_center_error_not_owner" = "Saio honen jabeak bakarrik alda dezake.";
-"notice_welcome_agent_body" = "%1$@ prest dago. Idatzi niri, besterik ez.";
 "screen_agent_detail_already_in_chat" = "Agentea dagoeneko txat honetan dago";
 "screen_native_call_agent_center_booth_members" = "%1$@ → %2$@";
 "screen_settings_devices_title" = "Gailuak eta saioak";
@@ -1290,7 +1296,6 @@
 "screen_agent_activity_action_remembered" = "Kontaktu bati buruzko zerbait gogoratu du";
 "screen_room_interactive_post_link_needs_update" = "Argitalpen honek Spiralen bertsio berriago bat behar du. Eguneratu aplikazioa erabiltzeko.";
 "screen_room_member_details_erase_assistant_memory" = "Ezabatu nire laguntzaileek hari buruz dakitena";
-"screen_invite_paste_without" = "Jarraitu gonbidapenik gabe";
 "screen_agent_edit_tone_friendly" = "Atsegina";
 "screen_room_interactive_post_update" = "Eguneratu argitalpena";
 "screen_agent_detail_archive_refused" = "Zure laguntzaile pertsonala zure kontuarekin geratzen da eta ezin da artxibatu.";
@@ -1307,9 +1312,7 @@
 "screen_native_call_agent_center_talking" = "Laguntzailea hizketan ari da";
 "screen_native_call_tile_call_back" = "Sakatu berriro deitzeko";
 "notice_reply_failed_body" = "Zerbait gaizki atera da nire aldetik. Bidali berriro, mesedez.";
-"screen_invite_people_joined_title" = "Zure gonbidapenaren bidez sartuak";
 "screen_native_call_status_connecting_detail" = "Zifratzea konfiguratzen";
-"screen_invite_paste_title" = "Gonbidapenik baduzu?";
 "screen_edit_profile_bio_too_long" = "Biografiak gehienez %1$d karaktere izan ditzake. Laburtu gordetzeko.";
 "a11y_native_call_agent_block_role" = "%1$@, %2$@";
 "a11y_native_call_recording" = "Dei hau grabatzen ari dira";
@@ -1322,12 +1325,25 @@
 "screen_agent_spaces_assistant_pending" = "Zure laguntzailea prestatzen ari gara oraindik";
 "screen_room_member_details_erase_assistant_memory_alert_title" = "Ezabatu zure laguntzaileek %1$@(r)i buruz dakitena?";
 "screen_settings_new_phrase_failed" = "Ezin izan da esaldiaren aldaketa hasi. Saiatu berriro.";
+/* AGENT-PLATFORM (1.0.3): sign-in methods — the first phrase for an account made with Apple, Sign in with Apple for a phrase account. */
+"screen_settings_add_phrase_title" = "Gehitu saio-hasierako esaldia";
+"screen_settings_add_phrase_message" = "12 hitz aukeratuko dituzu. Zure kontua edozein gailutan irekitzen dute, Hasi saioa Apple-rekin aukeraz gain. Gailu honetan saioa hasita jarraituko duzu, eta zure mezuei ez zaie eragingo.";
+"screen_settings_add_phrase_auth_reason" = "Berretsi zu zarela saio-hasierako esaldia gehitzeko";
+"screen_settings_add_phrase_done" = "Saio-hasierako esaldia gehitu da";
+"screen_settings_add_phrase_failed" = "Ezin izan da esaldia gehitzen hasi. Saiatu berriro.";
+"screen_settings_sign_in_passcode_required" = "Ezarri gailuaren pasakodea lehenik — zure saioa hasteko moduak babesten ditu";
+"screen_settings_apple_title" = "Hasi saioa Apple-rekin";
+"screen_settings_apple_connected" = "Konektatuta";
+"screen_settings_apple_add_title" = "Gehitu Hasi saioa Apple-rekin";
+"screen_settings_apple_auth_reason" = "Berretsi zu zarela Hasi saioa Apple-rekin gehitzeko";
+"screen_settings_apple_linked" = "Hasi saioa Apple-rekin gehitu da";
+"screen_settings_apple_taken" = "Apple ID hau beste Spiral kontu batek erabiltzen du dagoeneko";
+"screen_settings_apple_failed" = "Ezin izan da Hasi saioa Apple-rekin gehitzen hasi. Saiatu berriro.";
 "screen_deactivate_account_spiral_description" = "Zure kontua ezabatzea %1$@. Honakoa eragingo du:";
 "screen_agent_activity_action_set_reminder" = "Oroigarri bat ezarri du";
 "screen_agent_activity_action_cancelled_reminder" = "Oroigarri bat bertan behera utzi du";
 "screen_agent_activity_reason_capability_always_allowed" = "Beti baimenduta";
 "screen_agent_activity_action_blocked_someone" = "Norbait blokeatu du";
-"screen_invite_paste_message" = "Itsatsi Spiral erabiltzaile batek bidali dizun esteka, edo idatzi kodea.";
 "screen_native_call_error_title" = "Deiak huts egin du";
 "notification_approval_action_not_found_title" = "Eskaera hau ez dago jada";
 "state_event_spiral_tool_changed_by_you" = "%1$@ aldatu duzu";
@@ -1354,7 +1370,6 @@
 "screen_native_call_control_sound" = "Soinua";
 "screen_native_call_status_reconnecting" = "Berriro konektatzen…";
 "notice_phrase_changed_body" = "Esaldi zaharrarekin ezin da saioa hasi jada.";
-"screen_invite_people_seats_footer" = "Pertsona bakoitzak esteka bakarra du, %1$d tokirekin. Ez da berritzen; beraz, parteka ezazu benetan hemen nahi dituzun pertsonekin.";
 "screen_room_member_details_agent_unblock_action" = "Desblokeatu";
 "screen_agent_activity_reason_unknown_capability" = "Ez da egin dezakeen zerbait";
 "screen_settings_new_phrase_passcode_required" = "Ezarri gailuaren pasakodea lehenik — esaldiaren aldaketa babesten du";
@@ -1426,10 +1441,11 @@
 "screen_your_data_calls_footer" = "Esportatu dei bat: bere transkripzioa, laburpena eta baimen-erregistroa.";
 "screen_arm_tool_error_agent_does_not_join_calls" = "Agente hau ez da deietara sartzen, beraz dei-tresnak ez daude erabilgarri harentzat.";
 "screen_room_interactive_generating_hint" = "Normalean minutu bat baino gutxiago";
-"screen_invite_paste_exhausted" = "Gonbidapen honek baimentzen zituen guztiak sartu dira jada. Eskatu berri bat.";
 "notice_phrase_changed_on_device" = "«%1$@» gailuan aldatua.";
+/* AGENT-PLATFORM (1.0.3): the owner-DM card when Sign in with Apple is added. It names no device (security review); a new phrase disconnects Apple. */
+"notice_apple_linked_title" = "Hasi saioa Apple-rekin gehitu da";
+"notice_apple_linked_body" = "Ez bazara zu izan, aldatu saio-hasierako esaldia: horrek Apple deskonektatzen du.";
 "screen_ai_consent_prompt_openai" = "OpenAI: laguntzaileek irakurtzen dituzten mezuak, haiekin dituzun deietako zure ahotsa eta transkribatzen dituzten grabazioak.";
-"screen_invite_welcome_message" = "%1$@(e)k gonbidatu zaitu eta badaki hemen zaudela. Agurtu!";
 "screen_agent_activity_action_used_tool" = "Tresna bat erabili du mezu batean";
 "screen_approval_detail_escalation_first_contact" = "Norbaitek lehen aldiz idatzi dio zure agenteari, beraz zuri galdetzen dizu erantzun aurretik.";
 "screen_agent_activity_action_drafted_post" = "Argitalpen baten zirriborroa egin du";
@@ -1444,7 +1460,6 @@
 "screen_room_interactive_post_updated" = "Argitalpena eguneratu da";
 "screen_native_call_camera_failed_message" = "Ezin izan da kamera abiarazi, beraz deiak audioarekin jarraituko du. Saiatu berriro kamera-botoiarekin une batean.";
 "screen_media_viewer_open" = "Ireki";
-"screen_invite_paste_invalid" = "Ez dago horrelako gonbidapenik.";
 "screen_agent_room_tool_audience_except_named" = "guztientzat, %1$@ izan ezik";
 "notification_spiral_needs_update_body" = "Eguneratu aplikazioa hau ikusteko.";
 "screen_agent_edit_tone_brief" = "Labur eta zuzen";
@@ -1452,7 +1467,6 @@
 "screen_invite_people_seats_left" = "%2$d gonbidapenetatik %1$d geratzen dira";
 "screen_agent_activity_reason_wrong_room_kind" = "Ez dago baimenduta txat mota honetan";
 "screen_native_call_failure_audio_reset" = "Sistemak deiaren audioa berrezarri du.";
-"screen_invite_people_body" = "Izen-ematea gonbidapen bidez egiten da. Partekatu zure esteka pertsonala — haren bidez kontua sortzen duen edonork zu ikusiko zaitu lehenik.";
 "notification_approval_action_target_blocked_title" = "Ez da bidali — pertsona hau blokeatu duzu";
 "screen_notifications_hub_visitor_other" = "Zerbait berria";
 "screen_agent_activity_empty_pending_title" = "Ez dago erabakitzeko eskaerarik";
@@ -1476,3 +1490,61 @@
 "screen_notifications_hub_visitors_section" = "Jendearengandik";
 "screen_agent_settings_visitor_reply_description" = "Denei erantzuten die, zuk blokeatutako pertsonei izan ezik";
 "screen_deactivate_account_spiral_auth_reason" = "Berretsi zu zarela zure kontua ezabatzeko";
+
+// AGENT-PLATFORM (1.0.3 A2): the assistant's first invite in Chats, its chat before consent and its welcome.
+"screen_roomlist_assistant_invite_name" = "Zure laguntzailea";
+"screen_roomlist_assistant_invite_subtitle" = "Kaixo! Sakatu hasteko 👋";
+"screen_roomlist_assistant_invite_start" = "Hasi";
+"a11y_assistant_invite_start" = "Hasi elkarrizketa zure laguntzailearekin";
+"a11y_assistant_invite_start_hint" = "Zure laguntzailearen gonbidapena onartzen du eta harekin duzun txata irekitzen du.";
+"screen_assistant_invite_title" = "Kaixo! Zure laguntzailea naiz";
+"screen_assistant_invite_reminders" = "Gauzak gogoraraziko dizkizut";
+"screen_assistant_invite_contacts" = "Zure kontaktuak gogoratuko ditut";
+"screen_assistant_invite_summaries" = "Edozein txat laburtuko dut";
+"screen_assistant_invite_privacy" = "Elkarrizketa hau bakarrik ikusten dut. Nahi duzunean desaktiba nazakezu.";
+"screen_assistant_invite_start" = "Hasi elkarrizketa";
+"notice_welcome_body" = "Hemen nago laguntzeko prest. Nondik hasiko gara?";
+"notice_welcome_starter_summary" = "Laburtu txat bat";
+"notice_welcome_starter_summary_message" = "Laburtu txat bat niretzat";
+"notice_welcome_starter_contact" = "Gogoratu kontaktu bat";
+"notice_welcome_starter_contact_message" = "Gogoratu zerbait nire kontaktu bati buruz";
+"notice_welcome_starter_reminder" = "Gogorarazi…";
+"notice_welcome_starter_reminder_message" = "Jarri oroigarri bat";
+"notice_welcome_allow_ai_reason" = "Baimendu AA hemen idazten duzuna irakur dezadan.";
+"notice_welcome_allow_ai_action" = "Baimendu AA";
+
+// AGENT-PLATFORM (1.0.3 onboarding): the start screen's stories, the notifications prompt and the invited welcome.
+"screen_start_slide_privacy_title" = "Zure elkarrizketak zureak dira";
+"screen_start_slide_privacy_subtitle" = "Muturretik muturrerako zifratzea. Telefono-zenbakirik gabe, eta laguntzailea zure baimenarekin bakarrik";
+"screen_start_slide_calls_title" = "Deiak itzulpenarekin";
+"screen_start_slide_calls_subtitle" = "Laguntzailea deira batzen da eta zuzenean itzultzen du";
+"screen_start_slide_assistant_title" = "Laguntzailea eskura";
+"screen_start_slide_assistant_subtitle" = "Lanpetuta zaudenean erantzuten du, eta urrats berri bakoitzaren aurretik galdetzen dizu";
+"screen_start_slide_games_title" = "Jolastu elkarrekin txatean bertan";
+"screen_start_slide_games_subtitle" = "Jokoak eta tresnak, ezer instalatu gabe";
+"screen_start_invited_by_hint" = "Sortu kontu bat, eta %1$@ jakinaren gainean egongo da";
+"a11y_start_slides_position" = "%1$d/%2$d diapositiba";
+"screen_notification_optin_spiral_title" = "Egon harremanetan";
+"screen_notification_optin_spiral_subtitle" = "Zerbait benetan garrantzitsua denean, Spiral-en jakinarazpena jasoko duzu. Ezarpenetan alda dezakezu edonoiz.";
+"screen_notification_optin_messages_title" = "Mezu berriak";
+"screen_notification_optin_messages_subtitle" = "Hitz egiten duzun pertsona eta taldeenak";
+"screen_notification_optin_calls_title" = "Sarrerako deiak";
+"screen_notification_optin_calls_subtitle" = "Spiral itxita dagoenean ere";
+"screen_notification_optin_assistant_title" = "Zure laguntzailearen galderak";
+"screen_notification_optin_assistant_subtitle" = "Zure baimena behar duenean";
+"screen_notification_optin_allow" = "Baimendu jakinarazpenak";
+"screen_invite_welcome_together_title" = "Zu eta %1$@ elkarrekin zaudete Spiral-en";
+"screen_invite_welcome_step_say_hello_title" = "Agurtu %1$@";
+"screen_invite_welcome_step_say_hello_subtitle" = "%1$@ zain dago";
+"screen_invite_welcome_step_assistant_title" = "Ezagutu zure laguntzailea";
+"screen_invite_welcome_step_assistant_subtitle" = "Haren gonbidapena Txatak atalean dago zain";
+"screen_invite_welcome_step_play_title" = "Egin jolasen bat elkarrekin";
+"screen_invite_welcome_step_play_subtitle" = "Jokoak eta tresnak txatean bertan";
+"a11y_invite_welcome_avatars" = "%1$@ eta zu";
+"screen_approval_detail_already_closed_title" = "Eskaera hau itxita dago jada";
+"screen_approval_detail_already_closed_message" = "Iraungi egin da edo erantzun zaio jada.";
+"screen_room_interactive_post_description_not_sent" = "Zure deskribapena ez da bidali. Bidali berriro harian.";
+"screen_room_interactive_post_code_not_sent" = "Argitalpena ez da agentera iritsi. Saiatu berriro argitalpenetik.";
+"screen_invites_assistant_decline_warning_spiral" = "Zure laguntzailea bada, ezin izango da haren txata berreskuratu baztertu ondoren.";
+"a11y_roomlist_remove_filter" = "Kendu iragazkia: %1$@";
+"a11y_settings_share_profile" = "Partekatu nire profila";

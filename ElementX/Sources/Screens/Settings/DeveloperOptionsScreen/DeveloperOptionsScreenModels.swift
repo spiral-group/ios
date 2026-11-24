@@ -68,8 +68,6 @@ protocol DeveloperOptionsProtocol: AnyObject {
     var jumpToReadMarkerEnabled: Bool { get set }
     
     var linkNewDeviceEnabled: Bool { get set }
-    // AGENT-PLATFORM (ADR-0008).
-    var registrationRequiresInvite: Bool { get set }
     var qrCodeLoginEnabled: Bool { get set }
     
     var viewSourceEnabled: Bool { get set } // AGENT-PLATFORM (decision 188): moved here from Advanced settings.

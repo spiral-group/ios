@@ -65,6 +65,9 @@
 "screen_agent_edit_persona_greeting" = "Χαιρετισμός για σένα";
 "screen_agent_edit_persona_visitor_greeting" = "Χαιρετισμός για επισκέπτες";
 "screen_agent_edit_failure" = "Δεν ήταν δυνατή η αποθήκευση των αλλαγών";
+"error_agent_name_reserved" = "Αυτό το όνομα είναι δεσμευμένο για τους λογαριασμούς του ίδιου του Spiral. Επίλεξε άλλο όνομα.";
+"error_agent_name_invalid_characters" = "Το όνομα περιέχει χαρακτήρες που δεν μπορούν να χρησιμοποιηθούν.";
+"error_agent_name_unchecked" = "Δεν ήταν δυνατός ο έλεγχος του ονόματος. Δοκίμασε ξανά.";
 "screen_agent_edit_load_failure" = "Δεν ήταν δυνατή η φόρτωση της φόρμας επεξεργασίας";
 "screen_agent_edit_avatar_failure" = "Δεν ήταν δυνατή η μεταφόρτωση της φωτογραφίας";
 "action_agent_activity" = "Δραστηριότητα";
@@ -250,7 +253,6 @@
 "screen_language_picker_title" = "Γλώσσα";
 "screen_language_picker_empty" = "Καμία γλώσσα δεν ταιριάζει με την αναζήτησή σου.";
 "screen_start_sign_in" = "Σύνδεση";
-"screen_start_welcome_subtitle" = "Γρήγορη, ιδιωτική ανταλλαγή μηνυμάτων με τον προσωπικό σου πράκτορα.";
 
 // AGENT-PLATFORM (Brief 0072, ADR-0083, ADR-0084): presence, worded as Telegram does
 "common_presence_online" = "σε σύνδεση";
@@ -491,6 +493,16 @@
 "screen_native_call_assistants_record_confirm_title" = "Εγγραφή της κλήσης;";
 "screen_native_call_assistants_record_confirm_message" = "Όλοι βλέπουν το REC στο πάνω μέρος της κλήσης. Η εγγραφή εμφανίζεται στη συνομιλία μετά την κλήση.";
 "screen_native_call_assistants_record_confirm_action" = "Εγγραφή";
+"screen_native_call_assistants_notes_confirm_title" = "Λήψη σημειώσεων της κλήσης;";
+"screen_native_call_assistants_notes_confirm_message" = "Ο βοηθός σας ακούει την κλήση και μετά δημοσιεύει μια σύνοψη στη συνομιλία. Οι άλλοι βλέπουν ότι κρατά σημειώσεις.";
+"screen_native_call_assistants_notes_confirm_action" = "Λήψη σημειώσεων";
+"screen_native_call_assistants_talk_confirm_title" = "Συζήτηση με τον βοηθό σας;";
+"screen_native_call_assistants_talk_confirm_message" = "Ακούει μόνο εσάς και απαντά φωναχτά — τον ακούν όλοι στην κλήση.";
+"screen_native_call_assistants_talk_confirm_action" = "Έναρξη συζήτησης";
+"screen_native_call_assistants_translate_question_title" = "Μετάφραση σε";
+"screen_native_call_assistants_listen_question_title" = "Ακρόαση";
+"screen_native_call_assistants_talk_info_title" = "Ο βοηθός σας απαντά φωναχτά";
+"screen_native_call_assistants_talk_info_message" = "Ακούει μόνο εσάς και τον ακούν όλοι στην κλήση. Δεν μεταφράζει όσο μιλά.";
 "screen_native_call_assistants_none_of_your_own" = "Δεν έχετε βοηθό";
 "screen_native_call_assistants_which" = "Ποιος βοηθός";
 "screen_native_call_assistants_reason_paused" = "Ο βοηθός σας είναι σε παύση";
@@ -571,7 +583,6 @@
 "screen_native_call_assistants_job_conversation" = "Συζήτηση";
 "screen_native_call_assistants_translating" = "Μεταφράζει στα %1$@";
 "screen_native_call_assistants_stop_translation" = "Διακοπή μετάφρασης";
-"screen_native_call_assistants_talk_caption" = "Σας απαντά φωναχτά και το ακούν όλοι. Δεν μεταφράζει όσο μιλά.";
 "screen_native_call_assistants_pick_footer" = "Αποθηκεύτηκε για αυτή τη συνομιλία";
 "screen_native_call_assistants_neighbour_language" = "Γλώσσα του ατόμου δίπλα σας";
 "screen_native_call_assistants_pocket_detail" = "Μετά από κάθε φράση · και προς τις δύο κατευθύνσεις";
@@ -591,10 +602,9 @@
 "screen_native_call_assistants_status_both_ways" = "Μεταφράζει και προς τις δύο κατευθύνσεις";
 "screen_native_call_assistants_translate_into" = "Μετάφραση σε";
 "screen_native_call_assistants_translate_into_detail" = "Σε αυτή ακούτε την κλήση";
+"screen_native_call_assistants_translate_into_language" = "Μετάφραση σε: %1$@";
 "screen_native_call_assistants_in_call" = "Στην κλήση";
 "screen_native_call_assistants_in_call_more" = "Στην κλήση: ακόμα %1$d";
-"screen_native_call_assistants_new_translation" = "Νέα μετάφραση";
-"screen_native_call_assistants_new_translation_detail" = "Ο βοηθός σας θα μεταφράσει την κλήση";
 "screen_native_call_assistants_new_translation_others" = "Ο βοηθός σας μεταφράζει: %1$@. Οι υπόλοιποι μεταφράζονται ήδη, δωρεάν.";
 "screen_native_call_assistants_start_translation" = "Έναρξη μετάφρασης";
 "screen_native_call_assistants_start_translation_detail" = "Χρησιμοποιεί το όριό σας. Όποιος επιλέξει αυτή τη γλώσσα ακούει δωρεάν.";
@@ -1044,7 +1054,6 @@
 "notice_phrase_changed_title" = "Η φράση σύνδεσης άλλαξε";
 "a11y_message_read" = "Διαβάστηκε";
 "screen_legal_information_source_code_spiral" = "Πηγαίος κώδικας";
-"screen_invite_people_seats_label" = "Προσκλήσεις που απομένουν";
 "screen_native_call_tile_not_joined" = "Δεν συμμετείχες";
 "screen_agent_settings_show_in_search_footer" = "Αν μπορούν οι άλλοι να τον βρουν στην αναζήτηση. Όποιος έχει τη διεύθυνσή του μπορεί πάντα να του γράψει.";
 "screen_agent_edit_tone_calm" = "Ήρεμος";
@@ -1056,7 +1065,6 @@
 "screen_room_interactive_draft_published" = "Δημοσιεύτηκε";
 "screen_agent_activity_reason_visitor_policy_reply" = "Επέτρεψες άμεση απάντηση";
 "screen_agent_in_room_no_tools" = "Δεν υπάρχουν ακόμα εργαλεία σε αυτή τη συνομιλία.";
-"notice_welcome_assistant_body" = "Είμαι ο %1$@, ο προσωπικός σου βοηθός. Μπορώ να μεταφέρω μηνύματα όσο λείπεις, να θυμάμαι τις επαφές σου και να συνοψίζω αίθουσες. Για να ενεργοποιήσεις τα εργαλεία μου σε μια αίθουσα, πάτησε + εκεί και διάλεξε «Πράκτορες». Απλώς γράψε μου φυσικά — είμαι εδώ.";
 "screen_room_interactive_post_pick_agent_title" = "Ποιος να το φτιάξει;";
 "screen_agent_settings_visitor_ask_first_description" = "Ένα νέο άτομο περιμένει μέχρι να συμφωνήσεις";
 "screen_ai_consent_prompt_failed" = "Δεν ήταν δυνατή η αποθήκευση της επιλογής σου. Έλεγξε τη σύνδεσή σου και δοκίμασε ξανά.";
@@ -1086,10 +1094,8 @@
 "screen_agent_activity_reason_block_needs_owner" = "Ο αποκλεισμός χρειάζεται την έγκρισή σου";
 "screen_create_company_title" = "Νέα εταιρεία";
 "a11y_native_call_disable_speaker" = "Απενεργοποίηση ηχείου";
-"screen_invite_paste_placeholder" = "spiral.md/join/…";
 "a11y_native_call_end" = "Τερματισμός κλήσης";
 "screen_agent_activity_action_published_post" = "Δημοσίευσε μια ανάρτηση";
-"screen_invite_people_joined_footer" = "Άτομα που δημιούργησαν λογαριασμό μέσω του συνδέσμου σου. Πάτησε για να ξεκινήσεις συνομιλία.";
 "screen_arm_tool_turn_off_confirm_message" = "Ο πράκτορας σταματά να το κάνει σε αυτή τη συνομιλία για όλους. Μπορείς να το ενεργοποιήσεις ξανά οποιαδήποτε στιγμή.";
 "spiral_app_card_line_by" = "Από %1$@";
 "state_event_spiral_tool_language_changed_by_you" = "Άλλαξες τη «Μετάφραση»: %1$@ → %2$@";
@@ -1114,7 +1120,6 @@
 "screen_native_call_agent_block_recording" = "Εγγραφή";
 "screen_native_call_control_video" = "Βίντεο";
 "screen_agent_detail_pause" = "Παύση";
-"screen_invite_paste_expired" = "Αυτή η πρόσκληση δεν ισχύει πλέον. Ζήτησε μια νέα.";
 "screen_security_messages_section" = "Μηνύματα";
 "screen_agent_activity_reason_relationship_unavailable" = "Δεν ήταν δυνατός ο έλεγχος της επαφής";
 "screen_ai_consent_prompt_allow" = "Να επιτρέπεται";
@@ -1144,15 +1149,12 @@
 "state_event_spiral_tool_off_by_system" = "%1$@: απενεργοποιήθηκε για %2$@";
 "a11y_native_call_swap_to_held_call" = "Μετάβαση στην κλήση με %@";
 "screen_native_call_audio_route_iphone" = "iPhone";
-"screen_invite_people_seats_value" = "%1$d από %2$d";
 "screen_agent_activity_reason_first_contact_with_unknown_visitor" = "Πρώτο μήνυμα από κάποιον νέο";
 "screen_deactivate_account_spiral_list_item_3" = "Διαγράψει τα στοιχεία του λογαριασμού σου από τον διακομιστή ταυτότητάς μας.";
 "a11y_native_call_bar" = "Κλήση σε εξέλιξη με %1$@. Πάτησε για επιστροφή.";
-"screen_invite_paste_unavailable" = "Δεν ήταν δυνατός ο έλεγχος της πρόσκλησης. Δοκίμασε ξανά.";
 "screen_agent_activity_action_read_call_summary" = "Διάβασε μια σύνοψη κλήσης";
 "screen_ai_consent_prompt_title" = "Να επιτρέπεται ΤΝ τρίτων;";
 "screen_agent_edit_voice_language_footer" = "Ο βοηθός απαντά πάντα στη γλώσσα που μιλάς. Αυτό ορίζει πώς ακούει τις κλήσεις και τη γλώσσα των συνόψεων κλήσεων.";
-"screen_invite_welcome_title" = "Καλώς ήρθες στο Spiral";
 "screen_agent_activity_reason_blocked_visitor" = "Αποκλεισμένο άτομο";
 "screen_deactivate_account_spiral_list_item_1_bold_part" = "Απενεργοποιήσει μόνιμα";
 "screen_native_call_agent_center_recording_live" = "Εγγραφή…";
@@ -1220,7 +1222,6 @@
 "screen_deactivate_account_spiral_failed" = "Δεν ήταν δυνατή η διαγραφή του λογαριασμού. Δοκίμασε ξανά σε ένα λεπτό.";
 "screen_agent_activity_action_changed_call_mode" = "Άλλαξε τον τρόπο που συμμετέχει σε μια κλήση";
 "a11y_native_call_unmute_microphone" = "Ενεργοποίηση μικροφώνου";
-"screen_invite_paste_label" = "Σύνδεσμος ή κωδικός";
 "screen_media_viewer_position" = "%1$d από %2$d";
 "screen_native_call_status_reconnecting_detail" = "Η σύνδεσή σου διακόπηκε";
 "screen_approval_detail_block_blocked_subtitle" = "Ο πράκτοράς σου αγνοεί πλέον τα μηνύματά του.";
@@ -1256,6 +1257,13 @@
 "screen_agent_activity_reason_no_contact_relationship" = "Δεν είναι επαφή σου";
 "screen_room_alias_link_not_found" = "Αυτός ο σύνδεσμος δεν οδηγεί σε καμία συνομιλία.";
 "screen_invite_people_title" = "Πρόσκληση στο Spiral";
+"screen_invite_people_you" = "Εσείς";
+"screen_invite_people_invited_count" = "Προσκαλέσατε %1$d από %2$d";
+"screen_invite_people_invited_you" = "Σας προσκάλεσε στο Spiral";
+"screen_invite_people_seat_invite" = "Πρόσκληση";
+"screen_invite_people_seat_taken" = "Πιασμένη";
+"screen_invite_people_chain_footer" = "Ένας σύνδεσμος για %1$d άτομα, που δεν ανανεώνεται. Πατήστε σε ένα άτομο για να ανοίξετε το προφίλ του.";
+"screen_invite_people_all_used" = "Όλες οι προσκλήσεις χρησιμοποιήθηκαν";
 "screen_approval_detail_escalation_cold_outreach" = "Ο πράκτοράς σου θέλει να γράψει σε κάποιον για πρώτη φορά.";
 "screen_start_invited_by" = "%1$@ σε προσκάλεσε στο Spiral";
 "screen_agent_spaces_section_retry" = "Πάτησε για να δοκιμάσεις ξανά.";
@@ -1263,7 +1271,6 @@
 "screen_settings_new_phrase_done" = "Η φράση σύνδεσης άλλαξε";
 "screen_agent_activity_reason_outside_conversation" = "Εκτός αυτής της συνομιλίας";
 "a11y_native_call_switch_camera" = "Εναλλαγή κάμερας";
-"screen_invite_people_joined" = "Μπήκαν με την πρόσκλησή σου: %1$d";
 "screen_agent_activity_action_searched_agents" = "Αναζήτησε πράκτορες";
 "screen_agent_activity_reason_strategy_no_op" = "Τίποτα για να γίνει";
 "action_dismiss_visitor_message" = "Αφαίρεση";
@@ -1272,7 +1279,6 @@
 "screen_approval_detail_block_action_dont_block" = "Να μην αποκλειστεί";
 "screen_agent_settings_people_title" = "Συνομιλία με άτομα";
 "screen_native_call_agent_center_error_not_owner" = "Μόνο ο κάτοχος αυτής της συνεδρίας μπορεί να την αλλάξει.";
-"notice_welcome_agent_body" = "Ο %1$@ είναι έτοιμος. Απλώς γράψε μου.";
 "screen_agent_detail_already_in_chat" = "Ο πράκτορας είναι ήδη σε αυτή τη συνομιλία";
 "screen_native_call_agent_center_booth_members" = "%1$@ στα %2$@";
 "screen_settings_devices_title" = "Συσκευές και συνεδρίες";
@@ -1290,7 +1296,6 @@
 "screen_agent_activity_action_remembered" = "Απομνημόνευσε κάτι για μια επαφή";
 "screen_room_interactive_post_link_needs_update" = "Αυτή η ανάρτηση χρειάζεται νεότερη έκδοση του Spiral. Ενημέρωσε την εφαρμογή για να τη χρησιμοποιήσεις.";
 "screen_room_member_details_erase_assistant_memory" = "Διαγραφή όσων ξέρουν οι βοηθοί μου γι' αυτόν";
-"screen_invite_paste_without" = "Συνέχεια χωρίς πρόσκληση";
 "screen_agent_edit_tone_friendly" = "Φιλικός";
 "screen_room_interactive_post_update" = "Ενημέρωση της ανάρτησης";
 "screen_agent_detail_archive_refused" = "Ο προσωπικός σου βοηθός μένει με τον λογαριασμό σου και δεν μπορεί να αρχειοθετηθεί.";
@@ -1307,9 +1312,7 @@
 "screen_native_call_agent_center_talking" = "Ο βοηθός μιλά";
 "screen_native_call_tile_call_back" = "Πάτησε για επανάκληση";
 "notice_reply_failed_body" = "Κάτι πήγε στραβά από τη μεριά μου. Στείλε το ξανά.";
-"screen_invite_people_joined_title" = "Μπήκαν με την πρόσκλησή σου";
 "screen_native_call_status_connecting_detail" = "Ρύθμιση κρυπτογράφησης";
-"screen_invite_paste_title" = "Έχεις πρόσκληση;";
 "screen_edit_profile_bio_too_long" = "Το βιογραφικό μπορεί να έχει έως %1$d χαρακτήρες. Συντόμευσέ το για να αποθηκευτεί.";
 "a11y_native_call_agent_block_role" = "%1$@, %2$@";
 "a11y_native_call_recording" = "Αυτή η κλήση καταγράφεται";
@@ -1322,12 +1325,25 @@
 "screen_agent_spaces_assistant_pending" = "Ο βοηθός σου ρυθμίζεται ακόμα";
 "screen_room_member_details_erase_assistant_memory_alert_title" = "Διαγραφή όσων ξέρουν οι βοηθοί σου για %1$@;";
 "screen_settings_new_phrase_failed" = "Δεν ήταν δυνατή η έναρξη αλλαγής της φράσης. Δοκίμασε ξανά.";
+/* AGENT-PLATFORM (1.0.3): sign-in methods — the first phrase for an account made with Apple, Sign in with Apple for a phrase account. */
+"screen_settings_add_phrase_title" = "Προσθήκη φράσης σύνδεσης";
+"screen_settings_add_phrase_message" = "Θα επιλέξεις 12 λέξεις. Ανοίγουν τον λογαριασμό σου σε κάθε συσκευή, μαζί με τη Σύνδεση μέσω Apple. Παραμένεις συνδεδεμένος σε αυτή τη συσκευή και τα μηνύματά σου δεν επηρεάζονται.";
+"screen_settings_add_phrase_auth_reason" = "Επιβεβαίωσε ότι είσαι εσύ για να προσθέσεις φράση σύνδεσης";
+"screen_settings_add_phrase_done" = "Η φράση σύνδεσης προστέθηκε";
+"screen_settings_add_phrase_failed" = "Δεν ήταν δυνατή η έναρξη προσθήκης της φράσης. Δοκίμασε ξανά.";
+"screen_settings_sign_in_passcode_required" = "Όρισε πρώτα κωδικό συσκευής — προστατεύει τους τρόπους σύνδεσής σου";
+"screen_settings_apple_title" = "Σύνδεση μέσω Apple";
+"screen_settings_apple_connected" = "Συνδέθηκε";
+"screen_settings_apple_add_title" = "Προσθήκη Σύνδεσης μέσω Apple";
+"screen_settings_apple_auth_reason" = "Επιβεβαίωσε ότι είσαι εσύ για να προσθέσεις τη Σύνδεση μέσω Apple";
+"screen_settings_apple_linked" = "Η Σύνδεση μέσω Apple προστέθηκε";
+"screen_settings_apple_taken" = "Αυτό το Apple ID χρησιμοποιείται ήδη από άλλο λογαριασμό Spiral";
+"screen_settings_apple_failed" = "Δεν ήταν δυνατή η έναρξη προσθήκης της Σύνδεσης μέσω Apple. Δοκίμασε ξανά.";
 "screen_deactivate_account_spiral_description" = "Η διαγραφή του λογαριασμού σου είναι %1$@. Θα:";
 "screen_agent_activity_action_set_reminder" = "Όρισε υπενθύμιση";
 "screen_agent_activity_action_cancelled_reminder" = "Ακύρωσε μια υπενθύμιση";
 "screen_agent_activity_reason_capability_always_allowed" = "Πάντα επιτρέπεται";
 "screen_agent_activity_action_blocked_someone" = "Απέκλεισε κάποιον";
-"screen_invite_paste_message" = "Επικόλλησε τον σύνδεσμο που σου έστειλε ένας χρήστης του Spiral ή πληκτρολόγησε τον κωδικό.";
 "screen_native_call_error_title" = "Η κλήση απέτυχε";
 "notification_approval_action_not_found_title" = "Αυτό το αίτημα δεν υπάρχει πλέον";
 "state_event_spiral_tool_changed_by_you" = "Άλλαξες: %1$@";
@@ -1354,7 +1370,6 @@
 "screen_native_call_control_sound" = "Ήχος";
 "screen_native_call_status_reconnecting" = "Επανασύνδεση…";
 "notice_phrase_changed_body" = "Η παλιά φράση δεν συνδέει πλέον.";
-"screen_invite_people_seats_footer" = "Κάθε άτομο έχει έναν σύνδεσμο με %1$d θέσεις. Δεν ανανεώνεται, οπότε μοιράσου τον με όσους θέλεις πραγματικά εδώ.";
 "screen_room_member_details_agent_unblock_action" = "Άρση αποκλεισμού";
 "screen_agent_activity_reason_unknown_capability" = "Δεν είναι κάτι που μπορεί να κάνει";
 "screen_settings_new_phrase_passcode_required" = "Όρισε πρώτα κωδικό συσκευής — προστατεύει την αλλαγή της φράσης";
@@ -1426,10 +1441,11 @@
 "screen_your_data_calls_footer" = "Εξαγωγή μίας κλήσης: η απομαγνητοφώνηση, η σύνοψη και το αρχείο συναινέσεών της.";
 "screen_arm_tool_error_agent_does_not_join_calls" = "Αυτός ο πράκτορας δεν μπαίνει σε κλήσεις, οπότε τα εργαλεία κλήσεων δεν είναι διαθέσιμα γι' αυτόν.";
 "screen_room_interactive_generating_hint" = "Συνήθως κάτω από ένα λεπτό";
-"screen_invite_paste_exhausted" = "Όλοι όσοι επέτρεπε αυτή η πρόσκληση έχουν ήδη μπει. Ζήτησε μια νέα.";
 "notice_phrase_changed_on_device" = "Άλλαξε στη συσκευή «%1$@».";
+/* AGENT-PLATFORM (1.0.3): the owner-DM card when Sign in with Apple is added. It names no device (security review); a new phrase disconnects Apple. */
+"notice_apple_linked_title" = "Η Σύνδεση μέσω Apple προστέθηκε";
+"notice_apple_linked_body" = "Αν δεν ήσουν εσύ, άλλαξε τη φράση σύνδεσης: έτσι αποσυνδέεται η Apple.";
 "screen_ai_consent_prompt_openai" = "OpenAI: μηνύματα που διαβάζουν οι βοηθοί, η φωνή σου στις κλήσεις μαζί τους και εγγραφές που απομαγνητοφωνούν.";
-"screen_invite_welcome_message" = "%1$@ σε προσκάλεσε και ξέρει ήδη ότι είσαι εδώ. Πες ένα γεια!";
 "screen_agent_activity_action_used_tool" = "Χρησιμοποίησε ένα εργαλείο σε ένα μήνυμα";
 "screen_approval_detail_escalation_first_contact" = "Κάποιος έγραψε στον πράκτορά σου για πρώτη φορά, οπότε σε ρωτά πριν απαντήσει.";
 "screen_agent_activity_action_drafted_post" = "Έγραψε πρόχειρο ανάρτησης";
@@ -1444,7 +1460,6 @@
 "screen_room_interactive_post_updated" = "Η ανάρτηση ενημερώθηκε";
 "screen_native_call_camera_failed_message" = "Η κάμερα δεν μπόρεσε να ξεκινήσει, οπότε η κλήση συνεχίζεται με ήχο. Δοκίμασε ξανά το κουμπί της κάμερας σε λίγο.";
 "screen_media_viewer_open" = "Άνοιγμα";
-"screen_invite_paste_invalid" = "Δεν υπάρχει τέτοια πρόσκληση.";
 "screen_agent_room_tool_audience_except_named" = "για όλους εκτός από %1$@";
 "notification_spiral_needs_update_body" = "Ενημέρωσε την εφαρμογή για να το δεις.";
 "screen_agent_edit_tone_brief" = "Σύντομος και περιεκτικός";
@@ -1452,7 +1467,6 @@
 "screen_invite_people_seats_left" = "Απομένουν %1$d από %2$d προσκλήσεις";
 "screen_agent_activity_reason_wrong_room_kind" = "Δεν επιτρέπεται σε αυτό το είδος συνομιλίας";
 "screen_native_call_failure_audio_reset" = "Ο ήχος της κλήσης επαναφέρθηκε από το σύστημα.";
-"screen_invite_people_body" = "Η εγγραφή γίνεται με πρόσκληση. Μοιράσου τον προσωπικό σου σύνδεσμο — όποιος δημιουργήσει λογαριασμό μέσω αυτού θα δει πρώτα εσένα.";
 "notification_approval_action_target_blocked_title" = "Δεν στάλθηκε — έχεις αποκλείσει αυτό το άτομο";
 "screen_notifications_hub_visitor_other" = "Κάτι νέο";
 "screen_agent_activity_empty_pending_title" = "Δεν υπάρχουν αιτήματα για απόφαση";
@@ -1476,3 +1490,61 @@
 "screen_notifications_hub_visitors_section" = "Από άτομα";
 "screen_agent_settings_visitor_reply_description" = "Απαντά σε όλους εκτός από όσους έχεις αποκλείσει";
 "screen_deactivate_account_spiral_auth_reason" = "Επιβεβαίωσε ότι είσαι εσύ για να διαγράψεις τον λογαριασμό σου";
+
+// AGENT-PLATFORM (1.0.3 A2): the assistant's first invite in Chats, its chat before consent and its welcome.
+"screen_roomlist_assistant_invite_name" = "Ο βοηθός σας";
+"screen_roomlist_assistant_invite_subtitle" = "Γεια! Πατήστε για να ξεκινήσετε 👋";
+"screen_roomlist_assistant_invite_start" = "Έναρξη";
+"a11y_assistant_invite_start" = "Ξεκινήστε συνομιλία με τον βοηθό σας";
+"a11y_assistant_invite_start_hint" = "Αποδέχεται την πρόσκληση του βοηθού σας και ανοίγει τη συνομιλία σας μαζί του.";
+"screen_assistant_invite_title" = "Γεια! Είμαι ο βοηθός σας";
+"screen_assistant_invite_reminders" = "Θα σας υπενθυμίζω πράγματα";
+"screen_assistant_invite_contacts" = "Θα θυμάμαι τις επαφές σας";
+"screen_assistant_invite_summaries" = "Θα συνοψίζω οποιαδήποτε συνομιλία";
+"screen_assistant_invite_privacy" = "Βλέπω μόνο αυτή τη συνομιλία. Μπορείτε να με απενεργοποιήσετε οποτεδήποτε.";
+"screen_assistant_invite_start" = "Έναρξη συνομιλίας";
+"notice_welcome_body" = "Είμαι εδώ και έτοιμος να βοηθήσω. Από πού να ξεκινήσουμε;";
+"notice_welcome_starter_summary" = "Σύνοψη συνομιλίας";
+"notice_welcome_starter_summary_message" = "Κάνε μου σύνοψη μιας συνομιλίας";
+"notice_welcome_starter_contact" = "Θυμήσου μια επαφή";
+"notice_welcome_starter_contact_message" = "Θυμήσου κάτι για μια επαφή μου";
+"notice_welcome_starter_reminder" = "Υπενθύμισέ μου…";
+"notice_welcome_starter_reminder_message" = "Βάλε μου μια υπενθύμιση";
+"notice_welcome_allow_ai_reason" = "Επιτρέψτε την ΤΝ για να διαβάζω τι γράφετε εδώ.";
+"notice_welcome_allow_ai_action" = "Να επιτρέπεται η ΤΝ";
+
+// AGENT-PLATFORM (1.0.3 onboarding): the start screen's stories, the notifications prompt and the invited welcome.
+"screen_start_slide_privacy_title" = "Οι συνομιλίες σας είναι δικές σας";
+"screen_start_slide_privacy_subtitle" = "Κρυπτογράφηση από άκρο σε άκρο. Χωρίς αριθμό τηλεφώνου, και ο βοηθός μόνο με την άδειά σας";
+"screen_start_slide_calls_title" = "Κλήσεις με μετάφραση";
+"screen_start_slide_calls_subtitle" = "Ο βοηθός σας συνδέεται και μεταφράζει ζωντανά";
+"screen_start_slide_assistant_title" = "Ο βοηθός σας, δίπλα σας";
+"screen_start_slide_assistant_subtitle" = "Απαντά όταν είστε απασχολημένοι και σας ρωτά πριν από κάθε νέο βήμα";
+"screen_start_slide_games_title" = "Παίξτε μαζί μέσα στη συνομιλία";
+"screen_start_slide_games_subtitle" = "Παιχνίδια και εργαλεία, χωρίς καμία εγκατάσταση";
+"screen_start_invited_by_hint" = "Δημιουργήστε λογαριασμό και %1$@ θα μάθει ότι είστε εδώ";
+"a11y_start_slides_position" = "Διαφάνεια %1$d από %2$d";
+"screen_notification_optin_spiral_title" = "Μείνετε σε επαφή";
+"screen_notification_optin_spiral_subtitle" = "Το Spiral σάς ενημερώνει όταν κάτι είναι πραγματικά σημαντικό. Μπορείτε να το αλλάξετε οποτεδήποτε στις Ρυθμίσεις.";
+"screen_notification_optin_messages_title" = "Νέα μηνύματα";
+"screen_notification_optin_messages_subtitle" = "Από τα άτομα και τις ομάδες με τα οποία μιλάτε";
+"screen_notification_optin_calls_title" = "Εισερχόμενες κλήσεις";
+"screen_notification_optin_calls_subtitle" = "Ακόμα και όταν το Spiral είναι κλειστό";
+"screen_notification_optin_assistant_title" = "Ερωτήσεις του βοηθού σας";
+"screen_notification_optin_assistant_subtitle" = "Όταν χρειάζεται τη συγκατάθεσή σας";
+"screen_notification_optin_allow" = "Επιτρέψτε τις ειδοποιήσεις";
+"screen_invite_welcome_together_title" = "Είστε στο Spiral μαζί με %1$@";
+"screen_invite_welcome_step_say_hello_title" = "Πείτε ένα γεια σε %1$@";
+"screen_invite_welcome_step_say_hello_subtitle" = "%1$@ περιμένει";
+"screen_invite_welcome_step_assistant_title" = "Γνωρίστε τον βοηθό σας";
+"screen_invite_welcome_step_assistant_subtitle" = "Η πρόσκλησή του σας περιμένει στις Συνομιλίες";
+"screen_invite_welcome_step_play_title" = "Παίξτε κάτι μαζί";
+"screen_invite_welcome_step_play_subtitle" = "Παιχνίδια και εργαλεία μέσα στη συνομιλία";
+"a11y_invite_welcome_avatars" = "%1$@ και εσείς";
+"screen_approval_detail_already_closed_title" = "Αυτό το αίτημα έχει ήδη κλείσει";
+"screen_approval_detail_already_closed_message" = "Έληξε ή έχει ήδη απαντηθεί.";
+"screen_room_interactive_post_description_not_sent" = "Η περιγραφή σας δεν στάλθηκε. Στείλτε την ξανά στο νήμα.";
+"screen_room_interactive_post_code_not_sent" = "Η ανάρτηση δεν έφτασε στον πράκτορα. Δοκιμάστε ξανά από την ανάρτηση.";
+"screen_invites_assistant_decline_warning_spiral" = "Αν αυτός είναι ο δικός σας βοηθός, η συνομιλία του δεν μπορεί να επανέλθει αφού την απορρίψετε.";
+"a11y_roomlist_remove_filter" = "Αφαίρεση φίλτρου: %1$@";
+"a11y_settings_share_profile" = "Κοινοποίηση του προφίλ μου";

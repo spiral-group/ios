@@ -154,6 +154,28 @@ struct UserSessionStoreTests {
         #expect(keychainController.setRestorationTokenForUsernameReceivedArguments?.restorationToken.passphrase == RestorationTokenFixtures.passphrase)
     }
     
+    /// AGENT-PLATFORM (1.0.3, NSE keychain review finding 3): a refresh while the client proxy is set up isn't saved
+    /// (no token is stored yet), so the token stored after it must carry the refreshed pair, not the one from before.
+    @Test
+    func userSessionForClientStoresTheSessionRefreshedDuringSetup() async throws {
+        let client = ClientSDKMock(.init(userID: "@alice:matrix.org"))
+        var refreshed = try #require(client.sessionReturnValue)
+        refreshed.accessToken = "refreshed-during-setup"
+        refreshed.refreshToken = "rotated"
+        let notificationSettings = try #require(client.getNotificationSettingsReturnValue)
+        client.getNotificationSettingsClosure = { [client] in
+            client.sessionReturnValue = refreshed // The SDK refreshes while the proxy is being set up.
+            return notificationSettings
+        }
+        
+        guard case .success = await store.userSession(for: client, sessionDirectories: .init(), passphrase: RestorationTokenFixtures.passphrase) else {
+            Issue.record("Creating the session should succeed.")
+            return
+        }
+        
+        #expect(keychainController.setRestorationTokenForUsernameReceivedArguments?.restorationToken.session == refreshed)
+    }
+    
     @Test
     func userSessionForClientFails() async {
         // Given a freshly authenticated client that fails to provide its session.

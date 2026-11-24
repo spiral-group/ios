@@ -301,6 +301,8 @@ private struct CallMotionLabTabBar: View {
     let selection: Tag
 
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.colorSchemeContrast) private var colorSchemeContrast
+    @Environment(\.legibilityWeight) private var legibilityWeight
     @Environment(\.displayScale) private var displayScale
 
     var body: some View {
@@ -322,13 +324,16 @@ private struct CallMotionLabTabBar: View {
 
     @ViewBuilder
     private func icon(_ details: NavigationTabCoordinator<Tag>.TabDetails) -> some View {
-        let isSelected = details.tag == selection
-        if details.tag == .settings,
-           let image = Self.avatar.image(for: .init(isSelected: isSelected, colorScheme: colorScheme, displayScale: displayScale)) {
+        let appearance = SpiralTabAvatar.Appearance(isSelected: details.tag == selection,
+                                                    colorScheme: colorScheme,
+                                                    colorSchemeContrast: colorSchemeContrast,
+                                                    legibilityWeight: legibilityWeight,
+                                                    displayScale: displayScale)
+        if details.tag == .settings, let image = Self.avatar.image(for: appearance) {
             Image(uiImage: image)
                 .renderingMode(.original)
         } else {
-            details.iconView(isSelected: isSelected, colorScheme: colorScheme, displayScale: displayScale)
+            details.iconView(for: appearance)
         }
     }
 

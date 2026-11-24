@@ -7,6 +7,7 @@
 extension AccessibilityTests {
     /// The previews that conform to `SpiralGatedPreview`.
     static let spiralGatedPreviews: Set<String> = [
+        "AIConsentPromptScreen_Previews",
         "AddAgentPickerScreen_Previews",
         "AddToolScreen_Previews",
         "AgentActivityScreen_Previews",
@@ -42,6 +43,7 @@ extension AccessibilityTests {
         "FeedReportScreen_Previews",
         "FeedRulesSheet_Previews",
         "FeedScreen_Previews",
+        "HomeScreenAssistantInviteCell_Previews",
         "HomeScreenRecoveryKeyConfirmationBanner_Previews",
         "HomeScreenRoomList_Previews",
         "HomeScreen_Previews",
@@ -50,8 +52,9 @@ extension AccessibilityTests {
         "InteractivePostCatalogScreen_Previews",
         "InteractivePostCatalogYoursScreen_Previews",
         "InteractivePostTimeline_Previews",
-        "InvitePasteSheet_Previews",
         "InvitePeopleScreen_Previews",
+        "InviteWelcomeScreen_Previews",
+        "JoinRoomAssistantInviteView_Previews",
         "LegalInformationScreen_Previews",
         "LoginScreen_Previews",
         "MediaUploadQualitySettingsScreen_Previews",
@@ -61,6 +64,7 @@ extension AccessibilityTests {
         "NativeCallBar_Previews",
         "NativeCallIncomingScreen_Previews",
         "NativeCallScreen_Previews",
+        "NotificationPermissionsScreen_Previews",
         "NotificationSettingsEditScreen_Previews",
         "NotificationSettingsScreen_Previews",
         "NotificationsHubScreen_Previews",
@@ -90,6 +94,7 @@ extension AccessibilityTests {
         "SpiralNoticeRoomTimelineView_Previews",
         "SpiralPreloader_Previews",
         "SpiralTabAvatar_Previews",
+        "SpiralWelcomeNoticeView_Previews",
         "TimelineItemMenu_Previews",
         "ToolDetailScreen_Previews",
         "ToolExampleCard_Previews",

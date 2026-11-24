@@ -386,15 +386,35 @@ struct InteractivePostCatalogScreenViewModelTests {
         #expect(hold.hasShownPage)
     }
 
-    /// Once the page's post has been on screen, the post the pager shows is the page's post, whatever moved it: a
-    /// swipe, or VoiceOver, Full Keyboard Access or Switch Control, which may move it with no scroll phase.
+    /// Once the page's post has been on screen, the post a scroll brings is the page's post at once: a swipe, its
+    /// deceleration, or an animated scroll such as VoiceOver's.
     @Test
-    func afterThePagesPostShowedThePagerIsTrusted() {
+    func afterThePagesPostShowedAScrolledToPostIsThePagesAtOnce() {
         var hold = InteractivePostCatalogPagerHold()
         _ = hold.postsOnScreen(["b"], pagePost: "b")
 
-        #expect(hold.postsOnScreen(["c"], pagePost: "b") == .show("c"))
+        for phase in [ScrollPhase.interacting, .decelerating, .animating] {
+            hold.scrollPhaseChanged(to: phase)
+            #expect(hold.postsOnScreen(["c"], pagePost: "b") == .show("c"), "\(phase)")
+        }
         #expect(hold.postsOnScreen(["c"], pagePost: "c") == .none)
+    }
+
+    /// A post that came on screen with no scroll moving the pager is the page's only once it stays: on iOS 18 the
+    /// pager jumped to the section's first post for one layout and came back, and the page took the jump for a swipe
+    /// (the snapshot gate, 2026-11-22). A move with no scroll phase that stays (Full Keyboard Access, Switch Control)
+    /// still becomes the page's.
+    @Test
+    func aPostShownWithNoScrollIsThePagesOnlyOnceItStays() {
+        var hold = InteractivePostCatalogPagerHold()
+        _ = hold.postsOnScreen(["b"], pagePost: "b")
+        hold.scrollPhaseChanged(to: .idle)
+
+        #expect(hold.postsOnScreen(["a"], pagePost: "b") == .showOnceSettled("a"))
+        #expect(hold.stillShows("a", over: "b"), "a move that stays")
+
+        _ = hold.postsOnScreen(["b"], pagePost: "b")
+        #expect(!hold.stillShows("a", over: "b"), "a jump that came back")
     }
 
     /// A finger moving the pager always wins, even before the page's post showed, so a pager can't stick.
@@ -402,9 +422,23 @@ struct InteractivePostCatalogScreenViewModelTests {
     func aFingerWinsBeforeThePagesPostShowed() {
         var hold = InteractivePostCatalogPagerHold()
 
-        hold.fingerMoved()
+        hold.scrollPhaseChanged(to: .interacting)
 
         #expect(hold.postsOnScreen(["a"], pagePost: "b") == .show("a"))
+    }
+
+    /// The pager's first layout is on the page's post: its index's share of the scroll, as every page is as wide as
+    /// the pager. On iOS 18 the scroll position by id landed a layout later, so a page laid out once showed the
+    /// section's first post under the page's pill (the snapshot gate, 2026-11-22).
+    @Test
+    func thePagerOpensOnThePagesPost() {
+        let posts = ["wheel", "dice", "invite", "poll", "timer"]
+
+        #expect(InteractivePostCatalogPostScreen.openingAnchor(of: "wheel", in: posts).x == 0)
+        #expect(InteractivePostCatalogPostScreen.openingAnchor(of: "dice", in: posts).x == 0.25)
+        #expect(InteractivePostCatalogPostScreen.openingAnchor(of: "timer", in: posts).x == 1)
+        #expect(InteractivePostCatalogPostScreen.openingAnchor(of: "only", in: ["only"]) == .leading)
+        #expect(InteractivePostCatalogPostScreen.openingAnchor(of: "gone", in: posts) == .leading)
     }
 
     /// A card tapped while the catalogue's stills and files are still arriving opens its own post, and keeps it as
@@ -534,17 +568,41 @@ struct InteractivePostCatalogScreenViewModelTests {
         #expect(Self.state(assistant: assistant).choiceAction(for: asks) == action)
     }
 
-    /// When the agents couldn't be read, Retry asks for them again, back on the same post (1.0.2 critic polish).
+    /// When the agents couldn't be read, Retry asks for them again once, and spins until they come back to the
+    /// catalogue that is still open (1.0.2 critic polish; 1.0.3, B15).
     @Test
-    func retryAgentsAsksToReadThemAgainOnThePost() {
+    func retryAgentsReadsThemAgainInPlace() {
         let viewModel = InteractivePostCatalogScreenViewModel(previewState: Self.state(assistant: .unknown))
-        var asked: [String] = []
-        let cancellable = viewModel.actionsPublisher.sink { if case .retryAgents(let templateID) = $0 { asked.append(templateID) } }
+        var asked = 0
+        let cancellable = viewModel.actionsPublisher.sink { if case .retryAgents = $0 { asked += 1 } }
         defer { cancellable.cancel() }
 
-        viewModel.context.send(viewAction: .retryAgents(templateID: "invite"))
+        viewModel.context.send(viewAction: .retryAgents)
+        viewModel.context.send(viewAction: .retryAgents)
 
-        #expect(asked == ["invite"])
+        #expect(asked == 1)
+        #expect(viewModel.context.viewState.isReadingAgents)
+
+        viewModel.agentsRead(.available, dms: [])
+
+        #expect(viewModel.context.viewState.assistant == .available)
+        #expect(!viewModel.context.viewState.isReadingAgents)
+    }
+
+    /// A read that fails again is still "couldn't check", and Retry can be pressed again.
+    @Test
+    func aRetryThatFailsAgainCanBeRetried() {
+        let viewModel = InteractivePostCatalogScreenViewModel(previewState: Self.state(assistant: .unknown))
+        var asked = 0
+        let cancellable = viewModel.actionsPublisher.sink { if case .retryAgents = $0 { asked += 1 } }
+        defer { cancellable.cancel() }
+
+        viewModel.context.send(viewAction: .retryAgents)
+        viewModel.agentsRead(.unknown, dms: [])
+        viewModel.context.send(viewAction: .retryAgents)
+
+        #expect(asked == 2)
+        #expect(viewModel.context.viewState.assistant == .unknown)
     }
 
     /// «Create an agent» leaves for the Agents tab.
@@ -631,6 +689,30 @@ struct InteractivePostCatalogScreenViewModelTests {
         #expect(relation["rel_type"] as? String == "m.thread")
         #expect(relation["event_id"] as? String == "$root")
         #expect(RoomFlowCoordinator.descriptionContent("  ", threadRootEventID: "$root") == nil)
+    }
+
+    /// A thread whose words didn't go must not open as if they had: every opener is tried, and a failure is told.
+    @Test
+    func aThreadOpenerThatDidntSendIsTold() async {
+        let dm = JoinedRoomProxyMock(.init(id: "!dm"))
+        var sent = [String]()
+        dm.sendSpiralRawEventReturningEventIDTypeContentClosure = { _, content in
+            sent.append(content)
+            return content == "words" ? .failure(.eventNotFound) : .success("$e\(sent.count)")
+        }
+
+        #expect(await RoomFlowCoordinator.sendThreadOpeners(["code", "words"], into: dm) == false)
+        #expect(sent == ["code", "words"])
+        #expect(await RoomFlowCoordinator.sendThreadOpeners(["code"], into: dm) == true)
+    }
+
+    /// What didn't go is named, with what the person can do about it.
+    @Test
+    func aThreadOpenerNoticeSaysWhatDidntGo() {
+        #expect(RoomFlowCoordinator.threadOpenerNotice(isPostSent: false, isWordsSent: true) == UntranslatedL10n.screenRoomInteractivePostCodeNotSent)
+        #expect(RoomFlowCoordinator.threadOpenerNotice(isPostSent: false, isWordsSent: false) == UntranslatedL10n.screenRoomInteractivePostCodeNotSent)
+        #expect(RoomFlowCoordinator.threadOpenerNotice(isPostSent: true, isWordsSent: false) == UntranslatedL10n.screenRoomInteractivePostDescriptionNotSent)
+        #expect(RoomFlowCoordinator.threadOpenerNotice(isPostSent: true, isWordsSent: true) == nil)
     }
 
     /// A chip shows its section as a grid; «All» brings the shelves back.
@@ -722,6 +804,24 @@ struct InteractivePostCatalogScreenViewModelTests {
 
         let failed = deferFulfillment(viewModel.context.observe(\.viewState.threadsLoad)) { $0 == .failed }
         try await failed.fulfill()
+    }
+
+    /// A new agent's threads load as the first ones do: placeholders, not «none» and then a list.
+    @Test
+    func aNewAgentsThreadsLoadWithPlaceholders() async throws {
+        let viewModel = InteractivePostCatalogScreenViewModel(roomName: "Група", catalogURL: Self.base, dms: [],
+                                                              fetchCatalog: { _ in .unavailable },
+                                                              fetchArtifact: { _, _ in nil })
+        try await deferFulfillment(viewModel.context.observe(\.viewState.threadsLoad)) { $0 == .loaded }.fulfill()
+
+        let list = RoomThreadListServiceProxyMock(.init(paginationState: .idle(endReached: false),
+                                                        paginateResult: .failure(.sdkError(ClientProxyMockError.generic))))
+        let dm = JoinedRoomProxyMock(.init(id: "!new-agent:spiral.md"))
+        dm.threadListServiceReturnValue = list
+        viewModel.agentsRead(.available, dms: [dm])
+
+        #expect(viewModel.context.viewState.threadsLoad == .loading)
+        try await deferFulfillment(viewModel.context.observe(\.viewState.threadsLoad)) { $0 == .failed }.fulfill()
     }
 
     // MARK: - A catalogue link (decision 111)

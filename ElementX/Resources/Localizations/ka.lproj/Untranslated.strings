@@ -65,6 +65,9 @@
 "screen_agent_edit_persona_greeting" = "მისალმება თქვენთვის";
 "screen_agent_edit_persona_visitor_greeting" = "მისალმება სტუმრებისთვის";
 "screen_agent_edit_failure" = "ცვლილებები ვერ შეინახა";
+"error_agent_name_reserved" = "ეს სახელი დაცულია Spiral-ის საკუთარი ანგარიშებისთვის. აირჩიეთ სხვა სახელი.";
+"error_agent_name_invalid_characters" = "სახელი შეიცავს სიმბოლოებს, რომელთა გამოყენებაც შეუძლებელია.";
+"error_agent_name_unchecked" = "სახელის შემოწმება ვერ მოხერხდა. სცადეთ ხელახლა.";
 "screen_agent_edit_load_failure" = "რედაქტირების ფორმა ვერ ჩაიტვირთა";
 "screen_agent_edit_avatar_failure" = "ფოტო ვერ აიტვირთა";
 "action_agent_activity" = "აქტივობა";
@@ -250,7 +253,6 @@
 "screen_language_picker_title" = "ენა";
 "screen_language_picker_empty" = "თქვენს ძიებას ვერცერთი ენა ვერ ემთხვევა.";
 "screen_start_sign_in" = "შესვლა";
-"screen_start_welcome_subtitle" = "სწრაფი, პირადი მიმოწერა თქვენს პირად აგენტთან.";
 
 // AGENT-PLATFORM (Brief 0072, ADR-0083, ADR-0084): presence, worded as Telegram does
 "common_presence_online" = "ონლაინ";
@@ -491,6 +493,16 @@
 "screen_native_call_assistants_record_confirm_title" = "ჩაიწეროს ზარი?";
 "screen_native_call_assistants_record_confirm_message" = "ყველა ხედავს REC-ს ზარის ზედა ნაწილში. ჩანაწერი ზარის შემდეგ ჩატში გამოჩნდება.";
 "screen_native_call_assistants_record_confirm_action" = "ჩაწერა";
+"screen_native_call_assistants_notes_confirm_title" = "ჩაიწეროს შენიშვნები ზარიდან?";
+"screen_native_call_assistants_notes_confirm_message" = "ასისტენტი მოუსმენს ზარს და მის შემდეგ შეჯამებას ჩატში გამოაქვეყნებს. სხვები დაინახავენ, რომ ის შენიშვნებს იწერს.";
+"screen_native_call_assistants_notes_confirm_action" = "შენიშვნების ჩაწერა";
+"screen_native_call_assistants_talk_confirm_title" = "ესაუბროთ ასისტენტს?";
+"screen_native_call_assistants_talk_confirm_message" = "მხოლოდ თქვენ გისმენთ და ხმამაღლა გპასუხობთ — ზარში ყველას ესმის.";
+"screen_native_call_assistants_talk_confirm_action" = "საუბრის დაწყება";
+"screen_native_call_assistants_translate_question_title" = "სამიზნე ენა";
+"screen_native_call_assistants_listen_question_title" = "მოსმენის ენა";
+"screen_native_call_assistants_talk_info_title" = "ასისტენტი ხმამაღლა პასუხობს";
+"screen_native_call_assistants_talk_info_message" = "მხოლოდ თქვენ გისმენთ, ზარში კი ყველას ესმის. საუბრისას თარგმანი გამორთულია.";
 "screen_native_call_assistants_none_of_your_own" = "თქვენ არ გაქვთ ასისტენტი";
 "screen_native_call_assistants_which" = "რომელი ასისტენტი";
 "screen_native_call_assistants_reason_paused" = "თქვენი ასისტენტი შეჩერებულია";
@@ -571,7 +583,6 @@
 "screen_native_call_assistants_job_conversation" = "საუბარი";
 "screen_native_call_assistants_translating" = "თარგმნის → %1$@";
 "screen_native_call_assistants_stop_translation" = "თარგმანის შეჩერება";
-"screen_native_call_assistants_talk_caption" = "ხმამაღლა გპასუხობთ და ყველას ესმის. საუბრისას თარგმანი გამორთულია.";
 "screen_native_call_assistants_pick_footer" = "დამახსოვრებულია ამ ჩატისთვის";
 "screen_native_call_assistants_neighbour_language" = "თქვენ გვერდით მყოფი ადამიანის ენა";
 "screen_native_call_assistants_pocket_detail" = "ყოველი ფრაზის შემდეგ · ორივე მიმართულებით";
@@ -591,10 +602,9 @@
 "screen_native_call_assistants_status_both_ways" = "თარგმნის ორივე მიმართულებით";
 "screen_native_call_assistants_translate_into" = "სამიზნე ენა";
 "screen_native_call_assistants_translate_into_detail" = "ამ ენაზე გესმით ზარი";
+"screen_native_call_assistants_translate_into_language" = "სამიზნე ენა: %1$@";
 "screen_native_call_assistants_in_call" = "ზარში";
 "screen_native_call_assistants_in_call_more" = "ზარში: კიდევ %1$d";
-"screen_native_call_assistants_new_translation" = "ახალი თარგმანი";
-"screen_native_call_assistants_new_translation_detail" = "თქვენი ასისტენტი თარგმნის ზარს";
 "screen_native_call_assistants_new_translation_others" = "თქვენი ასისტენტი თარგმნის: %1$@. დანარჩენებს უკვე უფასოდ თარგმნიან.";
 "screen_native_call_assistants_start_translation" = "თარგმანის დაწყება";
 "screen_native_call_assistants_start_translation_detail" = "ხარჯავს თქვენს ლიმიტს. ვინც ამ ენას აირჩევს, უფასოდ უსმენს.";
@@ -1044,7 +1054,6 @@
 "notice_phrase_changed_title" = "შესვლის ფრაზა შეიცვალა";
 "a11y_message_read" = "წაკითხულია";
 "screen_legal_information_source_code_spiral" = "საწყისი კოდი";
-"screen_invite_people_seats_label" = "დარჩენილი მოსაწვევები";
 "screen_native_call_tile_not_joined" = "არ შეუერთდით";
 "screen_agent_settings_show_in_search_footer" = "შეუძლიათ თუ არა ადამიანებს მისი პოვნა ძიებაში. ვისაც მისი მისამართი აქვს, მაინც შეძლებს მისთვის მიწერას.";
 "screen_agent_edit_tone_calm" = "მშვიდი";
@@ -1056,7 +1065,6 @@
 "screen_room_interactive_draft_published" = "გამოქვეყნდა";
 "screen_agent_activity_reason_visitor_policy_reply" = "თქვენ დაუშვით დაუყოვნებლივ პასუხი";
 "screen_agent_in_room_no_tools" = "ამ ჩატში ჯერ ხელსაწყოები არ არის.";
-"notice_welcome_assistant_body" = "მე ვარ %1$@, თქვენი პირადი ასისტენტი. შემიძლია გადავცე შეტყობინებები, როცა არ ხართ, დავიმახსოვრო თქვენი კონტაქტები და შევაჯამო ოთახები. ოთახში ჩემი ხელსაწყოების ჩასართავად შეეხეთ იქ + ღილაკს და აირჩიეთ „აგენტები“. უბრალოდ ბუნებრივად მომწერეთ — აქ ვარ.";
 "screen_room_interactive_post_pick_agent_title" = "ვინ შექმნას?";
 "screen_agent_settings_visitor_ask_first_description" = "ახალი ადამიანი ელოდება თქვენს თანხმობას";
 "screen_ai_consent_prompt_failed" = "თქვენი არჩევანი ვერ შეინახა. შეამოწმეთ კავშირი და სცადეთ ხელახლა.";
@@ -1086,10 +1094,8 @@
 "screen_agent_activity_reason_block_needs_owner" = "დაბლოკვას თქვენი თანხმობა სჭირდება";
 "screen_create_company_title" = "ახალი კომპანია";
 "a11y_native_call_disable_speaker" = "დინამიკის გამორთვა";
-"screen_invite_paste_placeholder" = "spiral.md/join/…";
 "a11y_native_call_end" = "ზარის დასრულება";
 "screen_agent_activity_action_published_post" = "გამოაქვეყნა პოსტი";
-"screen_invite_people_joined_footer" = "ადამიანები, რომლებმაც ანგარიში თქვენი ბმულით შექმნეს. შეეხეთ ჩატის დასაწყებად.";
 "screen_arm_tool_turn_off_confirm_message" = "აგენტი ამ ჩატში ამას აღარავისთვის გააკეთებს. ნებისმიერ დროს შეგიძლიათ ხელახლა ჩართოთ.";
 "spiral_app_card_line_by" = "ავტორი: %1$@";
 "state_event_spiral_tool_language_changed_by_you" = "თქვენ შეცვალეთ „თარგმნა“: %1$@ → %2$@";
@@ -1114,7 +1120,6 @@
 "screen_native_call_agent_block_recording" = "ჩაწერა";
 "screen_native_call_control_video" = "ვიდეო";
 "screen_agent_detail_pause" = "პაუზა";
-"screen_invite_paste_expired" = "ეს მოსაწვევი აღარ მოქმედებს. მოითხოვეთ ახალი.";
 "screen_security_messages_section" = "შეტყობინებები";
 "screen_agent_activity_reason_relationship_unavailable" = "კონტაქტის შემოწმება ვერ მოხერხდა";
 "screen_ai_consent_prompt_allow" = "ნების დართვა";
@@ -1144,15 +1149,12 @@
 "state_event_spiral_tool_off_by_system" = "%1$@ გამოირთო %2$@-ისთვის";
 "a11y_native_call_swap_to_held_call" = "გადართვა ზარზე %@-თან";
 "screen_native_call_audio_route_iphone" = "iPhone";
-"screen_invite_people_seats_value" = "%1$d %2$d-დან";
 "screen_agent_activity_reason_first_contact_with_unknown_visitor" = "პირველი შეტყობინება ახალი ადამიანისგან";
 "screen_deactivate_account_spiral_list_item_3" = "წაშლის თქვენი ანგარიშის მონაცემებს ჩვენი იდენტიფიკაციის სერვერიდან.";
 "a11y_native_call_bar" = "მიმდინარე ზარი: %1$@. შეეხეთ დასაბრუნებლად.";
-"screen_invite_paste_unavailable" = "მოსაწვევის შემოწმება ვერ მოხერხდა. სცადეთ ხელახლა.";
 "screen_agent_activity_action_read_call_summary" = "წაიკითხა ზარის შეჯამება";
 "screen_ai_consent_prompt_title" = "დავუშვათ მესამე მხარის AI?";
 "screen_agent_edit_voice_language_footer" = "ასისტენტი ყოველთვის იმ ენაზე პასუხობს, რომელზეც საუბრობთ. ეს განსაზღვრავს, როგორ ისმენს ის ზარებს და რა ენაზე იქნება ზარების შეჯამებები.";
-"screen_invite_welcome_title" = "კეთილი იყოს თქვენი მობრძანება Spiral-ში";
 "screen_agent_activity_reason_blocked_visitor" = "დაბლოკილი ადამიანი";
 "screen_deactivate_account_spiral_list_item_1_bold_part" = "სამუდამოდ გათიშავს";
 "screen_native_call_agent_center_recording_live" = "იწერება…";
@@ -1220,7 +1222,6 @@
 "screen_deactivate_account_spiral_failed" = "ანგარიში ვერ წაიშალა. სცადეთ ერთ წუთში.";
 "screen_agent_activity_action_changed_call_mode" = "შეცვალა, როგორ მონაწილეობს ზარში";
 "a11y_native_call_unmute_microphone" = "მიკროფონის ჩართვა";
-"screen_invite_paste_label" = "ბმული ან კოდი";
 "screen_media_viewer_position" = "%1$d %2$d-დან";
 "screen_native_call_status_reconnecting_detail" = "კავშირი გაწყდა";
 "screen_approval_detail_block_blocked_subtitle" = "ამიერიდან თქვენი აგენტი მის შეტყობინებებს უგულებელყოფს.";
@@ -1256,6 +1257,13 @@
 "screen_agent_activity_reason_no_contact_relationship" = "არ არის თქვენი კონტაქტი";
 "screen_room_alias_link_not_found" = "ეს ბმული არცერთ ჩატზე არ მიდის.";
 "screen_invite_people_title" = "Spiral-ში მოწვევა";
+"screen_invite_people_you" = "თქვენ";
+"screen_invite_people_invited_count" = "მოწვეულია %1$d / %2$d";
+"screen_invite_people_invited_you" = "მოგიწვიათ Spiral-ში";
+"screen_invite_people_seat_invite" = "მოწვევა";
+"screen_invite_people_seat_taken" = "დაკავებული";
+"screen_invite_people_chain_footer" = "ერთი ბმული %1$d ადამიანისთვის და არ განახლდება. შეეხეთ ადამიანს მისი პროფილის გასახსნელად.";
+"screen_invite_people_all_used" = "ყველა მოწვევა გამოყენებულია";
 "screen_approval_detail_escalation_cold_outreach" = "თქვენს აგენტს ვინმესთვის პირველად მიწერა სურს.";
 "screen_start_invited_by" = "%1$@-მა მოგიწვიათ Spiral-ში";
 "screen_agent_spaces_section_retry" = "შეეხეთ ხელახლა საცდელად.";
@@ -1263,7 +1271,6 @@
 "screen_settings_new_phrase_done" = "შესვლის ფრაზა შეიცვალა";
 "screen_agent_activity_reason_outside_conversation" = "ამ საუბრის გარეთ";
 "a11y_native_call_switch_camera" = "კამერის გადართვა";
-"screen_invite_people_joined" = "შემოუერთდა თქვენი მოსაწვევით: %1$d";
 "screen_agent_activity_action_searched_agents" = "მოძებნა აგენტები";
 "screen_agent_activity_reason_strategy_no_op" = "გასაკეთებელი არაფერია";
 "action_dismiss_visitor_message" = "წაშლა";
@@ -1272,7 +1279,6 @@
 "screen_approval_detail_block_action_dont_block" = "არ დაიბლოკოს";
 "screen_agent_settings_people_title" = "ადამიანებთან საუბარი";
 "screen_native_call_agent_center_error_not_owner" = "ამ სესიის შეცვლა მხოლოდ მის მფლობელს შეუძლია.";
-"notice_welcome_agent_body" = "%1$@ მზადაა. უბრალოდ მომწერეთ.";
 "screen_agent_detail_already_in_chat" = "აგენტი უკვე ამ ჩატშია";
 "screen_native_call_agent_center_booth_members" = "%1$@ → %2$@";
 "screen_settings_devices_title" = "მოწყობილობები და სესიები";
@@ -1290,7 +1296,6 @@
 "screen_agent_activity_action_remembered" = "დაიმახსოვრა რაღაც კონტაქტის შესახებ";
 "screen_room_interactive_post_link_needs_update" = "ამ პოსტს Spiral-ის უფრო ახალი ვერსია სჭირდება. გამოსაყენებლად განაახლეთ აპი.";
 "screen_room_member_details_erase_assistant_memory" = "იმის წაშლა, რაც ჩემმა ასისტენტებმა მასზე იციან";
-"screen_invite_paste_without" = "მოსაწვევის გარეშე გაგრძელება";
 "screen_agent_edit_tone_friendly" = "მეგობრული";
 "screen_room_interactive_post_update" = "პოსტის განახლება";
 "screen_agent_detail_archive_refused" = "თქვენი პირადი ასისტენტი თქვენს ანგარიშთან რჩება და მისი დაარქივება შეუძლებელია.";
@@ -1307,9 +1312,7 @@
 "screen_native_call_agent_center_talking" = "ასისტენტი საუბრობს";
 "screen_native_call_tile_call_back" = "შეეხეთ გადასარეკად";
 "notice_reply_failed_body" = "ჩემს მხარეს რაღაც შეცდომა მოხდა. გთხოვთ, ხელახლა გამოგზავნოთ.";
-"screen_invite_people_joined_title" = "შემოუერთდნენ თქვენი მოსაწვევით";
 "screen_native_call_status_connecting_detail" = "დაშიფვრის დაყენება";
-"screen_invite_paste_title" = "გაქვთ მოსაწვევი?";
 "screen_edit_profile_bio_too_long" = "ბიოგრაფია შეიძლება იყოს მაქსიმუმ %1$d სიმბოლო. შესანახად შეამოკლეთ.";
 "a11y_native_call_agent_block_role" = "%1$@, %2$@";
 "a11y_native_call_recording" = "ეს ზარი იწერება";
@@ -1322,12 +1325,25 @@
 "screen_agent_spaces_assistant_pending" = "თქვენი ასისტენტი ჯერ კიდევ მზადდება";
 "screen_room_member_details_erase_assistant_memory_alert_title" = "წავშალოთ, რაც თქვენმა ასისტენტებმა %1$@-ზე იციან?";
 "screen_settings_new_phrase_failed" = "ფრაზის შეცვლის დაწყება ვერ მოხერხდა. სცადეთ ხელახლა.";
+/* AGENT-PLATFORM (1.0.3): sign-in methods — the first phrase for an account made with Apple, Sign in with Apple for a phrase account. */
+"screen_settings_add_phrase_title" = "შესვლის ფრაზის დამატება";
+"screen_settings_add_phrase_message" = "აირჩევთ 12 სიტყვას. ისინი თქვენს ანგარიშს ნებისმიერ მოწყობილობაზე ხსნის, Apple-ით შესვლასთან ერთად. ამ მოწყობილობაზე სისტემაში დარჩებით და თქვენს შეტყობინებებზე ეს არ იმოქმედებს.";
+"screen_settings_add_phrase_auth_reason" = "დაადასტურეთ, რომ ეს თქვენ ხართ, შესვლის ფრაზის დასამატებლად";
+"screen_settings_add_phrase_done" = "შესვლის ფრაზა დაემატა";
+"screen_settings_add_phrase_failed" = "ფრაზის დამატების დაწყება ვერ მოხერხდა. სცადეთ ხელახლა.";
+"screen_settings_sign_in_passcode_required" = "ჯერ დააყენეთ მოწყობილობის კოდი — ის იცავს შესვლის თქვენს გზებს";
+"screen_settings_apple_title" = "Apple-ით შესვლა";
+"screen_settings_apple_connected" = "დაკავშირებულია";
+"screen_settings_apple_add_title" = "Apple-ით შესვლის დამატება";
+"screen_settings_apple_auth_reason" = "დაადასტურეთ, რომ ეს თქვენ ხართ, Apple-ით შესვლის დასამატებლად";
+"screen_settings_apple_linked" = "Apple-ით შესვლა დაემატა";
+"screen_settings_apple_taken" = "ეს Apple ID უკვე გამოიყენება Spiral-ის სხვა ანგარიშში";
+"screen_settings_apple_failed" = "Apple-ით შესვლის დამატების დაწყება ვერ მოხერხდა. სცადეთ ხელახლა.";
 "screen_deactivate_account_spiral_description" = "თქვენი ანგარიშის წაშლა %1$@ ქმედებაა. ის:";
 "screen_agent_activity_action_set_reminder" = "დააყენა შეხსენება";
 "screen_agent_activity_action_cancelled_reminder" = "გააუქმა შეხსენება";
 "screen_agent_activity_reason_capability_always_allowed" = "ყოველთვის ნებადართულია";
 "screen_agent_activity_action_blocked_someone" = "დაბლოკა ვინმე";
-"screen_invite_paste_message" = "ჩასვით ბმული, რომელიც Spiral-ის მომხმარებელმა გამოგიგზავნათ, ან აკრიფეთ კოდი.";
 "screen_native_call_error_title" = "ზარი ვერ შედგა";
 "notification_approval_action_not_found_title" = "ეს მოთხოვნა აღარ არსებობს";
 "state_event_spiral_tool_changed_by_you" = "თქვენ შეცვალეთ %1$@";
@@ -1354,7 +1370,6 @@
 "screen_native_call_control_sound" = "ხმა";
 "screen_native_call_status_reconnecting" = "ხელახლა დაკავშირება…";
 "notice_phrase_changed_body" = "ძველი ფრაზით შესვლა აღარ შეიძლება.";
-"screen_invite_people_seats_footer" = "ყველა ადამიანს აქვს ერთი ბმული %1$d ადგილით. ის არ განახლდება, ამიტომ გაუზიარეთ მათ, ვინც ნამდვილად გინდათ, რომ აქ იყოს.";
 "screen_room_member_details_agent_unblock_action" = "განბლოკვა";
 "screen_agent_activity_reason_unknown_capability" = "ეს მას არ შეუძლია";
 "screen_settings_new_phrase_passcode_required" = "ჯერ დააყენეთ მოწყობილობის კოდი — ის იცავს ფრაზის შეცვლას";
@@ -1426,10 +1441,11 @@
 "screen_your_data_calls_footer" = "ერთი ზარის ექსპორტი: მისი ტრანსკრიპტი, შეჯამება და თანხმობების ჟურნალი.";
 "screen_arm_tool_error_agent_does_not_join_calls" = "ეს აგენტი ზარებში არ ერთვება, ამიტომ ზარის ხელსაწყოები მისთვის მიუწვდომელია.";
 "screen_room_interactive_generating_hint" = "ჩვეულებრივ, წუთზე ნაკლები";
-"screen_invite_paste_exhausted" = "ყველა, ვისაც ეს მოსაწვევი უშვებდა, უკვე შემოუერთდა. მოითხოვეთ ახალი.";
 "notice_phrase_changed_on_device" = "შეიცვალა „%1$@“-ზე.";
+/* AGENT-PLATFORM (1.0.3): the owner-DM card when Sign in with Apple is added. It names no device (security review); a new phrase disconnects Apple. */
+"notice_apple_linked_title" = "Apple-ით შესვლა დაემატა";
+"notice_apple_linked_body" = "თუ ეს თქვენ არ იყავით, შეცვალეთ შესვლის ფრაზა: ეს Apple-ს გათიშავს.";
 "screen_ai_consent_prompt_openai" = "OpenAI: შეტყობინებები, რომლებსაც ასისტენტები კითხულობენ, თქვენი ხმა მათთან ზარებში და ჩანაწერები, რომლებსაც ისინი ტრანსკრიბირებენ.";
-"screen_invite_welcome_message" = "%1$@-მა მოგიწვიათ და უკვე იცის, რომ აქ ხართ. მიესალმეთ!";
 "screen_agent_activity_action_used_tool" = "გამოიყენა ხელსაწყო შეტყობინებაზე";
 "screen_approval_detail_escalation_first_contact" = "ვიღაცამ თქვენს აგენტს პირველად მისწერა, ამიტომ ის პასუხამდე გეკითხებათ.";
 "screen_agent_activity_action_drafted_post" = "შეადგინა პოსტის მონახაზი";
@@ -1444,7 +1460,6 @@
 "screen_room_interactive_post_updated" = "პოსტი განახლდა";
 "screen_native_call_camera_failed_message" = "კამერა ვერ ჩაირთო, ამიტომ ზარი აუდიოთი გრძელდება. ცოტა ხანში კვლავ სცადეთ კამერის ღილაკი.";
 "screen_media_viewer_open" = "გახსნა";
-"screen_invite_paste_invalid" = "ასეთი მოსაწვევი არ არსებობს.";
 "screen_agent_room_tool_audience_except_named" = "ყველასთვის, %1$@-ის გარდა";
 "notification_spiral_needs_update_body" = "ამის სანახავად განაახლეთ აპი.";
 "screen_agent_edit_tone_brief" = "მოკლე და კონკრეტული";
@@ -1452,7 +1467,6 @@
 "screen_invite_people_seats_left" = "დარჩა %1$d მოსაწვევი %2$d-დან";
 "screen_agent_activity_reason_wrong_room_kind" = "ამ ტიპის ჩატში დაუშვებელია";
 "screen_native_call_failure_audio_reset" = "ზარის აუდიო სისტემამ ჩამოყარა.";
-"screen_invite_people_body" = "რეგისტრაცია მოსაწვევითაა. გააზიარეთ თქვენი პირადი ბმული — ყველა, ვინც მისით ანგარიშს შექმნის, პირველად თქვენ დაგინახავთ.";
 "notification_approval_action_target_blocked_title" = "არ გაიგზავნა — თქვენ ეს ადამიანი დაბლოკეთ";
 "screen_notifications_hub_visitor_other" = "რაღაც ახალი";
 "screen_agent_activity_empty_pending_title" = "გადასაწყვეტი მოთხოვნები არ არის";
@@ -1476,3 +1490,61 @@
 "screen_notifications_hub_visitors_section" = "ადამიანებისგან";
 "screen_agent_settings_visitor_reply_description" = "პასუხობს ყველას, გარდა თქვენ მიერ დაბლოკილი ადამიანებისა";
 "screen_deactivate_account_spiral_auth_reason" = "ანგარიშის წასაშლელად დაადასტურეთ, რომ ეს თქვენ ხართ";
+
+// AGENT-PLATFORM (1.0.3 A2): the assistant's first invite in Chats, its chat before consent and its welcome.
+"screen_roomlist_assistant_invite_name" = "თქვენი ასისტენტი";
+"screen_roomlist_assistant_invite_subtitle" = "გამარჯობა! შეეხეთ დასაწყებად 👋";
+"screen_roomlist_assistant_invite_start" = "დაწყება";
+"a11y_assistant_invite_start" = "დაიწყეთ საუბარი ასისტენტთან";
+"a11y_assistant_invite_start_hint" = "იღებს ასისტენტის მოწვევას და ხსნის თქვენს ჩატს მასთან.";
+"screen_assistant_invite_title" = "გამარჯობა! მე თქვენი ასისტენტი ვარ";
+"screen_assistant_invite_reminders" = "შეგახსენებთ საქმეებს";
+"screen_assistant_invite_contacts" = "დავიმახსოვრებ თქვენს კონტაქტებს";
+"screen_assistant_invite_summaries" = "შევაჯამებ ნებისმიერ ჩატს";
+"screen_assistant_invite_privacy" = "მხოლოდ ამ საუბარს ვხედავ. ნებისმიერ დროს შეგიძლიათ გამომრთოთ.";
+"screen_assistant_invite_start" = "საუბრის დაწყება";
+"notice_welcome_body" = "აქ ვარ და მზად ვარ დასახმარებლად. საიდან დავიწყოთ?";
+"notice_welcome_starter_summary" = "ჩატის შეჯამება";
+"notice_welcome_starter_summary_message" = "შემიჯამე ერთი ჩატი";
+"notice_welcome_starter_contact" = "კონტაქტის დამახსოვრება";
+"notice_welcome_starter_contact_message" = "დაიმახსოვრე რამე ჩემს კონტაქტზე";
+"notice_welcome_starter_reminder" = "შემახსენე…";
+"notice_welcome_starter_reminder_message" = "დამიყენე შეხსენება";
+"notice_welcome_allow_ai_reason" = "დაუშვით AI, რომ წავიკითხო, რასაც აქ წერთ.";
+"notice_welcome_allow_ai_action" = "AI-ის დაშვება";
+
+// AGENT-PLATFORM (1.0.3 onboarding): the start screen's stories, the notifications prompt and the invited welcome.
+"screen_start_slide_privacy_title" = "თქვენი საუბრები თქვენია";
+"screen_start_slide_privacy_subtitle" = "ბოლომდე დაშიფვრა. ტელეფონის ნომრის გარეშე, ასისტენტი კი მხოლოდ თქვენი ნებართვით";
+"screen_start_slide_calls_title" = "ზარები თარგმანით";
+"screen_start_slide_calls_subtitle" = "ასისტენტი ზარს უერთდება და პირდაპირ თარგმნის";
+"screen_start_slide_assistant_title" = "ასისტენტი ახლოსაა";
+"screen_start_slide_assistant_subtitle" = "პასუხობს, როცა დაკავებული ხართ, და ყოველ ახალ ნაბიჯამდე გეკითხებათ";
+"screen_start_slide_games_title" = "ითამაშეთ ერთად პირდაპირ ჩატში";
+"screen_start_slide_games_subtitle" = "თამაშები და ხელსაწყოები, ინსტალაციის გარეშე";
+"screen_start_invited_by_hint" = "შექმენით ანგარიში და %1$@ გაიგებს, რომ აქ ხართ";
+"a11y_start_slides_position" = "სლაიდი %1$d / %2$d";
+"screen_notification_optin_spiral_title" = "იყავით კავშირზე";
+"screen_notification_optin_spiral_subtitle" = "Spiral შეგატყობინებთ, როცა რაღაც მართლაც მნიშვნელოვანია. ამის შეცვლა ნებისმიერ დროს შეგიძლიათ პარამეტრებში.";
+"screen_notification_optin_messages_title" = "ახალი შეტყობინებები";
+"screen_notification_optin_messages_subtitle" = "ადამიანებისა და ჯგუფებისგან, ვისთანაც საუბრობთ";
+"screen_notification_optin_calls_title" = "შემომავალი ზარები";
+"screen_notification_optin_calls_subtitle" = "მაშინაც, როცა Spiral დახურულია";
+"screen_notification_optin_assistant_title" = "თქვენი ასისტენტის კითხვები";
+"screen_notification_optin_assistant_subtitle" = "როცა მას თქვენი თანხმობა სჭირდება";
+"screen_notification_optin_allow" = "შეტყობინებების დაშვება";
+"screen_invite_welcome_together_title" = "თქვენ და %1$@ ერთად ხართ Spiral-ში";
+"screen_invite_welcome_step_say_hello_title" = "მიესალმეთ %1$@-ს";
+"screen_invite_welcome_step_say_hello_subtitle" = "%1$@ გელოდებათ";
+"screen_invite_welcome_step_assistant_title" = "გაიცანით თქვენი ასისტენტი";
+"screen_invite_welcome_step_assistant_subtitle" = "მისი მოწვევა ჩატებში გელოდებათ";
+"screen_invite_welcome_step_play_title" = "ითამაშეთ რამე ერთად";
+"screen_invite_welcome_step_play_subtitle" = "თამაშები და ხელსაწყოები პირდაპირ ჩატში";
+"a11y_invite_welcome_avatars" = "%1$@ და თქვენ";
+"screen_approval_detail_already_closed_title" = "ეს მოთხოვნა უკვე დახურულია";
+"screen_approval_detail_already_closed_message" = "მას ვადა გაუვიდა ან უკვე უპასუხეს.";
+"screen_room_interactive_post_description_not_sent" = "თქვენი აღწერა არ გაიგზავნა. გაგზავნეთ ის თავიდან თემაში.";
+"screen_room_interactive_post_code_not_sent" = "პოსტი აგენტამდე ვერ მივიდა. სცადეთ თავიდან პოსტიდან.";
+"screen_invites_assistant_decline_warning_spiral" = "თუ ეს თქვენი საკუთარი ასისტენტია, უარის შემდეგ მისი ჩატის აღდგენა შეუძლებელი იქნება.";
+"a11y_roomlist_remove_filter" = "ფილტრის მოხსნა: %1$@";
+"a11y_settings_share_profile" = "ჩემი პროფილის გაზიარება";

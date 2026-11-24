@@ -83,6 +83,7 @@ final class MediaViewerPresentingController: UIViewController {
         }
         self.viewer = viewer
         MediaViewerFrameProbe.begin(.open)
+        KeyboardDismissal.endEditing() // AGENT-PLATFORM (1.0.3): over full screen, the composer under it would keep the keyboard
         presenter.present(viewer, animated: false) // The viewer fades itself in.
     }
 

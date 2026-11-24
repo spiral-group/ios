@@ -15,6 +15,8 @@ struct GalleryItemTileView: View {
     let mediaProvider: MediaProviderProtocol?
     let contentScannerService: ContentScannerServiceProtocol?
     let overflowCount: Int
+    /// AGENT-PLATFORM (1.0.3): whether the time's chip sits in this tile's corner, which an album without a caption puts there.
+    let sharesCornerWithTime: Bool
     let onTap: () -> Void
     
     private var accessibilityLabel: String {
@@ -43,9 +45,15 @@ struct GalleryItemTileView: View {
                     .clipped()
                     .overlay(alignment: .topLeading) {
                         if item.isVideo {
-                            MediaVideoBadge(duration: item.duration)
+                            // AGENT-PLATFORM (1.0.3): at accessibility sizes the length leaves a narrow tile, so the
+                            // chip keeps only its glyph there, and a tile never shows a chip past its edge.
+                            ViewThatFits(in: .horizontal) {
+                                MediaVideoBadge(duration: item.duration)
+                                MediaVideoBadge(duration: nil)
+                            }
                         }
                     }
+                    .clipped()
                     .accessibilityElement(children: .ignore)
                     .accessibilityLabel(accessibilityLabel)
             } scanningContent: {
@@ -108,8 +116,8 @@ struct GalleryItemTileView: View {
             Text("+\(overflowCount)")
                 .font(.compound.headingLGBold)
                 .foregroundStyle(.white)
-                // Above the time's chip, which sits in this tile's corner when there's no caption.
-                .padding(.bottom, 20)
+                // AGENT-PLATFORM (1.0.3): above the time's chip, which sits in this tile's corner when there's no caption; centred otherwise.
+                .padding(.bottom, sharesCornerWithTime ? 20 : 0)
         }
         .allowsHitTesting(false) // Let the tap fall through to the tile below.
         .accessibilityHidden(true) // The count is already announced by the tile's label.

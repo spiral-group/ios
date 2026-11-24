@@ -272,26 +272,69 @@ class SettingsFlowCoordinator: FlowCoordinatorProtocol {
     }
     
     // AGENT-PLATFORM (Brief 0075): a new account phrase from this device.
+    // 1.0.3: an account made with Apple has none yet, so the same flow adds its first.
     private var newPhrasePresenter: NewPhrasePresenter?
-    private func startNewPhrase() {
-        guard let service = flowParameters.userSession.agentPlatformService else { return }
+    private func startNewPhrase(addsFirstPhrase: Bool) {
+        // One sign-in flow at a time: a second tap while one runs starts nothing.
+        guard newPhrasePresenter == nil, appleLinkPresenter == nil else { return }
+        guard let service = flowParameters.userSession.agentPlatformService else {
+            securitySettingsCoordinator?.signInFlowFinished()
+            return
+        }
         let presenter = NewPhrasePresenter(agentPlatformService: service,
-                                           presentationAnchor: flowParameters.windowManager.mainWindow)
+                                           presentationAnchor: flowParameters.windowManager.mainWindow,
+                                           addsFirstPhrase: addsFirstPhrase)
         newPhrasePresenter = presenter
         Task { [weak self] in
             let outcome = await presenter.start()
             guard let self else { return }
             newPhrasePresenter = nil
+            // Every outcome reloads: a sheet closed after the page already saved still changed the account.
+            securitySettingsCoordinator?.signInFlowFinished()
             switch outcome {
             case .changed:
-                flowParameters.userIndicatorController.submitIndicator(.init(title: UntranslatedL10n.screenSettingsNewPhraseDone,
-                                                                             icon: \.checkCircle))
+                let title = addsFirstPhrase ? UntranslatedL10n.screenSettingsAddPhraseDone : UntranslatedL10n.screenSettingsNewPhraseDone
+                flowParameters.userIndicatorController.submitIndicator(.init(title: title, icon: \.checkCircle))
             case .cancelled:
                 break
             case .passcodeRequired:
-                flowParameters.userIndicatorController.submitIndicator(.init(title: UntranslatedL10n.screenSettingsNewPhrasePasscodeRequired))
+                let title = addsFirstPhrase ? UntranslatedL10n.screenSettingsSignInPasscodeRequired : UntranslatedL10n.screenSettingsNewPhrasePasscodeRequired
+                flowParameters.userIndicatorController.submitIndicator(.init(title: title))
             case .failed:
-                flowParameters.userIndicatorController.submitIndicator(.init(title: UntranslatedL10n.screenSettingsNewPhraseFailed))
+                let title = addsFirstPhrase ? UntranslatedL10n.screenSettingsAddPhraseFailed : UntranslatedL10n.screenSettingsNewPhraseFailed
+                flowParameters.userIndicatorController.submitIndicator(.init(title: title))
+            }
+        }
+    }
+    
+    // AGENT-PLATFORM (1.0.3, operator 2026-11-20): add Sign in with Apple to a phrase account.
+    private var appleLinkPresenter: AppleLinkPresenter?
+    private func startAppleLink() {
+        guard newPhrasePresenter == nil, appleLinkPresenter == nil else { return }
+        guard let service = flowParameters.userSession.agentPlatformService else {
+            securitySettingsCoordinator?.signInFlowFinished()
+            return
+        }
+        let presenter = AppleLinkPresenter(agentPlatformService: service,
+                                           presentationAnchor: flowParameters.windowManager.mainWindow)
+        appleLinkPresenter = presenter
+        Task { [weak self] in
+            let outcome = await presenter.start()
+            guard let self else { return }
+            appleLinkPresenter = nil
+            securitySettingsCoordinator?.signInFlowFinished()
+            switch outcome {
+            case .linked:
+                flowParameters.userIndicatorController.submitIndicator(.init(title: UntranslatedL10n.screenSettingsAppleLinked,
+                                                                             icon: \.checkCircle))
+            case .taken:
+                flowParameters.userIndicatorController.submitIndicator(.init(title: UntranslatedL10n.screenSettingsAppleTaken))
+            case .cancelled:
+                break
+            case .passcodeRequired:
+                flowParameters.userIndicatorController.submitIndicator(.init(title: UntranslatedL10n.screenSettingsSignInPasscodeRequired))
+            case .failed:
+                flowParameters.userIndicatorController.submitIndicator(.init(title: UntranslatedL10n.screenSettingsAppleFailed))
             }
         }
     }
@@ -343,16 +386,21 @@ class SettingsFlowCoordinator: FlowCoordinatorProtocol {
     }
     
     // AGENT-PLATFORM (decision 187): the Security hub; each row opens a presenter of this flow.
+    /// Held weakly: the navigation stack owns it, and a sign-in method added from it reloads its rows.
+    private weak var securitySettingsCoordinator: SecuritySettingsScreenCoordinator?
     private func presentSecuritySettings() {
         let coordinator = SecuritySettingsScreenCoordinator(parameters: .init(userSession: flowParameters.userSession,
                                                                               appSettings: flowParameters.userSession.userSettings.app))
+        securitySettingsCoordinator = coordinator
         coordinator.actionsPublisher
             .sink { [weak self] action in
                 guard let self else { return }
                 
                 switch action {
-                case .newPhrase:
-                    startNewPhrase()
+                case .newPhrase(let addsFirstPhrase):
+                    startNewPhrase(addsFirstPhrase: addsFirstPhrase)
+                case .addApple:
+                    startAppleLink()
                 case .manageAccount(let url):
                     presentAccountManagementURL(url)
                 case .linkNewDevice:

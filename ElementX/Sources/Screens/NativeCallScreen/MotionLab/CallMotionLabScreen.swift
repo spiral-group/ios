@@ -27,6 +27,10 @@ struct CallMotionLabScreen: View {
         case assistants = "Assistants"
         /// Question 401: the same sheet live, on a mocked platform, to tap through as in a real call.
         case assistantsLive = "AssistantsLive"
+        /// 1.0.3: how call translation starts — the live sheet's Start, Stop and «Translate into …» (operator's pick B).
+        case translationStart = "TranslationStart"
+        /// 1.0.3: the Assistants sheet as it ships after the operator's pick C — each job asked, Translation at rest.
+        case jobConfirm = "JobConfirm"
         /// Question 390: the agents' own colours; question 393: the agent badge.
         case avatars = "Avatars"
 
@@ -145,7 +149,7 @@ struct CallMotionLabScreen: View {
         _detent = State(initialValue: defaults.string(forKey: "SpiralCallMotionLabPanel") == "small" ? Self.foldedPanel : .medium)
         // The Assistants sheet and the Avatars column need the screen; the button top right brings the panel back.
         _isPanelShown = State(initialValue: defaults.string(forKey: "SpiralCallMotionLabPanel") != "hidden"
-            && ![Stage.assistants.rawValue, Stage.assistantsLive.rawValue, Stage.avatars.rawValue].contains(defaults.string(forKey: "SpiralCallMotionLabStage")))
+            && ![Stage.assistants.rawValue, Stage.assistantsLive.rawValue, Stage.translationStart.rawValue, Stage.jobConfirm.rawValue, Stage.avatars.rawValue].contains(defaults.string(forKey: "SpiralCallMotionLabStage")))
         let levels = CallMotionLabLevels()
         levels.isPlaying = !defaults.bool(forKey: "SpiralCallMotionLabSilent")
         levels.isThroughSFU = !defaults.bool(forKey: "SpiralCallMotionLabRaw")
@@ -173,7 +177,7 @@ struct CallMotionLabScreen: View {
                         .spiralGlass(in: Circle(), isInteractive: true)
                         .padding(.horizontal, CompoundDesignTokens.space3X)
                         // The live call's 文A button has that corner (Brief 0085): the lab's controls sit under it.
-                        .padding(.top, stage == .assistantsLive ? 56 : 0)
+                        .padding(.top, stage == .assistantsLive || stage == .translationStart || stage == .jobConfirm ? 56 : 0)
                 }
             }
             .sheet(isPresented: $isPanelShown) {
@@ -215,6 +219,8 @@ struct CallMotionLabScreen: View {
         case .real: CallMotionLabRealScreens(setup: callSetup)
         case .assistants: CallMotionLabAssistantsStage(state: $assistantsState, canPresent: !isPanelShown)
         case .assistantsLive: CallMotionLabAssistantsLiveStage()
+        case .translationStart: CallMotionLabTranslationStartStage()
+        case .jobConfirm: CallMotionLabJobConfirmStage()
         case .avatars: CallMotionLabAvatarsStage(theme: $theme)
         case .group:
             CallMotionGroupStage(layout: groupLayout, count: groupCount, levels: groupLevels)
@@ -499,6 +505,16 @@ struct CallMotionLabScreen: View {
         case .assistantsLive:
             Button("Show the call") { isPanelShown = false }
             Text("The Assistants sheet live (question 401): the dock's Assistants button opens it, and every tap changes a mocked platform. The pill over the clock sets the scenario.")
+                .font(.compound.bodySM)
+                .foregroundStyle(.compound.textSecondary)
+        case .translationStart:
+            Button("Show the call") { isPanelShown = false }
+            Text("How call translation starts (1.0.3, B): the live sheet's Start, Stop and Translate into …, opened from the 文A menu or the Assistant button. The pill over the clock plays its states.")
+                .font(.compound.bodySM)
+                .foregroundStyle(.compound.textSecondary)
+        case .jobConfirm:
+            Button("Show the call") { isPanelShown = false }
+            Text("The Assistants sheet after the 1.0.3 pick C: each job asked under the buttons, Translation's question at rest, the 文A menu on the same root. The pill over the clock picks the cast and plays a tap.")
                 .font(.compound.bodySM)
                 .foregroundStyle(.compound.textSecondary)
         case .avatars:

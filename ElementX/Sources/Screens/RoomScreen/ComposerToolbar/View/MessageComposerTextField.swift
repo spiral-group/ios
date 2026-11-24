@@ -49,6 +49,22 @@ struct MessageComposerTextField: View {
         // Need this to enable escape on the textView and forward the presses
         .keyboardShortcut(.escape, modifiers: [])
     }
+
+    // AGENT-PLATFORM (1.0.3 B19): a tapped mention pill or matrix.to link stays in the draft; the default opened Safari.
+    nonisolated static func opensTappedLink(_ url: URL?, in text: NSAttributedString, range: NSRange) -> Bool {
+        if url?.host()?.lowercased() == "matrix.to" {
+            return false
+        }
+        let range = NSIntersectionRange(range, NSRange(location: 0, length: text.length))
+        var holdsPill = false
+        text.enumerateAttribute(.attachment, in: range) { value, _, stop in
+            if value is PillTextAttachment {
+                holdsPill = true
+                stop.pointee = true
+            }
+        }
+        return !holdsPill
+    }
 }
 
 private struct UITextViewWrapper: UIViewRepresentable {
@@ -195,6 +211,12 @@ private struct UITextViewWrapper: UIViewRepresentable {
                     self.selectedRange.wrappedValue = textView.selectedRange
                 }
             }
+        }
+
+        // AGENT-PLATFORM (1.0.3 B19): no default action (Safari) for a pill or matrix.to link.
+        func textView(_ textView: UITextView, primaryActionFor textItem: UITextItem, defaultAction: UIAction) -> UIAction? {
+            let url: URL? = if case .link(let url) = textItem.content { url } else { nil }
+            return MessageComposerTextField.opensTappedLink(url, in: textView.attributedText, range: textItem.range) ? defaultAction : nil
         }
     }
 }

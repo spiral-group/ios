@@ -50,8 +50,8 @@ enum InteractivePostCatalogScreenViewModelAction {
     case changeTemplate(SpiralAppTemplate)
     /// The Agents tab, where the person's agent is or will be (question 412).
     case showAgents
-    /// The agents couldn't be read: read them again, back on this post.
-    case retryAgents(templateID: String)
+    /// The agents couldn't be read: read them again, with the catalogue left open.
+    case retryAgents
     /// The post page, pushed over the catalogue.
     case showPost
     /// Yours, pushed over the catalogue.
@@ -162,6 +162,8 @@ struct InteractivePostCatalogScreenViewState: BindableState {
     /// Whether the viewer has an agent to make posts with. A catalogue link
     /// opens for anyone (decision 129): without one, only browse and Send.
     var assistant = InteractivePostCatalogAssistant.available
+    /// Retry is reading the agents again: it spins and can't be pressed.
+    var isReadingAgents = false
     /// The screen's one running post, on the post page.
     let livePreview: DraftPreview
 
@@ -311,7 +313,7 @@ enum InteractivePostCatalogScreenViewAction {
     case publishTemplate(SpiralAppTemplate)
     case changeTemplate(SpiralAppTemplate)
     case showAgents
-    case retryAgents(templateID: String)
+    case retryAgents
     case retryCatalog
     case retryThreads
     case screenAppeared(InteractivePostCatalogScreenID)

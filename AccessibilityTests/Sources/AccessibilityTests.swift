@@ -42,10 +42,11 @@ final class AccessibilityTests: XCTestCase {
                     }
                     barFrames = outcome.barFrames
                     try client.send(.accessibilityAudit(outcome.heldContrastBack ? .prepareContrastAudit : .nextPreview))
-                case .contrastAuditReady(let name, let hiddenElements): // AGENT-PLATFORM (Brief 0083)
+                case .contrastAuditReady(let name, let hiddenElements, let fixedScrollViewFrames): // AGENT-PLATFORM (Brief 0083)
                     Self.failForHiddenElementsOutsideBars(hiddenElements, barFrames: barFrames.all, stateNamed: audit.activityName(forPreviewNamed: name))
                     var recheck = audit.contrastRecheck
                     recheck.headerBottom = barFrames.headerBottom
+                    recheck.fixedScrollViewFrames = fixedScrollViewFrames
                     _ = Self.expectingFailure(ofStateNamed: name, in: recheck) {
                         performAccessibilityAuditForPreview(named: name, audit: recheck)
                     }
@@ -91,7 +92,7 @@ final class AccessibilityTests: XCTestCase {
                     // text contrast (contrast triage H and I), in whichever audit names the issue's element; and a known
                     // failure's description on another element fails on its own.
                     if Self.isExemptContrastIssue(issue, in: self.app, previewNamed: audit.activityName(forPreviewNamed: name), headerBottom: audit.headerBottom,
-                                                  readsOwnPixels: audit.isContrastRecheck)
+                                                  fixedScrollViewFrames: audit.fixedScrollViewFrames, readsOwnPixels: audit.isContrastRecheck)
                         || Self.isKnownFailureElsewhere(issue, previewNamed: name, in: audit) {
                         return true
                     }

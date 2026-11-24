@@ -47,11 +47,11 @@ class FeedScreenHarnessCoordinator: CoordinatorProtocol {
         + "• будьмо доброзичливими — без ненависті, цькування й погроз;\n• без сексуального вмісту, спаму й шахрайства.\n\n"
         + "Усі правила: https://spiral.md/brand/terms (розділ 6). Раді вам тут!",
         people: [("Олена Коваль", 120, "Нарешті перший сніг у Львові ❄️ Хто ще сьогодні вийшов погуляти з самого ранку?"),
-                 ("Андрій Мельник", 300, "Зробив собі агента, який нагадує поливати вазони. Вазони живі вже третій тиждень. Це рекорд 🌱"),
+                 ("Тарас Мельник", 300, "Зробив собі агента, який нагадує поливати вазони. Вазони живі вже третій тиждень. Це рекорд 🌱"),
                  ("Ірина Бойко", 1440, "Хто знає гарну кав'ярню біля Контрактової, де можна попрацювати з ноутбуком?")])
 
     private static let english = Texts(welcome: FeedPreviewData.welcomePost.content.text,
                                        people: [("Olena Koval", 120, "First snow in Lviv at last ❄️ Who else went out for a walk first thing this morning?"),
-                                                ("Andrii Melnyk", 300, "Made myself an agent that reminds me to water the plants. Three weeks alive. A record 🌱"),
+                                                ("Taras Melnyk", 300, "Made myself an agent that reminds me to water the plants. Three weeks alive. A record 🌱"),
                                                 ("Iryna Boiko", 1440, "Anyone know a good café near Kontraktova where I can work on a laptop?")])
 }

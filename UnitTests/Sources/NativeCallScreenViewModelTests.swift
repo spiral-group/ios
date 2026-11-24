@@ -1772,6 +1772,7 @@ private final class NativeCallSessionDelegateSpy: NativeCallSessionDelegate {
     }
 
     func nativeCallSession(_ session: NativeCallSession, didChangeParticipants participants: [NativeCallParticipant]) { }
+    func nativeCallSessionDidChangeParticipantLanguages(_ session: NativeCallSession) { }
 
     func nativeCallSession(_ session: NativeCallSession, didSendRingNotification eventID: String) {
         ringNotificationIDs.append(eventID)

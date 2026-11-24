@@ -60,7 +60,8 @@ class CreateAgentScreenViewModel: CreateAgentScreenViewModelType, CreateAgentScr
         case .failure(let error):
             MXLog.error("Failed to create agent: \(error)")
             state.bindings.alertInfo = AlertInfo(id: .createFailed,
-                                                 title: UntranslatedL10n.screenCreateAgentFailure)
+                                                 title: UntranslatedL10n.screenCreateAgentFailure,
+                                                 message: error.agentNameRefusal)
         }
     }
 }

@@ -550,10 +550,10 @@ final class ComposerToolbarViewModel: ComposerToolbarViewModelType, ComposerTool
             } else {
                 let attributedString = NSMutableAttributedString(attributedString: state.bindings.plainComposerText)
                 mentionBuilder.handleUserMention(for: attributedString, in: suggestion.range, url: url, userID: user.id, userDisplayName: user.displayName)
+                let cursor = Self.spaceAfterMention(in: attributedString, pillAt: suggestion.range.location)
                 state.bindings.plainComposerText = attributedString
-                
-                let newSelectedRange = NSRange(location: state.bindings.selectedRange.location - suggestion.rawSuggestionText.count, length: 0)
-                state.bindings.selectedRange = newSelectedRange
+                state.bindings.selectedRange = NSRange(location: cursor ?? state.bindings.selectedRange.location - suggestion.rawSuggestionText.count,
+                                                       length: 0)
             }
         case .allUsers:
             if context.composerFormattingEnabled {
@@ -561,10 +561,10 @@ final class ComposerToolbarViewModel: ComposerToolbarViewModelType, ComposerTool
             } else {
                 let attributedString = NSMutableAttributedString(attributedString: state.bindings.plainComposerText)
                 mentionBuilder.handleAllUsersMention(for: attributedString, in: suggestion.range)
+                let cursor = Self.spaceAfterMention(in: attributedString, pillAt: suggestion.range.location)
                 state.bindings.plainComposerText = attributedString
-                
-                let newSelectedRange = NSRange(location: state.bindings.selectedRange.location - suggestion.rawSuggestionText.count, length: 0)
-                state.bindings.selectedRange = newSelectedRange
+                state.bindings.selectedRange = NSRange(location: cursor ?? state.bindings.selectedRange.location - suggestion.rawSuggestionText.count,
+                                                       length: 0)
             }
         case let .room(room):
             guard let url = try? URL(string: matrixToRoomAliasPermalink(roomAlias: room.canonicalAlias)) else {
@@ -577,12 +577,42 @@ final class ComposerToolbarViewModel: ComposerToolbarViewModelType, ComposerTool
             } else {
                 let attributedString = NSMutableAttributedString(attributedString: state.bindings.plainComposerText)
                 mentionBuilder.handleRoomAliasMention(for: attributedString, in: suggestion.range, url: url, roomAlias: room.canonicalAlias, roomDisplayName: room.name)
+                let cursor = Self.spaceAfterMention(in: attributedString, pillAt: suggestion.range.location)
                 state.bindings.plainComposerText = attributedString
-                
-                let newSelectedRange = NSRange(location: state.bindings.selectedRange.location - suggestion.rawSuggestionText.count, length: 0)
-                state.bindings.selectedRange = newSelectedRange
+                state.bindings.selectedRange = NSRange(location: cursor ?? state.bindings.selectedRange.location - suggestion.rawSuggestionText.count,
+                                                       length: 0)
             }
         }
+    }
+    
+    /// AGENT-PLATFORM (1.0.3): a space after a picked mention, as the rich-text
+    /// composer already adds. The plain composer put the pill in alone, and the
+    /// pill looks set apart, so the next word went out glued to it: a mention
+    /// push read «@Alice Smithmention…» (Stage-A, 2026-11-24).
+    ///
+    /// `location` is where the mention builder put the pill (the suggestion's
+    /// range start, in UTF-16 units). Returns where the cursor goes, after the
+    /// space, or nil when no pill is there (the builder fell back to plain
+    /// text), so nothing is inserted into the person's words.
+    static func spaceAfterMention(in attributedString: NSMutableAttributedString, pillAt location: Int) -> Int? {
+        let text = attributedString.string as NSString
+        guard location >= 0, location < text.length,
+              text.character(at: location) == 0xFFFC else { return nil }
+
+        let afterPill = location + 1
+        if afterPill < text.length,
+           let next = UnicodeScalar(text.character(at: afterPill)),
+           CharacterSet.whitespaces.contains(next) {
+            return afterPill + 1
+        }
+
+        let pill = attributedString.attributes(at: location, effectiveRange: nil)
+        var attributes: [NSAttributedString.Key: Any] = [:]
+        attributes[.font] = pill[.font]
+        attributes[.foregroundColor] = pill[.foregroundColor]
+        attributes[.MatrixBlockquote] = pill[.MatrixBlockquote]
+        attributedString.insert(NSAttributedString(string: " ", attributes: attributes), at: afterPill)
+        return afterPill + 1
     }
     
     private func processIdentityStatusChanges(_ changes: [IdentityStatusChange]) async {

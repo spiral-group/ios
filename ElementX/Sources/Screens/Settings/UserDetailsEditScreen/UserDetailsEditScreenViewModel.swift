@@ -86,6 +86,8 @@ class UserDetailsEditScreenViewModel: UserDetailsEditScreenViewModelType, UserDe
         case .retryLoadingBio:
             guard state.bio == .loadFailed else { return }
             Task { await loadBio() }
+        case .bioChanged(let previous):
+            limitBio(editedFrom: previous)
         }
     }
     
@@ -201,6 +203,16 @@ class UserDetailsEditScreenViewModel: UserDetailsEditScreenViewModelType, UserDe
             state.bio = .loaded(bio)
         case .failure:
             state.bio = .loadFailed
+        }
+    }
+    
+    /// AGENT-PLATFORM (1.0.3 B11, operator 2026-11-18): the field stops at the limit, so Save never waits on the bio
+    /// and Back always gets the unsaved-changes alert. The stored bio, as loaded, stays as it is even when longer.
+    private func limitBio(editedFrom previous: String) {
+        guard case let .loaded(savedBio) = state.bio, state.bindings.bio != (savedBio ?? "") else { return }
+        let limited = FeedBio.limited(state.bindings.bio, editing: previous)
+        if limited != state.bindings.bio {
+            state.bindings.bio = limited
         }
     }
     

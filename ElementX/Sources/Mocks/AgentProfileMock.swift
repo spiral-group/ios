@@ -7,7 +7,7 @@
 import Foundation
 
 enum AgentProfileMock {
-    static let assistant = AgentSpaceAgentCard(agentID: "agent-1", matrixUserID: "@assistant-anna:spiral.md", displayName: "Anna Kovalchuk · assistant",
+    static let assistant = AgentSpaceAgentCard(agentID: "agent-1", matrixUserID: "@assistant-anna:spiral.md", displayName: "Anna Sampleton · assistant",
                                                avatarMXC: nil, kind: "personal_assistant", visibility: "private", lifecycleState: "active",
                                                roomCount: 3, activeToolCount: 2)
     static let salesAgent = AgentSpaceAgentCard(agentID: "agent-2", matrixUserID: "@agent-acme-sales:spiral.md", displayName: "Sales · Acme Corp",

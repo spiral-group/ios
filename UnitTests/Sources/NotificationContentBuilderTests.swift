@@ -304,6 +304,34 @@ struct NotificationContentBuilderTests {
         #expect(notificationContent.sound != nil)
     }
     
+    /// AGENT-PLATFORM: a push reads a Spiral notice as one only from an agent, by the timeline's rule (`SpiralAgentID`);
+    /// a member sending the same msgtype gets its plain body, not a fake «sign-in phrase changed».
+    @Test(arguments: [("@assistant-bob:spiral.md", true), ("@mallory:spiral.md", false)])
+    mutating func aNoticeReadsAsOneOnlyFromAnAgent(senderID: String, isAgent: Bool) async throws {
+        let data = #"{"com.spiral.notice":{"kind":"phrase_changed","device_name":"iPhone"}}"#
+        let notice = try #require(SpiralNotice(msgtype: SpiralNotice.msgtype, data: data))
+        let event = TimelineEventSDKMock()
+        event.eventIdReturnValue = UUID().uuidString
+        event.timestampReturnValue = 0
+        event.contentReturnValue = .messageLike(content: .roomMessage(messageType: .other(msgtype: SpiralNotice.msgtype, body: "fallback", data: data),
+                                                                      inReplyToEventId: nil))
+        let notificationItem = NotificationItemProxyMock(.init(event: .timeline(event: event),
+                                                               senderID: senderID,
+                                                               roomID: "!test:spiral.md",
+                                                               receiverID: "@alice:spiral.md",
+                                                               senderDisplayName: "Bob",
+                                                               roomDisplayName: "Bob",
+                                                               isRoomDirect: true,
+                                                               isRoomPrivate: true))
+        var content = notificationContent
+        await notificationContentBuilder.process(notificationContent: &content,
+                                                 notificationItem: notificationItem,
+                                                 mediaProvider: mediaProvider)
+
+        #expect(content.body == (isAgent ? notice.plainText : "fallback"))
+        #expect(SpiralAgentID.isAgent(senderID) == isAgent)
+    }
+    
     /// AGENT-PLATFORM (§ 5.73): a game's move that mentions the reader — a
     /// custom event the SDK cannot type — is shown as a mention from the
     /// player who moved, in the room; and it names the post the move was made

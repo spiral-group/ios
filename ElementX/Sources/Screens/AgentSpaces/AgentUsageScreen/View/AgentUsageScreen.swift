@@ -230,9 +230,13 @@ struct AgentUsageScreen: View {
         }
     }
 
+    /// On fixed days: a placeholder's bars take the width of the text they stand for, and a week named from today
+    /// came out a different width on different days.
     static var placeholderPage: AgentLimitPage {
-        AgentLimitPage(usage: .init(current: .init(period: .week, startsAt: .now, resetsAt: .now, usedPercent: 0, limitReached: false, categories: []),
-                                    days: []))
+        let start = Date(timeIntervalSince1970: 1_794_182_400) // 9 November 2026, 00:00 UTC.
+        return AgentLimitPage(usage: .init(current: .init(period: .week, startsAt: start, resetsAt: start.addingTimeInterval(7 * 86400),
+                                                          usedPercent: 0, limitReached: false, categories: []),
+                                           days: []))
     }
 
     // MARK: Formatting

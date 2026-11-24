@@ -37,6 +37,8 @@ class SettingsScreenViewModel: SettingsScreenViewModelType, SettingsScreenViewMo
         
         super.init(initialViewState: .init(deviceID: userSession.clientProxy.deviceID,
                                            userProfile: userSession.clientProxy.userProfilePublisher.value,
+                                           // AGENT-PLATFORM (1.0.3): the same link other people's profiles share.
+                                           shareLink: SpiralLink(userID: userSession.clientProxy.userID)?.webURL,
                                            // AGENT-PLATFORM (Brief 0078): a Spiral account is deleted through the platform.
                                            showAccountDeactivation: userSession.clientProxy.canDeactivateAccount || userSession.agentPlatformService != nil,
                                            showYourData: userSession.agentPlatformService != nil, // AGENT-PLATFORM (Brief 0078)

@@ -246,9 +246,26 @@ struct RoomToolsWireTests {
         #expect(ContinuousClock.now - started >= Self.retryDelay)
     }
 
-    /// Only once: a second 503 is the answer — on the attach too, whose 503 the export leaves undeclared.
+    /// Only once: a second 503 is the answer.
     @Test
     func aSecondServiceUnavailableIsTheAnswer() async {
+        stub(status: 503, contentType: "application/problem+json", body: Self.problem(type: "/errors/service-unavailable", status: 503),
+             headers: ["Retry-After": "5"])
+
+        let result = await service.setVoiceTranslation(sessionID: "session-1", params: .forLanguage("uk"), revision: 1)
+
+        guard case .failure(.serviceUnavailable(let retryAfter)) = result else {
+            Issue.record("Two 503s should fail as service unavailable, got \(result)")
+            return
+        }
+        #expect(retryAfter == Self.retryDelay)
+        #expect(RoomToolsURLProtocol.requests.withLock { $0[testID]?.count } == 2)
+    }
+
+    /// The attach's 503 (undeclared in the export) goes back after one request: the agent center retries it, since
+    /// the retry may need the assistant re-invited (operator, 2026-11-23).
+    @Test
+    func theAttachsServiceUnavailableIsLeftToTheCaller() async {
         stub(status: 503, contentType: "application/problem+json", body: Self.problem(type: "/errors/service-unavailable", status: 503),
              headers: ["Retry-After": "5"])
 
@@ -257,11 +274,11 @@ struct RoomToolsWireTests {
                                                     params: VoiceAttachParams(translation: .forLanguage("uk"), recording: false, summary: false, conversation: false))
 
         guard case .failure(.serviceUnavailable(let retryAfter)) = result else {
-            Issue.record("Two 503s should fail as service unavailable, got \(result)")
+            Issue.record("A 503 should fail as service unavailable, got \(result)")
             return
         }
         #expect(retryAfter == Self.retryDelay)
-        #expect(RoomToolsURLProtocol.requests.withLock { $0[testID]?.count } == 2)
+        #expect(RoomToolsURLProtocol.requests.withLock { $0[testID]?.count } == 1)
     }
 
     /// Row 12: the two typed 422s, with their extension members; another 422 stays a plain rejection.

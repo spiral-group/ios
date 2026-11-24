@@ -104,6 +104,14 @@ final nonisolated class AppSettings: @unchecked Sendable {
     @UserPreference
     var lastVersionLaunched: String?
     
+    /// AGENT-PLATFORM (1.0.3): the Element X release whose launch migrations have run, see `UpstreamMigrationBaseline`.
+    @UserPreference(key: "spiralUpstreamMigrationsVersion")
+    var upstreamMigrationsVersion: String?
+    
+    /// AGENT-PLATFORM (1.0.3): where an account without its own marker starts its migrations, see `UpstreamMigrationBaseline`.
+    @UserPreference(key: "spiralUpstreamAccountMigrationsFallback")
+    var upstreamAccountMigrationsFallback: String?
+    
     /// Defaults to `true` for new users, and we use a migration to set it to `false` for existing users.
     @UserPreference(defaultValue: true)
     var hasSeenNewSoundBanner: Bool
@@ -263,14 +271,6 @@ final nonisolated class AppSettings: @unchecked Sendable {
     ///
     /// **Note:** Setting this to false doesn't prevent someone from creating an account when the selected homeserver's MAS allows registration.
     let showCreateAccountButton = true
-    
-    // AGENT-PLATFORM (ADR-0008): the client's twin of the platform's
-    // `REGISTRATION_MODE`. `true` = invite-only — the invitation screen has
-    // no «Continue without an invitation». Flip both together: the
-    // identity page refuses a registration without a seat regardless, so
-    // the button is only ever a courtesy for an open registration.
-    @UserPreference(defaultValue: true)
-    var registrationRequiresInvite: Bool
     
     // AGENT-PLATFORM (Brief 0073): the start screen's «Sign in with QR code».
     // Off until the homeserver enables MSC4108 — today `/rendezvous` is a 404

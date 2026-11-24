@@ -23,6 +23,12 @@ class HomeScreenViewModel: HomeScreenViewModelType, HomeScreenViewModelProtocol 
     private let userIndicatorController: UserIndicatorControllerProtocol
     
     private let roomSummaryProvider: RoomSummaryProviderProtocol?
+    /// AGENT-PLATFORM (1.0.3 A2): tells the person's own assistant's invite from any other.
+    private var assistantInviteWatch: AssistantInviteSpacesWatch?
+    
+    // AGENT-PLATFORM (1.0.3): the decline alert on screen and its room, taken down if the answer forbids declining.
+    private var declineAlertID: UUID?
+    private var declineAlertRoomID: String?
     
     private var actionsSubject: PassthroughSubject<HomeScreenViewModelAction, Never> = .init()
     var actions: AnyPublisher<HomeScreenViewModelAction, Never> {
@@ -35,7 +41,8 @@ class HomeScreenViewModel: HomeScreenViewModelType, HomeScreenViewModelProtocol 
          selectedRoomPublisher: CurrentValuePublisher<String?, Never>,
          analyticsService: AnalyticsServiceProtocol,
          bugReportService: BugReportServiceProtocol,
-         userIndicatorController: UserIndicatorControllerProtocol) {
+         userIndicatorController: UserIndicatorControllerProtocol,
+         assistantInviteUnconfirmedLimit: Duration = .seconds(30)) { // AGENT-PLATFORM (1.0.3): tests shorten the bound
         self.userSession = userSession
         self.availableSessionsPublisher = availableSessionsPublisher
         self.analyticsService = analyticsService
@@ -49,6 +56,20 @@ class HomeScreenViewModel: HomeScreenViewModelType, HomeScreenViewModelProtocol 
         
         super.init(initialViewState: .init(bindings: .init(filtersState: .init(userSettings: userSession.userSettings))),
                    mediaProvider: userSession.mediaProvider)
+        
+        if let agentsStore = userSession.agentsStore { // AGENT-PLATFORM (1.0.3 A2)
+            assistantInviteWatch = AssistantInviteSpacesWatch(store: agentsStore, unconfirmedLimit: assistantInviteUnconfirmedLimit) { [weak self] in
+                self?.updateRooms()
+            }
+            // AGENT-PLATFORM (question 359): whose an assistant is decides its row's Leave; the Agents tab keeps it read.
+            agentsStore.observe { [weak self] in
+                guard let self else { return false }
+                if state.rooms.contains(where: { $0.dmUserID.map(SpiralAppPostSession.isAgent) == true }) {
+                    updateRooms()
+                }
+                return true
+            }
+        }
         
         if userSettings.app.globalSearchEnabled {
             state.isRoomListSearchEnabled = false
@@ -223,8 +244,7 @@ class HomeScreenViewModel: HomeScreenViewModelType, HomeScreenViewModelProtocol 
         case .dismissNewSoundBanner:
             userSettings.app.hasSeenNewSoundBanner = true
         case .screenAppeared:
-            // Use a task otherwise the presentation isn't animated.
-            Task { presentMultiAccountAnnouncementIfNeeded() }
+            screenAppeared() // AGENT-PLATFORM (1.0.3 A2)
         case .multiAccountAnnouncementAppeared:
             MXLog.info("The multi-account announcement has been seen.")
             userSettings.app.hasSeenMultiAccountAnnouncement = true
@@ -306,7 +326,7 @@ class HomeScreenViewModel: HomeScreenViewModelType, HomeScreenViewModelProtocol 
                 await acceptInvite(roomID: roomIdentifier)
             }
         case .declineInvite(let roomIdentifier):
-            Task { await showDeclineInviteConfirmationAlert(roomID: roomIdentifier) }
+            confirmDecliningInvite(roomID: roomIdentifier) // AGENT-PLATFORM (1.0.3 A2)
         }
     }
     
@@ -416,7 +436,46 @@ class HomeScreenViewModel: HomeScreenViewModelType, HomeScreenViewModelProtocol 
             rooms.append(room)
         }
         
-        state.rooms = rooms
+        state.rooms = markingLeave(in: markingAssistantInvite(in: rooms)) // AGENT-PLATFORM (1.0.3 A2, question 359)
+        dismissDeclineAlertNoLongerAllowed() // AGENT-PLATFORM (1.0.3)
+    }
+    
+    /// AGENT-PLATFORM (question 359): the chat with the person's own assistant has no Leave, as on the chat's page —
+    /// by the page's rule (`SpiralAgentProfile.offersLeave`), so an assistant whose owner is being read keeps none either.
+    private func markingLeave(in rooms: [HomeScreenRoom]) -> [HomeScreenRoom] {
+        guard let store = userSession.agentsStore else { return rooms }
+        var rooms = rooms
+        for index in rooms.indices where rooms[index].type == .room {
+            guard let userID = rooms[index].dmUserID,
+                  let profile = SpiralAgentProfile(userID: userID, ownership: store.ownership(matrixUserID: userID)) else { continue }
+            rooms[index].offersLeave = profile.offersLeave
+        }
+        return rooms
+    }
+    
+    /// AGENT-PLATFORM (1.0.3 A2): Chats showing again asks again about an assistant's invite whose owner couldn't be told.
+    private func screenAppeared() {
+        assistantInviteWatch?.refreshIfUnconfirmed()
+        // Use a task otherwise the presentation isn't animated.
+        Task { presentMultiAccountAnnouncementIfNeeded() }
+    }
+    
+    /// AGENT-PLATFORM (1.0.3 A2): the person's own assistant waits on top of Chats until they start their chat with it.
+    private func markingAssistantInvite(in rooms: [HomeScreenRoom]) -> [HomeScreenRoom] {
+        let isCandidate = { (room: HomeScreenRoom) in
+            room.inviter != nil && AssistantInvite.isCandidate(inviterID: room.inviter?.id, isDirect: room.isDirect)
+        }
+        assistantInviteWatch?.update(isNeeded: rooms.contains(where: isCandidate))
+        guard let assistantInviteWatch else { return rooms }
+        
+        var rooms = rooms
+        for index in rooms.indices where isCandidate(rooms[index]) {
+            rooms[index].assistantInvite = assistantInviteWatch.invite(inviterID: rooms[index].inviter?.id, isDirect: rooms[index].isDirect)
+        }
+        if let index = rooms.firstIndex(where: { $0.assistantInvite == .own }), index > 0 {
+            rooms.insert(rooms.remove(at: index), at: 0)
+        }
+        return rooms
     }
     
     private func markRoomAsFavourite(_ roomID: String, isFavourite: Bool) async {
@@ -572,6 +631,31 @@ class HomeScreenViewModel: HomeScreenViewModelType, HomeScreenViewModelProtocol 
         userSettings.account.seenInvites.remove(roomProxy.id)
     }
     
+    /// AGENT-PLATFORM (1.0.3 A2, ADR-0017): the assistant's chat is never declined; its row offers no way to.
+    private func confirmDecliningInvite(roomID: String) {
+        guard allowsDecline(roomID: roomID) else { return }
+        Task { await showDeclineInviteConfirmationAlert(roomID: roomID) }
+    }
+    
+    /// AGENT-PLATFORM (1.0.3): asked when the alert opens and again when it is confirmed, as the answer about whose
+    /// assistant asks can arrive in between.
+    private func allowsDecline(roomID: String) -> Bool {
+        guard state.rooms.first(where: { $0.id == roomID })?.assistantInvite.allowsDecline != false else {
+            MXLog.error("Ignoring a decline of the assistant's invite to \(roomID)")
+            return false
+        }
+        return true
+    }
+    
+    /// AGENT-PLATFORM (1.0.3): a decline alert opened while it was allowed goes once the answer forbids it.
+    private func dismissDeclineAlertNoLongerAllowed() {
+        guard let roomID = declineAlertRoomID, state.bindings.alertInfo?.id == declineAlertID else { return }
+        if state.rooms.first(where: { $0.id == roomID })?.assistantInvite.allowsDecline == false {
+            state.bindings.alertInfo = nil
+            declineAlertRoomID = nil
+        }
+    }
+    
     private func showDeclineInviteConfirmationAlert(roomID: String) async {
         guard let room = state.rooms.first(where: { $0.id == roomID }) else {
             displayError()
@@ -580,17 +664,23 @@ class HomeScreenViewModel: HomeScreenViewModelType, HomeScreenViewModelProtocol 
         
         let roomPlaceholder = room.isDirect ? (room.inviter?.displayName ?? room.name) : room.name
         let title = room.isDirect ? L10n.screenInvitesDeclineDirectChatTitle : L10n.screenInvitesDeclineChatTitle
-        let message = room.isDirect ? L10n.screenInvitesDeclineDirectChatMessage(roomPlaceholder) : L10n.screenInvitesDeclineChatMessage(roomPlaceholder)
+        var message = room.isDirect ? L10n.screenInvitesDeclineDirectChatMessage(roomPlaceholder) : L10n.screenInvitesDeclineChatMessage(roomPlaceholder)
+        if room.assistantInvite.declineNeedsWarning { // AGENT-PLATFORM (1.0.3): an assistant whose owner couldn't be told
+            message += "\n\n" + UntranslatedL10n.screenInvitesAssistantDeclineWarningSpiral
+        }
         
+        let alertID = UUID()
+        declineAlertID = alertID // AGENT-PLATFORM (1.0.3)
+        declineAlertRoomID = roomID
         if await userSession.clientProxy.isReportRoomSupported, let userID = room.inviter?.id {
-            state.bindings.alertInfo = .init(id: UUID(),
+            state.bindings.alertInfo = .init(id: alertID,
                                              title: title,
                                              message: message,
                                              primaryButton: .init(title: L10n.actionCancel, role: .cancel, action: nil),
                                              secondaryButton: .init(title: L10n.actionDeclineAndBlock, role: .destructive) { [weak self] in self?.declineAndBlockInvite(userID: userID, roomID: roomID) },
                                              verticalButtons: [.init(title: L10n.actionDecline) { [weak self] in Task { await self?.declineInvite(roomID: room.id) } }])
         } else {
-            state.bindings.alertInfo = .init(id: UUID(),
+            state.bindings.alertInfo = .init(id: alertID,
                                              title: title,
                                              message: message,
                                              primaryButton: .init(title: L10n.actionCancel, role: .cancel, action: nil),
@@ -599,10 +689,12 @@ class HomeScreenViewModel: HomeScreenViewModelType, HomeScreenViewModelProtocol 
     }
     
     private func declineAndBlockInvite(userID: String, roomID: String) {
+        guard allowsDecline(roomID: roomID) else { return } // AGENT-PLATFORM (1.0.3): checked again on confirm
         actionsSubject.send(.presentDeclineAndBlock(userID: userID, roomID: roomID))
     }
     
     private func declineInvite(roomID: String) async {
+        guard allowsDecline(roomID: roomID) else { return } // AGENT-PLATFORM (1.0.3): checked again on confirm
         defer {
             userIndicatorController.retractIndicatorWithId(roomID)
         }

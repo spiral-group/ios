@@ -327,6 +327,10 @@ extension AccessibilityTests {
         try await performAccessibilityAudit(named: "HighlightedTimelineItemModifier_Previews")
     }
 
+    func testHomeScreenAssistantInviteCell() async throws {
+        try await performAccessibilityAudit(named: "HomeScreenAssistantInviteCell_Previews")
+    }
+
     func testHomeScreenEmptyStateView() async throws {
         try await performAccessibilityAudit(named: "HomeScreenEmptyStateView_Previews")
     }
@@ -399,10 +403,6 @@ extension AccessibilityTests {
         try await performAccessibilityAudit(named: "InteractivePostTimeline_Previews")
     }
 
-    func testInvitePasteSheet() async throws {
-        try await performAccessibilityAudit(named: "InvitePasteSheet_Previews")
-    }
-
     func testInvitePeopleScreen() async throws {
         try await performAccessibilityAudit(named: "InvitePeopleScreen_Previews")
     }
@@ -421,6 +421,10 @@ extension AccessibilityTests {
 
     func testInviteWelcomeScreen() async throws {
         try await performAccessibilityAudit(named: "InviteWelcomeScreen_Previews")
+    }
+
+    func testJoinRoomAssistantInviteView() async throws {
+        try await performAccessibilityAudit(named: "JoinRoomAssistantInviteView_Previews")
     }
 
     func testJoinRoomByAddressView() async throws {
@@ -1021,6 +1025,10 @@ extension AccessibilityTests {
 
     func testSpiralTabAvatar() async throws {
         try await performAccessibilityAudit(named: "SpiralTabAvatar_Previews")
+    }
+
+    func testSpiralWelcomeNoticeView() async throws {
+        try await performAccessibilityAudit(named: "SpiralWelcomeNoticeView_Previews")
     }
 
     func testSplashScreen() async throws {

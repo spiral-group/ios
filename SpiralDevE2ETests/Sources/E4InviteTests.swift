@@ -1,8 +1,8 @@
 //
 // Copyright 2026 the Spiral authors. AGPL-3.0-or-later.
 //
-// AGENT-PLATFORM (decision 148): invitations — the paste sheet and its
-// errors, an invitation link opened while signed in (G4); the owner's own
+// AGENT-PLATFORM (decision 148): invitations — Create account and invitation
+// links, no stale welcome (G4; 1.0.3: no invitation screen in the app); the owner's own
 // link, a person who registers through it and what the owner then sees
 // (G5). They run after E3: G4 starts on the start screen S17 leaves, and its
 // used-up code is the one-seat campaign S1 registered through.
@@ -24,8 +24,6 @@ final class E4InviteTests: DevE2ETestCase {
     }
 
     // `Untranslated.strings`, en.
-    private let invalidText = "There is no such invitation."
-    private let exhaustedText = "Everyone this invitation allowed has already joined. Ask for a new one."
     private let campaignBannerText = "You were invited to Spiral"
     private let signedInToastText = "That is an invitation to join Spiral" // «… — you already have.»
 
@@ -35,13 +33,13 @@ final class E4InviteTests: DevE2ETestCase {
 
     // MARK: G4
 
-    /// No invitation pending: Create account asks for one and offers no way
-    /// around it; a garbage paste and an unknown code are «no such
-    /// invitation», the used-up one-seat campaign is «already joined», a
-    /// valid code leads on to the sign-in sheet and leaves the banner; a dead
-    /// link takes the banner away. Signed in, a person's link opens their
-    /// profile and a campaign's shows the toast. No refused attempt takes a seat.
-    func testG04InvitationPasteSheetAndLinks() async throws {
+    /// No invitation pending: Create account goes straight to the system
+    /// sign-in sheet (1.0.3: no invitation screen in the app — the web
+    /// registration's first step asks, covered by identity-login's tests). A
+    /// valid link leaves the banner, a dead one takes it away. Signed in, a
+    /// person's link opens their profile and a campaign's shows the toast.
+    /// Nothing takes a seat.
+    func testG04CreateAccountAndInvitationLinks() async throws {
         let unknownCode = "E2ENOSUCH\(fixture.runID)"
         let once = try await seats(of: fixture.onceInviteCode)
         guard once["live"] == "1" else {
@@ -55,44 +53,40 @@ final class E4InviteTests: DevE2ETestCase {
         XCTAssertFalse(banner.waitForExistence(timeout: 3), "no invitation outlives the last session")
 
         try tap(element(A11yIdentifiers.authenticationStartScreen.createAccount), "Create account")
-        let field = app.textFields[A11yIdentifiers.invitePasteSheet.field].firstMatch
-        try require(field, "the invitation paste sheet")
-        XCTAssertFalse(element(A11yIdentifiers.invitePasteSheet.withoutInvite).exists,
-                       "registration is by invitation only: no «Continue without an invitation»")
-
-        // Each error differs from the one before it, so a stale line cannot pass.
-        try submitInvite("https://example.com/not-an-invitation", into: field, expecting: invalidText)
-        try submitInvite(fixture.onceInviteCode, into: field, expecting: exhaustedText)
-        try submitInvite(unknownCode, into: field, expecting: invalidText)
-
-        try replaceText(in: field, with: fixture.inviteCode)
-        try tap(element(A11yIdentifiers.invitePasteSheet.use), "the paste sheet's Continue")
-        // A valid code goes straight on to the sign-in sheet; stop there.
+        // Straight on to the sign-in sheet; stop there.
         try tap(springboard.buttons["Cancel"].firstMatch, timeout: 30, "the system sign-in sheet's Cancel")
-        try require(banner, timeout: 20, "the invitation banner after a valid code")
+
+        try await openLink("spiral://join/\(fixture.inviteCode)")
+        try require(banner, timeout: 20, "the invitation banner after a valid link")
         XCTAssertTrue(banner.label.contains(campaignBannerText), "a campaign names nobody: '\(banner.label)'")
-        XCTAssertFalse(field.exists, "the sheet closed on a valid code")
 
         try await openLink("spiral://join/\(unknownCode)")
         XCTAssertTrue(waitUntil(30) { !banner.exists }, "a dead link leaves no banner")
+
+        // A person's link opened signed out, then a sign-in to an account it didn't register: no welcome — the
+        // platform decides it (GET /me/invite/welcome), not the link the app holds.
+        let peerInvite = try await personalInvite(of: peer)
+        try await openLink("spiral://join/\(peerInvite.token)")
+        try require(banner, timeout: 20, "the peer's invitation banner")
 
         let onceAfter = try await seats(of: fixture.onceInviteCode)
         let campaignAfter = try await seats(of: fixture.inviteCode)
         record("one-seat campaign: live \(onceAfter["live"] ?? "?"), rows \(onceAfter["redemptions"] ?? "?"); "
             + "\(fixture.inviteCode): rows \(campaignBefore["redemptions"] ?? "?") → \(campaignAfter["redemptions"] ?? "?")")
-        XCTAssertEqual(onceAfter["redemptions"], once["redemptions"], "the refused code took no seat")
-        XCTAssertEqual(campaignAfter["redemptions"], campaignBefore["redemptions"], "a valid code takes a seat only at registration")
+        XCTAssertEqual(onceAfter["redemptions"], once["redemptions"], "nothing took a seat of the one-seat campaign")
+        XCTAssertEqual(campaignAfter["redemptions"], campaignBefore["redemptions"], "a link takes a seat only at registration")
         let unknownAfter = try await helper.check("invite_seats", ["token": unknownCode])
-        XCTAssertTrue(unknownAfter.isEmpty, "a refused unknown code leaves no invitation behind")
+        XCTAssertTrue(unknownAfter.isEmpty, "a dead link leaves no invitation behind")
 
         // Signed in: the link is a way to the inviter, never a seat.
         try await signInWithPassword(owner)
         try completeOnboarding(allowAI: true)
+        let welcome = element(A11yIdentifiers.inviteWelcomeScreen.text)
+        XCTAssertFalse(welcome.waitForExistence(timeout: 10), "a sign-in to an account the link didn't register gets no welcome")
         let toast = app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS %@", signedInToastText)).firstMatch
         let toastShown = try await openLink("spiral://join/\(fixture.inviteCode)", thenWaitFor: toast, timeout: 45)
         XCTAssertTrue(toastShown, "a campaign link while signed in shows the toast")
 
-        let peerInvite = try await personalInvite(of: peer)
         try await openLink("spiral://join/\(peerInvite.token)")
         try requireProfile(of: peer, "the peer's profile from their invitation link")
 
@@ -133,21 +127,12 @@ final class E4InviteTests: DevE2ETestCase {
         XCTAssertEqual(before.max, apiBefore.maxUses)
         XCTAssertFalse(element(A11yIdentifiers.invitePeopleScreen.joinedUser(newcomer.mxid)).exists)
 
-        let shownLink = link.label
         try tap(element(A11yIdentifiers.invitePeopleScreen.copy), "Copy link")
         XCTAssertTrue(app.staticTexts["Copied to clipboard"].firstMatch.waitForExistence(timeout: 10), "the copy is confirmed")
         record("seats \(before.left) of \(before.max); link copied")
 
-        // The newcomer, on this simulator after the owner signs out. The test
-        // runner reading the pasteboard would ask for permission: the copied
-        // link is pasted into the invitation sheet instead, and the sheet left.
+        // The newcomer, on this simulator after the owner signs out.
         try await ensureSignedOut()
-        try tap(element(A11yIdentifiers.authenticationStartScreen.createAccount), "Create account")
-        let field = app.textFields[A11yIdentifiers.invitePasteSheet.field].firstMatch
-        try require(field, "the invitation paste sheet")
-        try pasteFromMenu(into: field)
-        XCTAssertEqual(field.value as? String, shownLink, "Copy link put the shown link on the pasteboard")
-        try tap(element(A11yIdentifiers.invitePasteSheet.cancel), "the paste sheet's Cancel")
         try await registerWithSeedPhrase(newcomer, inviteCode: token, inviter: owner.displayName, checkTermsRefusal: false)
         try passInviteWelcome(naming: owner.displayName)
         try completeOnboarding(allowAI: true)
@@ -201,35 +186,6 @@ final class E4InviteTests: DevE2ETestCase {
 
     // MARK: - Steps
 
-    /// Types `code` into the paste sheet, Continue, and waits for `error`
-    /// under the field (the sheet stays).
-    private func submitInvite(_ code: String, into field: XCUIElement, expecting error: String) throws {
-        try replaceText(in: field, with: code)
-        try tap(element(A11yIdentifiers.invitePasteSheet.use), "the paste sheet's Continue")
-        try require(app.staticTexts[error].firstMatch, timeout: 20, "«\(error)» for '\(code)'")
-        XCTAssertTrue(field.exists, "the sheet stays on a refused code")
-    }
-
-    /// The field's own edit menu › Paste (a paste the person makes, so no
-    /// permission prompt).
-    private func pasteFromMenu(into field: XCUIElement) throws {
-        let paste = [app.menuItems["Paste"].firstMatch, app.buttons["Paste"].firstMatch]
-        field.tap()
-        settle(1)
-        dismissKeyboardTip()
-        if firstAppearing(paste, timeout: 2) == nil {
-            field.tap()
-        }
-        if firstAppearing(paste, timeout: 2) == nil {
-            field.press(forDuration: 1.2)
-        }
-        guard let index = firstAppearing(paste, timeout: 5) else {
-            throw DevE2EError.flow("the paste sheet's field offered no Paste")
-        }
-        paste[index].tap()
-        settle(1)
-    }
-
     private func seats(of token: String) async throws -> [String: String] {
         guard let row = try await helper.check("invite_seats", ["token": token]).first else {
             throw DevE2EError.flow("no invite with the token of this run (\(token.prefix(4))…)")
@@ -255,11 +211,12 @@ final class E4InviteTests: DevE2ETestCase {
     private func seatsOnScreen() throws -> (left: Int, max: Int) {
         let row = element(A11yIdentifiers.invitePeopleScreen.seats)
         try require(row, timeout: 30, "the seats row")
+        // 1.0.3 (concept C): the caller's node reads «Invited N of M»; the seats left are the rest.
         let text = "\(row.label) \(row.value as? String ?? "")"
-        guard let match = text.firstMatch(of: /(\d+) of (\d+)/), let left = Int(match.1), let max = Int(match.2) else {
-            throw DevE2EError.flow("the seats row reads no «N of M»: '\(text)'")
+        guard let match = text.firstMatch(of: /Invited (\d+) of (\d+)/), let used = Int(match.1), let max = Int(match.2) else {
+            throw DevE2EError.flow("the seats row reads no «Invited N of M»: '\(text)'")
         }
-        return (left, max)
+        return (max - used, max)
     }
 
     /// «Welcome to Spiral» naming the inviter, after the onboarding prompts

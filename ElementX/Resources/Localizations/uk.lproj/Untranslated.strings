@@ -83,6 +83,9 @@
 "screen_agent_edit_persona_too_long" = "Задовгий текст: %1$d / %2$d. Скоротіть, щоб зберегти.";
 "screen_agent_edit_persona_empty" = "Обов’язкове поле. Заповніть, щоб зберегти.";
 "screen_agent_edit_failure" = "Не вдалося зберегти зміни";
+"error_agent_name_reserved" = "Це ім’я зарезервоване для акаунтів самого Spiral. Виберіть інше ім’я.";
+"error_agent_name_invalid_characters" = "Ім’я містить символи, які не можна використовувати.";
+"error_agent_name_unchecked" = "Не вдалося перевірити ім’я. Спробуйте ще раз.";
 "screen_agent_edit_load_failure" = "Не вдалося завантажити форму редагування";
 "screen_agent_edit_avatar_failure" = "Не вдалося завантажити фото";
 
@@ -401,7 +404,6 @@
 "screen_language_picker_suggested_section" = "Рекомендовані";
 "screen_language_picker_all_section" = "Усі мови";
 "screen_start_sign_in" = "Увійти";
-"screen_start_welcome_subtitle" = "Швидке приватне спілкування з вашим особистим агентом.";
 
 // AGENT-PLATFORM (Brief 0063, audit C11b) — the 192 keys this file
 // was missing against en. Hand-translated, not machine output; the
@@ -587,33 +589,22 @@
 "screen_start_invited_by" = "%1$@ запрошує вас у Spiral";
 "screen_start_invited" = "Вас запросили в Spiral";
 "screen_start_invited_hint" = "Створіть акаунт, щоб приєднатися.";
-"screen_invite_paste_title" = "Маєте запрошення?";
-"screen_invite_paste_message" = "Вставте посилання, яке вам надіслав користувач Spiral, або введіть код.";
-"screen_invite_paste_label" = "Посилання або код";
-"screen_invite_paste_without" = "Продовжити без запрошення";
-"screen_invite_paste_placeholder" = "spiral.md/join/…";
-"screen_invite_paste_invalid" = "Такого запрошення немає.";
-"screen_invite_paste_expired" = "Це запрошення вже не діє. Попросіть нове.";
-"screen_invite_paste_exhausted" = "За цим запрошенням уже приєдналися всі, кого воно дозволяло. Попросіть нове.";
-"screen_invite_paste_unavailable" = "Не вдалося перевірити запрошення. Спробуйте ще раз.";
 "invite_link_opened_while_signed_in" = "Це запрошення приєднатися до Spiral — ви вже тут.";
 "screen_invite_people_share_message" = "Приєднуйся до мене у Spiral — %1$@";
 "screen_invite_people_seats_left" = "Лишилося запрошень: %1$d з %2$d";
 "screen_invite_people_exhausted" = "Усі %1$d запрошень використано. У кожної людини одне посилання з фіксованою кількістю місць.";
-"screen_invite_people_joined" = "За вашим запрошенням приєдналися: %1$d";
-"screen_invite_people_joined_title" = "Приєдналися за вашим запрошенням";
-"screen_invite_people_joined_footer" = "Люди, які створили акаунт за вашим посиланням. Торкніться, щоб почати чат.";
 "screen_invite_people_title" = "Запросити в Spiral";
-"screen_invite_people_body" = "Реєстрація лише за запрошенням. Поділіться своїм особистим посиланням — той, хто створить акаунт за ним, побачить вас першим.";
-"screen_invite_people_seats_footer" = "У кожної людини одне посилання на %1$d місць. Воно не поновлюється — діліться ним із тими, кого справді хочете бачити тут.";
-"screen_invite_people_seats_label" = "Лишилося запрошень";
-"screen_invite_people_seats_value" = "%1$d з %2$d";
+"screen_invite_people_you" = "Ви";
+"screen_invite_people_invited_count" = "Запросили %1$d з %2$d";
+"screen_invite_people_invited_you" = "Ваше запрошення в Spiral";
+"screen_invite_people_seat_invite" = "Запросити";
+"screen_invite_people_seat_taken" = "Зайнято";
+"screen_invite_people_chain_footer" = "Одне посилання на %1$d людей, воно не оновлюється. Торкніться людини, щоб відкрити її профіль.";
+"screen_invite_people_all_used" = "Усі запрошення використано";
 "notice_referral_joined" = "%1$@ тепер у Spiral — за вашим запрошенням.";
 "notice_referral_joined_title" = "Приєднання за вашим запрошенням";
 "notice_referral_joined_hint" = "Відкриває профіль";
 "notice_welcome_title" = "Привіт, %1$@! 👋";
-"notice_welcome_assistant_body" = "Я %1$@, ваш особистий асистент. Можу переказувати повідомлення, коли вас немає, пам'ятати ваші контакти й підсумовувати кімнати. Щоб увімкнути мої інструменти в кімнаті, торкніться там + і виберіть «Агенти». Просто напишіть мені — я тут.";
-"notice_welcome_agent_body" = "%1$@ готовий. Просто напишіть мені.";
 
 /* AGENT-PLATFORM (Brief 0075): a new account phrase from a signed-in device. */
 "screen_settings_new_phrase_title" = "Нова фраза входу";
@@ -622,6 +613,20 @@
 "screen_settings_new_phrase_passcode_required" = "Спершу встановіть код-пароль пристрою — він захищає зміну фрази";
 "screen_settings_new_phrase_done" = "Фразу входу змінено";
 "screen_settings_new_phrase_failed" = "Не вдалося почати зміну фрази. Спробуйте ще раз.";
+/* AGENT-PLATFORM (1.0.3): sign-in methods — the first phrase for an account made with Apple, Sign in with Apple for a phrase account. */
+"screen_settings_add_phrase_title" = "Додати фразу входу";
+"screen_settings_add_phrase_message" = "Ви оберете 12 слів. Вони відкривають акаунт на будь-якому пристрої, разом із входом через Apple. На цьому пристрої ви лишитеся в Spiral, переписки це не зачепить.";
+"screen_settings_add_phrase_auth_reason" = "Підтвердьте, що це ви, щоб додати фразу входу";
+"screen_settings_add_phrase_done" = "Фразу входу додано";
+"screen_settings_add_phrase_failed" = "Не вдалося почати додавання фрази. Спробуйте ще раз.";
+"screen_settings_sign_in_passcode_required" = "Спершу встановіть код-пароль пристрою — він захищає способи входу";
+"screen_settings_apple_title" = "Вхід через Apple";
+"screen_settings_apple_connected" = "Під’єднано";
+"screen_settings_apple_add_title" = "Додати вхід через Apple";
+"screen_settings_apple_auth_reason" = "Підтвердьте, що це ви, щоб додати вхід через Apple";
+"screen_settings_apple_linked" = "Вхід через Apple додано";
+"screen_settings_apple_taken" = "Цей Apple ID уже використовується в іншому акаунті Spiral";
+"screen_settings_apple_failed" = "Не вдалося почати додавання входу через Apple. Спробуйте ще раз.";
 "screen_deactivate_account_spiral_description" = "Видалення акаунта %1$@. Ось що станеться:";
 "screen_deactivate_account_spiral_description_bold_part" = "незворотне";
 "screen_deactivate_account_spiral_list_item_1" = "Ваш акаунт буде %1$@: ви не зможете знову увійти, а ваше ім'я користувача ніхто не зможе зайняти.";
@@ -638,6 +643,9 @@
 "notice_phrase_changed_title" = "Фразу входу змінено";
 "notice_phrase_changed_body" = "Стара фраза більше не відкриває акаунт.";
 "notice_phrase_changed_on_device" = "Змінено на пристрої «%1$@».";
+/* AGENT-PLATFORM (1.0.3): the owner-DM card when Sign in with Apple is added. It names no device (security review); a new phrase disconnects Apple. */
+"notice_apple_linked_title" = "Вхід через Apple додано";
+"notice_apple_linked_body" = "Якщо це були не ви — змініть фразу входу: це від’єднає Apple.";
 
 /* AGENT-PLATFORM (Brief 0079): notices the server used to write in English. */
 "notice_reply_failed_title" = "Не вдалося відповісти";
@@ -664,8 +672,6 @@
 "notice_ai_consent_needed_allowed_body" = "Ви дозволили ШІ. %1$@ відповідатиме на ваші нові повідомлення.";
 
 /* AGENT-PLATFORM (Brief 0073): the first screen after an invited registration. Localazy: change %1$@ -> %1$s */
-"screen_invite_welcome_title" = "Ласкаво просимо до Spiral";
-"screen_invite_welcome_message" = "Вас запросив(ла) %1$@ — і вже знає, що ви тут. Привітайтеся!";
 "screen_invite_welcome_message_action" = "Написати %1$@";
 "screen_invite_welcome_later" = "Пізніше";
 "screen_ai_consent_prompt_title" = "Дозволити сторонній ШІ?";
@@ -1360,6 +1366,16 @@
 "screen_native_call_assistants_record_confirm_title" = "Записувати дзвінок?";
 "screen_native_call_assistants_record_confirm_message" = "Усі побачать «ЗАПИС» у шапці. Запис з’явиться в чаті після дзвінка.";
 "screen_native_call_assistants_record_confirm_action" = "Записувати";
+"screen_native_call_assistants_notes_confirm_title" = "Вести нотатки дзвінка?";
+"screen_native_call_assistants_notes_confirm_message" = "Асистент слухатиме дзвінок і після нього опублікує підсумок у чаті. Інші бачитимуть, що він веде нотатки.";
+"screen_native_call_assistants_notes_confirm_action" = "Вести нотатки";
+"screen_native_call_assistants_talk_confirm_title" = "Говорити з асистентом?";
+"screen_native_call_assistants_talk_confirm_message" = "Асистент чутиме лише вас і відповідатиме вголос — його чують усі в дзвінку.";
+"screen_native_call_assistants_talk_confirm_action" = "Почати розмову";
+"screen_native_call_assistants_translate_question_title" = "Перекладати на";
+"screen_native_call_assistants_listen_question_title" = "Слухати";
+"screen_native_call_assistants_talk_info_title" = "Асистент відповідає вголос";
+"screen_native_call_assistants_talk_info_message" = "Він чує лише вас, а його чують усі в дзвінку. Переклад недоступний, доки триває розмова.";
 "screen_native_call_assistants_none_of_your_own" = "У вас немає асистента";
 "screen_native_call_assistants_which" = "Який асистент";
 "screen_native_call_assistants_reason_paused" = "Ваш асистент призупинений";
@@ -1485,7 +1501,6 @@
 "screen_native_call_assistants_job_conversation" = "Розмова";
 "screen_native_call_assistants_translating" = "Перекладає: %1$@";
 "screen_native_call_assistants_stop_translation" = "Зупинити переклад";
-"screen_native_call_assistants_talk_caption" = "Відповідає вам уголос — його чують усі. Переклад недоступний, доки триває розмова.";
 "screen_native_call_assistants_pick_footer" = "Запам’ятаємо для цього чату";
 "screen_native_call_assistants_neighbour_language" = "Мова людини поруч";
 "screen_native_call_assistants_pocket_detail" = "Після кожної фрази · в обидва боки";
@@ -1505,10 +1520,9 @@
 "screen_native_call_assistants_status_both_ways" = "Перекладає в обидва боки";
 "screen_native_call_assistants_translate_into" = "Переклад на";
 "screen_native_call_assistants_translate_into_detail" = "Нею ви чуєте дзвінок";
+"screen_native_call_assistants_translate_into_language" = "Перекладати: %1$@";
 "screen_native_call_assistants_in_call" = "У дзвінку";
 "screen_native_call_assistants_in_call_more" = "У дзвінку ще %1$d";
-"screen_native_call_assistants_new_translation" = "Новий переклад";
-"screen_native_call_assistants_new_translation_detail" = "Ваш асистент перекладе дзвінок";
 "screen_native_call_assistants_new_translation_others" = "Ваш асистент перекладе: %1$@. Решту вже перекладають безкоштовно.";
 "screen_native_call_assistants_start_translation" = "Почати переклад";
 "screen_native_call_assistants_start_translation_detail" = "Витрачає ваш ліміт. Хто обере цю мову, слухає безкоштовно.";
@@ -1550,3 +1564,61 @@
 "screen_media_viewer_position" = "%1$d з %2$d";
 "a11y_media_viewer_more" = "Більше";
 "a11y_album_open_item" = "Відкрити елемент %1$d";
+
+// AGENT-PLATFORM (1.0.3 A2): the assistant's first invite in Chats, its chat before consent and its welcome.
+"screen_roomlist_assistant_invite_name" = "Ваш асистент";
+"screen_roomlist_assistant_invite_subtitle" = "Привіт! Натисніть, щоб почати 👋";
+"screen_roomlist_assistant_invite_start" = "Почати";
+"a11y_assistant_invite_start" = "Почати розмову з асистентом";
+"a11y_assistant_invite_start_hint" = "Приймає запрошення асистента й відкриває ваш чат із ним.";
+"screen_assistant_invite_title" = "Привіт! Я ваш асистент";
+"screen_assistant_invite_reminders" = "Нагадаю про важливе";
+"screen_assistant_invite_contacts" = "Запам’ятаю ваші контакти";
+"screen_assistant_invite_summaries" = "Підсумую будь-який чат";
+"screen_assistant_invite_privacy" = "Бачу лише цю розмову. Вимкнути можна будь-коли.";
+"screen_assistant_invite_start" = "Почати розмову";
+"notice_welcome_body" = "Я тут і готовий допомогти. З чого почнемо?";
+"notice_welcome_starter_summary" = "Підсумуй чат";
+"notice_welcome_starter_summary_message" = "Підсумуй для мене чат";
+"notice_welcome_starter_contact" = "Запам’ятай контакт";
+"notice_welcome_starter_contact_message" = "Запам’ятай дещо про мій контакт";
+"notice_welcome_starter_reminder" = "Нагадай мені…";
+"notice_welcome_starter_reminder_message" = "Постав мені нагадування";
+"notice_welcome_allow_ai_reason" = "Дозвольте ШІ, щоб я міг читати, що ви тут пишете.";
+"notice_welcome_allow_ai_action" = "Дозволити ШІ";
+
+// AGENT-PLATFORM (1.0.3 onboarding): the start screen's stories, the notifications prompt and the invited welcome.
+"screen_start_slide_privacy_title" = "Ваші розмови — ваші";
+"screen_start_slide_privacy_subtitle" = "Наскрізне шифрування. Без номера телефону, асистент лише з вашого дозволу";
+"screen_start_slide_calls_title" = "Дзвінки з перекладом";
+"screen_start_slide_calls_subtitle" = "Асистент приєднується й перекладає наживо";
+"screen_start_slide_assistant_title" = "Асистент поруч";
+"screen_start_slide_assistant_subtitle" = "Відповідає, коли ви зайняті, — і питає вас перед кожним новим кроком";
+"screen_start_slide_games_title" = "Грайте разом просто в чаті";
+"screen_start_slide_games_subtitle" = "Ігри та інструменти — без жодних встановлень";
+"screen_start_invited_by_hint" = "Створіть акаунт — %1$@ дізнається";
+"a11y_start_slides_position" = "Слайд %1$d з %2$d";
+"screen_notification_optin_spiral_title" = "Будьте на звʼязку";
+"screen_notification_optin_spiral_subtitle" = "Spiral скаже, коли щось справді важливе. Змінити можна будь-коли в Налаштуваннях.";
+"screen_notification_optin_messages_title" = "Нові повідомлення";
+"screen_notification_optin_messages_subtitle" = "Від людей і груп, з якими ви спілкуєтесь";
+"screen_notification_optin_calls_title" = "Вхідні дзвінки";
+"screen_notification_optin_calls_subtitle" = "Навіть коли Spiral закритий";
+"screen_notification_optin_assistant_title" = "Питання вашого асистента";
+"screen_notification_optin_assistant_subtitle" = "Коли йому потрібна ваша згода";
+"screen_notification_optin_allow" = "Дозволити сповіщення";
+"screen_invite_welcome_together_title" = "Ви в Spiral разом із %1$@";
+"screen_invite_welcome_step_say_hello_title" = "Привітатися з %1$@";
+"screen_invite_welcome_step_say_hello_subtitle" = "%1$@ чекає";
+"screen_invite_welcome_step_assistant_title" = "Познайомитися з асистентом";
+"screen_invite_welcome_step_assistant_subtitle" = "Його запрошення чекає в Бесідах";
+"screen_invite_welcome_step_play_title" = "Зіграти щось разом";
+"screen_invite_welcome_step_play_subtitle" = "Ігри та інструменти просто в чаті";
+"a11y_invite_welcome_avatars" = "%1$@ і ви";
+"screen_approval_detail_already_closed_title" = "Цей запит уже закрито";
+"screen_approval_detail_already_closed_message" = "Його термін минув, або на нього вже відповіли.";
+"screen_room_interactive_post_description_not_sent" = "Ваш опис не надіслано. Надішліть його ще раз у гілці.";
+"screen_room_interactive_post_code_not_sent" = "Допис не дійшов до агента. Спробуйте ще раз із допису.";
+"screen_invites_assistant_decline_warning_spiral" = "Якщо це ваш власний асистент, його чат не вдасться відновити після відмови.";
+"a11y_roomlist_remove_filter" = "Прибрати фільтр: %1$@";
+"a11y_settings_share_profile" = "Поділитися моїм профілем";

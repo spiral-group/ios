@@ -55,6 +55,50 @@ struct MediaViewerPagerTests {
     }
 }
 
+/// What starts a drag to close, and what hides the bars (DEBT, 1.0.3).
+@MainActor
+struct MediaViewerGestureTests {
+    /// One finger on the page: a pinch drifting down is a zoom, and the strip, the bar and the caption keep their drags.
+    @Test
+    func aDragToCloseStartsWithOneFingerOnThePage() async throws {
+        let viewer = try await Viewer(initialItemIndex: 0, direction: .leftToRight)
+        let pans = viewer.controller.view.gestureRecognizers?.compactMap { $0 as? UIPanGestureRecognizer } ?? []
+        let dismissPan = try #require(pans.first)
+        #expect(dismissPan.maximumNumberOfTouches == 1)
+
+        let bottomChrome = try #require(viewer.controller.children.first { $0 is UIHostingController<MediaViewerBottomChrome> }?.view)
+        let inTheStrip = UIView()
+        bottomChrome.addSubview(inTheStrip)
+        #expect(!viewer.controller.dismissPanMayStart(on: inTheStrip))
+        #expect(!viewer.controller.dismissPanMayStart(on: bottomChrome))
+        #expect(viewer.controller.dismissPanMayStart(on: viewer.collectionView))
+    }
+
+    /// Zooming in hides the bars; a pinch or double tap back out leaves them as they are.
+    @Test
+    func onlyZoomingInHidesTheBars() {
+        let photo = MediaViewerZoomingScrollView()
+        photo.frame = CGRect(x: 0, y: 0, width: 393, height: 852)
+        photo.show(UIGraphicsImageRenderer(size: CGSize(width: 40, height: 40)).image { _ in }, aspectRatio: 1)
+        photo.layoutIfNeeded()
+        var told = 0
+        photo.onZoomStarted = { told += 1 }
+        func pinch(to scale: CGFloat) {
+            photo.scrollViewWillBeginZooming(photo, with: nil)
+            photo.setZoomScale(scale, animated: false)
+        }
+
+        pinch(to: 2)
+        #expect(told == 1)
+        pinch(to: 1.5)
+        #expect(told == 1, "zooming out doesn't hide the bars")
+        pinch(to: 1)
+        #expect(told == 1)
+        pinch(to: 2.5)
+        #expect(told == 2)
+    }
+}
+
 /// A media viewer on screen, over three media and no more to load, laid out in the given direction.
 @MainActor
 private final class Viewer {

@@ -65,6 +65,9 @@
 "screen_agent_edit_persona_greeting" = "Siz uchun salomlashish";
 "screen_agent_edit_persona_visitor_greeting" = "Mehmonlar uchun salomlashish";
 "screen_agent_edit_failure" = "O'zgarishlarni saqlab bo'lmadi";
+"error_agent_name_reserved" = "Bu nom Spiralning o'z akkauntlari uchun band qilingan. Boshqa nom tanlang.";
+"error_agent_name_invalid_characters" = "Nomda ishlatib bo'lmaydigan belgilar bor.";
+"error_agent_name_unchecked" = "Nomni tekshirib bo'lmadi. Qayta urinib ko'ring.";
 "screen_agent_edit_load_failure" = "Tahrirlash formasini yuklab bo'lmadi";
 "screen_agent_edit_avatar_failure" = "Rasmni yuklab bo'lmadi";
 "action_agent_activity" = "Faoliyat";
@@ -250,7 +253,6 @@
 "screen_language_picker_title" = "Til";
 "screen_language_picker_empty" = "Qidiruvingizga mos til yo'q.";
 "screen_start_sign_in" = "Kirish";
-"screen_start_welcome_subtitle" = "Shaxsiy agentingiz bilan tez va shaxsiy xabar almashish.";
 
 // AGENT-PLATFORM (Brief 0072, ADR-0083, ADR-0084): presence, worded as Telegram does
 "common_presence_online" = "onlayn";
@@ -491,6 +493,16 @@
 "screen_native_call_assistants_record_confirm_title" = "Qo'ng'iroq yozib olinsinmi?";
 "screen_native_call_assistants_record_confirm_message" = "Hamma qo'ng'iroq tepasida REC belgisini ko'radi. Yozuv qo'ng'iroqdan keyin chatda paydo bo'ladi.";
 "screen_native_call_assistants_record_confirm_action" = "Yozib olish";
+"screen_native_call_assistants_notes_confirm_title" = "Qo'ng'iroqdan qayd yozilsinmi?";
+"screen_native_call_assistants_notes_confirm_message" = "Yordamchingiz qo'ng'iroqni tinglaydi va undan keyin chatga xulosa joylaydi. Boshqalar uning qayd yozayotganini ko'radi.";
+"screen_native_call_assistants_notes_confirm_action" = "Qayd yozish";
+"screen_native_call_assistants_talk_confirm_title" = "Yordamchingiz bilan gaplashasizmi?";
+"screen_native_call_assistants_talk_confirm_message" = "U faqat sizni eshitadi va ovoz chiqarib javob beradi — qo'ng'iroqdagi hamma uni eshitadi.";
+"screen_native_call_assistants_talk_confirm_action" = "Suhbatni boshlash";
+"screen_native_call_assistants_translate_question_title" = "Tarjima tili";
+"screen_native_call_assistants_listen_question_title" = "Tinglash tili";
+"screen_native_call_assistants_talk_info_title" = "Yordamchingiz ovoz chiqarib javob beradi";
+"screen_native_call_assistants_talk_info_message" = "U faqat sizni eshitadi, qo'ng'iroqdagi hamma esa uni eshitadi. Gaplashayotganda tarjima o'chiq.";
 "screen_native_call_assistants_none_of_your_own" = "Sizda yordamchi yo'q";
 "screen_native_call_assistants_which" = "Qaysi yordamchi";
 "screen_native_call_assistants_reason_paused" = "Yordamchingiz pauzada";
@@ -571,7 +583,6 @@
 "screen_native_call_assistants_job_conversation" = "Suhbat";
 "screen_native_call_assistants_translating" = "Tarjima qilmoqda → %1$@";
 "screen_native_call_assistants_stop_translation" = "Tarjimani to'xtatish";
-"screen_native_call_assistants_talk_caption" = "Sizga ovoz chiqarib javob beradi va hamma eshitadi. Gaplashayotganda tarjima o'chiq.";
 "screen_native_call_assistants_pick_footer" = "Bu chat uchun eslab qolindi";
 "screen_native_call_assistants_neighbour_language" = "Yoningizdagi odamning tili";
 "screen_native_call_assistants_pocket_detail" = "Har bir iboradan keyin · ikki tomonlama";
@@ -591,10 +602,9 @@
 "screen_native_call_assistants_status_both_ways" = "Ikki tomonlama tarjima qilmoqda";
 "screen_native_call_assistants_translate_into" = "Tarjima tili";
 "screen_native_call_assistants_translate_into_detail" = "Qo'ng'iroqni shu tilda eshitasiz";
+"screen_native_call_assistants_translate_into_language" = "Tarjima tili: %1$@";
 "screen_native_call_assistants_in_call" = "Qo'ng'iroqda";
 "screen_native_call_assistants_in_call_more" = "Qo'ng'iroqda: yana %1$d";
-"screen_native_call_assistants_new_translation" = "Yangi tarjima";
-"screen_native_call_assistants_new_translation_detail" = "Yordamchingiz qo'ng'iroqni tarjima qiladi";
 "screen_native_call_assistants_new_translation_others" = "Yordamchingiz tarjima qiladi: %1$@. Qolganlar allaqachon bepul tarjima qilinmoqda.";
 "screen_native_call_assistants_start_translation" = "Tarjimani boshlash";
 "screen_native_call_assistants_start_translation_detail" = "Limitingizdan foydalanadi. Bu tilni tanlagan har kim bepul tinglaydi.";
@@ -1044,7 +1054,6 @@
 "notice_phrase_changed_title" = "Kirish iborasi o'zgartirildi";
 "a11y_message_read" = "O'qildi";
 "screen_legal_information_source_code_spiral" = "Manba kodi";
-"screen_invite_people_seats_label" = "Qolgan takliflar";
 "screen_native_call_tile_not_joined" = "Siz qo'shilmadingiz";
 "screen_agent_settings_show_in_search_footer" = "Odamlar uni qidiruvda topa oladimi. Manzilini bilgan har kim baribir unga yoza oladi.";
 "screen_agent_edit_tone_calm" = "Xotirjam";
@@ -1056,7 +1065,6 @@
 "screen_room_interactive_draft_published" = "Nashr qilindi";
 "screen_agent_activity_reason_visitor_policy_reply" = "Darhol javob berishga ruxsat bergansiz";
 "screen_agent_in_room_no_tools" = "Bu chatda hali vositalar yo'q.";
-"notice_welcome_assistant_body" = "Men %1$@, shaxsiy yordamchingizman. Siz yo'qligingizda xabarlarni yetkaza olaman, kontaktlaringizni eslab qolaman va xonalarni xulosa qilaman. Biror xonada vositalarimni yoqish uchun u yerdagi + tugmasini bosing va Agentlarni tanlang. Menga oddiygina yozavering — men shu yerdaman.";
 "screen_room_interactive_post_pick_agent_title" = "Kim yaratsin?";
 "screen_agent_settings_visitor_ask_first_description" = "Yangi odam siz rozi bo'lguningizcha kutadi";
 "screen_ai_consent_prompt_failed" = "Tanlovingizni saqlab bo'lmadi. Aloqani tekshirib, qayta urinib ko'ring.";
@@ -1086,10 +1094,8 @@
 "screen_agent_activity_reason_block_needs_owner" = "Bloklash uchun roziligingiz kerak";
 "screen_create_company_title" = "Yangi kompaniya";
 "a11y_native_call_disable_speaker" = "Karnayni o'chirish";
-"screen_invite_paste_placeholder" = "spiral.md/join/…";
 "a11y_native_call_end" = "Qo'ng'iroqni tugatish";
 "screen_agent_activity_action_published_post" = "Post nashr qildi";
-"screen_invite_people_joined_footer" = "Havolangiz orqali hisob yaratgan odamlar. Chat boshlash uchun bosing.";
 "screen_arm_tool_turn_off_confirm_message" = "Agent bu chatda hamma uchun buni qilishni to'xtatadi. Uni istalgan vaqtda qayta yoqishingiz mumkin.";
 "spiral_app_card_line_by" = "Muallif: %1$@";
 "state_event_spiral_tool_language_changed_by_you" = "Siz Tarjimani o'zgartirdingiz: %1$@ → %2$@";
@@ -1114,7 +1120,6 @@
 "screen_native_call_agent_block_recording" = "Yozmoqda";
 "screen_native_call_control_video" = "Video";
 "screen_agent_detail_pause" = "Pauza";
-"screen_invite_paste_expired" = "Bu taklif endi amal qilmaydi. Yangisini so'rang.";
 "screen_security_messages_section" = "Xabarlar";
 "screen_agent_activity_reason_relationship_unavailable" = "Kontaktni tekshirib bo'lmadi";
 "screen_ai_consent_prompt_allow" = "Ruxsat berish";
@@ -1144,15 +1149,12 @@
 "state_event_spiral_tool_off_by_system" = "%2$@ uchun %1$@ o'chirildi";
 "a11y_native_call_swap_to_held_call" = "%@ bilan qo'ng'iroqqa o'tish";
 "screen_native_call_audio_route_iphone" = "iPhone";
-"screen_invite_people_seats_value" = "%1$d / %2$d";
 "screen_agent_activity_reason_first_contact_with_unknown_visitor" = "Yangi odamdan birinchi xabar";
 "screen_deactivate_account_spiral_list_item_3" = "Hisobingiz ma'lumotlarini identifikatsiya serverimizdan o'chirish.";
 "a11y_native_call_bar" = "%1$@ bilan davom etayotgan qo'ng'iroq. Qaytish uchun bosing.";
-"screen_invite_paste_unavailable" = "Taklifni tekshirib bo'lmadi. Qayta urinib ko'ring.";
 "screen_agent_activity_action_read_call_summary" = "Qo'ng'iroq xulosasini o'qidi";
 "screen_ai_consent_prompt_title" = "Uchinchi tomon AI ga ruxsat berilsinmi?";
 "screen_agent_edit_voice_language_footer" = "Yordamchi har doim siz gapirgan tilda javob beradi. Bu sozlama uning qo'ng'iroqlarni qaysi tilda eshitishini va qo'ng'iroq xulosalari tilini belgilaydi.";
-"screen_invite_welcome_title" = "Spiralga xush kelibsiz";
 "screen_agent_activity_reason_blocked_visitor" = "Bloklangan odam";
 "screen_deactivate_account_spiral_list_item_1_bold_part" = "butunlay faolsizlantirish";
 "screen_native_call_agent_center_recording_live" = "Yozib olinmoqda…";
@@ -1220,7 +1222,6 @@
 "screen_deactivate_account_spiral_failed" = "Hisobni o'chirib bo'lmadi. Bir daqiqadan keyin qayta urinib ko'ring.";
 "screen_agent_activity_action_changed_call_mode" = "Qo'ng'iroqda qatnashish usulini o'zgartirdi";
 "a11y_native_call_unmute_microphone" = "Mikrofonni yoqish";
-"screen_invite_paste_label" = "Havola yoki kod";
 "screen_media_viewer_position" = "%1$d / %2$d";
 "screen_native_call_status_reconnecting_detail" = "Aloqangiz uzildi";
 "screen_approval_detail_block_blocked_subtitle" = "Agentingiz bundan buyon uning xabarlariga e'tibor bermaydi.";
@@ -1256,6 +1257,13 @@
 "screen_agent_activity_reason_no_contact_relationship" = "Kontaktlaringizdan emas";
 "screen_room_alias_link_not_found" = "Bu havola hech qanday chatga olib bormaydi.";
 "screen_invite_people_title" = "Spiralga taklif qilish";
+"screen_invite_people_you" = "Siz";
+"screen_invite_people_invited_count" = "%2$d tadan %1$d taklif qilindi";
+"screen_invite_people_invited_you" = "Sizni Spiral’ga taklif qildi";
+"screen_invite_people_seat_invite" = "Taklif qilish";
+"screen_invite_people_seat_taken" = "Band";
+"screen_invite_people_chain_footer" = "%1$d kishi uchun bitta havola, u yangilanmaydi. Profilini ochish uchun odamga teging.";
+"screen_invite_people_all_used" = "Barcha takliflar ishlatildi";
 "screen_approval_detail_escalation_cold_outreach" = "Agentingiz kimgadir birinchi marta yozmoqchi.";
 "screen_start_invited_by" = "%1$@ sizni Spiralga taklif qildi";
 "screen_agent_spaces_section_retry" = "Qayta urinish uchun bosing.";
@@ -1263,7 +1271,6 @@
 "screen_settings_new_phrase_done" = "Kirish iborasi o'zgartirildi";
 "screen_agent_activity_reason_outside_conversation" = "Bu suhbatdan tashqarida";
 "a11y_native_call_switch_camera" = "Kamerani almashtirish";
-"screen_invite_people_joined" = "Taklifingiz bilan qo'shilganlar: %1$d";
 "screen_agent_activity_action_searched_agents" = "Agentlarni qidirdi";
 "screen_agent_activity_reason_strategy_no_op" = "Qiladigan ish yo'q";
 "action_dismiss_visitor_message" = "Olib tashlash";
@@ -1272,7 +1279,6 @@
 "screen_approval_detail_block_action_dont_block" = "Bloklamaslik";
 "screen_agent_settings_people_title" = "Odamlar bilan muloqot";
 "screen_native_call_agent_center_error_not_owner" = "Bu seansni faqat uning egasi o'zgartira oladi.";
-"notice_welcome_agent_body" = "%1$@ tayyor. Menga yozavering.";
 "screen_agent_detail_already_in_chat" = "Agent allaqachon bu chatda";
 "screen_native_call_agent_center_booth_members" = "%1$@ → %2$@";
 "screen_settings_devices_title" = "Qurilmalar va seanslar";
@@ -1290,7 +1296,6 @@
 "screen_agent_activity_action_remembered" = "Kontakt haqida nimanidir eslab qoldi";
 "screen_room_interactive_post_link_needs_update" = "Bu post uchun Spiralning yangiroq versiyasi kerak. Undan foydalanish uchun ilovani yangilang.";
 "screen_room_member_details_erase_assistant_memory" = "Yordamchilarim u haqida bilganlarini o'chirish";
-"screen_invite_paste_without" = "Taklifsiz davom etish";
 "screen_agent_edit_tone_friendly" = "Do'stona";
 "screen_room_interactive_post_update" = "Postni yangilash";
 "screen_agent_detail_archive_refused" = "Shaxsiy yordamchingiz hisobingiz bilan birga qoladi va uni arxivlab bo'lmaydi.";
@@ -1307,9 +1312,7 @@
 "screen_native_call_agent_center_talking" = "Yordamchi gapirmoqda";
 "screen_native_call_tile_call_back" = "Qayta qo'ng'iroq qilish uchun bosing";
 "notice_reply_failed_body" = "Men tomonda nimadir xato ketdi. Iltimos, uni qayta yuboring.";
-"screen_invite_people_joined_title" = "Taklifingiz bilan qo'shilganlar";
 "screen_native_call_status_connecting_detail" = "Shifrlash sozlanmoqda";
-"screen_invite_paste_title" = "Taklifingiz bormi?";
 "screen_edit_profile_bio_too_long" = "Bio ko'pi bilan %1$d belgidan iborat bo'lishi mumkin. Saqlash uchun qisqartiring.";
 "a11y_native_call_agent_block_role" = "%1$@, %2$@";
 "a11y_native_call_recording" = "Bu qo'ng'iroq yozib olinmoqda";
@@ -1322,12 +1325,25 @@
 "screen_agent_spaces_assistant_pending" = "Yordamchingiz hali sozlanmoqda";
 "screen_room_member_details_erase_assistant_memory_alert_title" = "Yordamchilaringiz %1$@ haqida bilganlari o'chirilsinmi?";
 "screen_settings_new_phrase_failed" = "Iborani o'zgartirishni boshlab bo'lmadi. Qayta urinib ko'ring.";
+/* AGENT-PLATFORM (1.0.3): sign-in methods — the first phrase for an account made with Apple, Sign in with Apple for a phrase account. */
+"screen_settings_add_phrase_title" = "Kirish iborasini qo'shish";
+"screen_settings_add_phrase_message" = "Siz 12 ta so'z tanlaysiz. Ular Apple orqali kirish bilan birga, hisobingizni istalgan qurilmada ochadi. Bu qurilmada tizimda qolasiz, xabarlaringizga esa ta'sir qilmaydi.";
+"screen_settings_add_phrase_auth_reason" = "Kirish iborasini qo'shish uchun siz ekaningizni tasdiqlang";
+"screen_settings_add_phrase_done" = "Kirish iborasi qo'shildi";
+"screen_settings_add_phrase_failed" = "Iborani qo'shishni boshlab bo'lmadi. Qayta urinib ko'ring.";
+"screen_settings_sign_in_passcode_required" = "Avval qurilma kodini o'rnating — u kirish usullaringizni himoya qiladi";
+"screen_settings_apple_title" = "Apple orqali kirish";
+"screen_settings_apple_connected" = "Ulangan";
+"screen_settings_apple_add_title" = "Apple orqali kirishni qo'shish";
+"screen_settings_apple_auth_reason" = "Apple orqali kirishni qo'shish uchun siz ekaningizni tasdiqlang";
+"screen_settings_apple_linked" = "Apple orqali kirish qo'shildi";
+"screen_settings_apple_taken" = "Bu Apple ID allaqachon boshqa Spiral hisobida ishlatilmoqda";
+"screen_settings_apple_failed" = "Apple orqali kirishni qo'shishni boshlab bo'lmadi. Qayta urinib ko'ring.";
 "screen_deactivate_account_spiral_description" = "Hisobingizni o'chirish — %1$@ amal. U quyidagilarni bajaradi:";
 "screen_agent_activity_action_set_reminder" = "Eslatma o'rnatdi";
 "screen_agent_activity_action_cancelled_reminder" = "Eslatmani bekor qildi";
 "screen_agent_activity_reason_capability_always_allowed" = "Har doim ruxsat etilgan";
 "screen_agent_activity_action_blocked_someone" = "Kimnidir blokladi";
-"screen_invite_paste_message" = "Spiral foydalanuvchisi sizga yuborgan havolani joylang yoki kodni kiriting.";
 "screen_native_call_error_title" = "Qo'ng'iroq amalga oshmadi";
 "notification_approval_action_not_found_title" = "Bu so'rov endi mavjud emas";
 "state_event_spiral_tool_changed_by_you" = "Siz %1$@ ni o'zgartirdingiz";
@@ -1354,7 +1370,6 @@
 "screen_native_call_control_sound" = "Ovoz";
 "screen_native_call_status_reconnecting" = "Qayta ulanmoqda…";
 "notice_phrase_changed_body" = "Eski ibora bilan endi kirib bo'lmaydi.";
-"screen_invite_people_seats_footer" = "Har bir odamda %1$d o'rinli bitta havola bor. U yangilanmaydi, shuning uchun uni haqiqatan bu yerda ko'rishni istagan odamlarga ulashing.";
 "screen_room_member_details_agent_unblock_action" = "Blokdan chiqarish";
 "screen_agent_activity_reason_unknown_capability" = "U buni qila olmaydi";
 "screen_settings_new_phrase_passcode_required" = "Avval qurilma kodini o'rnating — u iborani o'zgartirishni himoya qiladi";
@@ -1426,10 +1441,11 @@
 "screen_your_data_calls_footer" = "Bitta qo'ng'iroqni eksport qiling: uning matni, xulosasi va rozilik jurnali.";
 "screen_arm_tool_error_agent_does_not_join_calls" = "Bu agent qo'ng'iroqlarga qo'shilmaydi, shuning uchun qo'ng'iroq vositalari unga mavjud emas.";
 "screen_room_interactive_generating_hint" = "Odatda bir daqiqadan kamroq";
-"screen_invite_paste_exhausted" = "Bu taklif ruxsat bergan hamma allaqachon qo'shilgan. Yangisini so'rang.";
 "notice_phrase_changed_on_device" = "«%1$@» qurilmasida o'zgartirildi.";
+/* AGENT-PLATFORM (1.0.3): the owner-DM card when Sign in with Apple is added. It names no device (security review); a new phrase disconnects Apple. */
+"notice_apple_linked_title" = "Apple orqali kirish qo'shildi";
+"notice_apple_linked_body" = "Agar bu siz bo'lmasangiz, kirish iborangizni o'zgartiring: bu Apple'ni uzadi.";
 "screen_ai_consent_prompt_openai" = "OpenAI: yordamchilar o'qiydigan xabarlar, ular bilan qo'ng'iroqlardagi ovozingiz va ular matnga aylantiradigan yozuvlar.";
-"screen_invite_welcome_message" = "%1$@ sizni taklif qildi va shu yerda ekaningizni allaqachon biladi. Salom deng!";
 "screen_agent_activity_action_used_tool" = "Xabarga vosita qo'lladi";
 "screen_approval_detail_escalation_first_contact" = "Agentingizga kimdir birinchi marta yozdi, shuning uchun u javob berishdan oldin sizdan so'raydi.";
 "screen_agent_activity_action_drafted_post" = "Post qoralamasini tayyorladi";
@@ -1444,7 +1460,6 @@
 "screen_room_interactive_post_updated" = "Post yangilandi";
 "screen_native_call_camera_failed_message" = "Kamerani ishga tushirib bo'lmadi, shuning uchun qo'ng'iroq audio bilan davom etmoqda. Birozdan keyin kamera tugmasini qayta bosib ko'ring.";
 "screen_media_viewer_open" = "Ochish";
-"screen_invite_paste_invalid" = "Bunday taklif yo'q.";
 "screen_agent_room_tool_audience_except_named" = "%1$@ dan tashqari hamma uchun";
 "notification_spiral_needs_update_body" = "Buni ko'rish uchun ilovani yangilang.";
 "screen_agent_edit_tone_brief" = "Qisqa va lo'nda";
@@ -1452,7 +1467,6 @@
 "screen_invite_people_seats_left" = "%2$d ta taklifdan %1$d tasi qoldi";
 "screen_agent_activity_reason_wrong_room_kind" = "Bunday chatda ruxsat etilmagan";
 "screen_native_call_failure_audio_reset" = "Qo'ng'iroq ovozi tizim tomonidan qayta o'rnatildi.";
-"screen_invite_people_body" = "Ro'yxatdan o'tish taklif orqali. Shaxsiy havolangizni ulashing — u orqali hisob yaratgan har kim birinchi bo'lib sizni ko'radi.";
 "notification_approval_action_target_blocked_title" = "Yuborilmadi — siz bu odamni bloklagansiz";
 "screen_notifications_hub_visitor_other" = "Yangi narsa";
 "screen_agent_activity_empty_pending_title" = "Qaror kutayotgan so'rovlar yo'q";
@@ -1476,3 +1490,61 @@
 "screen_notifications_hub_visitors_section" = "Odamlardan";
 "screen_agent_settings_visitor_reply_description" = "Siz bloklagan odamlardan tashqari hammaga javob beradi";
 "screen_deactivate_account_spiral_auth_reason" = "Hisobingizni o'chirish uchun siz ekaningizni tasdiqlang";
+
+// AGENT-PLATFORM (1.0.3 A2): the assistant's first invite in Chats, its chat before consent and its welcome.
+"screen_roomlist_assistant_invite_name" = "Yordamchingiz";
+"screen_roomlist_assistant_invite_subtitle" = "Salom! Boshlash uchun bosing 👋";
+"screen_roomlist_assistant_invite_start" = "Boshlash";
+"a11y_assistant_invite_start" = "Yordamchingiz bilan suhbat boshlang";
+"a11y_assistant_invite_start_hint" = "Yordamchingiz taklifini qabul qiladi va u bilan chatingizni ochadi.";
+"screen_assistant_invite_title" = "Salom! Men sizning yordamchingizman";
+"screen_assistant_invite_reminders" = "Sizga narsalarni eslatib turaman";
+"screen_assistant_invite_contacts" = "Kontaktlaringizni eslab qolaman";
+"screen_assistant_invite_summaries" = "Istalgan chatni xulosalayman";
+"screen_assistant_invite_privacy" = "Faqat shu suhbatni ko‘raman. Istalgan vaqtda o‘chirib qo‘yishingiz mumkin.";
+"screen_assistant_invite_start" = "Suhbatni boshlash";
+"notice_welcome_body" = "Shu yerdaman va yordamga tayyorman. Nimadan boshlaymiz?";
+"notice_welcome_starter_summary" = "Chatni xulosala";
+"notice_welcome_starter_summary_message" = "Men uchun bir chatni xulosala";
+"notice_welcome_starter_contact" = "Kontaktni eslab qol";
+"notice_welcome_starter_contact_message" = "Kontaktlarimdan biri haqida nimanidir eslab qol";
+"notice_welcome_starter_reminder" = "Menga eslat…";
+"notice_welcome_starter_reminder_message" = "Menga eslatma qo‘y";
+"notice_welcome_allow_ai_reason" = "Bu yerda yozganlaringizni o‘qiy olishim uchun SIga ruxsat bering.";
+"notice_welcome_allow_ai_action" = "SIga ruxsat berish";
+
+// AGENT-PLATFORM (1.0.3 onboarding): the start screen's stories, the notifications prompt and the invited welcome.
+"screen_start_slide_privacy_title" = "Suhbatlaringiz — sizniki";
+"screen_start_slide_privacy_subtitle" = "Uchdan-uchga shifrlash. Telefon raqami shart emas, yordamchi esa faqat sizning ruxsatingiz bilan";
+"screen_start_slide_calls_title" = "Tarjimali qo‘ng‘iroqlar";
+"screen_start_slide_calls_subtitle" = "Yordamchi qo‘shilib, jonli tarjima qiladi";
+"screen_start_slide_assistant_title" = "Yordamchi yoningizda";
+"screen_start_slide_assistant_subtitle" = "Band bo‘lganingizda javob beradi va har bir yangi qadamdan oldin sizdan so‘raydi";
+"screen_start_slide_games_title" = "Suhbatning o‘zida birga o‘ynang";
+"screen_start_slide_games_subtitle" = "O‘yinlar va vositalar — hech narsa o‘rnatish shart emas";
+"screen_start_invited_by_hint" = "Hisob yarating — %1$@ bundan xabar topadi";
+"a11y_start_slides_position" = "Slayd %1$d / %2$d";
+"screen_notification_optin_spiral_title" = "Aloqada qoling";
+"screen_notification_optin_spiral_subtitle" = "Spiral haqiqatan muhim narsa bo‘lganda xabar beradi. Buni istalgan vaqtda Sozlamalarda o‘zgartirishingiz mumkin.";
+"screen_notification_optin_messages_title" = "Yangi xabarlar";
+"screen_notification_optin_messages_subtitle" = "Siz suhbatlashadigan odamlar va guruhlardan";
+"screen_notification_optin_calls_title" = "Kiruvchi qo‘ng‘iroqlar";
+"screen_notification_optin_calls_subtitle" = "Spiral yopiq bo‘lsa ham";
+"screen_notification_optin_assistant_title" = "Yordamchingizdan savollar";
+"screen_notification_optin_assistant_subtitle" = "Sizning roziligingiz kerak bo‘lganda";
+"screen_notification_optin_allow" = "Bildirishnomalarga ruxsat berish";
+"screen_invite_welcome_together_title" = "Siz va %1$@ endi Spiralda birgasiz";
+"screen_invite_welcome_step_say_hello_title" = "%1$@ bilan salomlashing";
+"screen_invite_welcome_step_say_hello_subtitle" = "%1$@ kutmoqda";
+"screen_invite_welcome_step_assistant_title" = "Yordamchingiz bilan tanishing";
+"screen_invite_welcome_step_assistant_subtitle" = "Uning taklifi Suhbatlar bo‘limida kutmoqda";
+"screen_invite_welcome_step_play_title" = "Birga biror narsa o‘ynang";
+"screen_invite_welcome_step_play_subtitle" = "Suhbatning o‘zida o‘yinlar va vositalar";
+"a11y_invite_welcome_avatars" = "%1$@ va siz";
+"screen_approval_detail_already_closed_title" = "Bu so‘rov allaqachon yopilgan";
+"screen_approval_detail_already_closed_message" = "Uning muddati tugagan yoki unga allaqachon javob berilgan.";
+"screen_room_interactive_post_description_not_sent" = "Tavsifingiz yuborilmadi. Uni ipda qayta yuboring.";
+"screen_room_interactive_post_code_not_sent" = "Post agentga yetib bormadi. Postdan qayta urinib ko‘ring.";
+"screen_invites_assistant_decline_warning_spiral" = "Agar bu oʻzingizning yordamchingiz boʻlsa, rad etganingizdan keyin uning chatini tiklab boʻlmaydi.";
+"a11y_roomlist_remove_filter" = "Filtrni olib tashlash: %1$@";
+"a11y_settings_share_profile" = "Profilimni ulashish";

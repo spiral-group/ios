@@ -65,6 +65,9 @@
 "screen_agent_edit_persona_greeting" = "Tervehdys sinulle";
 "screen_agent_edit_persona_visitor_greeting" = "Tervehdys vieraille";
 "screen_agent_edit_failure" = "Muutoksia ei voitu tallentaa";
+"error_agent_name_reserved" = "Tämä nimi on varattu Spiralin omille tileille. Valitse toinen nimi.";
+"error_agent_name_invalid_characters" = "Nimessä on merkkejä, joita ei voi käyttää.";
+"error_agent_name_unchecked" = "Nimeä ei voitu tarkistaa. Yritä uudelleen.";
 "screen_agent_edit_load_failure" = "Muokkauslomaketta ei voitu ladata";
 "screen_agent_edit_avatar_failure" = "Kuvaa ei voitu ladata";
 "action_agent_activity" = "Toiminta";
@@ -250,7 +253,6 @@
 "screen_language_picker_title" = "Kieli";
 "screen_language_picker_empty" = "Yksikään kieli ei vastaa hakuasi.";
 "screen_start_sign_in" = "Kirjaudu sisään";
-"screen_start_welcome_subtitle" = "Nopeaa, yksityistä viestintää henkilökohtaisen agenttisi kanssa.";
 
 // AGENT-PLATFORM (Brief 0072, ADR-0083, ADR-0084): presence, worded as Telegram does
 "common_presence_online" = "paikalla";
@@ -491,6 +493,16 @@
 "screen_native_call_assistants_record_confirm_title" = "Tallennetaanko puhelu?";
 "screen_native_call_assistants_record_confirm_message" = "Kaikki näkevät REC-merkin puhelun yläreunassa. Tallenne näkyy keskustelussa puhelun jälkeen.";
 "screen_native_call_assistants_record_confirm_action" = "Tallenna";
+"screen_native_call_assistants_notes_confirm_title" = "Tehdäänkö puhelusta muistiinpanoja?";
+"screen_native_call_assistants_notes_confirm_message" = "Avustajasi kuuntelee puhelun ja julkaisee sen jälkeen yhteenvedon keskustelussa. Muut näkevät, että se tekee muistiinpanoja.";
+"screen_native_call_assistants_notes_confirm_action" = "Tee muistiinpanoja";
+"screen_native_call_assistants_talk_confirm_title" = "Puhutaanko avustajasi kanssa?";
+"screen_native_call_assistants_talk_confirm_message" = "Se kuulee vain sinut ja vastaa ääneen — kaikki puhelussa kuulevat sen.";
+"screen_native_call_assistants_talk_confirm_action" = "Aloita keskustelu";
+"screen_native_call_assistants_translate_question_title" = "Kohdekieli";
+"screen_native_call_assistants_listen_question_title" = "Kuuntelukieli";
+"screen_native_call_assistants_talk_info_title" = "Avustajasi vastaa ääneen";
+"screen_native_call_assistants_talk_info_message" = "Se kuulee vain sinut, ja kaikki puhelussa kuulevat sen. Puhuessaan se ei käännä.";
 "screen_native_call_assistants_none_of_your_own" = "Sinulla ei ole avustajaa";
 "screen_native_call_assistants_which" = "Mikä avustaja";
 "screen_native_call_assistants_reason_paused" = "Avustajasi on keskeytetty";
@@ -571,7 +583,6 @@
 "screen_native_call_assistants_job_conversation" = "Keskustelu";
 "screen_native_call_assistants_translating" = "Kääntää → %1$@";
 "screen_native_call_assistants_stop_translation" = "Lopeta käännös";
-"screen_native_call_assistants_talk_caption" = "Vastaa sinulle ääneen, ja kaikki kuulevat sen. Puhuessaan se ei käännä.";
 "screen_native_call_assistants_pick_footer" = "Muistetaan tässä keskustelussa";
 "screen_native_call_assistants_neighbour_language" = "Vieressäsi olevan henkilön kieli";
 "screen_native_call_assistants_pocket_detail" = "Jokaisen lauseen jälkeen · molempiin suuntiin";
@@ -591,10 +602,9 @@
 "screen_native_call_assistants_status_both_ways" = "Kääntää molempiin suuntiin";
 "screen_native_call_assistants_translate_into" = "Kohdekieli";
 "screen_native_call_assistants_translate_into_detail" = "Kuulet puhelun tällä kielellä";
+"screen_native_call_assistants_translate_into_language" = "Kohdekieli: %1$@";
 "screen_native_call_assistants_in_call" = "Puhelussa";
 "screen_native_call_assistants_in_call_more" = "Puhelussa: vielä %1$d";
-"screen_native_call_assistants_new_translation" = "Uusi käännös";
-"screen_native_call_assistants_new_translation_detail" = "Avustajasi kääntää puhelun";
 "screen_native_call_assistants_new_translation_others" = "Avustajasi kääntää: %1$@. Muita käännetään jo, maksutta.";
 "screen_native_call_assistants_start_translation" = "Aloita käännös";
 "screen_native_call_assistants_start_translation_detail" = "Käyttää rajaasi. Jokainen tämän kielen valitseva kuuntelee maksutta.";
@@ -1044,7 +1054,6 @@
 "notice_phrase_changed_title" = "Kirjautumislause vaihdettu";
 "a11y_message_read" = "Luettu";
 "screen_legal_information_source_code_spiral" = "Lähdekoodi";
-"screen_invite_people_seats_label" = "Kutsuja jäljellä";
 "screen_native_call_tile_not_joined" = "Et liittynyt";
 "screen_agent_settings_show_in_search_footer" = "Voivatko ihmiset löytää sen haulla. Kuka tahansa, jolla on sen osoite, voi silti kirjoittaa sille.";
 "screen_agent_edit_tone_calm" = "Rauhallinen";
@@ -1056,7 +1065,6 @@
 "screen_room_interactive_draft_published" = "Julkaistu";
 "screen_agent_activity_reason_visitor_policy_reply" = "Sallit vastaamisen heti";
 "screen_agent_in_room_no_tools" = "Tässä keskustelussa ei ole vielä työkaluja.";
-"notice_welcome_assistant_body" = "Olen %1$@, henkilökohtainen avustajasi. Voin välittää viestejä, kun olet poissa, muistaa yhteystietosi ja tiivistää keskusteluja. Kytke työkaluni päälle keskustelussa napauttamalla siellä + ja valitsemalla Agentit. Kirjoita minulle ihan tavalliseen tapaan – olen täällä.";
 "screen_room_interactive_post_pick_agent_title" = "Kuka sen tekee?";
 "screen_agent_settings_visitor_ask_first_description" = "Uusi henkilö odottaa, kunnes hyväksyt";
 "screen_ai_consent_prompt_failed" = "Valintaasi ei voitu tallentaa. Tarkista yhteys ja yritä uudelleen.";
@@ -1086,10 +1094,8 @@
 "screen_agent_activity_reason_block_needs_owner" = "Estäminen vaatii hyväksyntäsi";
 "screen_create_company_title" = "Uusi yritys";
 "a11y_native_call_disable_speaker" = "Poista kaiutin käytöstä";
-"screen_invite_paste_placeholder" = "spiral.md/join/…";
 "a11y_native_call_end" = "Lopeta puhelu";
 "screen_agent_activity_action_published_post" = "Julkaisi julkaisun";
-"screen_invite_people_joined_footer" = "Ihmiset, jotka loivat tilinsä linkkisi kautta. Aloita keskustelu napauttamalla.";
 "screen_arm_tool_turn_off_confirm_message" = "Agentti lopettaa tämän tässä keskustelussa kaikkien osalta. Voit kytkeä sen takaisin päälle milloin tahansa.";
 "spiral_app_card_line_by" = "Lähettäjä: %1$@";
 "state_event_spiral_tool_language_changed_by_you" = "Muutit käännöstä: %1$@ → %2$@";
@@ -1114,7 +1120,6 @@
 "screen_native_call_agent_block_recording" = "Tallentaa";
 "screen_native_call_control_video" = "Video";
 "screen_agent_detail_pause" = "Keskeytä";
-"screen_invite_paste_expired" = "Tämä kutsu ei ole enää voimassa. Pyydä uusi.";
 "screen_security_messages_section" = "Viestit";
 "screen_agent_activity_reason_relationship_unavailable" = "Yhteystietoa ei voitu tarkistaa";
 "screen_ai_consent_prompt_allow" = "Salli";
@@ -1144,15 +1149,12 @@
 "state_event_spiral_tool_off_by_system" = "%1$@ kytkettiin pois (%2$@)";
 "a11y_native_call_swap_to_held_call" = "Vaihda puheluun, jossa on %@";
 "screen_native_call_audio_route_iphone" = "iPhone";
-"screen_invite_people_seats_value" = "%1$d/%2$d";
 "screen_agent_activity_reason_first_contact_with_unknown_visitor" = "Ensimmäinen viesti uudelta henkilöltä";
 "screen_deactivate_account_spiral_list_item_3" = "Poistaa tilitietosi identiteettipalvelimeltamme.";
 "a11y_native_call_bar" = "Käynnissä oleva puhelu: %1$@. Palaa napauttamalla.";
-"screen_invite_paste_unavailable" = "Kutsua ei voitu tarkistaa. Yritä uudelleen.";
 "screen_agent_activity_action_read_call_summary" = "Luki puhelun yhteenvedon";
 "screen_ai_consent_prompt_title" = "Sallitaanko kolmannen osapuolen tekoäly?";
 "screen_agent_edit_voice_language_footer" = "Avustaja vastaa aina kielellä, jota puhut. Tämä määrittää, miten se kuulee puhelut, ja puheluiden yhteenvetojen kielen.";
-"screen_invite_welcome_title" = "Tervetuloa Spiraliin";
 "screen_agent_activity_reason_blocked_visitor" = "Estetty henkilö";
 "screen_deactivate_account_spiral_list_item_1_bold_part" = "Poistaa pysyvästi käytöstä";
 "screen_native_call_agent_center_recording_live" = "Tallennetaan…";
@@ -1220,7 +1222,6 @@
 "screen_deactivate_account_spiral_failed" = "Tiliä ei voitu poistaa. Yritä uudelleen minuutin kuluttua.";
 "screen_agent_activity_action_changed_call_mode" = "Muutti tapaa, jolla se osallistuu puheluun";
 "a11y_native_call_unmute_microphone" = "Ota mikrofoni käyttöön";
-"screen_invite_paste_label" = "Linkki tai koodi";
 "screen_media_viewer_position" = "%1$d/%2$d";
 "screen_native_call_status_reconnecting_detail" = "Yhteytesi katkesi";
 "screen_approval_detail_block_blocked_subtitle" = "Agenttisi ohittaa tästä lähtien hänen viestinsä.";
@@ -1256,6 +1257,13 @@
 "screen_agent_activity_reason_no_contact_relationship" = "Ei yhteystietojesi joukossa";
 "screen_room_alias_link_not_found" = "Tämä linkki ei johda mihinkään keskusteluun.";
 "screen_invite_people_title" = "Kutsu Spiraliin";
+"screen_invite_people_you" = "Sinä";
+"screen_invite_people_invited_count" = "Kutsuttu %1$d/%2$d";
+"screen_invite_people_invited_you" = "Kutsui sinut Spiraliin";
+"screen_invite_people_seat_invite" = "Kutsu";
+"screen_invite_people_seat_taken" = "Varattu";
+"screen_invite_people_chain_footer" = "Yksi linkki %1$d ihmiselle, eikä se uusiudu. Napauta henkilöä avataksesi hänen profiilinsa.";
+"screen_invite_people_all_used" = "Kaikki kutsut on käytetty";
 "screen_approval_detail_escalation_cold_outreach" = "Agenttisi haluaa kirjoittaa jollekulle ensimmäistä kertaa.";
 "screen_start_invited_by" = "%1$@ kutsui sinut Spiraliin";
 "screen_agent_spaces_section_retry" = "Yritä uudelleen napauttamalla.";
@@ -1263,7 +1271,6 @@
 "screen_settings_new_phrase_done" = "Kirjautumislause vaihdettu";
 "screen_agent_activity_reason_outside_conversation" = "Tämän keskustelun ulkopuolella";
 "a11y_native_call_switch_camera" = "Vaihda kameraa";
-"screen_invite_people_joined" = "Liittyneet kutsustasi: %1$d";
 "screen_agent_activity_action_searched_agents" = "Haki agentteja";
 "screen_agent_activity_reason_strategy_no_op" = "Ei mitään tehtävää";
 "action_dismiss_visitor_message" = "Poista";
@@ -1272,7 +1279,6 @@
 "screen_approval_detail_block_action_dont_block" = "Älä estä";
 "screen_agent_settings_people_title" = "Keskustelu ihmisten kanssa";
 "screen_native_call_agent_center_error_not_owner" = "Vain tämän istunnon omistaja voi muuttaa sitä.";
-"notice_welcome_agent_body" = "%1$@ on valmis. Kirjoita minulle.";
 "screen_agent_detail_already_in_chat" = "Agentti on jo tässä keskustelussa";
 "screen_native_call_agent_center_booth_members" = "%1$@ kielelle %2$@";
 "screen_settings_devices_title" = "Laitteet ja istunnot";
@@ -1290,7 +1296,6 @@
 "screen_agent_activity_action_remembered" = "Muisti jotain yhteystiedosta";
 "screen_room_interactive_post_link_needs_update" = "Tämä julkaisu vaatii uudemman Spiral-version. Päivitä sovellus käyttääksesi sitä.";
 "screen_room_member_details_erase_assistant_memory" = "Tyhjennä, mitä avustajani tietävät hänestä";
-"screen_invite_paste_without" = "Jatka ilman kutsua";
 "screen_agent_edit_tone_friendly" = "Ystävällinen";
 "screen_room_interactive_post_update" = "Päivitä julkaisu";
 "screen_agent_detail_archive_refused" = "Henkilökohtainen avustajasi kuuluu tiliisi, eikä sitä voi arkistoida.";
@@ -1307,9 +1312,7 @@
 "screen_native_call_agent_center_talking" = "Avustaja puhuu";
 "screen_native_call_tile_call_back" = "Soita takaisin napauttamalla";
 "notice_reply_failed_body" = "Jokin meni vikaan minun päässäni. Lähetä se uudelleen.";
-"screen_invite_people_joined_title" = "Liittyneet kutsustasi";
 "screen_native_call_status_connecting_detail" = "Salausta otetaan käyttöön";
-"screen_invite_paste_title" = "Onko sinulla kutsu?";
 "screen_edit_profile_bio_too_long" = "Esittely voi olla enintään %1$d merkkiä. Lyhennä sitä tallentaaksesi.";
 "a11y_native_call_agent_block_role" = "%1$@, %2$@";
 "a11y_native_call_recording" = "Tätä puhelua tallennetaan";
@@ -1322,12 +1325,25 @@
 "screen_agent_spaces_assistant_pending" = "Avustajaasi määritetään vielä";
 "screen_room_member_details_erase_assistant_memory_alert_title" = "Tyhjennetäänkö, mitä avustajasi tietävät henkilöstä %1$@?";
 "screen_settings_new_phrase_failed" = "Lauseen vaihtamista ei voitu aloittaa. Yritä uudelleen.";
+/* AGENT-PLATFORM (1.0.3): sign-in methods — the first phrase for an account made with Apple, Sign in with Apple for a phrase account. */
+"screen_settings_add_phrase_title" = "Lisää kirjautumislause";
+"screen_settings_add_phrase_message" = "Valitset 12 sanaa. Ne avaavat tilisi millä tahansa laitteella Applella kirjautumisen lisäksi. Pysyt kirjautuneena tällä laitteella, eikä tämä vaikuta viesteihisi.";
+"screen_settings_add_phrase_auth_reason" = "Vahvista henkilöllisyytesi lisätäksesi kirjautumislauseen";
+"screen_settings_add_phrase_done" = "Kirjautumislause lisätty";
+"screen_settings_add_phrase_failed" = "Lauseen lisäämistä ei voitu aloittaa. Yritä uudelleen.";
+"screen_settings_sign_in_passcode_required" = "Aseta ensin laitteen pääsykoodi – se suojaa kirjautumistapojasi";
+"screen_settings_apple_title" = "Kirjaudu Applella";
+"screen_settings_apple_connected" = "Yhdistetty";
+"screen_settings_apple_add_title" = "Lisää Kirjaudu Applella";
+"screen_settings_apple_auth_reason" = "Vahvista henkilöllisyytesi lisätäksesi Kirjaudu Applella -toiminnon";
+"screen_settings_apple_linked" = "Kirjaudu Applella lisätty";
+"screen_settings_apple_taken" = "Tämä Apple ID on jo toisen Spiral-tilin käytössä";
+"screen_settings_apple_failed" = "Kirjaudu Applella -toiminnon lisäämistä ei voitu aloittaa. Yritä uudelleen.";
 "screen_deactivate_account_spiral_description" = "Tilisi poistaminen on %1$@. Se:";
 "screen_agent_activity_action_set_reminder" = "Asetti muistutuksen";
 "screen_agent_activity_action_cancelled_reminder" = "Perui muistutuksen";
 "screen_agent_activity_reason_capability_always_allowed" = "Aina sallittu";
 "screen_agent_activity_action_blocked_someone" = "Esti jonkun";
-"screen_invite_paste_message" = "Liitä linkki, jonka Spiral-käyttäjä lähetti sinulle, tai kirjoita koodi.";
 "screen_native_call_error_title" = "Puhelu epäonnistui";
 "notification_approval_action_not_found_title" = "Tätä pyyntöä ei ole enää olemassa";
 "state_event_spiral_tool_changed_by_you" = "Muutit työkalua: %1$@";
@@ -1354,7 +1370,6 @@
 "screen_native_call_control_sound" = "Ääni";
 "screen_native_call_status_reconnecting" = "Yhdistetään uudelleen…";
 "notice_phrase_changed_body" = "Vanhalla lauseella ei voi enää kirjautua sisään.";
-"screen_invite_people_seats_footer" = "Jokaisella on yksi linkki, jossa on %1$d paikkaa. Se ei uusiudu, joten jaa se ihmisille, jotka todella haluat tänne.";
 "screen_room_member_details_agent_unblock_action" = "Poista esto";
 "screen_agent_activity_reason_unknown_capability" = "Ei sen osaamaa asiaa";
 "screen_settings_new_phrase_passcode_required" = "Aseta ensin laitteen pääsykoodi – se suojaa lauseen vaihtamista";
@@ -1426,10 +1441,11 @@
 "screen_your_data_calls_footer" = "Vie yksi puhelu: sen litterointi, yhteenveto ja suostumusloki.";
 "screen_arm_tool_error_agent_does_not_join_calls" = "Tämä agentti ei liity puheluihin, joten puhelutyökalut eivät ole sen käytettävissä.";
 "screen_room_interactive_generating_hint" = "Yleensä alle minuutti";
-"screen_invite_paste_exhausted" = "Kaikki, joille tämä kutsu oli tarkoitettu, ovat jo liittyneet. Pyydä uusi.";
 "notice_phrase_changed_on_device" = "Vaihdettu laitteella ”%1$@”.";
+/* AGENT-PLATFORM (1.0.3): the owner-DM card when Sign in with Apple is added. It names no device (security review); a new phrase disconnects Apple. */
+"notice_apple_linked_title" = "Kirjaudu Applella lisätty";
+"notice_apple_linked_body" = "Jos se et ollut sinä, vaihda kirjautumislauseesi: se poistaa Applen yhteyden.";
 "screen_ai_consent_prompt_openai" = "OpenAI: viestit, joita avustajat lukevat, äänesi puheluissa niiden kanssa ja tallenteet, jotka ne litteroivat.";
-"screen_invite_welcome_message" = "%1$@ kutsui sinut ja tietää jo, että olet täällä. Sano hei!";
 "screen_agent_activity_action_used_tool" = "Käytti työkalua viestiin";
 "screen_approval_detail_escalation_first_contact" = "Joku kirjoitti agentillesi ensimmäistä kertaa, joten se kysyy sinulta ennen kuin vastaa.";
 "screen_agent_activity_action_drafted_post" = "Laati luonnoksen julkaisusta";
@@ -1444,7 +1460,6 @@
 "screen_room_interactive_post_updated" = "Julkaisu päivitetty";
 "screen_native_call_camera_failed_message" = "Kamera ei käynnistynyt, joten puhelu jatkuu äänellä. Kokeile kamerapainiketta uudelleen hetken päästä.";
 "screen_media_viewer_open" = "Avaa";
-"screen_invite_paste_invalid" = "Tällaista kutsua ei ole.";
 "screen_agent_room_tool_audience_except_named" = "kaikille paitsi: %1$@";
 "notification_spiral_needs_update_body" = "Päivitä sovellus nähdäksesi tämän.";
 "screen_agent_edit_tone_brief" = "Lyhyt ja ytimekäs";
@@ -1452,7 +1467,6 @@
 "screen_invite_people_seats_left" = "%1$d/%2$d kutsua jäljellä";
 "screen_agent_activity_reason_wrong_room_kind" = "Ei sallittu tämäntyyppisessä keskustelussa";
 "screen_native_call_failure_audio_reset" = "Järjestelmä nollasi puhelun äänen.";
-"screen_invite_people_body" = "Rekisteröityminen vain kutsusta. Jaa henkilökohtainen linkkisi – jokainen, joka luo tilin sen kautta, näkee sinut ensimmäisenä.";
 "notification_approval_action_target_blocked_title" = "Ei lähetetty – olet estänyt tämän henkilön";
 "screen_notifications_hub_visitor_other" = "Jotain uutta";
 "screen_agent_activity_empty_pending_title" = "Ei ratkaistavia pyyntöjä";
@@ -1476,3 +1490,61 @@
 "screen_notifications_hub_visitors_section" = "Ihmisiltä";
 "screen_agent_settings_visitor_reply_description" = "Vastaa kaikille paitsi estämillesi ihmisille";
 "screen_deactivate_account_spiral_auth_reason" = "Vahvista henkilöllisyytesi poistaaksesi tilisi";
+
+// AGENT-PLATFORM (1.0.3 A2): the assistant's first invite in Chats, its chat before consent and its welcome.
+"screen_roomlist_assistant_invite_name" = "Avustajasi";
+"screen_roomlist_assistant_invite_subtitle" = "Hei! Aloita napauttamalla 👋";
+"screen_roomlist_assistant_invite_start" = "Aloita";
+"a11y_assistant_invite_start" = "Aloita keskustelu avustajasi kanssa";
+"a11y_assistant_invite_start_hint" = "Hyväksyy avustajasi kutsun ja avaa keskustelunne.";
+"screen_assistant_invite_title" = "Hei! Olen avustajasi";
+"screen_assistant_invite_reminders" = "Muistutan sinua asioista";
+"screen_assistant_invite_contacts" = "Muistan yhteystietosi";
+"screen_assistant_invite_summaries" = "Teen yhteenvedon mistä tahansa keskustelusta";
+"screen_assistant_invite_privacy" = "Näen vain tämän keskustelun. Voit poistaa minut käytöstä milloin tahansa.";
+"screen_assistant_invite_start" = "Aloita keskustelu";
+"notice_welcome_body" = "Olen täällä ja valmis auttamaan. Mistä aloitetaan?";
+"notice_welcome_starter_summary" = "Tee yhteenveto keskustelusta";
+"notice_welcome_starter_summary_message" = "Tee minulle yhteenveto keskustelusta";
+"notice_welcome_starter_contact" = "Muista yhteystieto";
+"notice_welcome_starter_contact_message" = "Muista jotain yhteystiedostani";
+"notice_welcome_starter_reminder" = "Muistuta minua…";
+"notice_welcome_starter_reminder_message" = "Aseta minulle muistutus";
+"notice_welcome_allow_ai_reason" = "Salli tekoäly, jotta voin lukea, mitä kirjoitat tänne.";
+"notice_welcome_allow_ai_action" = "Salli tekoäly";
+
+// AGENT-PLATFORM (1.0.3 onboarding): the start screen's stories, the notifications prompt and the invited welcome.
+"screen_start_slide_privacy_title" = "Keskustelusi ovat sinun";
+"screen_start_slide_privacy_subtitle" = "Päästä päähän -salaus. Ei puhelinnumeroa, ja avustaja vain luvallasi";
+"screen_start_slide_calls_title" = "Puhelut käännöksellä";
+"screen_start_slide_calls_subtitle" = "Avustaja liittyy mukaan ja kääntää reaaliajassa";
+"screen_start_slide_assistant_title" = "Avustaja lähellä";
+"screen_start_slide_assistant_subtitle" = "Vastaa, kun olet kiireinen, ja kysyy sinulta ennen jokaista uutta askelta";
+"screen_start_slide_games_title" = "Pelatkaa yhdessä suoraan keskustelussa";
+"screen_start_slide_games_subtitle" = "Pelejä ja työkaluja ilman asennuksia";
+"screen_start_invited_by_hint" = "Luo tili, niin %1$@ tietää, että olet täällä";
+"a11y_start_slides_position" = "Dia %1$d/%2$d";
+"screen_notification_optin_spiral_title" = "Pysy yhteydessä";
+"screen_notification_optin_spiral_subtitle" = "Spiral kertoo, kun jokin on todella tärkeää. Voit muuttaa tätä milloin tahansa asetuksista.";
+"screen_notification_optin_messages_title" = "Uudet viestit";
+"screen_notification_optin_messages_subtitle" = "Ihmisiltä ja ryhmiltä, joiden kanssa juttelet";
+"screen_notification_optin_calls_title" = "Saapuvat puhelut";
+"screen_notification_optin_calls_subtitle" = "Myös silloin, kun Spiral on suljettu";
+"screen_notification_optin_assistant_title" = "Avustajasi kysymykset";
+"screen_notification_optin_assistant_subtitle" = "Kun se tarvitsee suostumuksesi";
+"screen_notification_optin_allow" = "Salli ilmoitukset";
+"screen_invite_welcome_together_title" = "Sinä ja %1$@ olette nyt mukana Spiralissa";
+"screen_invite_welcome_step_say_hello_title" = "Tervehdi käyttäjää %1$@";
+"screen_invite_welcome_step_say_hello_subtitle" = "%1$@ odottaa";
+"screen_invite_welcome_step_assistant_title" = "Tutustu avustajaasi";
+"screen_invite_welcome_step_assistant_subtitle" = "Sen kutsu odottaa Keskusteluissa";
+"screen_invite_welcome_step_play_title" = "Pelatkaa jotain yhdessä";
+"screen_invite_welcome_step_play_subtitle" = "Pelejä ja työkaluja suoraan keskustelussa";
+"a11y_invite_welcome_avatars" = "%1$@ ja sinä";
+"screen_approval_detail_already_closed_title" = "Tämä pyyntö on jo suljettu";
+"screen_approval_detail_already_closed_message" = "Se vanhentui tai siihen on jo vastattu.";
+"screen_room_interactive_post_description_not_sent" = "Kuvaustasi ei lähetetty. Lähetä se uudelleen viestiketjussa.";
+"screen_room_interactive_post_code_not_sent" = "Julkaisu ei tavoittanut agenttia. Yritä uudelleen julkaisusta.";
+"screen_invites_assistant_decline_warning_spiral" = "Jos tämä on oma avustajasi, sen keskustelua ei voi palauttaa hylkäämisen jälkeen.";
+"a11y_roomlist_remove_filter" = "Poista suodatin: %1$@";
+"a11y_settings_share_profile" = "Jaa profiilini";

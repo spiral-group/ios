@@ -104,7 +104,7 @@ struct FeedCommentItem: Identifiable, Equatable {
             parts.append(UntranslatedL10n.a11yFeedReplyingTo(reply.author.displayName))
         }
         if !isPending {
-            parts.append(comment.createdAt.formatted(.relative(presentation: .named, unitsStyle: .wide)))
+            parts.append(FeedShortTime.spokenTime(comment.createdAt))
         }
         if let authorLabel {
             parts.append(authorLabel)

@@ -65,6 +65,9 @@
 "screen_agent_edit_persona_greeting" = "Tervitus sulle";
 "screen_agent_edit_persona_visitor_greeting" = "Tervitus külalistele";
 "screen_agent_edit_failure" = "Muudatuste salvestamine ei õnnestunud";
+"error_agent_name_reserved" = "See nimi on reserveeritud Spirali enda kontodele. Vali teine nimi.";
+"error_agent_name_invalid_characters" = "Nimi sisaldab märke, mida ei saa kasutada.";
+"error_agent_name_unchecked" = "Nime kontrollimine ei õnnestunud. Proovi uuesti.";
 "screen_agent_edit_load_failure" = "Muutmisvormi laadimine ei õnnestunud";
 "screen_agent_edit_avatar_failure" = "Foto üleslaadimine ei õnnestunud";
 "action_agent_activity" = "Tegevus";
@@ -250,7 +253,6 @@
 "screen_language_picker_title" = "Keel";
 "screen_language_picker_empty" = "Ükski keel ei vasta sinu otsingule.";
 "screen_start_sign_in" = "Logi sisse";
-"screen_start_welcome_subtitle" = "Kiire ja privaatne sõnumivahetus sinu isikliku agendiga.";
 
 // AGENT-PLATFORM (Brief 0072, ADR-0083, ADR-0084): presence, worded as Telegram does
 "common_presence_online" = "võrgus";
@@ -491,6 +493,16 @@
 "screen_native_call_assistants_record_confirm_title" = "Kas salvestada kõne?";
 "screen_native_call_assistants_record_confirm_message" = "Kõik näevad kõne ülaosas REC-märki. Salvestis ilmub pärast kõnet vestlusse.";
 "screen_native_call_assistants_record_confirm_action" = "Salvesta";
+"screen_native_call_assistants_notes_confirm_title" = "Kas teha kõne märkmeid?";
+"screen_native_call_assistants_notes_confirm_message" = "Sinu assistent kuulab kõnet ja postitab pärast kokkuvõtte vestlusse. Teised näevad, et ta teeb märkmeid.";
+"screen_native_call_assistants_notes_confirm_action" = "Tee märkmeid";
+"screen_native_call_assistants_talk_confirm_title" = "Kas rääkida assistendiga?";
+"screen_native_call_assistants_talk_confirm_message" = "Ta kuuleb ainult sind ja vastab valjult — kõik kõnes osalejad kuulevad teda.";
+"screen_native_call_assistants_talk_confirm_action" = "Alusta vestlust";
+"screen_native_call_assistants_translate_question_title" = "Tõlkekeel";
+"screen_native_call_assistants_listen_question_title" = "Kuulamiskeel";
+"screen_native_call_assistants_talk_info_title" = "Sinu assistent vastab valjult";
+"screen_native_call_assistants_talk_info_message" = "Ta kuuleb ainult sind ja kõik kõnes osalejad kuulevad teda. Vestluse ajal tõlge ei tööta.";
 "screen_native_call_assistants_none_of_your_own" = "Sul pole assistenti";
 "screen_native_call_assistants_which" = "Milline assistent";
 "screen_native_call_assistants_reason_paused" = "Sinu assistent on peatatud";
@@ -571,7 +583,6 @@
 "screen_native_call_assistants_job_conversation" = "Vestlus";
 "screen_native_call_assistants_translating" = "Tõlgib → %1$@";
 "screen_native_call_assistants_stop_translation" = "Peata tõlge";
-"screen_native_call_assistants_talk_caption" = "Vastab sulle valjult ja kõik kuulevad seda. Vestluse ajal tõlge ei tööta.";
 "screen_native_call_assistants_pick_footer" = "Selle vestluse jaoks meeles";
 "screen_native_call_assistants_neighbour_language" = "Kõrval oleva inimese keel";
 "screen_native_call_assistants_pocket_detail" = "Pärast iga fraasi · mõlemas suunas";
@@ -591,10 +602,9 @@
 "screen_native_call_assistants_status_both_ways" = "Tõlgib mõlemas suunas";
 "screen_native_call_assistants_translate_into" = "Tõlkekeel";
 "screen_native_call_assistants_translate_into_detail" = "Selles keeles kuuled kõnet";
+"screen_native_call_assistants_translate_into_language" = "Tõlkekeel: %1$@";
 "screen_native_call_assistants_in_call" = "Kõnes";
 "screen_native_call_assistants_in_call_more" = "Kõnes: veel %1$d";
-"screen_native_call_assistants_new_translation" = "Uus tõlge";
-"screen_native_call_assistants_new_translation_detail" = "Sinu assistent tõlgib kõne";
 "screen_native_call_assistants_new_translation_others" = "Sinu assistent tõlgib: %1$@. Teisi juba tõlgitakse, tasuta.";
 "screen_native_call_assistants_start_translation" = "Alusta tõlget";
 "screen_native_call_assistants_start_translation_detail" = "Kasutab sinu limiiti. Kes selle keele valib, kuulab tasuta.";
@@ -1044,7 +1054,6 @@
 "notice_phrase_changed_title" = "Sisselogimisfraas on muudetud";
 "a11y_message_read" = "Loetud";
 "screen_legal_information_source_code_spiral" = "Lähtekood";
-"screen_invite_people_seats_label" = "Kutseid alles";
 "screen_native_call_tile_not_joined" = "Sa ei liitunud";
 "screen_agent_settings_show_in_search_footer" = "Kas inimesed leiavad selle otsingust. Igaüks, kellel on selle aadress, saab talle ikkagi kirjutada.";
 "screen_agent_edit_tone_calm" = "Rahulik";
@@ -1056,7 +1065,6 @@
 "screen_room_interactive_draft_published" = "Avaldatud";
 "screen_agent_activity_reason_visitor_policy_reply" = "Sa lubasid kohe vastata";
 "screen_agent_in_room_no_tools" = "Selles vestluses pole veel tööriistu.";
-"notice_welcome_assistant_body" = "Olen %1$@, sinu isiklik assistent. Saan sinu äraolekul sõnumeid edasi anda, sinu kontakte meeles pidada ja jututubasid kokku võtta. Minu tööriistade sisselülitamiseks jututoas puuduta seal + ja vali Agendid. Kirjuta mulle lihtsalt nii, nagu tavaliselt — olen siin.";
 "screen_room_interactive_post_pick_agent_title" = "Kes selle teeb?";
 "screen_agent_settings_visitor_ask_first_description" = "Uus inimene ootab, kuni sa nõustud";
 "screen_ai_consent_prompt_failed" = "Sinu valikut ei õnnestunud salvestada. Kontrolli ühendust ja proovi uuesti.";
@@ -1086,10 +1094,8 @@
 "screen_agent_activity_reason_block_needs_owner" = "Blokeerimiseks on vaja sinu luba";
 "screen_create_company_title" = "Uus ettevõte";
 "a11y_native_call_disable_speaker" = "Lülita kõlar välja";
-"screen_invite_paste_placeholder" = "spiral.md/join/…";
 "a11y_native_call_end" = "Lõpeta kõne";
 "screen_agent_activity_action_published_post" = "Avaldas postituse";
-"screen_invite_people_joined_footer" = "Inimesed, kes lõid oma konto sinu lingi kaudu. Puuduta vestluse alustamiseks.";
 "screen_arm_tool_turn_off_confirm_message" = "Agent lõpetab selle tegemise selles vestluses kõigi jaoks. Saad selle igal ajal uuesti sisse lülitada.";
 "spiral_app_card_line_by" = "Kasutajalt %1$@";
 "state_event_spiral_tool_language_changed_by_you" = "Sa muutsid tõlget: %1$@ → %2$@";
@@ -1114,7 +1120,6 @@
 "screen_native_call_agent_block_recording" = "Salvestab";
 "screen_native_call_control_video" = "Video";
 "screen_agent_detail_pause" = "Peata";
-"screen_invite_paste_expired" = "See kutse ei kehti enam. Küsi uut.";
 "screen_security_messages_section" = "Sõnumid";
 "screen_agent_activity_reason_relationship_unavailable" = "Kontakti ei õnnestunud kontrollida";
 "screen_ai_consent_prompt_allow" = "Luba";
@@ -1144,15 +1149,12 @@
 "state_event_spiral_tool_off_by_system" = "%1$@ lülitati välja (%2$@)";
 "a11y_native_call_swap_to_held_call" = "Lülitu ootel kõnele: %@";
 "screen_native_call_audio_route_iphone" = "iPhone";
-"screen_invite_people_seats_value" = "%1$d / %2$d";
 "screen_agent_activity_reason_first_contact_with_unknown_visitor" = "Esimene sõnum uuelt inimeselt";
 "screen_deactivate_account_spiral_list_item_3" = "Kustutab sinu konto andmed meie isikutuvastusserverist.";
 "a11y_native_call_bar" = "Käimasolev kõne: %1$@. Puuduta naasmiseks.";
-"screen_invite_paste_unavailable" = "Kutset ei õnnestunud kontrollida. Proovi uuesti.";
 "screen_agent_activity_action_read_call_summary" = "Luges kõne kokkuvõtet";
 "screen_ai_consent_prompt_title" = "Kas lubada kolmanda osapoole tehisintellekt?";
 "screen_agent_edit_voice_language_footer" = "Assistent vastab alati keeles, mida sa räägid. See määrab, kuidas ta kõnesid kuuleb ja mis keeles on kõnede kokkuvõtted.";
-"screen_invite_welcome_title" = "Tere tulemast Spirali";
 "screen_agent_activity_reason_blocked_visitor" = "Blokeeritud inimene";
 "screen_deactivate_account_spiral_list_item_1_bold_part" = "jäädavalt eemaldatakse kasutusest";
 "screen_native_call_agent_center_recording_live" = "Salvestamine…";
@@ -1220,7 +1222,6 @@
 "screen_deactivate_account_spiral_failed" = "Konto kustutamine ei õnnestunud. Proovi minuti pärast uuesti.";
 "screen_agent_activity_action_changed_call_mode" = "Muutis, kuidas ta kõnes osaleb";
 "a11y_native_call_unmute_microphone" = "Lülita mikrofon sisse";
-"screen_invite_paste_label" = "Link või kood";
 "screen_media_viewer_position" = "%1$d / %2$d";
 "screen_native_call_status_reconnecting_detail" = "Sinu ühendus katkes";
 "screen_approval_detail_block_blocked_subtitle" = "Sinu agent eirab nüüdsest tema sõnumeid.";
@@ -1256,6 +1257,13 @@
 "screen_agent_activity_reason_no_contact_relationship" = "Pole sinu kontaktide seas";
 "screen_room_alias_link_not_found" = "See link ei vii ühegi vestluseni.";
 "screen_invite_people_title" = "Kutsu Spirali";
+"screen_invite_people_you" = "Sina";
+"screen_invite_people_invited_count" = "Kutsutud %1$d / %2$d";
+"screen_invite_people_invited_you" = "Kutsus sind Spirali";
+"screen_invite_people_seat_invite" = "Kutsu";
+"screen_invite_people_seat_taken" = "Hõivatud";
+"screen_invite_people_chain_footer" = "Üks link %1$d inimesele ja see ei uuene. Puuduta inimest, et avada tema profiil.";
+"screen_invite_people_all_used" = "Kõik kutsed on kasutatud";
 "screen_approval_detail_escalation_cold_outreach" = "Sinu agent soovib kellelegi esimest korda kirjutada.";
 "screen_start_invited_by" = "%1$@ kutsus sind Spirali";
 "screen_agent_spaces_section_retry" = "Puuduta uuesti proovimiseks.";
@@ -1263,7 +1271,6 @@
 "screen_settings_new_phrase_done" = "Sisselogimisfraas on muudetud";
 "screen_agent_activity_reason_outside_conversation" = "Väljaspool seda vestlust";
 "a11y_native_call_switch_camera" = "Vaheta kaamerat";
-"screen_invite_people_joined" = "Sinu kutsel liitunud: %1$d";
 "screen_agent_activity_action_searched_agents" = "Otsis agente";
 "screen_agent_activity_reason_strategy_no_op" = "Polnud midagi teha";
 "action_dismiss_visitor_message" = "Eemalda";
@@ -1272,7 +1279,6 @@
 "screen_approval_detail_block_action_dont_block" = "Ära blokeeri";
 "screen_agent_settings_people_title" = "Suhtlus inimestega";
 "screen_native_call_agent_center_error_not_owner" = "Seda saab muuta ainult selle seansi omanik.";
-"notice_welcome_agent_body" = "%1$@ on valmis. Kirjuta mulle lihtsalt.";
 "screen_agent_detail_already_in_chat" = "Agent on juba selles vestluses";
 "screen_native_call_agent_center_booth_members" = "%1$@ → %2$@";
 "screen_settings_devices_title" = "Seadmed ja seansid";
@@ -1290,7 +1296,6 @@
 "screen_agent_activity_action_remembered" = "Jättis kontakti kohta midagi meelde";
 "screen_room_interactive_post_link_needs_update" = "See postitus vajab Spirali uuemat versiooni. Selle kasutamiseks uuenda rakendust.";
 "screen_room_member_details_erase_assistant_memory" = "Kustuta, mida mu assistendid temast teavad";
-"screen_invite_paste_without" = "Jätka ilma kutseta";
 "screen_agent_edit_tone_friendly" = "Sõbralik";
 "screen_room_interactive_post_update" = "Uuenda postitust";
 "screen_agent_detail_archive_refused" = "Sinu isiklik assistent jääb sinu kontoga ja seda ei saa arhiveerida.";
@@ -1307,9 +1312,7 @@
 "screen_native_call_agent_center_talking" = "Assistent räägib";
 "screen_native_call_tile_call_back" = "Puuduta tagasihelistamiseks";
 "notice_reply_failed_body" = "Minu poolel läks midagi valesti. Palun saada see uuesti.";
-"screen_invite_people_joined_title" = "Sinu kutsel liitunud";
 "screen_native_call_status_connecting_detail" = "Krüptimise seadistamine";
-"screen_invite_paste_title" = "Kas sul on kutse?";
 "screen_edit_profile_bio_too_long" = "Tutvustus võib olla kuni %1$d tähemärki. Salvestamiseks lühenda seda.";
 "a11y_native_call_agent_block_role" = "%1$@, %2$@";
 "a11y_native_call_recording" = "Seda kõnet salvestatakse";
@@ -1322,12 +1325,25 @@
 "screen_agent_spaces_assistant_pending" = "Sinu assistenti alles seadistatakse";
 "screen_room_member_details_erase_assistant_memory_alert_title" = "Kas kustutada, mida sinu assistendid kasutajast %1$@ teavad?";
 "screen_settings_new_phrase_failed" = "Fraasi muutmist ei õnnestunud alustada. Proovi uuesti.";
+/* AGENT-PLATFORM (1.0.3): sign-in methods — the first phrase for an account made with Apple, Sign in with Apple for a phrase account. */
+"screen_settings_add_phrase_title" = "Lisa sisselogimisfraas";
+"screen_settings_add_phrase_message" = "Valid 12 sõna. Need avavad sinu konto igas seadmes, lisaks Apple'iga sisselogimisele. Selles seadmes jääd sisselogituks ja sinu sõnumeid see ei mõjuta.";
+"screen_settings_add_phrase_auth_reason" = "Sisselogimisfraasi lisamiseks kinnita, et see oled sina";
+"screen_settings_add_phrase_done" = "Sisselogimisfraas on lisatud";
+"screen_settings_add_phrase_failed" = "Fraasi lisamist ei õnnestunud alustada. Proovi uuesti.";
+"screen_settings_sign_in_passcode_required" = "Määra esmalt seadme pääsukood — see kaitseb sinu sisselogimisviise";
+"screen_settings_apple_title" = "Apple'iga sisselogimine";
+"screen_settings_apple_connected" = "Ühendatud";
+"screen_settings_apple_add_title" = "Lisa Apple'iga sisselogimine";
+"screen_settings_apple_auth_reason" = "Apple'iga sisselogimise lisamiseks kinnita, et see oled sina";
+"screen_settings_apple_linked" = "Apple'iga sisselogimine on lisatud";
+"screen_settings_apple_taken" = "Seda Apple ID-d kasutab juba teine Spirali konto";
+"screen_settings_apple_failed" = "Apple'iga sisselogimise lisamist ei õnnestunud alustada. Proovi uuesti.";
 "screen_deactivate_account_spiral_description" = "Sinu konto kustutamine on %1$@ ja sellega:";
 "screen_agent_activity_action_set_reminder" = "Seadis meeldetuletuse";
 "screen_agent_activity_action_cancelled_reminder" = "Tühistas meeldetuletuse";
 "screen_agent_activity_reason_capability_always_allowed" = "Alati lubatud";
 "screen_agent_activity_action_blocked_someone" = "Blokeeris kellegi";
-"screen_invite_paste_message" = "Kleebi link, mille Spirali kasutaja sulle saatis, või sisesta kood.";
 "screen_native_call_error_title" = "Kõne ebaõnnestus";
 "notification_approval_action_not_found_title" = "Seda päringut pole enam olemas";
 "state_event_spiral_tool_changed_by_you" = "Sa muutsid: %1$@";
@@ -1354,7 +1370,6 @@
 "screen_native_call_control_sound" = "Helin";
 "screen_native_call_status_reconnecting" = "Taasühendamine…";
 "notice_phrase_changed_body" = "Vana fraasiga ei saa enam sisse logida.";
-"screen_invite_people_seats_footer" = "Igal inimesel on üks link %1$d kohaga. See ei uuene, seega jaga seda inimestega, keda sa siia tõesti soovid.";
 "screen_room_member_details_agent_unblock_action" = "Eemalda blokeering";
 "screen_agent_activity_reason_unknown_capability" = "Seda ta teha ei oska";
 "screen_settings_new_phrase_passcode_required" = "Määra esmalt seadme pääsukood — see kaitseb fraasi muutmist";
@@ -1426,10 +1441,11 @@
 "screen_your_data_calls_footer" = "Ekspordi üks kõne: selle ärakiri, kokkuvõte ja nõusolekute logi.";
 "screen_arm_tool_error_agent_does_not_join_calls" = "See agent ei liitu kõnedega, seega pole kõnetööriistad tema jaoks saadaval.";
 "screen_room_interactive_generating_hint" = "Tavaliselt alla minuti";
-"screen_invite_paste_exhausted" = "Kõik, keda see kutse lubas, on juba liitunud. Küsi uut.";
 "notice_phrase_changed_on_device" = "Muudetud seadmes „%1$@“.";
+/* AGENT-PLATFORM (1.0.3): the owner-DM card when Sign in with Apple is added. It names no device (security review); a new phrase disconnects Apple. */
+"notice_apple_linked_title" = "Apple'iga sisselogimine on lisatud";
+"notice_apple_linked_body" = "Kui see polnud sina, muuda oma sisselogimisfraasi: see eemaldab Apple'i.";
 "screen_ai_consent_prompt_openai" = "OpenAI: sõnumid, mida assistendid loevad, sinu hääl kõnedes nendega ja salvestised, mida nad tekstiks kirjutavad.";
-"screen_invite_welcome_message" = "%1$@ kutsus sind ja teab juba, et oled siin. Ütle tere!";
 "screen_agent_activity_action_used_tool" = "Kasutas sõnumil tööriista";
 "screen_approval_detail_escalation_first_contact" = "Keegi kirjutas sinu agendile esimest korda, seega küsib agent enne vastamist sinult.";
 "screen_agent_activity_action_drafted_post" = "Koostas postituse mustandi";
@@ -1444,7 +1460,6 @@
 "screen_room_interactive_post_updated" = "Postitus uuendatud";
 "screen_native_call_camera_failed_message" = "Kaamera ei käivitunud, seega jätkub kõne ainult heliga. Proovi hetke pärast uuesti kaameranuppu.";
 "screen_media_viewer_open" = "Ava";
-"screen_invite_paste_invalid" = "Sellist kutset pole.";
 "screen_agent_room_tool_audience_except_named" = "kõigile peale: %1$@";
 "notification_spiral_needs_update_body" = "Selle nägemiseks uuenda rakendust.";
 "screen_agent_edit_tone_brief" = "Lühike ja konkreetne";
@@ -1452,7 +1467,6 @@
 "screen_invite_people_seats_left" = "Kutseid alles %1$d / %2$d";
 "screen_agent_activity_reason_wrong_room_kind" = "Seda tüüpi vestluses pole lubatud";
 "screen_native_call_failure_audio_reset" = "Süsteem lähtestas kõne heli.";
-"screen_invite_people_body" = "Registreerimine toimub kutse alusel. Jaga oma isiklikku linki — igaüks, kes loob selle kaudu konto, näeb esimesena sind.";
 "notification_approval_action_target_blocked_title" = "Ei saadetud — sa blokeerisid selle inimese";
 "screen_notifications_hub_visitor_other" = "Midagi uut";
 "screen_agent_activity_empty_pending_title" = "Otsustamist vajavaid päringuid pole";
@@ -1476,3 +1490,61 @@
 "screen_notifications_hub_visitors_section" = "Inimestelt";
 "screen_agent_settings_visitor_reply_description" = "Vastab kõigile peale inimeste, kelle oled blokeerinud";
 "screen_deactivate_account_spiral_auth_reason" = "Konto kustutamiseks kinnita, et see oled sina";
+
+// AGENT-PLATFORM (1.0.3 A2): the assistant's first invite in Chats, its chat before consent and its welcome.
+"screen_roomlist_assistant_invite_name" = "Sinu assistent";
+"screen_roomlist_assistant_invite_subtitle" = "Tere! Toksa, et alustada 👋";
+"screen_roomlist_assistant_invite_start" = "Alusta";
+"a11y_assistant_invite_start" = "Alusta vestlust oma assistendiga";
+"a11y_assistant_invite_start_hint" = "Võtab assistendi kutse vastu ja avab teie vestluse.";
+"screen_assistant_invite_title" = "Tere! Olen sinu assistent";
+"screen_assistant_invite_reminders" = "Tuletan sulle asju meelde";
+"screen_assistant_invite_contacts" = "Jätan su kontaktid meelde";
+"screen_assistant_invite_summaries" = "Teen kokkuvõtte igast vestlusest";
+"screen_assistant_invite_privacy" = "Näen ainult seda vestlust. Saad mu igal ajal välja lülitada.";
+"screen_assistant_invite_start" = "Alusta vestlust";
+"notice_welcome_body" = "Olen siin ja valmis aitama. Millest alustame?";
+"notice_welcome_starter_summary" = "Tee vestlusest kokkuvõte";
+"notice_welcome_starter_summary_message" = "Tee mulle ühest vestlusest kokkuvõte";
+"notice_welcome_starter_contact" = "Jäta kontakt meelde";
+"notice_welcome_starter_contact_message" = "Jäta midagi mu kontakti kohta meelde";
+"notice_welcome_starter_reminder" = "Tuleta mulle meelde…";
+"notice_welcome_starter_reminder_message" = "Sea mulle meeldetuletus";
+"notice_welcome_allow_ai_reason" = "Luba tehisintellekt, et saaksin lugeda, mida sa siia kirjutad.";
+"notice_welcome_allow_ai_action" = "Luba tehisintellekt";
+
+// AGENT-PLATFORM (1.0.3 onboarding): the start screen's stories, the notifications prompt and the invited welcome.
+"screen_start_slide_privacy_title" = "Sinu vestlused on sinu omad";
+"screen_start_slide_privacy_subtitle" = "Otspunktkrüpteerimine. Telefoninumbrit pole vaja ja assistent ainult sinu loal";
+"screen_start_slide_calls_title" = "Kõned tõlkega";
+"screen_start_slide_calls_subtitle" = "Assistent liitub ja tõlgib reaalajas";
+"screen_start_slide_assistant_title" = "Assistent on käepärast";
+"screen_start_slide_assistant_subtitle" = "Vastab, kui oled hõivatud, ja küsib sinult enne iga uut sammu";
+"screen_start_slide_games_title" = "Mängige koos otse vestluses";
+"screen_start_slide_games_subtitle" = "Mängud ja tööriistad – midagi pole vaja paigaldada";
+"screen_start_invited_by_hint" = "Loo konto ja %1$@ saab teada, et oled siin";
+"a11y_start_slides_position" = "Slaid %1$d/%2$d";
+"screen_notification_optin_spiral_title" = "Ole ühenduses";
+"screen_notification_optin_spiral_subtitle" = "Spiral annab teada, kui miski on tõesti tähtis. Saad seda igal ajal seadetes muuta.";
+"screen_notification_optin_messages_title" = "Uued sõnumid";
+"screen_notification_optin_messages_subtitle" = "Inimestelt ja gruppidelt, kellega suhtled";
+"screen_notification_optin_calls_title" = "Sissetulevad kõned";
+"screen_notification_optin_calls_subtitle" = "Ka siis, kui Spiral on suletud";
+"screen_notification_optin_assistant_title" = "Sinu assistendi küsimused";
+"screen_notification_optin_assistant_subtitle" = "Kui ta vajab sinu nõusolekut";
+"screen_notification_optin_allow" = "Luba teavitused";
+"screen_invite_welcome_together_title" = "Sina ja %1$@ olete koos Spiralis";
+"screen_invite_welcome_step_say_hello_title" = "Tervita kasutajat %1$@";
+"screen_invite_welcome_step_say_hello_subtitle" = "%1$@ ootab";
+"screen_invite_welcome_step_assistant_title" = "Tutvu oma assistendiga";
+"screen_invite_welcome_step_assistant_subtitle" = "Tema kutse ootab jaotises Vestlused";
+"screen_invite_welcome_step_play_title" = "Mängige midagi koos";
+"screen_invite_welcome_step_play_subtitle" = "Mängud ja tööriistad otse vestluses";
+"a11y_invite_welcome_avatars" = "%1$@ ja sina";
+"screen_approval_detail_already_closed_title" = "See taotlus on juba suletud";
+"screen_approval_detail_already_closed_message" = "See aegus või sellele on juba vastatud.";
+"screen_room_interactive_post_description_not_sent" = "Sinu kirjeldust ei saadetud. Saada see jutulõngas uuesti.";
+"screen_room_interactive_post_code_not_sent" = "Postitus ei jõudnud agendini. Proovi postituse juurest uuesti.";
+"screen_invites_assistant_decline_warning_spiral" = "Kui see on sinu enda assistent, ei saa tema vestlust pärast keeldumist taastada.";
+"a11y_roomlist_remove_filter" = "Eemalda filter: %1$@";
+"a11y_settings_share_profile" = "Jaga minu profiili";

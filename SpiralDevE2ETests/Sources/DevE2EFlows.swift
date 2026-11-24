@@ -296,19 +296,18 @@ extension DevE2ETestCase {
 
         try tap(webView.buttons["Show"].firstMatch, timeout: 30, "identity-login › Show the phrase")
         settle(1)
-        let words = try readPhraseWords()
+        _ = try readPhraseWords()
+        // No word quiz since 2026-11-19: Show unlocked the tick, the tick
+        // unlocks «Create account and sign in».
         let saved = webView.switches.matching(NSPredicate(format: "label BEGINSWITH 'I have saved the phrase'")).firstMatch
         try require(saved, "identity-login › I have saved the phrase")
         try revealInWeb(saved, "identity-login › I have saved the phrase")
         tapFrame(saved)
         settle(0.5)
-        try revealInWeb(continueButton, "identity-login › Continue to the check")
-        guard continueButton.isEnabled else { throw DevE2EError.flow("Continue stays off: the phrase was not acknowledged") }
-        continueButton.tap()
-        try pickAskedWords(words)
         let create = webView.buttons["Create account and sign in"].firstMatch
         try require(create, "identity-login › Create account and sign in")
         try revealInWeb(create, "identity-login › Create account and sign in")
+        guard create.isEnabled else { throw DevE2EError.flow("Create account stays off: the phrase was not acknowledged") }
         create.tap()
         try tap(webView.buttons["Skip"].firstMatch, timeout: 60, "identity-login › skip the passkey")
         try finishWebSignIn()
@@ -401,7 +400,6 @@ extension DevE2ETestCase {
         return words
     }
 
-    /// «Pick word #n» for each asked position: the right one of its options.
     /// Swipes the web page until the element's frame is on screen.
     func revealInWeb(_ element: XCUIElement, _ what: String) throws {
         let bottom = webView.frame.height - 100
@@ -423,45 +421,6 @@ extension DevE2ETestCase {
             .tap()
     }
     
-    private func pickAskedWords(_ words: [String]) throws {
-        let pickLabel = webView.staticTexts.matching(NSPredicate(format: "label BEGINSWITH 'Pick word #'")).firstMatch
-        try require(pickLabel, "identity-login › the phrase check")
-        let numbers = try staticTexts(in: webView.snapshot())
-            .filter { $0.label.hasPrefix("Pick word #") }
-            .sorted { $0.frame.minY < $1.frame.minY }
-            .compactMap { Int($0.label.dropFirst("Pick word #".count)) }
-        guard !numbers.isEmpty, numbers.allSatisfy({ (1...12).contains($0) }) else {
-            throw DevE2EError.flow("the phrase check asked for no readable position")
-        }
-        let screenHeight = webView.frame.height
-        for number in numbers {
-            // The question and its options on screen, then read them where they are.
-            let label = webView.staticTexts["Pick word #\(number)"].firstMatch
-            for _ in 0..<6 where label.frame.maxY > screenHeight - 260 {
-                webView.swipeUp()
-                settle(0.7)
-            }
-            let snapshot = try webView.snapshot()
-            let picks = try staticTexts(in: snapshot)
-                .filter { $0.label.hasPrefix("Pick word #") }
-                .sorted { $0.frame.minY < $1.frame.minY }
-            let buttons = elements(of: .button, in: snapshot)
-            guard let index = picks.firstIndex(where: { $0.label == "Pick word #\(number)" }) else {
-                throw DevE2EError.flow("the question for word #\(number) went away")
-            }
-            let pick = picks[index]
-            let below = pick.frame.minY
-            let above = index + 1 < picks.count ? picks[index + 1].frame.minY : .greatestFiniteMagnitude
-            guard let option = buttons.first(where: { $0.label == words[number - 1] && $0.frame.minY > below && $0.frame.minY < above }) else {
-                throw DevE2EError.flow("the right option for word #\(number) is not among its choices")
-            }
-            webView.coordinate(withNormalizedOffset: .zero)
-                .withOffset(CGVector(dx: option.frame.midX, dy: option.frame.midY))
-                .tap()
-            settle(0.5)
-        }
-    }
-
     private func staticTexts(in snapshot: XCUIElementSnapshot) throws -> [(label: String, frame: CGRect)] {
         elements(of: .staticText, in: snapshot)
     }

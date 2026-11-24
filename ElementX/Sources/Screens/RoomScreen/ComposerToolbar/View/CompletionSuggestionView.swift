@@ -64,9 +64,18 @@ struct CompletionSuggestionView: View {
         }
         .listStyle(PlainListStyle())
         .scrollContentBackground(.hidden)
-        .frame(height: contentHeightForRowCount(min(CGFloat(items.count), Constants.maxVisibleRows)))
+        .frame(minHeight: showBackgroundShadow ? 0 : nil,
+               idealHeight: contentHeight,
+               // AGENT-PLATFORM (DEBT, 1.0.3): the floating card shrinks to the room left under the header (an SE, AX3,
+               // the keyboard up) and scrolls; at full height it ran under the header.
+               maxHeight: showBackgroundShadow ? contentHeight : nil)
+        .frame(height: showBackgroundShadow ? nil : contentHeight)
         // AGENT-PLATFORM (Brief 0083): the floating card is the raised canvas, so it shows over a dark timeline.
         .background(showBackgroundShadow ? Color.compound.bgCanvasDefaultLevel1 : Color.compound.bgCanvasDefault)
+    }
+    
+    private var contentHeight: CGFloat {
+        contentHeightForRowCount(min(CGFloat(items.count), Constants.maxVisibleRows))
     }
     
     private func contentHeightForRowCount(_ count: CGFloat) -> CGFloat {
@@ -138,5 +147,15 @@ struct CompletionSuggestion_Previews: PreviewProvider, TestablePreview {
             CompletionSuggestionView(mediaProvider: MediaProviderMock(.init()),
                                      items: multipleItems) { _ in }
         }
+        
+        // AGENT-PLATFORM (DEBT, 1.0.3): little room left under the header (an SE, AX3, the keyboard up): the floating
+        // card takes what there is and scrolls, instead of running out of the top.
+        VStack(spacing: 0) {
+            Spacer(minLength: 0)
+            CompletionSuggestionView(mediaProvider: MediaProviderMock(.init()),
+                                     items: multipleItems) { _ in }
+        }
+        .frame(height: 140)
+        .border(Color.compound.borderDisabled)
     }
 }

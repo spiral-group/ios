@@ -185,7 +185,8 @@ class FeedScreenViewModel: FeedScreenViewModelType, FeedScreenViewModelProtocol 
             return item
         }
 
-        let items = store.posts(in: .latest).map(item(for:))
+        // The pinned post shows once, on top, whatever put it in Latest since the page was read.
+        let items = store.posts(in: .latest).filter { $0.id != pinnedID }.map(item(for:))
         let listState: FeedListState = switch content {
         case .loading: .loading
         case .loaded(let loadMore): .loaded(items, loadMore: loadMore)

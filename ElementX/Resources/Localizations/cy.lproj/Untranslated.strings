@@ -65,6 +65,9 @@
 "screen_agent_edit_persona_greeting" = "Cyfarchiad i chi";
 "screen_agent_edit_persona_visitor_greeting" = "Cyfarchiad i westeion";
 "screen_agent_edit_failure" = "Methu cadw'r newidiadau";
+"error_agent_name_reserved" = "Mae'r enw hwn wedi'i gadw ar gyfer cyfrifon Spiral ei hun. Dewiswch enw arall.";
+"error_agent_name_invalid_characters" = "Mae'r enw'n cynnwys nodau na ellir eu defnyddio.";
+"error_agent_name_unchecked" = "Methu gwirio'r enw. Rhowch gynnig arall arni.";
 "screen_agent_edit_load_failure" = "Methu llwytho'r ffurflen olygu";
 "screen_agent_edit_avatar_failure" = "Methu uwchlwytho'r llun";
 "action_agent_activity" = "Gweithgaredd";
@@ -250,7 +253,6 @@
 "screen_language_picker_title" = "Iaith";
 "screen_language_picker_empty" = "Nid oes unrhyw ieithoedd yn cyfateb i'ch chwiliad.";
 "screen_start_sign_in" = "Mewngofnodi";
-"screen_start_welcome_subtitle" = "Negeseua cyflym a phreifat gyda'ch asiant personol.";
 
 // AGENT-PLATFORM (Brief 0072, ADR-0083, ADR-0084): presence, worded as Telegram does
 "common_presence_online" = "ar-lein";
@@ -491,6 +493,16 @@
 "screen_native_call_assistants_record_confirm_title" = "Recordio'r alwad?";
 "screen_native_call_assistants_record_confirm_message" = "Mae pawb yn gweld REC ar frig yr alwad. Mae'r recordiad yn ymddangos yn y sgwrs ar ôl yr alwad.";
 "screen_native_call_assistants_record_confirm_action" = "Recordio";
+"screen_native_call_assistants_notes_confirm_title" = "Cymryd nodiadau o'r alwad?";
+"screen_native_call_assistants_notes_confirm_message" = "Mae eich cynorthwyydd yn gwrando ar yr alwad ac yn postio crynodeb yn y sgwrs wedyn. Mae eraill yn gweld ei fod yn cymryd nodiadau.";
+"screen_native_call_assistants_notes_confirm_action" = "Cymryd nodiadau";
+"screen_native_call_assistants_talk_confirm_title" = "Siarad â'ch cynorthwyydd?";
+"screen_native_call_assistants_talk_confirm_message" = "Mae'n eich clywed chi yn unig ac yn ateb yn uchel — mae pawb yn yr alwad yn ei glywed.";
+"screen_native_call_assistants_talk_confirm_action" = "Dechrau siarad";
+"screen_native_call_assistants_translate_question_title" = "Cyfieithu i";
+"screen_native_call_assistants_listen_question_title" = "Gwrando yn";
+"screen_native_call_assistants_talk_info_title" = "Mae eich cynorthwyydd yn ateb yn uchel";
+"screen_native_call_assistants_talk_info_message" = "Mae'n eich clywed chi yn unig, ac mae pawb yn yr alwad yn ei glywed. Dim cyfieithu tra mae'n siarad.";
 "screen_native_call_assistants_none_of_your_own" = "Does gennych chi ddim cynorthwyydd";
 "screen_native_call_assistants_which" = "Pa gynorthwyydd";
 "screen_native_call_assistants_reason_paused" = "Mae eich cynorthwyydd wedi'i oedi";
@@ -571,7 +583,6 @@
 "screen_native_call_assistants_job_conversation" = "Siarad";
 "screen_native_call_assistants_translating" = "Yn cyfieithu → %1$@";
 "screen_native_call_assistants_stop_translation" = "Stopio cyfieithu";
-"screen_native_call_assistants_talk_caption" = "Mae'n eich ateb yn uchel, ac mae pawb yn ei glywed. Dim cyfieithu tra mae'n siarad.";
 "screen_native_call_assistants_pick_footer" = "Wedi'i gofio ar gyfer y sgwrs hon";
 "screen_native_call_assistants_neighbour_language" = "Iaith y person wrth eich ymyl";
 "screen_native_call_assistants_pocket_detail" = "Ar ôl pob ymadrodd · y ddwy ffordd";
@@ -591,10 +602,9 @@
 "screen_native_call_assistants_status_both_ways" = "Yn cyfieithu'r ddwy ffordd";
 "screen_native_call_assistants_translate_into" = "Cyfieithu i";
 "screen_native_call_assistants_translate_into_detail" = "Rydych chi'n clywed yr alwad yn hon";
+"screen_native_call_assistants_translate_into_language" = "Cyfieithu i: %1$@";
 "screen_native_call_assistants_in_call" = "Yn yr alwad";
 "screen_native_call_assistants_in_call_more" = "Yn yr alwad: %1$d arall";
-"screen_native_call_assistants_new_translation" = "Cyfieithiad newydd";
-"screen_native_call_assistants_new_translation_detail" = "Bydd eich cynorthwyydd yn cyfieithu'r alwad";
 "screen_native_call_assistants_new_translation_others" = "Mae eich cynorthwyydd yn cyfieithu %1$@. Mae'r lleill eisoes yn cael eu cyfieithu, am ddim.";
 "screen_native_call_assistants_start_translation" = "Dechrau cyfieithu";
 "screen_native_call_assistants_start_translation_detail" = "Yn defnyddio'ch terfyn. Mae unrhyw un sy'n dewis yr iaith hon yn gwrando am ddim.";
@@ -1044,7 +1054,6 @@
 "notice_phrase_changed_title" = "Wedi newid yr ymadrodd mewngofnodi";
 "a11y_message_read" = "Wedi'i darllen";
 "screen_legal_information_source_code_spiral" = "Cod ffynhonnell";
-"screen_invite_people_seats_label" = "Gwahoddiadau ar ôl";
 "screen_native_call_tile_not_joined" = "Wnaethoch chi ddim ymuno";
 "screen_agent_settings_show_in_search_footer" = "A all pobl ddod o hyd iddo wrth chwilio. Gall unrhyw un sydd â'i gyfeiriad ysgrifennu ato o hyd.";
 "screen_agent_edit_tone_calm" = "Tawel";
@@ -1056,7 +1065,6 @@
 "screen_room_interactive_draft_published" = "Wedi'i gyhoeddi";
 "screen_agent_activity_reason_visitor_policy_reply" = "Fe wnaethoch chi ganiatáu ateb ar unwaith";
 "screen_agent_in_room_no_tools" = "Dim offer yn y sgwrs hon eto.";
-"notice_welcome_assistant_body" = "%1$@ ydw i, eich cynorthwyydd personol. Galla i drosglwyddo negeseuon tra byddwch chi i ffwrdd, cofio eich cysylltiadau a chrynhoi ystafelloedd. I droi fy offer ymlaen mewn ystafell, tapiwch + yno a dewis Asiantau. Ysgrifennwch ata i'n naturiol — dw i yma.";
 "screen_room_interactive_post_pick_agent_title" = "Pwy ddylai ei adeiladu?";
 "screen_agent_settings_visitor_ask_first_description" = "Mae person newydd yn aros nes i chi gytuno";
 "screen_ai_consent_prompt_failed" = "Methu cadw eich dewis. Gwiriwch eich cysylltiad a rhowch gynnig arall arni.";
@@ -1086,10 +1094,8 @@
 "screen_agent_activity_reason_block_needs_owner" = "Mae angen eich caniatâd i rwystro";
 "screen_create_company_title" = "Cwmni newydd";
 "a11y_native_call_disable_speaker" = "Diffodd yr uchelseinydd";
-"screen_invite_paste_placeholder" = "spiral.md/join/…";
 "a11y_native_call_end" = "Gorffen yr alwad";
 "screen_agent_activity_action_published_post" = "Wedi cyhoeddi postiad";
-"screen_invite_people_joined_footer" = "Pobl a greodd eu cyfrif drwy eich dolen. Tapiwch i ddechrau sgwrs.";
 "screen_arm_tool_turn_off_confirm_message" = "Bydd yr asiant yn rhoi'r gorau i wneud hyn yn y sgwrs hon i bawb. Gallwch ei droi ymlaen eto unrhyw bryd.";
 "spiral_app_card_line_by" = "Gan %1$@";
 "state_event_spiral_tool_language_changed_by_you" = "Fe wnaethoch chi newid Cyfieithu: %1$@ → %2$@";
@@ -1114,7 +1120,6 @@
 "screen_native_call_agent_block_recording" = "Yn recordio";
 "screen_native_call_control_video" = "Fideo";
 "screen_agent_detail_pause" = "Oedi";
-"screen_invite_paste_expired" = "Dydy'r gwahoddiad hwn ddim yn ddilys mwyach. Gofynnwch am un newydd.";
 "screen_security_messages_section" = "Negeseuon";
 "screen_agent_activity_reason_relationship_unavailable" = "Methu gwirio'r cyswllt";
 "screen_ai_consent_prompt_allow" = "Caniatáu";
@@ -1144,15 +1149,12 @@
 "state_event_spiral_tool_off_by_system" = "Cafodd %1$@ ei ddiffodd ar gyfer %2$@";
 "a11y_native_call_swap_to_held_call" = "Newid i'r alwad gyda %@";
 "screen_native_call_audio_route_iphone" = "iPhone";
-"screen_invite_people_seats_value" = "%1$d o %2$d";
 "screen_agent_activity_reason_first_contact_with_unknown_visitor" = "Neges gyntaf gan rywun newydd";
 "screen_deactivate_account_spiral_list_item_3" = "Dileu manylion eich cyfrif o'n gweinydd hunaniaeth.";
 "a11y_native_call_bar" = "Galwad ar y gweill gyda %1$@. Tapiwch i ddychwelyd.";
-"screen_invite_paste_unavailable" = "Methu gwirio'r gwahoddiad. Rhowch gynnig arall arni.";
 "screen_agent_activity_action_read_call_summary" = "Wedi darllen crynodeb galwad";
 "screen_ai_consent_prompt_title" = "Caniatáu DA trydydd parti?";
 "screen_agent_edit_voice_language_footer" = "Mae'r cynorthwyydd bob amser yn ateb yn yr iaith rydych chi'n ei siarad. Mae hyn yn gosod sut mae'n clywed galwadau ac iaith crynodebau galwadau.";
-"screen_invite_welcome_title" = "Croeso i Spiral";
 "screen_agent_activity_reason_blocked_visitor" = "Person wedi'i rwystro";
 "screen_deactivate_account_spiral_list_item_1_bold_part" = "Analluogi'n barhaol";
 "screen_native_call_agent_center_recording_live" = "Yn recordio…";
@@ -1220,7 +1222,6 @@
 "screen_deactivate_account_spiral_failed" = "Methu dileu'r cyfrif. Rhowch gynnig arall arni ymhen munud.";
 "screen_agent_activity_action_changed_call_mode" = "Wedi newid sut mae'n cymryd rhan mewn galwad";
 "a11y_native_call_unmute_microphone" = "Dad-dewi'r meicroffon";
-"screen_invite_paste_label" = "Dolen neu god";
 "screen_media_viewer_position" = "%1$d o %2$d";
 "screen_native_call_status_reconnecting_detail" = "Collwyd eich cysylltiad";
 "screen_approval_detail_block_blocked_subtitle" = "Bydd eich asiant yn anwybyddu eu negeseuon o hyn ymlaen.";
@@ -1256,6 +1257,13 @@
 "screen_agent_activity_reason_no_contact_relationship" = "Ddim yn un o'ch cysylltiadau";
 "screen_room_alias_link_not_found" = "Dydy'r ddolen hon ddim yn arwain at unrhyw sgwrs.";
 "screen_invite_people_title" = "Gwahodd i Spiral";
+"screen_invite_people_you" = "Chi";
+"screen_invite_people_invited_count" = "Wedi gwahodd %1$d o %2$d";
+"screen_invite_people_invited_you" = "Wedi eich gwahodd i Spiral";
+"screen_invite_people_seat_invite" = "Gwahodd";
+"screen_invite_people_seat_taken" = "Wedi'i gymryd";
+"screen_invite_people_chain_footer" = "Un ddolen ar gyfer %1$d o bobl, a dydy hi ddim yn adnewyddu. Tapiwch berson i agor ei broffil.";
+"screen_invite_people_all_used" = "Pob gwahoddiad wedi'i ddefnyddio";
 "screen_approval_detail_escalation_cold_outreach" = "Mae eich asiant am ysgrifennu at rywun am y tro cyntaf.";
 "screen_start_invited_by" = "Gwahoddodd %1$@ chi i Spiral";
 "screen_agent_spaces_section_retry" = "Tapiwch i roi cynnig arall arni.";
@@ -1263,7 +1271,6 @@
 "screen_settings_new_phrase_done" = "Wedi newid yr ymadrodd mewngofnodi";
 "screen_agent_activity_reason_outside_conversation" = "Y tu allan i'r sgwrs hon";
 "a11y_native_call_switch_camera" = "Newid camera";
-"screen_invite_people_joined" = "Wedi ymuno drwy eich gwahoddiad: %1$d";
 "screen_agent_activity_action_searched_agents" = "Wedi chwilio am asiantau";
 "screen_agent_activity_reason_strategy_no_op" = "Dim i'w wneud";
 "action_dismiss_visitor_message" = "Tynnu";
@@ -1272,7 +1279,6 @@
 "screen_approval_detail_block_action_dont_block" = "Peidio â rhwystro";
 "screen_agent_settings_people_title" = "Siarad â phobl";
 "screen_native_call_agent_center_error_not_owner" = "Dim ond perchennog y sesiwn hon sy'n gallu ei newid.";
-"notice_welcome_agent_body" = "Mae %1$@ yn barod. Ysgrifennwch ata i.";
 "screen_agent_detail_already_in_chat" = "Mae'r asiant eisoes yn y sgwrs hon";
 "screen_native_call_agent_center_booth_members" = "%1$@ i %2$@";
 "screen_settings_devices_title" = "Dyfeisiau a sesiynau";
@@ -1290,7 +1296,6 @@
 "screen_agent_activity_action_remembered" = "Wedi cofio rhywbeth am gyswllt";
 "screen_room_interactive_post_link_needs_update" = "Mae angen fersiwn mwy newydd o Spiral ar y postiad hwn. Diweddarwch yr ap i'w ddefnyddio.";
 "screen_room_member_details_erase_assistant_memory" = "Dileu'r hyn mae fy nghynorthwywyr yn ei wybod amdanyn nhw";
-"screen_invite_paste_without" = "Parhau heb wahoddiad";
 "screen_agent_edit_tone_friendly" = "Cyfeillgar";
 "screen_room_interactive_post_update" = "Diweddaru'r postiad";
 "screen_agent_detail_archive_refused" = "Mae eich cynorthwyydd personol yn aros gyda'ch cyfrif a does dim modd ei archifo.";
@@ -1307,9 +1312,7 @@
 "screen_native_call_agent_center_talking" = "Mae'r cynorthwyydd yn siarad";
 "screen_native_call_tile_call_back" = "Tapiwch i alw'n ôl";
 "notice_reply_failed_body" = "Aeth rhywbeth o'i le ar fy ochr i. Anfonwch ef eto.";
-"screen_invite_people_joined_title" = "Wedi ymuno drwy eich gwahoddiad";
 "screen_native_call_status_connecting_detail" = "Yn gosod amgryptio";
-"screen_invite_paste_title" = "Oes gennych chi wahoddiad?";
 "screen_edit_profile_bio_too_long" = "Gall bywgraffiad fod hyd at %1$d nod. Byrhewch ef i'w gadw.";
 "a11y_native_call_agent_block_role" = "%1$@, %2$@";
 "a11y_native_call_recording" = "Mae'r alwad hon yn cael ei recordio";
@@ -1322,12 +1325,25 @@
 "screen_agent_spaces_assistant_pending" = "Mae eich cynorthwyydd yn dal i gael ei osod";
 "screen_room_member_details_erase_assistant_memory_alert_title" = "Dileu'r hyn mae eich cynorthwywyr yn ei wybod am %1$@?";
 "screen_settings_new_phrase_failed" = "Methu dechrau newid yr ymadrodd. Rhowch gynnig arall arni.";
+/* AGENT-PLATFORM (1.0.3): sign-in methods — the first phrase for an account made with Apple, Sign in with Apple for a phrase account. */
+"screen_settings_add_phrase_title" = "Ychwanegu ymadrodd mewngofnodi";
+"screen_settings_add_phrase_message" = "Byddwch chi'n dewis 12 gair. Maen nhw'n agor eich cyfrif ar unrhyw ddyfais, ochr yn ochr â Mewngofnodi gydag Apple. Byddwch chi'n aros wedi mewngofnodi ar y ddyfais hon, a fydd dim effaith ar eich negeseuon.";
+"screen_settings_add_phrase_auth_reason" = "Cadarnhewch mai chi sydd yno i ychwanegu ymadrodd mewngofnodi";
+"screen_settings_add_phrase_done" = "Wedi ychwanegu'r ymadrodd mewngofnodi";
+"screen_settings_add_phrase_failed" = "Methu dechrau ychwanegu'r ymadrodd. Rhowch gynnig arall arni.";
+"screen_settings_sign_in_passcode_required" = "Gosodwch god pas dyfais yn gyntaf — mae'n diogelu eich ffyrdd o fewngofnodi";
+"screen_settings_apple_title" = "Mewngofnodi gydag Apple";
+"screen_settings_apple_connected" = "Wedi cysylltu";
+"screen_settings_apple_add_title" = "Ychwanegu Mewngofnodi gydag Apple";
+"screen_settings_apple_auth_reason" = "Cadarnhewch mai chi sydd yno i ychwanegu Mewngofnodi gydag Apple";
+"screen_settings_apple_linked" = "Wedi ychwanegu Mewngofnodi gydag Apple";
+"screen_settings_apple_taken" = "Mae'r Apple ID hwn eisoes yn cael ei ddefnyddio gan gyfrif Spiral arall";
+"screen_settings_apple_failed" = "Methu dechrau ychwanegu Mewngofnodi gydag Apple. Rhowch gynnig arall arni.";
 "screen_deactivate_account_spiral_description" = "Mae dileu eich cyfrif yn %1$@. Bydd yn:";
 "screen_agent_activity_action_set_reminder" = "Wedi gosod nodyn atgoffa";
 "screen_agent_activity_action_cancelled_reminder" = "Wedi canslo nodyn atgoffa";
 "screen_agent_activity_reason_capability_always_allowed" = "Wedi'i ganiatáu bob amser";
 "screen_agent_activity_action_blocked_someone" = "Wedi rhwystro rhywun";
-"screen_invite_paste_message" = "Gludwch y ddolen a anfonodd defnyddiwr Spiral atoch, neu teipiwch y cod.";
 "screen_native_call_error_title" = "Methodd yr alwad";
 "notification_approval_action_not_found_title" = "Dydy'r cais hwn ddim yn bodoli mwyach";
 "state_event_spiral_tool_changed_by_you" = "Fe wnaethoch chi newid %1$@";
@@ -1354,7 +1370,6 @@
 "screen_native_call_control_sound" = "Sain";
 "screen_native_call_status_reconnecting" = "Yn ailgysylltu…";
 "notice_phrase_changed_body" = "Dydy'r hen ymadrodd ddim yn mewngofnodi mwyach.";
-"screen_invite_people_seats_footer" = "Mae gan bob person un ddolen gyda %1$d lle. Dydy hi ddim yn adnewyddu, felly rhannwch hi gyda'r bobl rydych chi wir eisiau eu cael yma.";
 "screen_room_member_details_agent_unblock_action" = "Dad-rwystro";
 "screen_agent_activity_reason_unknown_capability" = "Ddim yn rhywbeth mae'n gallu ei wneud";
 "screen_settings_new_phrase_passcode_required" = "Gosodwch god pas dyfais yn gyntaf — mae'n diogelu newid yr ymadrodd";
@@ -1426,10 +1441,11 @@
 "screen_your_data_calls_footer" = "Allforio un alwad: ei thrawsgrifiad, ei chrynodeb a'i chofnod cydsynio.";
 "screen_arm_tool_error_agent_does_not_join_calls" = "Dydy'r asiant hwn ddim yn ymuno â galwadau, felly does dim offer galwadau ar gael iddo.";
 "screen_room_interactive_generating_hint" = "Llai na munud fel arfer";
-"screen_invite_paste_exhausted" = "Mae pawb a ganiatawyd gan y gwahoddiad hwn wedi ymuno'n barod. Gofynnwch am un newydd.";
 "notice_phrase_changed_on_device" = "Wedi'i newid ar “%1$@”.";
+/* AGENT-PLATFORM (1.0.3): the owner-DM card when Sign in with Apple is added. It names no device (security review); a new phrase disconnects Apple. */
+"notice_apple_linked_title" = "Wedi ychwanegu Mewngofnodi gydag Apple";
+"notice_apple_linked_body" = "Os nad chi oedd yno, newidiwch eich ymadrodd mewngofnodi: mae hynny'n datgysylltu Apple.";
 "screen_ai_consent_prompt_openai" = "OpenAI: negeseuon mae cynorthwywyr yn eu darllen, eich llais mewn galwadau gyda nhw, a recordiadau maen nhw'n eu trawsgrifio.";
-"screen_invite_welcome_message" = "Gwahoddodd %1$@ chi ac mae'n gwybod eich bod chi yma'n barod. Dywedwch helo!";
 "screen_agent_activity_action_used_tool" = "Wedi defnyddio teclyn ar neges";
 "screen_approval_detail_escalation_first_contact" = "Ysgrifennodd rhywun at eich asiant am y tro cyntaf, felly mae'n gofyn i chi cyn ateb.";
 "screen_agent_activity_action_drafted_post" = "Wedi drafftio postiad";
@@ -1444,7 +1460,6 @@
 "screen_room_interactive_post_updated" = "Postiad wedi'i ddiweddaru";
 "screen_native_call_camera_failed_message" = "Doedd y camera ddim yn gallu dechrau, felly mae'r alwad yn parhau gyda sain. Rhowch gynnig ar y botwm camera eto mewn munud.";
 "screen_media_viewer_open" = "Agor";
-"screen_invite_paste_invalid" = "Does dim gwahoddiad o'r fath.";
 "screen_agent_room_tool_audience_except_named" = "i bawb heblaw %1$@";
 "notification_spiral_needs_update_body" = "Diweddarwch yr ap i weld hyn.";
 "screen_agent_edit_tone_brief" = "Byr ac i'r pwynt";
@@ -1452,7 +1467,6 @@
 "screen_invite_people_seats_left" = "%1$d o %2$d gwahoddiad ar ôl";
 "screen_agent_activity_reason_wrong_room_kind" = "Ddim yn cael ei ganiatáu yn y math hwn o sgwrs";
 "screen_native_call_failure_audio_reset" = "Cafodd sain yr alwad ei hailosod gan y system.";
-"screen_invite_people_body" = "Trwy wahoddiad yn unig mae cofrestru. Rhannwch eich dolen bersonol — bydd unrhyw un sy'n creu cyfrif drwyddi yn eich gweld chi gyntaf.";
 "notification_approval_action_target_blocked_title" = "Heb ei anfon — rydych chi wedi rhwystro'r person hwn";
 "screen_notifications_hub_visitor_other" = "Rhywbeth newydd";
 "screen_agent_activity_empty_pending_title" = "Dim ceisiadau i'w penderfynu";
@@ -1476,3 +1490,61 @@
 "screen_notifications_hub_visitors_section" = "Gan bobl";
 "screen_agent_settings_visitor_reply_description" = "Yn ateb pawb heblaw'r bobl rydych chi wedi'u rhwystro";
 "screen_deactivate_account_spiral_auth_reason" = "Cadarnhewch mai chi sydd yno i ddileu eich cyfrif";
+
+// AGENT-PLATFORM (1.0.3 A2): the assistant's first invite in Chats, its chat before consent and its welcome.
+"screen_roomlist_assistant_invite_name" = "Eich cynorthwyydd";
+"screen_roomlist_assistant_invite_subtitle" = "Helô! Tapiwch i ddechrau 👋";
+"screen_roomlist_assistant_invite_start" = "Dechrau";
+"a11y_assistant_invite_start" = "Dechrau sgwrs gyda’ch cynorthwyydd";
+"a11y_assistant_invite_start_hint" = "Yn derbyn gwahoddiad eich cynorthwyydd ac yn agor eich sgwrs gydag ef.";
+"screen_assistant_invite_title" = "Helô! Fi yw eich cynorthwyydd";
+"screen_assistant_invite_reminders" = "Fe wna i eich atgoffa am bethau";
+"screen_assistant_invite_contacts" = "Fe gofia i eich cysylltiadau";
+"screen_assistant_invite_summaries" = "Fe gryno i unrhyw sgwrs";
+"screen_assistant_invite_privacy" = "Dim ond y sgwrs hon dw i’n ei gweld. Gallwch fy niffodd unrhyw bryd.";
+"screen_assistant_invite_start" = "Dechrau sgwrs";
+"notice_welcome_body" = "Dw i yma ac yn barod i helpu. Ble dylen ni ddechrau?";
+"notice_welcome_starter_summary" = "Crynhoi sgwrs";
+"notice_welcome_starter_summary_message" = "Crynhoi sgwrs i mi";
+"notice_welcome_starter_contact" = "Cofio cyswllt";
+"notice_welcome_starter_contact_message" = "Cofio rhywbeth am un o fy nghysylltiadau";
+"notice_welcome_starter_reminder" = "Atgoffa fi…";
+"notice_welcome_starter_reminder_message" = "Gosod nodyn atgoffa i mi";
+"notice_welcome_allow_ai_reason" = "Caniatewch AI er mwyn i mi allu darllen beth rydych chi’n ei ysgrifennu yma.";
+"notice_welcome_allow_ai_action" = "Caniatáu AI";
+
+// AGENT-PLATFORM (1.0.3 onboarding): the start screen's stories, the notifications prompt and the invited welcome.
+"screen_start_slide_privacy_title" = "Eich sgyrsiau, eich busnes chi";
+"screen_start_slide_privacy_subtitle" = "Amgryptio o un pen i’r llall. Dim rhif ffôn, a’ch cynorthwyydd dim ond gyda’ch caniatâd";
+"screen_start_slide_calls_title" = "Galwadau gyda chyfieithu";
+"screen_start_slide_calls_subtitle" = "Mae’ch cynorthwyydd yn ymuno ac yn cyfieithu’n fyw";
+"screen_start_slide_assistant_title" = "Cynorthwyydd wrth law";
+"screen_start_slide_assistant_subtitle" = "Yn ateb pan fyddwch chi’n brysur, ac yn gofyn i chi cyn pob cam newydd";
+"screen_start_slide_games_title" = "Chwaraewch gyda’ch gilydd yn y sgwrs";
+"screen_start_slide_games_subtitle" = "Gemau ac offer, heb osod dim";
+"screen_start_invited_by_hint" = "Crëwch gyfrif a bydd %1$@ yn gwybod eich bod chi yma";
+"a11y_start_slides_position" = "Sleid %1$d o %2$d";
+"screen_notification_optin_spiral_title" = "Cadwch mewn cysylltiad";
+"screen_notification_optin_spiral_subtitle" = "Bydd Spiral yn rhoi gwybod i chi pan fydd rhywbeth yn bwysig go iawn. Gallwch newid hyn unrhyw bryd yn y Gosodiadau.";
+"screen_notification_optin_messages_title" = "Negeseuon newydd";
+"screen_notification_optin_messages_subtitle" = "Gan y bobl a’r grwpiau rydych chi’n siarad â nhw";
+"screen_notification_optin_calls_title" = "Galwadau i mewn";
+"screen_notification_optin_calls_subtitle" = "Hyd yn oed pan fydd Spiral ar gau";
+"screen_notification_optin_assistant_title" = "Cwestiynau gan eich cynorthwyydd";
+"screen_notification_optin_assistant_subtitle" = "Pan fydd angen eich caniatâd";
+"screen_notification_optin_allow" = "Caniatáu hysbysiadau";
+"screen_invite_welcome_together_title" = "Rydych chi ar Spiral gyda %1$@";
+"screen_invite_welcome_step_say_hello_title" = "Dweud helô wrth %1$@";
+"screen_invite_welcome_step_say_hello_subtitle" = "Mae %1$@ yn aros";
+"screen_invite_welcome_step_assistant_title" = "Cwrdd â’ch cynorthwyydd";
+"screen_invite_welcome_step_assistant_subtitle" = "Mae ei wahoddiad yn aros yn Sgyrsiau";
+"screen_invite_welcome_step_play_title" = "Chwarae rhywbeth gyda’ch gilydd";
+"screen_invite_welcome_step_play_subtitle" = "Gemau ac offer yn y sgwrs";
+"a11y_invite_welcome_avatars" = "%1$@ a chi";
+"screen_approval_detail_already_closed_title" = "Mae'r cais hwn eisoes wedi cau";
+"screen_approval_detail_already_closed_message" = "Mae wedi dod i ben neu wedi cael ateb yn barod.";
+"screen_room_interactive_post_description_not_sent" = "Ni anfonwyd eich disgrifiad. Anfonwch ef eto yn yr edefyn.";
+"screen_room_interactive_post_code_not_sent" = "Ni chyrhaeddodd y postiad yr asiant. Rhowch gynnig arall arni o'r postiad.";
+"screen_invites_assistant_decline_warning_spiral" = "Os mai eich cynorthwyydd chi yw hwn, does dim modd adfer ei sgwrs ar ôl i chi wrthod.";
+"a11y_roomlist_remove_filter" = "Tynnu'r hidlydd: %1$@";
+"a11y_settings_share_profile" = "Rhannu fy mhroffil";

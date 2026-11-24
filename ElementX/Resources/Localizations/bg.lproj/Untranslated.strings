@@ -65,6 +65,9 @@
 "screen_agent_edit_persona_greeting" = "Поздрав за вас";
 "screen_agent_edit_persona_visitor_greeting" = "Поздрав за гости";
 "screen_agent_edit_failure" = "Промените не можаха да се запазят";
+"error_agent_name_reserved" = "Това име е запазено за собствените акаунти на Spiral. Изберете друго име.";
+"error_agent_name_invalid_characters" = "Името съдържа знаци, които не могат да се използват.";
+"error_agent_name_unchecked" = "Името не можа да бъде проверено. Опитайте отново.";
 "screen_agent_edit_load_failure" = "Формата за редактиране не можа да се зареди";
 "screen_agent_edit_avatar_failure" = "Снимката не можа да се качи";
 "action_agent_activity" = "Активност";
@@ -250,7 +253,6 @@
 "screen_language_picker_title" = "Език";
 "screen_language_picker_empty" = "Няма езици, съответстващи на вашето търсене.";
 "screen_start_sign_in" = "Влизане";
-"screen_start_welcome_subtitle" = "Бързи, поверителни съобщения с вашия личен агент.";
 
 // AGENT-PLATFORM (Brief 0072, ADR-0083, ADR-0084): presence, worded as Telegram does
 "common_presence_online" = "на линия";
@@ -491,6 +493,16 @@
 "screen_native_call_assistants_record_confirm_title" = "Да се запише ли разговорът?";
 "screen_native_call_assistants_record_confirm_message" = "Всички виждат REC горе в разговора. Записът ще се появи в чата след разговора.";
 "screen_native_call_assistants_record_confirm_action" = "Записвай";
+"screen_native_call_assistants_notes_confirm_title" = "Да се водят ли бележки от разговора?";
+"screen_native_call_assistants_notes_confirm_message" = "Асистентът ще слуша разговора и след него ще публикува обобщение в чата. Другите ще виждат, че води бележки.";
+"screen_native_call_assistants_notes_confirm_action" = "Води бележки";
+"screen_native_call_assistants_talk_confirm_title" = "Да говорите ли с асистента?";
+"screen_native_call_assistants_talk_confirm_message" = "Асистентът ще чува само вас и ще отговаря на глас — чуват го всички в разговора.";
+"screen_native_call_assistants_talk_confirm_action" = "Започни разговор";
+"screen_native_call_assistants_translate_question_title" = "Превод на";
+"screen_native_call_assistants_listen_question_title" = "Слушане";
+"screen_native_call_assistants_talk_info_title" = "Асистентът отговаря на глас";
+"screen_native_call_assistants_talk_info_message" = "Чува само вас, а всички в разговора го чуват. Без превод, докато говори.";
 "screen_native_call_assistants_none_of_your_own" = "Нямате асистент";
 "screen_native_call_assistants_which" = "Кой асистент";
 "screen_native_call_assistants_reason_paused" = "Вашият асистент е на пауза";
@@ -571,7 +583,6 @@
 "screen_native_call_assistants_job_conversation" = "Разговор";
 "screen_native_call_assistants_translating" = "Превежда на %1$@";
 "screen_native_call_assistants_stop_translation" = "Спиране на превода";
-"screen_native_call_assistants_talk_caption" = "Отговаря ви на глас и всички го чуват. Без превод, докато говори.";
 "screen_native_call_assistants_pick_footer" = "Запомнено за този чат";
 "screen_native_call_assistants_neighbour_language" = "Език на човека до вас";
 "screen_native_call_assistants_pocket_detail" = "След всяка фраза · в двете посоки";
@@ -591,10 +602,9 @@
 "screen_native_call_assistants_status_both_ways" = "Превежда в двете посоки";
 "screen_native_call_assistants_translate_into" = "Превод на";
 "screen_native_call_assistants_translate_into_detail" = "На него чувате разговора";
+"screen_native_call_assistants_translate_into_language" = "Превод на: %1$@";
 "screen_native_call_assistants_in_call" = "В разговора";
 "screen_native_call_assistants_in_call_more" = "В разговора: още %1$d";
-"screen_native_call_assistants_new_translation" = "Нов превод";
-"screen_native_call_assistants_new_translation_detail" = "Вашият асистент ще преведе разговора";
 "screen_native_call_assistants_new_translation_others" = "Вашият асистент превежда %1$@. Другите вече се превеждат, безплатно.";
 "screen_native_call_assistants_start_translation" = "Започване на превод";
 "screen_native_call_assistants_start_translation_detail" = "Харчи лимита ви. Всеки, който избере този език, слуша безплатно.";
@@ -1044,7 +1054,6 @@
 "notice_phrase_changed_title" = "Фразата за вход е променена";
 "a11y_message_read" = "Прочетено";
 "screen_legal_information_source_code_spiral" = "Изходен код";
-"screen_invite_people_seats_label" = "Оставащи покани";
 "screen_native_call_tile_not_joined" = "Не се присъединихте";
 "screen_agent_settings_show_in_search_footer" = "Дали хората могат да го намерят при търсене. Всеки, който има адреса му, пак може да му пише.";
 "screen_agent_edit_tone_calm" = "Спокоен";
@@ -1056,7 +1065,6 @@
 "screen_room_interactive_draft_published" = "Публикувано";
 "screen_agent_activity_reason_visitor_policy_reply" = "Разрешихте да се отговаря веднага";
 "screen_agent_in_room_no_tools" = "В този чат още няма инструменти.";
-"notice_welcome_assistant_body" = "Аз съм %1$@, вашият личен асистент. Мога да предавам съобщения, докато ви няма, да помня контактите ви и да обобщавам стаи. За да включите инструментите ми в стая, докоснете + там и изберете „Агенти“. Просто ми пишете естествено — тук съм.";
 "screen_room_interactive_post_pick_agent_title" = "Кой да я направи?";
 "screen_agent_settings_visitor_ask_first_description" = "Нов човек чака, докато се съгласите";
 "screen_ai_consent_prompt_failed" = "Изборът ви не можа да се запази. Проверете връзката си и опитайте пак.";
@@ -1086,10 +1094,8 @@
 "screen_agent_activity_reason_block_needs_owner" = "Блокирането изисква вашето одобрение";
 "screen_create_company_title" = "Нова компания";
 "a11y_native_call_disable_speaker" = "Изключване на високоговорителя";
-"screen_invite_paste_placeholder" = "spiral.md/join/…";
 "a11y_native_call_end" = "Край на разговора";
 "screen_agent_activity_action_published_post" = "Направи публикация";
-"screen_invite_people_joined_footer" = "Хора, които са създали акаунта си чрез вашата връзка. Докоснете, за да започнете чат.";
 "screen_arm_tool_turn_off_confirm_message" = "Агентът спира да прави това в този чат за всички. Можете да го включите отново по всяко време.";
 "spiral_app_card_line_by" = "От %1$@";
 "state_event_spiral_tool_language_changed_by_you" = "Променихте „Превод“: %1$@ → %2$@";
@@ -1114,7 +1120,6 @@
 "screen_native_call_agent_block_recording" = "Запис";
 "screen_native_call_control_video" = "Видео";
 "screen_agent_detail_pause" = "Пауза";
-"screen_invite_paste_expired" = "Тази покана вече не е валидна. Поискайте нова.";
 "screen_security_messages_section" = "Съобщения";
 "screen_agent_activity_reason_relationship_unavailable" = "Контактът не можа да се провери";
 "screen_ai_consent_prompt_allow" = "Разрешаване";
@@ -1144,15 +1149,12 @@
 "state_event_spiral_tool_off_by_system" = "За %2$@ е изключено: %1$@";
 "a11y_native_call_swap_to_held_call" = "Превключване към разговора с %@";
 "screen_native_call_audio_route_iphone" = "iPhone";
-"screen_invite_people_seats_value" = "%1$d от %2$d";
 "screen_agent_activity_reason_first_contact_with_unknown_visitor" = "Първо съобщение от нов човек";
 "screen_deactivate_account_spiral_list_item_3" = "Изтриване на данните за акаунта ви от нашия сървър за самоличност.";
 "a11y_native_call_bar" = "Текущ разговор с %1$@. Докоснете, за да се върнете.";
-"screen_invite_paste_unavailable" = "Поканата не можа да се провери. Опитайте пак.";
 "screen_agent_activity_action_read_call_summary" = "Прочете обобщение на обаждане";
 "screen_ai_consent_prompt_title" = "Да се разреши ли ИИ на трети страни?";
 "screen_agent_edit_voice_language_footer" = "Асистентът винаги отговаря на езика, на който говорите. Това определя как чува обажданията и на какъв език са обобщенията им.";
-"screen_invite_welcome_title" = "Добре дошли в Spiral";
 "screen_agent_activity_reason_blocked_visitor" = "Блокиран човек";
 "screen_deactivate_account_spiral_list_item_1_bold_part" = "Окончателно деактивиране";
 "screen_native_call_agent_center_recording_live" = "Записва се…";
@@ -1220,7 +1222,6 @@
 "screen_deactivate_account_spiral_failed" = "Акаунтът не можа да бъде изтрит. Опитайте пак след минута.";
 "screen_agent_activity_action_changed_call_mode" = "Промени как участва в обаждане";
 "a11y_native_call_unmute_microphone" = "Включване на микрофона";
-"screen_invite_paste_label" = "Връзка или код";
 "screen_media_viewer_position" = "%1$d от %2$d";
 "screen_native_call_status_reconnecting_detail" = "Връзката ви прекъсна";
 "screen_approval_detail_block_blocked_subtitle" = "Отсега нататък вашият агент пренебрегва съобщенията му.";
@@ -1256,6 +1257,13 @@
 "screen_agent_activity_reason_no_contact_relationship" = "Не е от контактите ви";
 "screen_room_alias_link_not_found" = "Тази връзка не води до никакъв чат.";
 "screen_invite_people_title" = "Покана за Spiral";
+"screen_invite_people_you" = "Вие";
+"screen_invite_people_invited_count" = "Поканени %1$d от %2$d";
+"screen_invite_people_invited_you" = "Ви покани в Spiral";
+"screen_invite_people_seat_invite" = "Покани";
+"screen_invite_people_seat_taken" = "Заето";
+"screen_invite_people_chain_footer" = "Една връзка за %1$d души и тя не се подновява. Докоснете човек, за да отворите профила му.";
+"screen_invite_people_all_used" = "Всички покани са използвани";
 "screen_approval_detail_escalation_cold_outreach" = "Вашият агент иска да пише на някого за първи път.";
 "screen_start_invited_by" = "%1$@ ви покани в Spiral";
 "screen_agent_spaces_section_retry" = "Докоснете, за да опитате пак.";
@@ -1263,7 +1271,6 @@
 "screen_settings_new_phrase_done" = "Фразата за вход е променена";
 "screen_agent_activity_reason_outside_conversation" = "Извън този разговор";
 "a11y_native_call_switch_camera" = "Смяна на камерата";
-"screen_invite_people_joined" = "Присъединили се чрез вашата покана: %1$d";
 "screen_agent_activity_action_searched_agents" = "Потърси агенти";
 "screen_agent_activity_reason_strategy_no_op" = "Няма какво да се прави";
 "action_dismiss_visitor_message" = "Премахване";
@@ -1272,7 +1279,6 @@
 "screen_approval_detail_block_action_dont_block" = "Без блокиране";
 "screen_agent_settings_people_title" = "Общуване с хора";
 "screen_native_call_agent_center_error_not_owner" = "Само собственикът на тази сесия може да я променя.";
-"notice_welcome_agent_body" = "%1$@ е готов. Просто ми пишете.";
 "screen_agent_detail_already_in_chat" = "Агентът вече е в този чат";
 "screen_native_call_agent_center_booth_members" = "%1$@ на %2$@";
 "screen_settings_devices_title" = "Устройства и сесии";
@@ -1290,7 +1296,6 @@
 "screen_agent_activity_action_remembered" = "Запомни нещо за контакт";
 "screen_room_interactive_post_link_needs_update" = "Тази публикация изисква по-нова версия на Spiral. Обновете приложението, за да я използвате.";
 "screen_room_member_details_erase_assistant_memory" = "Изтриване на това, което асистентите ми знаят за този човек";
-"screen_invite_paste_without" = "Продължаване без покана";
 "screen_agent_edit_tone_friendly" = "Дружелюбен";
 "screen_room_interactive_post_update" = "Обновяване на публикацията";
 "screen_agent_detail_archive_refused" = "Личният ви асистент остава с акаунта ви и не може да бъде архивиран.";
@@ -1307,9 +1312,7 @@
 "screen_native_call_agent_center_talking" = "Асистентът говори";
 "screen_native_call_tile_call_back" = "Докоснете, за да се обадите обратно";
 "notice_reply_failed_body" = "Нещо се обърка от моя страна. Моля, изпратете го отново.";
-"screen_invite_people_joined_title" = "Присъединили се чрез вашата покана";
 "screen_native_call_status_connecting_detail" = "Настройване на шифроването";
-"screen_invite_paste_title" = "Имате покана?";
 "screen_edit_profile_bio_too_long" = "Биографията може да е най-много %1$d знака. Съкратете я, за да я запазите.";
 "a11y_native_call_agent_block_role" = "%1$@, %2$@";
 "a11y_native_call_recording" = "Този разговор се записва";
@@ -1322,12 +1325,25 @@
 "screen_agent_spaces_assistant_pending" = "Асистентът ви още се настройва";
 "screen_room_member_details_erase_assistant_memory_alert_title" = "Да се изтрие ли това, което асистентите ви знаят за %1$@?";
 "screen_settings_new_phrase_failed" = "Промяната на фразата не можа да започне. Опитайте пак.";
+/* AGENT-PLATFORM (1.0.3): sign-in methods — the first phrase for an account made with Apple, Sign in with Apple for a phrase account. */
+"screen_settings_add_phrase_title" = "Добавяне на фраза за вход";
+"screen_settings_add_phrase_message" = "Ще изберете 12 думи. Те отварят профила ви на всяко устройство, наред с „Вход с Apple“. Оставате влезли на това устройство, а съобщенията ви не се засягат.";
+"screen_settings_add_phrase_auth_reason" = "Потвърдете, че сте вие, за да добавите фраза за вход";
+"screen_settings_add_phrase_done" = "Фразата за вход е добавена";
+"screen_settings_add_phrase_failed" = "Добавянето на фразата не можа да започне. Опитайте пак.";
+"screen_settings_sign_in_passcode_required" = "Първо задайте код за достъп на устройството — той защитава начините ви за вход";
+"screen_settings_apple_title" = "Вход с Apple";
+"screen_settings_apple_connected" = "Свързано";
+"screen_settings_apple_add_title" = "Добавяне на „Вход с Apple“";
+"screen_settings_apple_auth_reason" = "Потвърдете, че сте вие, за да добавите „Вход с Apple“";
+"screen_settings_apple_linked" = "„Вход с Apple“ е добавен";
+"screen_settings_apple_taken" = "Този Apple ID вече се използва от друг профил в Spiral";
+"screen_settings_apple_failed" = "Добавянето на „Вход с Apple“ не можа да започне. Опитайте пак.";
 "screen_deactivate_account_spiral_description" = "Изтриването на акаунта ви е %1$@. Ето какво ще стане:";
 "screen_agent_activity_action_set_reminder" = "Зададе напомняне";
 "screen_agent_activity_action_cancelled_reminder" = "Отмени напомняне";
 "screen_agent_activity_reason_capability_always_allowed" = "Винаги разрешено";
 "screen_agent_activity_action_blocked_someone" = "Блокира някого";
-"screen_invite_paste_message" = "Поставете връзката, която ви е изпратил потребител на Spiral, или въведете кода.";
 "screen_native_call_error_title" = "Обаждането не бе успешно";
 "notification_approval_action_not_found_title" = "Тази заявка вече не съществува";
 "state_event_spiral_tool_changed_by_you" = "Променихте %1$@";
@@ -1354,7 +1370,6 @@
 "screen_native_call_control_sound" = "Звук";
 "screen_native_call_status_reconnecting" = "Повторно свързване…";
 "notice_phrase_changed_body" = "Със старата фраза вече не може да се влиза.";
-"screen_invite_people_seats_footer" = "Всеки има една връзка с %1$d места. Тя не се подновява, затова я споделяйте с хората, които наистина искате тук.";
 "screen_room_member_details_agent_unblock_action" = "Отблокиране";
 "screen_agent_activity_reason_unknown_capability" = "Не е нещо, което може да прави";
 "screen_settings_new_phrase_passcode_required" = "Първо задайте код за достъп на устройството — той защитава промяната на фразата";
@@ -1426,10 +1441,11 @@
 "screen_your_data_calls_footer" = "Експорт на едно обаждане: транскрипцията, обобщението и дневника на съгласието.";
 "screen_arm_tool_error_agent_does_not_join_calls" = "Този агент не се присъединява към обаждания, затова инструментите за обаждания не са достъпни за него.";
 "screen_room_interactive_generating_hint" = "Обикновено под минута";
-"screen_invite_paste_exhausted" = "Всички, позволени от тази покана, вече са се присъединили. Поискайте нова.";
 "notice_phrase_changed_on_device" = "Променена на „%1$@“.";
+/* AGENT-PLATFORM (1.0.3): the owner-DM card when Sign in with Apple is added. It names no device (security review); a new phrase disconnects Apple. */
+"notice_apple_linked_title" = "„Вход с Apple“ е добавен";
+"notice_apple_linked_body" = "Ако не сте били вие, сменете фразата си за вход: това ще изключи Apple.";
 "screen_ai_consent_prompt_openai" = "OpenAI: съобщенията, които асистентите четат, гласът ви в разговорите с тях и записите, които транскрибират.";
-"screen_invite_welcome_message" = "%1$@ ви покани и вече знае, че сте тук. Поздравете!";
 "screen_agent_activity_action_used_tool" = "Използва инструмент върху съобщение";
 "screen_approval_detail_escalation_first_contact" = "Някой писа на агента ви за първи път, затова той ви пита, преди да отговори.";
 "screen_agent_activity_action_drafted_post" = "Подготви чернова на публикация";
@@ -1444,7 +1460,6 @@
 "screen_room_interactive_post_updated" = "Публикацията е обновена";
 "screen_native_call_camera_failed_message" = "Камерата не можа да се стартира, затова разговорът продължава само със звук. Опитайте бутона на камерата отново след малко.";
 "screen_media_viewer_open" = "Отваряне";
-"screen_invite_paste_invalid" = "Няма такава покана.";
 "screen_agent_room_tool_audience_except_named" = "за всички освен %1$@";
 "notification_spiral_needs_update_body" = "Обновете приложението, за да видите това.";
 "screen_agent_edit_tone_brief" = "Кратко и по същество";
@@ -1452,7 +1467,6 @@
 "screen_invite_people_seats_left" = "Остават %1$d от %2$d покани";
 "screen_agent_activity_reason_wrong_room_kind" = "Не е разрешено в такъв чат";
 "screen_native_call_failure_audio_reset" = "Системата нулира звука на разговора.";
-"screen_invite_people_body" = "Регистрацията е с покана. Споделете личната си връзка — всеки, който създаде акаунт чрез нея, ще види първо вас.";
 "notification_approval_action_target_blocked_title" = "Не е изпратено — блокирахте този човек";
 "screen_notifications_hub_visitor_other" = "Нещо ново";
 "screen_agent_activity_empty_pending_title" = "Няма заявки за решаване";
@@ -1476,3 +1490,61 @@
 "screen_notifications_hub_visitors_section" = "От хора";
 "screen_agent_settings_visitor_reply_description" = "Отговаря на всички освен на хората, които сте блокирали";
 "screen_deactivate_account_spiral_auth_reason" = "Потвърдете, че сте вие, за да изтриете акаунта си";
+
+// AGENT-PLATFORM (1.0.3 A2): the assistant's first invite in Chats, its chat before consent and its welcome.
+"screen_roomlist_assistant_invite_name" = "Вашият асистент";
+"screen_roomlist_assistant_invite_subtitle" = "Здравейте! Докоснете, за да започнете 👋";
+"screen_roomlist_assistant_invite_start" = "Начало";
+"a11y_assistant_invite_start" = "Започнете разговор с асистента си";
+"a11y_assistant_invite_start_hint" = "Приема поканата на асистента и отваря чата ви с него.";
+"screen_assistant_invite_title" = "Здравейте! Аз съм вашият асистент";
+"screen_assistant_invite_reminders" = "Ще ви напомням за важното";
+"screen_assistant_invite_contacts" = "Ще помня контактите ви";
+"screen_assistant_invite_summaries" = "Ще обобщя всеки чат";
+"screen_assistant_invite_privacy" = "Виждам само този разговор. Можете да ме изключите по всяко време.";
+"screen_assistant_invite_start" = "Започнете разговор";
+"notice_welcome_body" = "Тук съм и съм готов да помогна. Откъде да започнем?";
+"notice_welcome_starter_summary" = "Обобщи чат";
+"notice_welcome_starter_summary_message" = "Обобщи ми един чат";
+"notice_welcome_starter_contact" = "Запомни контакт";
+"notice_welcome_starter_contact_message" = "Запомни нещо за мой контакт";
+"notice_welcome_starter_reminder" = "Напомни ми…";
+"notice_welcome_starter_reminder_message" = "Задай ми напомняне";
+"notice_welcome_allow_ai_reason" = "Разрешете ИИ, за да чета какво пишете тук.";
+"notice_welcome_allow_ai_action" = "Разреши ИИ";
+
+// AGENT-PLATFORM (1.0.3 onboarding): the start screen's stories, the notifications prompt and the invited welcome.
+"screen_start_slide_privacy_title" = "Вашите разговори са си ваши";
+"screen_start_slide_privacy_subtitle" = "Шифроване от край до край. Без телефонен номер, а асистентът — само с ваше разрешение";
+"screen_start_slide_calls_title" = "Обаждания с превод";
+"screen_start_slide_calls_subtitle" = "Асистентът се включва и превежда на живо";
+"screen_start_slide_assistant_title" = "Асистентът е наблизо";
+"screen_start_slide_assistant_subtitle" = "Отговаря, когато сте заети, и ви пита преди всяка нова стъпка";
+"screen_start_slide_games_title" = "Играйте заедно направо в чата";
+"screen_start_slide_games_subtitle" = "Игри и инструменти — без нищо за инсталиране";
+"screen_start_invited_by_hint" = "Създайте профил и %1$@ ще разбере, че сте тук";
+"a11y_start_slides_position" = "Слайд %1$d от %2$d";
+"screen_notification_optin_spiral_title" = "Бъдете на връзка";
+"screen_notification_optin_spiral_subtitle" = "Spiral ще ви каже, когато нещо наистина е важно. Можете да промените това по всяко време в Настройки.";
+"screen_notification_optin_messages_title" = "Нови съобщения";
+"screen_notification_optin_messages_subtitle" = "От хората и групите, с които общувате";
+"screen_notification_optin_calls_title" = "Входящи обаждания";
+"screen_notification_optin_calls_subtitle" = "Дори когато Spiral е затворен";
+"screen_notification_optin_assistant_title" = "Въпроси от вашия асистент";
+"screen_notification_optin_assistant_subtitle" = "Когато има нужда от вашето съгласие";
+"screen_notification_optin_allow" = "Разреши известията";
+"screen_invite_welcome_together_title" = "Вие и %1$@ сте заедно в Spiral";
+"screen_invite_welcome_step_say_hello_title" = "Поздравете %1$@";
+"screen_invite_welcome_step_say_hello_subtitle" = "%1$@ чака";
+"screen_invite_welcome_step_assistant_title" = "Запознайте се с асистента си";
+"screen_invite_welcome_step_assistant_subtitle" = "Поканата му ви чака във „Всички чатове“";
+"screen_invite_welcome_step_play_title" = "Изиграйте нещо заедно";
+"screen_invite_welcome_step_play_subtitle" = "Игри и инструменти направо в чата";
+"a11y_invite_welcome_avatars" = "%1$@ и вие";
+"screen_approval_detail_already_closed_title" = "Тази заявка вече е затворена";
+"screen_approval_detail_already_closed_message" = "Изтекла е или вече е получила отговор.";
+"screen_room_interactive_post_description_not_sent" = "Описанието ви не беше изпратено. Изпратете го отново в нишката.";
+"screen_room_interactive_post_code_not_sent" = "Публикацията не стигна до агента. Опитайте отново от публикацията.";
+"screen_invites_assistant_decline_warning_spiral" = "Ако това е вашият собствен асистент, чатът с него не може да бъде възстановен, след като откажете.";
+"a11y_roomlist_remove_filter" = "Премахване на филтъра: %1$@";
+"a11y_settings_share_profile" = "Споделяне на моя профил";

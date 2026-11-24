@@ -45,6 +45,25 @@ struct StartChatScreenViewModelTests {
         #expect(userDiscoveryService.searchProfilesWithCalled)
     }
     
+    // AGENT-PLATFORM (1.0.3): Suggestions are people only, like the search.
+    @Test
+    func suggestionsShowOnlyPeople() async throws {
+        let clientProxy = ClientProxyMock(.init(userID: "@me:matrix.org"))
+        clientProxy.recentConversationCounterpartsReturnValue = [UserProfile(userID: "@assistant-me:matrix.org"), .mockAlice,
+                                                                 UserProfile(userID: "@telegram_42:matrix.org"),
+                                                                 UserProfile(userID: "@spiral:matrix.org"), .mockBob]
+        let viewModel = StartChatScreenViewModel(userSession: UserSessionMock(.init(clientProxy: clientProxy)),
+                                                 analytics: AnalyticsServiceMock(.init()),
+                                                 userIndicatorController: UserIndicatorControllerMock(),
+                                                 userDiscoveryService: userDiscoveryService)
+        
+        let deferred = deferFulfillment(viewModel.context.$viewState) { !$0.usersSection.users.isEmpty }
+        try await deferred.fulfill()
+        
+        #expect(viewModel.context.viewState.usersSection.type == .suggestions)
+        #expect(viewModel.context.viewState.usersSection.users.map(\.id) == [UserProfile.mockAlice.id, UserProfile.mockBob.id])
+    }
+    
     @Test
     func joinRoomByAddress() async throws {
         clientProxy.resolveRoomAliasReturnValue = .success(.init(roomId: "id", servers: []))

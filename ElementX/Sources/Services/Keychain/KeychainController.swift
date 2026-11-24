@@ -9,6 +9,7 @@
 import Foundation
 @preconcurrency import KeychainAccess
 import MatrixRustSDK
+import Security // AGENT-PLATFORM: `SecItemUpdate` for the save path
 
 nonisolated enum KeychainControllerService: String {
     case sessions
@@ -36,9 +37,32 @@ final nonisolated class KeychainController: KeychainControllerProtocol {
         case appLockBiometricState
     }
     
-    init(service: KeychainControllerService, accessGroup: String) {
-        restorationTokenKeychain = Keychain(service: service.restorationTokenID, accessGroup: accessGroup)
+    /// AGENT-PLATFORM: what a read of the stored restoration token found. A keychain or decode error is not "signed out".
+    enum StoredRestorationToken {
+        case found(RestorationToken)
+        case notFound
+        /// The keychain refused the read; it may work a moment later.
+        case unreadable(Error)
+        /// The stored data doesn't decode; reading it again won't change that.
+        case undecodable(Error)
+    }
+    
+    /// AGENT-PLATFORM: the save path reads the stored token through this, so tests can fail a read or sign out mid-save.
+    private let readStoredTokenData: @Sendable (_ username: String) throws -> Data?
+    /// AGENT-PLATFORM: pauses before a failed read of the stored token is tried again on the save path.
+    private let unreadableTokenRetryDelays: [TimeInterval]
+    
+    /// - Parameter readStoredTokenData: for tests; it is given the keychain and the username to read.
+    init(service: KeychainControllerService,
+         accessGroup: String,
+         unreadableTokenRetryDelays: [TimeInterval] = [0.05, 0.2],
+         readStoredTokenData: (@Sendable (Keychain, String) throws -> Data?)? = nil) {
+        let restorationTokenKeychain = Keychain(service: service.restorationTokenID, accessGroup: accessGroup)
+        self.restorationTokenKeychain = restorationTokenKeychain
         mainKeychain = Keychain(service: service.mainID, accessGroup: accessGroup)
+        self.unreadableTokenRetryDelays = unreadableTokenRetryDelays
+        let read = readStoredTokenData ?? { keychain, username in try keychain.getData(username) }
+        self.readStoredTokenData = { try read(restorationTokenKeychain, $0) }
     }
     
     // MARK: - Restoration Tokens
@@ -53,19 +77,37 @@ final nonisolated class KeychainController: KeychainControllerProtocol {
     }
     
     func restorationTokenForUsername(_ username: String) -> RestorationToken? {
+        switch storedRestorationToken(forUsername: username, read: { try restorationTokenKeychain.getData($0) }) {
+        case .found(let restorationToken):
+            return restorationToken
+        case .notFound:
+            return nil
+        case .unreadable(let error), .undecodable(let error):
+            MXLog.error("Failed retrieving user restore token: \(error)")
+            return nil
+        }
+    }
+    
+    private func storedRestorationToken(forUsername username: String, read: (String) throws -> Data?) -> StoredRestorationToken {
+        let tokenData: Data
         do {
-            guard let tokenData = try restorationTokenKeychain.getData(username) else {
-                return nil
+            // KeychainAccess returns nil for `errSecItemNotFound` and throws on every other status.
+            guard let data = try read(username) else {
+                return .notFound
             }
-            
-            return try JSONDecoder().decode(RestorationToken.self, from: tokenData)
+            tokenData = data
+        } catch {
+            return .unreadable(error)
+        }
+        
+        do {
+            return try .found(JSONDecoder().decode(RestorationToken.self, from: tokenData))
         } catch RestorationTokenError.slidingSyncProxyNotSupported {
             MXLog.error("Unsupported user restore token (contains sliding sync proxy). Deleting token.")
             removeRestorationTokenForUsername(username)
-            return nil
+            return .notFound
         } catch {
-            MXLog.error("Failed retrieving user restore token")
-            return nil
+            return .undecodable(error)
         }
     }
     
@@ -110,17 +152,77 @@ final nonisolated class KeychainController: KeychainControllerProtocol {
     }
     
     func saveSessionInKeychain(session: Session) {
-        MXLog.info("Saving session changes in the keychain.")
-        
-        guard let oldToken = restorationTokenForUsername(session.userId) else {
-            MXLog.error("Failed retrieving the restoration token for \(session.userId)")
-            fatalError("Something has gone mega wrong, all bets are off.")
+        // AGENT-PLATFORM: the SDK saves a refreshed token from whichever process
+        // refreshed it, so a sign-out in the app can remove the token while the
+        // NSE (or the app's own client) is mid-refresh. Upstream trapped here and
+        // the push was lost. The session is gone: skip the save rather than write
+        // a token for it, and never overwrite a newer login's token for the same user.
+        // With refresh-token rotation the old pair is dead once the SDK holds the
+        // new one, so a read error must not pass for a sign-out: it is read again.
+        let oldToken: RestorationToken
+        switch storedRestorationTokenRetryingUnreadable(forUsername: session.userId) {
+        case .found(let token):
+            oldToken = token
+        case .notFound:
+            MXLog.info("No restoration token for the refreshed session, it was signed out. Not saving it.")
+            return
+        case .unreadable(let error), .undecodable(let error):
+            MXLog.error("Couldn't read the stored restoration token, the refreshed session isn't saved: \(error)")
+            return
         }
+        guard oldToken.session.deviceId == session.deviceId else {
+            MXLog.error("The stored restoration token belongs to another device. Not saving the refreshed session.")
+            return
+        }
+        
+        MXLog.info("Saving session changes in the keychain.")
         let restorationToken = RestorationToken(session: session,
                                                 sessionDirectories: oldToken.sessionDirectories,
                                                 passphrase: oldToken.passphrase,
                                                 pusherNotificationClientIdentifier: oldToken.pusherNotificationClientIdentifier)
-        setRestorationToken(restorationToken, forUsername: session.userId)
+        updateExistingRestorationToken(restorationToken, forUsername: session.userId)
+    }
+    
+    private func storedRestorationTokenRetryingUnreadable(forUsername username: String) -> StoredRestorationToken {
+        var stored = storedRestorationToken(forUsername: username, read: readStoredTokenData)
+        for delay in unreadableTokenRetryDelays {
+            guard case .unreadable(let error) = stored else { break }
+            MXLog.error("Failed reading the stored restoration token, trying again: \(error)")
+            // The SDK calls this synchronously on its own thread, not the main one.
+            Thread.sleep(forTimeInterval: delay)
+            stored = storedRestorationToken(forUsername: username, read: readStoredTokenData)
+        }
+        return stored
+    }
+    
+    /// Replaces the stored token only if it is still there. A sign-out in another process between the read above and
+    /// this write removes the item, and `SecItemUpdate` then finds nothing instead of writing the token back, which
+    /// KeychainAccess's check-then-add `set` would do.
+    private func updateExistingRestorationToken(_ restorationToken: RestorationToken, forUsername username: String) {
+        let tokenData: Data
+        do {
+            tokenData = try JSONEncoder().encode(restorationToken)
+        } catch {
+            MXLog.error("Failed encoding the refreshed restoration token: \(error)")
+            return
+        }
+        
+        var query: [String: Any] = [kSecClass as String: kSecClassGenericPassword,
+                                    kSecAttrService as String: restorationTokenKeychain.service,
+                                    kSecAttrAccount as String: username,
+                                    kSecAttrSynchronizable as String: kSecAttrSynchronizableAny]
+        if let accessGroup = restorationTokenKeychain.accessGroup {
+            query[kSecAttrAccessGroup as String] = accessGroup
+        }
+        let status = SecItemUpdate(query as CFDictionary, [kSecValueData as String: tokenData] as CFDictionary)
+        switch status {
+        case errSecSuccess:
+            break
+        case errSecItemNotFound:
+            MXLog.info("The restoration token was removed while saving, it was signed out. Not saving it.")
+        default:
+            MXLog.error("Failed storing the refreshed restoration token: \(status)")
+        }
     }
     
     // MARK: - App Secrets

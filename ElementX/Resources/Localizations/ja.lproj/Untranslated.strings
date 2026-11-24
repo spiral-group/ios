@@ -65,6 +65,9 @@
 "screen_agent_edit_persona_greeting" = "あなたへのあいさつ";
 "screen_agent_edit_persona_visitor_greeting" = "ゲストへのあいさつ";
 "screen_agent_edit_failure" = "変更を保存できませんでした";
+"error_agent_name_reserved" = "この名前は Spiral 自身のアカウント用に予約されています。別の名前を選んでください。";
+"error_agent_name_invalid_characters" = "名前に使用できない文字が含まれています。";
+"error_agent_name_unchecked" = "名前を確認できませんでした。もう一度お試しください。";
 "screen_agent_edit_load_failure" = "編集フォームを読み込めませんでした";
 "screen_agent_edit_avatar_failure" = "写真をアップロードできませんでした";
 "action_agent_activity" = "アクティビティ";
@@ -250,7 +253,6 @@
 "screen_language_picker_title" = "言語";
 "screen_language_picker_empty" = "検索に一致する言語がありません。";
 "screen_start_sign_in" = "サインイン";
-"screen_start_welcome_subtitle" = "あなたの個人エージェントとともに、速くてプライベートなメッセージングを。";
 
 // AGENT-PLATFORM (Brief 0072, ADR-0083, ADR-0084): presence, worded as Telegram does
 "common_presence_online" = "オンライン";
@@ -491,6 +493,16 @@
 "screen_native_call_assistants_record_confirm_title" = "通話を録音しますか？";
 "screen_native_call_assistants_record_confirm_message" = "通話の上部に REC が表示され、全員に見えます。録音は通話後にチャットに表示されます。";
 "screen_native_call_assistants_record_confirm_action" = "録音";
+"screen_native_call_assistants_notes_confirm_title" = "通話のメモを取りますか？";
+"screen_native_call_assistants_notes_confirm_message" = "アシスタントが通話を聞き、通話後に要約をチャットに投稿します。メモを取っていることは他の人にも表示されます。";
+"screen_native_call_assistants_notes_confirm_action" = "メモを取る";
+"screen_native_call_assistants_talk_confirm_title" = "アシスタントと話しますか？";
+"screen_native_call_assistants_talk_confirm_message" = "あなたの声だけを聞いて声で答え、その声は通話の全員に聞こえます。";
+"screen_native_call_assistants_talk_confirm_action" = "会話を始める";
+"screen_native_call_assistants_translate_question_title" = "翻訳先";
+"screen_native_call_assistants_listen_question_title" = "聞く言語";
+"screen_native_call_assistants_talk_info_title" = "アシスタントが声で答えています";
+"screen_native_call_assistants_talk_info_message" = "あなたの声だけを聞き、その声は全員に聞こえます。会話中は翻訳されません。";
 "screen_native_call_assistants_none_of_your_own" = "アシスタントがいません";
 "screen_native_call_assistants_which" = "アシスタントを選択";
 "screen_native_call_assistants_reason_paused" = "アシスタントは一時停止中です";
@@ -571,7 +583,6 @@
 "screen_native_call_assistants_job_conversation" = "会話";
 "screen_native_call_assistants_translating" = "%1$@に翻訳中";
 "screen_native_call_assistants_stop_translation" = "翻訳を停止";
-"screen_native_call_assistants_talk_caption" = "あなたに声で答え、全員に聞こえます。会話中は翻訳されません。";
 "screen_native_call_assistants_pick_footer" = "このチャットで記憶されます";
 "screen_native_call_assistants_neighbour_language" = "隣の人の言語";
 "screen_native_call_assistants_pocket_detail" = "フレーズごと · 双方向";
@@ -591,10 +602,9 @@
 "screen_native_call_assistants_status_both_ways" = "双方向に翻訳中";
 "screen_native_call_assistants_translate_into" = "翻訳先";
 "screen_native_call_assistants_translate_into_detail" = "この言語で通話を聞きます";
+"screen_native_call_assistants_translate_into_language" = "翻訳先: %1$@";
 "screen_native_call_assistants_in_call" = "通話中";
 "screen_native_call_assistants_in_call_more" = "通話中：ほか%1$d人";
-"screen_native_call_assistants_new_translation" = "新しい翻訳";
-"screen_native_call_assistants_new_translation_detail" = "あなたのアシスタントが通話を翻訳します";
 "screen_native_call_assistants_new_translation_others" = "あなたのアシスタントが%1$@の発言を翻訳します。ほかの人はすでに無料で翻訳されています。";
 "screen_native_call_assistants_start_translation" = "翻訳を開始";
 "screen_native_call_assistants_start_translation_detail" = "あなたの上限を使います。この言語を選んだ人は無料で聞けます。";
@@ -1044,7 +1054,6 @@
 "notice_phrase_changed_title" = "サインインフレーズが変更されました";
 "a11y_message_read" = "既読";
 "screen_legal_information_source_code_spiral" = "ソースコード";
-"screen_invite_people_seats_label" = "残りの招待";
 "screen_native_call_tile_not_joined" = "参加しませんでした";
 "screen_agent_settings_show_in_search_footer" = "検索で見つけられるかどうかを設定します。アドレスを知っている人は引き続きメッセージを送れます。";
 "screen_agent_edit_tone_calm" = "穏やか";
@@ -1056,7 +1065,6 @@
 "screen_room_interactive_draft_published" = "公開済み";
 "screen_agent_activity_reason_visitor_policy_reply" = "すぐに返信することを許可済み";
 "screen_agent_in_room_no_tools" = "このチャットにはまだツールがありません。";
-"notice_welcome_assistant_body" = "私は%1$@、あなたのパーソナルアシスタントです。不在中のメッセージの取り次ぎ、連絡先の記憶、ルームの要約ができます。ルームで私のツールをオンにするには、そこで + をタップして「エージェント」を選んでください。気軽に話しかけてください — いつでもここにいます。";
 "screen_room_interactive_post_pick_agent_title" = "誰に作ってもらいますか？";
 "screen_agent_settings_visitor_ask_first_description" = "新しい人はあなたが同意するまで待ちます";
 "screen_ai_consent_prompt_failed" = "選択を保存できませんでした。接続を確認して、もう一度お試しください。";
@@ -1086,10 +1094,8 @@
 "screen_agent_activity_reason_block_needs_owner" = "ブロックにはあなたの承認が必要です";
 "screen_create_company_title" = "新しい会社";
 "a11y_native_call_disable_speaker" = "スピーカーをオフにする";
-"screen_invite_paste_placeholder" = "spiral.md/join/…";
 "a11y_native_call_end" = "通話を終了";
 "screen_agent_activity_action_published_post" = "投稿を公開しました";
-"screen_invite_people_joined_footer" = "あなたのリンクからアカウントを作成した人です。タップするとチャットを開始します。";
 "screen_arm_tool_turn_off_confirm_message" = "このチャットで、エージェントは全員に対してこれを行わなくなります。いつでも再度オンにできます。";
 "spiral_app_card_line_by" = "%1$@から";
 "state_event_spiral_tool_language_changed_by_you" = "あなたが翻訳を変更しました：%1$@ → %2$@";
@@ -1114,7 +1120,6 @@
 "screen_native_call_agent_block_recording" = "録音";
 "screen_native_call_control_video" = "動画";
 "screen_agent_detail_pause" = "一時停止";
-"screen_invite_paste_expired" = "この招待はもう有効ではありません。新しい招待を依頼してください。";
 "screen_security_messages_section" = "メッセージ";
 "screen_agent_activity_reason_relationship_unavailable" = "連絡先を確認できませんでした";
 "screen_ai_consent_prompt_allow" = "許可";
@@ -1144,15 +1149,12 @@
 "state_event_spiral_tool_off_by_system" = "%2$@のために%1$@がオフになりました";
 "a11y_native_call_swap_to_held_call" = "%@さんとの通話に切り替え";
 "screen_native_call_audio_route_iphone" = "iPhone";
-"screen_invite_people_seats_value" = "%1$d / %2$d";
 "screen_agent_activity_reason_first_contact_with_unknown_visitor" = "新しい相手からの最初のメッセージ";
 "screen_deactivate_account_spiral_list_item_3" = "IDサーバーからアカウント情報を削除します。";
 "a11y_native_call_bar" = "%1$@と通話中。タップすると戻ります。";
-"screen_invite_paste_unavailable" = "招待を確認できませんでした。もう一度お試しください。";
 "screen_agent_activity_action_read_call_summary" = "通話の要約を読みました";
 "screen_ai_consent_prompt_title" = "サードパーティのAIを許可しますか？";
 "screen_agent_edit_voice_language_footer" = "アシスタントは常にあなたが話す言語で答えます。ここでは、通話を聞き取る言語と通話の要約の言語を設定します。";
-"screen_invite_welcome_title" = "Spiralへようこそ";
 "screen_agent_activity_reason_blocked_visitor" = "ブロックした人";
 "screen_deactivate_account_spiral_list_item_1_bold_part" = "恒久的に無効化する";
 "screen_native_call_agent_center_recording_live" = "録音中…";
@@ -1220,7 +1222,6 @@
 "screen_deactivate_account_spiral_failed" = "アカウントを削除できませんでした。1分後にもう一度お試しください。";
 "screen_agent_activity_action_changed_call_mode" = "通話への参加方法を変更しました";
 "a11y_native_call_unmute_microphone" = "マイクのミュートを解除";
-"screen_invite_paste_label" = "リンクまたはコード";
 "screen_media_viewer_position" = "%1$d / %2$d";
 "screen_native_call_status_reconnecting_detail" = "接続が切れました";
 "screen_approval_detail_block_blocked_subtitle" = "エージェントは今後、この人のメッセージを無視します。";
@@ -1256,6 +1257,13 @@
 "screen_agent_activity_reason_no_contact_relationship" = "あなたの連絡先ではありません";
 "screen_room_alias_link_not_found" = "このリンクの先にチャットはありません。";
 "screen_invite_people_title" = "Spiralに招待";
+"screen_invite_people_you" = "あなた";
+"screen_invite_people_invited_count" = "%2$d人中%1$d人を招待済み";
+"screen_invite_people_invited_you" = "あなたをSpiralに招待しました";
+"screen_invite_people_seat_invite" = "招待";
+"screen_invite_people_seat_taken" = "使用済み";
+"screen_invite_people_chain_footer" = "%1$d人分のリンクが1つだけで、更新されません。相手をタップするとプロフィールを開けます。";
+"screen_invite_people_all_used" = "招待をすべて使いました";
 "screen_approval_detail_escalation_cold_outreach" = "あなたのエージェントが初めての相手にメッセージを送ろうとしています。";
 "screen_start_invited_by" = "%1$@さんがあなたをSpiralに招待しました";
 "screen_agent_spaces_section_retry" = "タップして再試行してください。";
@@ -1263,7 +1271,6 @@
 "screen_settings_new_phrase_done" = "サインインフレーズを変更しました";
 "screen_agent_activity_reason_outside_conversation" = "この会話の外です";
 "a11y_native_call_switch_camera" = "カメラを切り替え";
-"screen_invite_people_joined" = "あなたの招待で参加：%1$d";
 "screen_agent_activity_action_searched_agents" = "エージェントを検索しました";
 "screen_agent_activity_reason_strategy_no_op" = "行う操作はありません";
 "action_dismiss_visitor_message" = "削除";
@@ -1272,7 +1279,6 @@
 "screen_approval_detail_block_action_dont_block" = "ブロックしない";
 "screen_agent_settings_people_title" = "人との会話";
 "screen_native_call_agent_center_error_not_owner" = "このセッションを変更できるのはオーナーだけです。";
-"notice_welcome_agent_body" = "%1$@の準備ができました。気軽にメッセージを送ってください。";
 "screen_agent_detail_already_in_chat" = "エージェントはすでにこのチャットにいます";
 "screen_native_call_agent_center_booth_members" = "%1$@を%2$@に";
 "screen_settings_devices_title" = "端末とセッション";
@@ -1290,7 +1296,6 @@
 "screen_agent_activity_action_remembered" = "連絡先について記憶しました";
 "screen_room_interactive_post_link_needs_update" = "この投稿には新しいバージョンのSpiralが必要です。使うにはアプリをアップデートしてください。";
 "screen_room_member_details_erase_assistant_memory" = "アシスタントがこの人について知っていることを消去";
-"screen_invite_paste_without" = "招待なしで続ける";
 "screen_agent_edit_tone_friendly" = "フレンドリー";
 "screen_room_interactive_post_update" = "投稿を更新";
 "screen_agent_detail_archive_refused" = "個人アシスタントはアカウントに紐づいているため、アーカイブできません。";
@@ -1307,9 +1312,7 @@
 "screen_native_call_agent_center_talking" = "アシスタントが話しています";
 "screen_native_call_tile_call_back" = "タップしてかけ直す";
 "notice_reply_failed_body" = "こちらで問題が発生しました。もう一度送ってください。";
-"screen_invite_people_joined_title" = "あなたの招待で参加した人";
 "screen_native_call_status_connecting_detail" = "暗号化を設定しています";
-"screen_invite_paste_title" = "招待をお持ちですか？";
 "screen_edit_profile_bio_too_long" = "自己紹介は最大%1$d文字です。保存するには短くしてください。";
 "a11y_native_call_agent_block_role" = "%1$@、%2$@";
 "a11y_native_call_recording" = "この通話は録音されています";
@@ -1322,12 +1325,25 @@
 "screen_agent_spaces_assistant_pending" = "あなたのアシスタントはまだ設定中です";
 "screen_room_member_details_erase_assistant_memory_alert_title" = "アシスタントが%1$@さんについて知っていることを消去しますか？";
 "screen_settings_new_phrase_failed" = "フレーズの変更を開始できませんでした。もう一度お試しください。";
+/* AGENT-PLATFORM (1.0.3): sign-in methods — the first phrase for an account made with Apple, Sign in with Apple for a phrase account. */
+"screen_settings_add_phrase_title" = "サインインフレーズを追加";
+"screen_settings_add_phrase_message" = "12個の単語を選びます。Appleでサインインに加えて、どの端末でもアカウントを開けます。この端末ではサインインしたままで、メッセージには影響しません。";
+"screen_settings_add_phrase_auth_reason" = "サインインフレーズを追加するには本人確認が必要です";
+"screen_settings_add_phrase_done" = "サインインフレーズを追加しました";
+"screen_settings_add_phrase_failed" = "フレーズの追加を開始できませんでした。もう一度お試しください。";
+"screen_settings_sign_in_passcode_required" = "先に端末のパスコードを設定してください — サインイン方法を保護します";
+"screen_settings_apple_title" = "Appleでサインイン";
+"screen_settings_apple_connected" = "接続済み";
+"screen_settings_apple_add_title" = "Appleでサインインを追加";
+"screen_settings_apple_auth_reason" = "Appleでサインインを追加するには本人確認が必要です";
+"screen_settings_apple_linked" = "Appleでサインインを追加しました";
+"screen_settings_apple_taken" = "このApple IDはすでに別のSpiralアカウントで使われています";
+"screen_settings_apple_failed" = "Appleでサインインの追加を開始できませんでした。もう一度お試しください。";
 "screen_deactivate_account_spiral_description" = "アカウントの削除は%1$@です。次のことが行われます：";
 "screen_agent_activity_action_set_reminder" = "リマインダーを設定しました";
 "screen_agent_activity_action_cancelled_reminder" = "リマインダーを取り消しました";
 "screen_agent_activity_reason_capability_always_allowed" = "常に許可";
 "screen_agent_activity_action_blocked_someone" = "誰かをブロックしました";
-"screen_invite_paste_message" = "Spiralユーザーから送られたリンクを貼り付けるか、コードを入力してください。";
 "screen_native_call_error_title" = "通話に失敗しました";
 "notification_approval_action_not_found_title" = "このリクエストは存在しません";
 "state_event_spiral_tool_changed_by_you" = "あなたが%1$@を変更しました";
@@ -1354,7 +1370,6 @@
 "screen_native_call_control_sound" = "音";
 "screen_native_call_status_reconnecting" = "再接続中…";
 "notice_phrase_changed_body" = "古いフレーズではサインインできなくなりました。";
-"screen_invite_people_seats_footer" = "一人ひとりに%1$d人分のリンクが1つあります。補充されないので、本当にここに招きたい人と共有してください。";
 "screen_room_member_details_agent_unblock_action" = "ブロックを解除";
 "screen_agent_activity_reason_unknown_capability" = "できない操作です";
 "screen_settings_new_phrase_passcode_required" = "先に端末のパスコードを設定してください — フレーズの変更を保護します";
@@ -1426,10 +1441,11 @@
 "screen_your_data_calls_footer" = "1件の通話をエクスポートします：文字起こし、要約、同意の記録。";
 "screen_arm_tool_error_agent_does_not_join_calls" = "このエージェントは通話に参加しないため、通話ツールは使えません。";
 "screen_room_interactive_generating_hint" = "通常1分以内";
-"screen_invite_paste_exhausted" = "この招待で参加できる人は全員参加済みです。新しい招待を依頼してください。";
 "notice_phrase_changed_on_device" = "「%1$@」で変更されました。";
+/* AGENT-PLATFORM (1.0.3): the owner-DM card when Sign in with Apple is added. It names no device (security review); a new phrase disconnects Apple. */
+"notice_apple_linked_title" = "Appleでサインインを追加しました";
+"notice_apple_linked_body" = "心当たりがない場合は、サインインフレーズを変更してください。Appleとの接続が解除されます。";
 "screen_ai_consent_prompt_openai" = "OpenAI：アシスタントが読むメッセージ、アシスタントとの通話でのあなたの音声、アシスタントが文字起こしする録音。";
-"screen_invite_welcome_message" = "%1$@さんがあなたを招待しました。あなたが参加したことはもう伝わっています。あいさつしましょう！";
 "screen_agent_activity_action_used_tool" = "メッセージにツールを使用しました";
 "screen_approval_detail_escalation_first_contact" = "初めて誰かがあなたのエージェントにメッセージを送ったため、返信する前にあなたに確認します。";
 "screen_agent_activity_action_drafted_post" = "投稿の下書きを作成しました";
@@ -1444,7 +1460,6 @@
 "screen_room_interactive_post_updated" = "投稿を更新しました";
 "screen_native_call_camera_failed_message" = "カメラを起動できなかったため、音声のみで通話を続けます。少ししてからもう一度カメラボタンを押してください。";
 "screen_media_viewer_open" = "開く";
-"screen_invite_paste_invalid" = "そのような招待はありません。";
 "screen_agent_room_tool_audience_except_named" = "%1$@以外の全員";
 "notification_spiral_needs_update_body" = "表示するにはアプリを更新してください。";
 "screen_agent_edit_tone_brief" = "簡潔に要点を";
@@ -1452,7 +1467,6 @@
 "screen_invite_people_seats_left" = "招待の残り：%1$d / %2$d";
 "screen_agent_activity_reason_wrong_room_kind" = "この種類のチャットでは許可されていません";
 "screen_native_call_failure_audio_reset" = "通話の音声がシステムによってリセットされました。";
-"screen_invite_people_body" = "登録は招待制です。あなた専用のリンクを共有してください — そこからアカウントを作成した人には、最初にあなたが表示されます。";
 "notification_approval_action_target_blocked_title" = "送信されませんでした。この人をブロックしています";
 "screen_notifications_hub_visitor_other" = "新しいお知らせ";
 "screen_agent_activity_empty_pending_title" = "判断が必要なリクエストはありません";
@@ -1476,3 +1490,61 @@
 "screen_notifications_hub_visitors_section" = "人から";
 "screen_agent_settings_visitor_reply_description" = "あなたがブロックした人以外の全員に返信します";
 "screen_deactivate_account_spiral_auth_reason" = "アカウントを削除するには本人確認が必要です";
+
+// AGENT-PLATFORM (1.0.3 A2): the assistant's first invite in Chats, its chat before consent and its welcome.
+"screen_roomlist_assistant_invite_name" = "あなたのアシスタント";
+"screen_roomlist_assistant_invite_subtitle" = "こんにちは！タップして始めましょう 👋";
+"screen_roomlist_assistant_invite_start" = "開始";
+"a11y_assistant_invite_start" = "アシスタントとの会話を始める";
+"a11y_assistant_invite_start_hint" = "アシスタントの招待を承諾し、アシスタントとのチャットを開きます。";
+"screen_assistant_invite_title" = "こんにちは！あなたのアシスタントです";
+"screen_assistant_invite_reminders" = "大事なことをリマインドします";
+"screen_assistant_invite_contacts" = "連絡先を覚えておきます";
+"screen_assistant_invite_summaries" = "どんなチャットも要約します";
+"screen_assistant_invite_privacy" = "見えるのはこの会話だけです。いつでもオフにできます。";
+"screen_assistant_invite_start" = "会話を始める";
+"notice_welcome_body" = "いつでもお手伝いします。何から始めましょうか？";
+"notice_welcome_starter_summary" = "チャットを要約";
+"notice_welcome_starter_summary_message" = "チャットを要約して";
+"notice_welcome_starter_contact" = "連絡先を覚える";
+"notice_welcome_starter_contact_message" = "連絡先について覚えておいてほしいことがある";
+"notice_welcome_starter_reminder" = "リマインドして…";
+"notice_welcome_starter_reminder_message" = "リマインダーを設定して";
+"notice_welcome_allow_ai_reason" = "ここに書いた内容を読めるよう、AIを許可してください。";
+"notice_welcome_allow_ai_action" = "AIを許可";
+
+// AGENT-PLATFORM (1.0.3 onboarding): the start screen's stories, the notifications prompt and the invited welcome.
+"screen_start_slide_privacy_title" = "あなたの会話はあなたのもの";
+"screen_start_slide_privacy_subtitle" = "エンドツーエンド暗号化。電話番号は不要、アシスタントはあなたが許可したときだけ";
+"screen_start_slide_calls_title" = "翻訳つきの通話";
+"screen_start_slide_calls_subtitle" = "アシスタントが参加して、リアルタイムで翻訳";
+"screen_start_slide_assistant_title" = "アシスタントがそばに";
+"screen_start_slide_assistant_subtitle" = "忙しいときは代わりに返信。新しいことをする前には必ず確認します";
+"screen_start_slide_games_title" = "チャットでそのまま一緒に遊ぼう";
+"screen_start_slide_games_subtitle" = "ゲームもツールも、インストール不要";
+"screen_start_invited_by_hint" = "アカウントを作成すると、%1$@さんにあなたの参加が伝わります";
+"a11y_start_slides_position" = "スライド %1$d / %2$d";
+"screen_notification_optin_spiral_title" = "大切な連絡を逃さない";
+"screen_notification_optin_spiral_subtitle" = "本当に大事なことがあれば、Spiralがお知らせします。設定からいつでも変更できます。";
+"screen_notification_optin_messages_title" = "新着メッセージ";
+"screen_notification_optin_messages_subtitle" = "やり取りしている人やグループから";
+"screen_notification_optin_calls_title" = "着信";
+"screen_notification_optin_calls_subtitle" = "Spiralを閉じていても";
+"screen_notification_optin_assistant_title" = "アシスタントからの質問";
+"screen_notification_optin_assistant_subtitle" = "あなたの同意が必要なとき";
+"screen_notification_optin_allow" = "通知を許可";
+"screen_invite_welcome_together_title" = "%1$@さんと一緒にSpiralに参加しました";
+"screen_invite_welcome_step_say_hello_title" = "%1$@さんにあいさつしよう";
+"screen_invite_welcome_step_say_hello_subtitle" = "%1$@さんが待っています";
+"screen_invite_welcome_step_assistant_title" = "アシスタントと知り合おう";
+"screen_invite_welcome_step_assistant_subtitle" = "招待が「チャット」で待っています";
+"screen_invite_welcome_step_play_title" = "一緒に何か遊ぼう";
+"screen_invite_welcome_step_play_subtitle" = "チャットでそのまま遊べるゲームとツール";
+"a11y_invite_welcome_avatars" = "%1$@さんとあなた";
+"screen_approval_detail_already_closed_title" = "このリクエストはすでに終了しています";
+"screen_approval_detail_already_closed_message" = "期限切れになったか、すでに回答済みです。";
+"screen_room_interactive_post_description_not_sent" = "説明は送信されませんでした。スレッドでもう一度送信してください。";
+"screen_room_interactive_post_code_not_sent" = "投稿がエージェントに届きませんでした。投稿からもう一度お試しください。";
+"screen_invites_assistant_decline_warning_spiral" = "これがあなた自身のアシスタントの場合、辞退するとそのチャットは元に戻せません。";
+"a11y_roomlist_remove_filter" = "フィルターを解除: %1$@";
+"a11y_settings_share_profile" = "自分のプロフィールを共有";

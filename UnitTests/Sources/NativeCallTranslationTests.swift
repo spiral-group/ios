@@ -191,6 +191,27 @@ struct NativeCallTranslationTests {
         #expect(state.production == .myLanguage("uk"))
     }
 
+    /// DEBT B6: John's live phone publishes `en` beside a stale membership with none, or with yours. The newest can't be
+    /// told, so he isn't read as speaking your language: the button shows and there is something to translate — the
+    /// backend decides by the newest. One membership with no language stays as before: unpublished, no button.
+    @Test
+    func disagreeingMembershipsCountAsAnotherLanguage() {
+        for stale in [nil, "uk"] {
+            let languages = NativeCallSession.membershipLanguages([.init(userID: john, deviceID: "PHONE", identity: "\(john):PHONE", language: "en"),
+                                                                   .init(userID: john, deviceID: "IPAD", identity: "\(john):IPAD", language: stale)],
+                                                                  ownIdentity: "\(me):PHONE")
+            let state = translation(speakers: [john], languages: languages)
+            #expect(state.isButtonVisible)
+            #expect(!state.isNothingToTranslate(into: "uk"))
+            #expect(state.production == .myLanguage("uk"))
+        }
+
+        let unpublished = NativeCallSession.membershipLanguages([.init(userID: john, deviceID: "PHONE", identity: "\(john):PHONE")],
+                                                                ownIdentity: "\(me):PHONE")
+        #expect(unpublished.isEmpty)
+        #expect(!translation(speakers: [john], languages: unpublished).isButtonVisible)
+    }
+
     @Test
     func anotherLanguageLeavesSomethingToTranslate() {
         let state = translation(speakers: [bohdan, john], languages: [bohdan: "uk", john: "en"])

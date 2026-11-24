@@ -12,7 +12,8 @@ import SwiftUI
 
 /// A scroll view that zooms its image. The viewer checks ``isZoomedIn`` before a swipe down may close it.
 final class MediaViewerZoomingScrollView: UIScrollView, UIScrollViewDelegate {
-    /// Called as a pinch or double tap starts zooming in, to swap in every pixel of the photo.
+    /// Called as a pinch or double tap zooms in, to swap in every pixel of the photo and hide the bars. Zooming back
+    /// out isn't told: the bars stay as they are.
     var onZoomStarted: () -> Void = { }
 
     /// Whether a pinch or a double tap zooms: not on a video's poster.
@@ -34,6 +35,11 @@ final class MediaViewerZoomingScrollView: UIScrollView, UIScrollViewDelegate {
     /// The pixel width of the whole photo, for how far it may zoom.
     private var fullPixelWidth: CGFloat?
     private var animatedURL: URL?
+
+    /// The scale the last zoom frame left, which tells zooming in from out.
+    private var previousZoomScale: CGFloat = 1
+    /// This zoom already told it zooms in.
+    private var hasToldZoomIn = false
 
     private static let doubleTapScale: CGFloat = 2.5
 
@@ -144,11 +150,18 @@ final class MediaViewerZoomingScrollView: UIScrollView, UIScrollViewDelegate {
 
     func scrollViewDidZoom(_ scrollView: UIScrollView) {
         centerImage()
+        if !isZoomedIn {
+            hasToldZoomIn = false
+        } else if zoomScale > previousZoomScale, !hasToldZoomIn {
+            hasToldZoomIn = true
+            onZoomStarted()
+        }
+        previousZoomScale = zoomScale
     }
 
     func scrollViewWillBeginZooming(_ scrollView: UIScrollView, with view: UIView?) {
         MediaViewerFrameProbe.begin(.zoom)
-        onZoomStarted()
+        hasToldZoomIn = false // Each pinch that zooms in hides the bars again.
     }
 
     func scrollViewDidEndZooming(_ scrollView: UIScrollView, with view: UIView?, atScale scale: CGFloat) {
@@ -177,7 +190,6 @@ final class MediaViewerZoomingScrollView: UIScrollView, UIScrollViewDelegate {
         if isZoomedIn {
             setZoomScale(minimumZoomScale, animated: true)
         } else {
-            onZoomStarted()
             let point = recognizer.location(in: imageView)
             let size = CGSize(width: bounds.width / Self.doubleTapScale, height: bounds.height / Self.doubleTapScale)
             zoom(to: CGRect(x: point.x - size.width / 2, y: point.y - size.height / 2, width: size.width, height: size.height), animated: true)

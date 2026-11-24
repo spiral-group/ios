@@ -92,6 +92,7 @@ struct FeedTabFlowCoordinatorNavigationTests {
         try await loaded.fulfill()
 
         latest.context.send(viewAction: .card(postID: post.id, .openPost))
+        latest.context.send(viewAction: .card(postID: post.id, .openPost)) // A double tap.
         #expect(stack.stackCoordinators.count == 1)
 
         let postScreen = try #require((stack.stackCoordinators.last as? FeedPostScreenCoordinator)?.viewModel as? FeedPostScreenViewModel)
@@ -104,11 +105,35 @@ struct FeedTabFlowCoordinatorNavigationTests {
         try await authorLoaded.fulfill()
         author.context.send(viewAction: .card(postID: post.id, .openPost))
         #expect(splitCoordinator.sheetCoordinator == nil)
-        #expect(stack.stackCoordinators.count == 2)
+        #expect(stack.stackCoordinators.count == 1, "the post was already on top: it isn't stacked twice")
 
         // Back on Latest, an author tap opens the sheet again: the dismissal was routed.
         latest.context.send(viewAction: .card(postID: post.id, .openAuthor))
         #expect(splitCoordinator.sheetCoordinator is NavigationStackCoordinator)
+    }
+
+    /// A double tap on a person in who-liked pushes their screen once.
+    @Test
+    func aDoubleTapInWhoLikedIsOnePush() async throws {
+        let post = FeedPreviewData.engagedPost
+        let feed = FeedServiceMock.empty()
+        feed.latestCursorLimitReturnValue = .success(FeedPage(items: [post], nextCursor: nil, pinned: nil))
+        feed.likersPostIDCursorLimitReturnValue = .success(FeedLikersPage(items: [FeedLiker(author: post.author, likedAt: .now)], nextCursor: nil))
+        let splitCoordinator = NavigationSplitCoordinator(placeholderCoordinator: PlaceholderScreenCoordinator(hideBrandChrome: false))
+        let flowCoordinator = FeedTabFlowCoordinator(navigationSplitCoordinator: splitCoordinator, flowParameters: Self.flowParameters(feed: feed))
+        flowCoordinator.start(animated: false)
+        let stack = try #require(splitCoordinator.sidebarCoordinator as? NavigationStackCoordinator)
+        let latest = try #require((stack.rootCoordinator as? FeedScreenCoordinator)?.viewModel as? FeedScreenViewModel)
+        try await deferFulfillment(latest.context.observe(\.viewState.visibleItems.count)) { $0 == 1 }.fulfill()
+
+        latest.context.send(viewAction: .card(postID: post.id, .openLikers))
+        let sheet = try #require(splitCoordinator.sheetCoordinator as? NavigationStackCoordinator)
+        let likers = try #require((sheet.rootCoordinator as? FeedLikersScreenCoordinator)?.viewModel as? FeedLikersScreenViewModel)
+        try await deferFulfillment(likers.context.observe(\.viewState.likers.count)) { $0 == 1 }.fulfill()
+
+        likers.context.send(viewAction: .openAuthor(userID: post.author.userID))
+        likers.context.send(viewAction: .openAuthor(userID: post.author.userID))
+        #expect(sheet.stackCoordinators.count == 1)
     }
 
     /// A send that finishes after its composer closed, and after a link and

@@ -344,6 +344,10 @@ nonisolated enum VoiceJoinCheckReason: Equatable {
 nonisolated enum VoiceSessionEndReason: Equatable {
     case callEnded
     case manual
+    /// The owner left the call, and their assistant with them.
+    case ownerLeft
+    /// Translation isn't offered in this call (`translation_not_here`): the assistant left; nothing failed.
+    case translationNotHere
     /// Someone without AI consent joined or spoke.
     case optOut
     case aiConsentOwner
@@ -362,6 +366,8 @@ nonisolated enum VoiceSessionEndReason: Equatable {
         switch wire {
         case "call_ended": self = .callEnded
         case "manual": self = .manual
+        case "owner_left": self = .ownerLeft
+        case "translation_not_here": self = .translationNotHere
         case "opt_out": self = .optOut
         case "ai_consent_owner": self = .aiConsentOwner
         case "ai_consent_room": self = .aiConsentRoom

@@ -215,6 +215,27 @@ struct FeedScreenViewModelTests {
         #expect(viewModel.context.viewState.isEmpty == false)
     }
 
+    /// B18 (L2): the pinned post put back in Latest after the read (a release from the stream) still shows once.
+    @Test
+    func thePinnedPostPutBackInLatestShowsOnce() async throws {
+        let pinned = FeedPreviewData.officialPost
+        let posts = FeedPreviewData.posts(2)
+        let newer = FeedPreviewData.post(id: "01933f2a-0000-7000-8000-000000000999", author: FeedPreviewData.ann, minutesAgo: 0, text: "Newer")
+        service.latestCursorLimitReturnValue = .success(FeedPage(items: posts, nextCursor: nil, pinned: pinned))
+        let viewModel = try await loadedViewModel()
+
+        let changed = deferFulfillment(viewModel.context.observe(\.viewState.listState)) { state in
+            guard case .loaded(let items, _) = state else { return false }
+            return items.contains { $0.post == newer }
+        }
+        store.upsert([newer])
+        store.setList(.latest, FeedStoreList(ids: [newer.id, pinned.id] + posts.map(\.id), nextCursor: nil))
+        try await changed.fulfill()
+
+        #expect(viewModel.context.viewState.visiblePinned?.post == pinned)
+        #expect(viewModel.context.viewState.visibleItems.map(\.post) == [newer] + posts)
+    }
+
     /// The placeholder's pinned card stands in only for a pinned post that comes in (DEBT, Feed pinned card).
     @Test
     func theLoadingPlaceholderExpectsThePinnedPostTheLastReadHad() async throws {

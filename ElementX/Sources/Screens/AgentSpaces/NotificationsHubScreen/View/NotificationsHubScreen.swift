@@ -15,6 +15,8 @@ import SwiftUI
 
 struct NotificationsHubScreen: View {
     @Bindable var context: NotificationsHubScreenViewModel.Context
+    /// Pinned in snapshots (`EnvironmentValues.relativeTimeAnchor`); the clock otherwise.
+    @Environment(\.relativeTimeAnchor) private var timeAnchor
 
     var body: some View {
         // The times are relative («5 мин назад»), so they are read again while the hub is open.
@@ -29,12 +31,12 @@ struct NotificationsHubScreen: View {
                     emptySection
                 } else {
                     if !context.viewState.needsAction.isEmpty {
-                        needsActionSection(context.viewState.needsAction, now: timeline.date)
+                        needsActionSection(context.viewState.needsAction, now: timeAnchor ?? timeline.date)
                     }
                     if !context.viewState.visitorMessages.isEmpty {
-                        visitorMessagesSection(context.viewState.visitorMessages, now: timeline.date)
+                        visitorMessagesSection(context.viewState.visitorMessages, now: timeAnchor ?? timeline.date)
                     }
-                    activityContent(now: timeline.date)
+                    activityContent(now: timeAnchor ?? timeline.date)
                 }
             }
             .spiralGroupedList() // Brief 0083 (P4-D): iOS's grouped cards and plain grey glyphs (decision 337).
@@ -349,9 +351,9 @@ struct NotificationsHubScreen_Previews: PreviewProvider, TestablePreview, Spiral
     // relative time shown survives that lag or a 30 s render delay.
     static let sampleVisitorMessages: [VisitorMessage] = [
         VisitorMessage(id: "visitor-1", kind: .message, agentID: "agent-1", visitorMXID: "@bob:spiral.md", roomID: "!bob:spiral.md",
-                       body: "Hi Anna, are we still on for Friday? I can bring the slides.", createdAt: Date(timeIntervalSinceNow: -630)),
+                       body: "Hi Anna, are we still on for Friday? I can bring the slides.", createdAt: PreviewClock.now.addingTimeInterval(-630)),
         VisitorMessage(id: "visitor-2", kind: .missedCall, agentID: "agent-1", visitorMXID: "@carol:example.org", roomID: "!carol:spiral.md",
-                       body: "", createdAt: Date(timeIntervalSinceNow: -7230))
+                       body: "", createdAt: PreviewClock.now.addingTimeInterval(-7230))
     ]
 
     static let sampleNeedsAction: [NeedsActionItem] = [
@@ -359,13 +361,13 @@ struct NotificationsHubScreen_Previews: PreviewProvider, TestablePreview, Spiral
                                   agentID: "agent-1",
                                   draftBody: "Hi Bob — thanks for reaching out! Alice is away today; can I take a message?",
                                   targetRoomID: "!visitor:spiral.md",
-                                  createdAt: Date(timeIntervalSinceNow: -330))),
+                                  createdAt: PreviewClock.now.addingTimeInterval(-330))),
         .verification(VerificationSummary(id: "verification-1",
                                           requesterUserID: "@alice:spiral.md",
                                           requesterDeviceID: "IPHONE15",
                                           state: .pendingOwner,
-                                          createdAt: Date(timeIntervalSinceNow: -930),
-                                          deadlineAt: Date(timeIntervalSinceNow: 600)))
+                                          createdAt: PreviewClock.now.addingTimeInterval(-930),
+                                          deadlineAt: PreviewClock.now.addingTimeInterval(600)))
     ]
 
     static let sampleActivity: [AgentActivityEntry] = [
@@ -381,8 +383,8 @@ struct NotificationsHubScreen_Previews: PreviewProvider, TestablePreview, Spiral
                            longFlowID: nil,
                            outcome: .executed,
                            outcomeEventID: "$ev1",
-                           createdAt: Date(timeIntervalSinceNow: -3630),
-                           resolvedAt: Date(timeIntervalSinceNow: -3620)),
+                           createdAt: PreviewClock.now.addingTimeInterval(-3630),
+                           resolvedAt: PreviewClock.now.addingTimeInterval(-3620)),
         AgentActivityEntry(id: "row-2",
                            agentID: "agent-1",
                            roomID: "!example2:spiral.md",
@@ -395,8 +397,8 @@ struct NotificationsHubScreen_Previews: PreviewProvider, TestablePreview, Spiral
                            longFlowID: nil,
                            outcome: .denied,
                            outcomeEventID: nil,
-                           createdAt: Date(timeIntervalSinceNow: -86430),
-                           resolvedAt: Date(timeIntervalSinceNow: -86430))
+                           createdAt: PreviewClock.now.addingTimeInterval(-86430),
+                           resolvedAt: PreviewClock.now.addingTimeInterval(-86430))
     ]
 
     static func makeViewModel(needsAction: [NeedsActionItem],

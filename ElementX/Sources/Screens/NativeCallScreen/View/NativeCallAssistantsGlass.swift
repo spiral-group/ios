@@ -159,13 +159,16 @@ struct NativeCallSheetPage<Header: View, Content: View>: View {
     }
 }
 
-/// The header: a way back on a pushed page, the avatar, a title and one status line, and the glass ✕.
+/// The header: a way back on a pushed page, the avatar, a title and one status line, and the glass ✕ — sharing one glass
+/// capsule with the page's «…» when it has one, as iOS groups toolbar buttons (operator's pick in the call lab, 1.0.3).
 struct NativeCallSheetHeader<Leading: View, Accessory: View>: View {
     let title: String
     let status: String?
     var isStatusCritical = false
     /// The status is still unknown: a placeholder of its size, never a guess that flips (loading rule).
     var isLoading = false
+    /// Whether `accessory` draws anything, when its type can't tell (an `if` inside the builder).
+    var hasAccessory: Bool?
     var onBack: (() -> Void)?
     let onClose: () -> Void
     @ViewBuilder let leading: Leading
@@ -198,8 +201,22 @@ struct NativeCallSheetHeader<Leading: View, Accessory: View>: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .animation(NativeCallAssistantsMotion.change, value: status)
-            accessory
-            NativeCallSheetRoundButton(systemImage: "xmark", label: L10n.actionClose, action: onClose)
+            if hasAccessory ?? (Accessory.self != EmptyView.self) {
+                HStack(spacing: 0) {
+                    accessory
+                    NativeCallSheetRoundButton(systemImage: "xmark", label: L10n.actionClose, action: onClose)
+                }
+                .environment(\.nativeCallGlyphInCapsule, true)
+                // The glass is 36 pt high inside the glyphs' 44-pt tap frames.
+                .background {
+                    Color.clear
+                        .nativeCallSurface(in: Capsule(), isInteractive: true)
+                        .padding(.vertical, 4)
+                }
+            } else {
+                accessory
+                NativeCallSheetRoundButton(systemImage: "xmark", label: L10n.actionClose, action: onClose)
+            }
         }
         .dynamicTypeSize(...DynamicTypeSize.accessibility2)
     }
@@ -235,16 +252,31 @@ struct NativeCallSheetRoundButton: View {
 
 struct NativeCallSheetRoundGlyph: View {
     let systemImage: String
+    @Environment(\.nativeCallGlyphInCapsule) private var isInCapsule
 
     var body: some View {
-        Image(systemName: systemImage)
-            .font(.compound.bodyMDSemibold)
-            .foregroundStyle(.compound.iconPrimary)
-            .frame(width: 32, height: 32)
-            .nativeCallSurface(in: Circle(), isInteractive: true)
-            .frame(width: 44, height: 44)
-            .contentShape(.rect)
+        if isInCapsule {
+            // The capsule around it is the glass; the glyph takes its share of it, still 44 pt wide to tap.
+            Image(systemName: systemImage)
+                .font(.compound.bodyMDSemibold)
+                .foregroundStyle(.compound.iconPrimary)
+                .frame(width: 44, height: 44)
+                .contentShape(.rect)
+        } else {
+            Image(systemName: systemImage)
+                .font(.compound.bodyMDSemibold)
+                .foregroundStyle(.compound.iconPrimary)
+                .frame(width: 32, height: 32)
+                .nativeCallSurface(in: Circle(), isInteractive: true)
+                .frame(width: 44, height: 44)
+                .contentShape(.rect)
+        }
     }
+}
+
+extension EnvironmentValues {
+    /// A round glyph inside the header's shared capsule draws no glass of its own.
+    @Entry var nativeCallGlyphInCapsule = false
 }
 
 /// An assistant's mark: its avatar, in its own agent colour (the only place the colour shows, DESIGN.md).
@@ -442,6 +474,8 @@ struct NativeCallSheetPrimaryButton: View {
 /// A second action: a glass capsule, its title centred.
 struct NativeCallSheetSecondaryButton: View {
     let title: String
+    /// Red text on the glass: an action that stops something, not a second way forward.
+    var isDestructive = false
     var isWaiting = false
     let action: () -> Void
 
@@ -450,7 +484,7 @@ struct NativeCallSheetSecondaryButton: View {
             ZStack {
                 Text(title)
                     .font(.compound.bodyLGSemibold)
-                    .foregroundStyle(.compound.textPrimary)
+                    .foregroundStyle(isDestructive ? Color.compound.textCriticalPrimary : Color.compound.textPrimary)
                     .opacity(isWaiting ? 0 : 1)
                 if isWaiting {
                     ProgressView()

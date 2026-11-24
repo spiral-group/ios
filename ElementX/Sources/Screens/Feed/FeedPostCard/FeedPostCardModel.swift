@@ -131,7 +131,7 @@ struct FeedPostCardModel: Identifiable, Equatable {
         if isOfficial {
             parts.append(UntranslatedL10n.screenFeedOfficialLabel)
         }
-        parts.append(createdAt.formatted(.relative(presentation: .named, unitsStyle: .wide)))
+        parts.append(FeedShortTime.spokenTime(createdAt, now: now))
 
         if isSensitive, !isRevealed {
             parts.append(UntranslatedL10n.screenFeedSensitiveTitle)

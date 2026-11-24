@@ -92,6 +92,8 @@ class TimelineViewModel: TimelineViewModelType, TimelineViewModelProtocol {
     
     /// Takes this room's apps down when the timeline goes. See its own doc.
     private var spiralAppTeardown: SpiralAppTeardown?
+    /// AGENT-PLATFORM (1.0.3 A3): what the assistant's welcome offers; nil outside the live timeline.
+    var spiralWelcomeWatch: SpiralWelcomeWatch?
     
     // AGENT-PLATFORM (Brief 0083, question 359): what "New" and the scroll button's dot go by.
     private var seenRows: TimelineSeenRows
@@ -248,6 +250,7 @@ class TimelineViewModel: TimelineViewModelType, TimelineViewModelProtocol {
         installSpiralMembersResolver()
         installSpiralDisplayNameResolver() // AGENT-PLATFORM (decision 38)
         installSpiralAIConsentResolver() // AGENT-PLATFORM (decision 150)
+        installSpiralWelcomeWatch() // AGENT-PLATFORM (1.0.3 A3)
         
         state.timelineState.paginationState = timelineController.paginationState
         // AGENT-PLATFORM (Brief 0083, question 363): where the chat opens hangs on `m.fully_read`, and a link's target comes first.
@@ -367,6 +370,8 @@ class TimelineViewModel: TimelineViewModelType, TimelineViewModelProtocol {
             actionsSubject.send(.presentCallScreen(isVoiceCall: isVoiceCall))
         case .openAIConsentSettings: // AGENT-PLATFORM (decision 150)
             actionsSubject.send(.displayAIConsentSettings)
+        case .sendWelcomeStarter(let starter): // AGENT-PLATFORM (1.0.3 A3)
+            Task { await sendWelcomeStarter(starter) }
         }
     }
     
@@ -892,14 +897,23 @@ class TimelineViewModel: TimelineViewModelType, TimelineViewModelProtocol {
             }
             
             let isOpening = state.timelineState.opening == .loadingRows
+            setHasBackPaginationFailed(false) // AGENT-PLATFORM (1.0.3 B14)
             let result = await timelineController.paginateBackwards(requestSize: isOpening ? Constants.openingPaginationEventLimit : Constants.paginationEventLimit)
             // AGENT-PLATFORM (Brief 0083, question 363): the app went looking on its own, so nothing you asked for failed.
-            if case .failure = result, !isOpening {
+            // AGENT-PLATFORM (1.0.3 B14): the media browser says so in place, with Retry.
+            if case .failure = result, !isOpening, state.timelineKind != .media(.mediaFilesScreen) {
                 displayErrorToast(L10n.errorFailedLoadingMessages)
             }
+            if case .failure = result { setHasBackPaginationFailed(true) } // AGENT-PLATFORM (1.0.3 B14)
             paginateBackwardsTask = nil
             continueLoadingRows(after: result)
         }
+    }
+    
+    // AGENT-PLATFORM (1.0.3 B14): only a change is published.
+    private func setHasBackPaginationFailed(_ hasFailed: Bool) {
+        guard state.timelineState.hasBackPaginationFailed != hasFailed else { return }
+        state.timelineState.hasBackPaginationFailed = hasFailed
     }
     
     private func paginateForwards() {
@@ -927,7 +941,7 @@ class TimelineViewModel: TimelineViewModelType, TimelineViewModelProtocol {
         }
     }
     
-    private func scrollToBottom() {
+    func scrollToBottom() { // AGENT-PLATFORM (1.0.3 A3): the welcome's starters scroll down too.
         if state.timelineState.isLive {
             state.timelineState.scrollToBottomPublisher.send(())
         } else {
@@ -1222,6 +1236,7 @@ class TimelineViewModel: TimelineViewModelType, TimelineViewModelProtocol {
         var timelineItemsDictionary = OrderedDictionary<TimelineItemIdentifier.UniqueID, RoomTimelineItemViewState>()
         
         updateSpiralLivePost(timelineItems) // AGENT-PLATFORM (§ 5.55)
+        updateSpiralWelcome(timelineItems) // AGENT-PLATFORM (1.0.3 A3)
         updateReadProgress() // AGENT-PLATFORM (Brief 0083, question 359): before the rows, which take their ticks from it.
         
         // AGENT-PLATFORM (Brief 0083, question 359): read once, as `state` is a copy of the whole view state.

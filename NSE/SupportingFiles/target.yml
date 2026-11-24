@@ -136,6 +136,8 @@ targets:
     # AGENT-PLATFORM (Brief 0073): `RoomMessageEventStringBuilder` previews a
     # client-rendered notice in the reader's language.
     - path: ../../ElementX/Sources/Services/AgentPlatform/SpiralNotice.swift
+    # AGENT-PLATFORM: a notice previews as one only from an agent.
+    - path: ../../ElementX/Sources/Services/AgentPlatform/SpiralAgentID.swift
     # AGENT-PLATFORM (question 395): the `ai_category_paused` notice names its category and until when.
     - path: ../../ElementX/Sources/Services/AgentPlatform/AILimitWording.swift
     # AGENT-PLATFORM (decision 371): a call's summary is pushed as the message it is.

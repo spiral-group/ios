@@ -268,10 +268,10 @@ struct SpiralAppActivationTests {
     /// disambiguated name, else the id — never a blank header.
     @Test
     func aSenderIsNamedAsTheRoomNamesThem() {
-        let named = SpiralAppViewerAuthor(TimelineItemSender(id: "@a:spiral.md", displayName: "Andrii", avatarURL: URL(string: "mxc://spiral.md/a")))
+        let named = SpiralAppViewerAuthor(TimelineItemSender(id: "@a:spiral.md", displayName: "Alice", avatarURL: URL(string: "mxc://spiral.md/a")))
         let unnamed = SpiralAppViewerAuthor(TimelineItemSender(id: "@b:spiral.md"))
 
-        #expect(named == SpiralAppViewerAuthor(id: "@a:spiral.md", displayName: "Andrii", avatarURL: URL(string: "mxc://spiral.md/a")))
+        #expect(named == SpiralAppViewerAuthor(id: "@a:spiral.md", displayName: "Alice", avatarURL: URL(string: "mxc://spiral.md/a")))
         #expect(unnamed.displayName == "@b:spiral.md")
     }
 
@@ -292,7 +292,7 @@ struct SpiralAppActivationTests {
     func aTemplateTriedFullScreenKeepsTheRehearsalBanner() {
         let tried = SpiralAppViewerChrome(title: "Drawing", author: nil, isRehearsal: true)
         let sent = SpiralAppViewerChrome(title: "Drawing",
-                                         author: SpiralAppViewerAuthor(id: "@a:spiral.md", displayName: "Andrii", avatarURL: nil),
+                                         author: SpiralAppViewerAuthor(id: "@a:spiral.md", displayName: "Alice", avatarURL: nil),
                                          isRehearsal: true)
 
         #expect(tried.title == "Drawing")

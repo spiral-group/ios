@@ -65,6 +65,9 @@
 "screen_agent_edit_persona_greeting" = "Pozdrav pro vás";
 "screen_agent_edit_persona_visitor_greeting" = "Pozdrav pro hosty";
 "screen_agent_edit_failure" = "Změny se nepodařilo uložit";
+"error_agent_name_reserved" = "Toto jméno je vyhrazeno pro vlastní účty Spiralu. Zvolte jiné jméno.";
+"error_agent_name_invalid_characters" = "Jméno obsahuje znaky, které nelze použít.";
+"error_agent_name_unchecked" = "Jméno se nepodařilo ověřit. Zkuste to znovu.";
 "screen_agent_edit_load_failure" = "Formulář úprav se nepodařilo načíst";
 "screen_agent_edit_avatar_failure" = "Fotku se nepodařilo nahrát";
 "action_agent_activity" = "Aktivita";
@@ -250,7 +253,6 @@
 "screen_language_picker_title" = "Jazyk";
 "screen_language_picker_empty" = "Vašemu hledání neodpovídají žádné jazyky.";
 "screen_start_sign_in" = "Přihlásit se";
-"screen_start_welcome_subtitle" = "Rychlé a soukromé zprávy s vaším osobním agentem.";
 
 // AGENT-PLATFORM (Brief 0072, ADR-0083, ADR-0084): presence, worded as Telegram does
 "common_presence_online" = "online";
@@ -491,6 +493,16 @@
 "screen_native_call_assistants_record_confirm_title" = "Nahrát hovor?";
 "screen_native_call_assistants_record_confirm_message" = "Všichni uvidí REC nahoře v hovoru. Nahrávka se po hovoru objeví v chatu.";
 "screen_native_call_assistants_record_confirm_action" = "Nahrávat";
+"screen_native_call_assistants_notes_confirm_title" = "Dělat si poznámky z hovoru?";
+"screen_native_call_assistants_notes_confirm_message" = "Asistent bude hovor poslouchat a po něm zveřejní shrnutí v chatu. Ostatní uvidí, že si dělá poznámky.";
+"screen_native_call_assistants_notes_confirm_action" = "Dělat poznámky";
+"screen_native_call_assistants_talk_confirm_title" = "Mluvit s asistentem?";
+"screen_native_call_assistants_talk_confirm_message" = "Asistent bude slyšet jen vás a odpovídat nahlas — slyší ho všichni v hovoru.";
+"screen_native_call_assistants_talk_confirm_action" = "Začít rozhovor";
+"screen_native_call_assistants_translate_question_title" = "Překládat do";
+"screen_native_call_assistants_listen_question_title" = "Poslouchat";
+"screen_native_call_assistants_talk_info_title" = "Asistent odpovídá nahlas";
+"screen_native_call_assistants_talk_info_message" = "Slyší jen vás a slyší ho všichni v hovoru. Během rozhovoru nepřekládá.";
 "screen_native_call_assistants_none_of_your_own" = "Nemáte asistenta";
 "screen_native_call_assistants_which" = "Který asistent";
 "screen_native_call_assistants_reason_paused" = "Váš asistent je pozastaven";
@@ -571,7 +583,6 @@
 "screen_native_call_assistants_job_conversation" = "Rozhovor";
 "screen_native_call_assistants_translating" = "Překládá → %1$@";
 "screen_native_call_assistants_stop_translation" = "Zastavit překlad";
-"screen_native_call_assistants_talk_caption" = "Odpovídá vám nahlas a slyší ho všichni. Během rozhovoru nepřekládá.";
 "screen_native_call_assistants_pick_footer" = "Zapamatováno pro tento chat";
 "screen_native_call_assistants_neighbour_language" = "Jazyk osoby vedle vás";
 "screen_native_call_assistants_pocket_detail" = "Po každé frázi · oběma směry";
@@ -591,10 +602,9 @@
 "screen_native_call_assistants_status_both_ways" = "Překládá oběma směry";
 "screen_native_call_assistants_translate_into" = "Překládat do";
 "screen_native_call_assistants_translate_into_detail" = "V něm hovor slyšíte";
+"screen_native_call_assistants_translate_into_language" = "Překládat do: %1$@";
 "screen_native_call_assistants_in_call" = "V hovoru";
 "screen_native_call_assistants_in_call_more" = "V hovoru: další %1$d";
-"screen_native_call_assistants_new_translation" = "Nový překlad";
-"screen_native_call_assistants_new_translation_detail" = "Váš asistent přeloží hovor";
 "screen_native_call_assistants_new_translation_others" = "Váš asistent překládá: %1$@. Ostatní už se překládají, zdarma.";
 "screen_native_call_assistants_start_translation" = "Spustit překlad";
 "screen_native_call_assistants_start_translation_detail" = "Čerpá váš limit. Kdo zvolí tento jazyk, poslouchá zdarma.";
@@ -1044,7 +1054,6 @@
 "notice_phrase_changed_title" = "Přihlašovací fráze změněna";
 "a11y_message_read" = "Přečteno";
 "screen_legal_information_source_code_spiral" = "Zdrojový kód";
-"screen_invite_people_seats_label" = "Zbývající pozvánky";
 "screen_native_call_tile_not_joined" = "Nepřipojili jste se";
 "screen_agent_settings_show_in_search_footer" = "Zda ho lidé najdou ve vyhledávání. Kdo zná jeho adresu, může mu psát i tak.";
 "screen_agent_edit_tone_calm" = "Klidný";
@@ -1056,7 +1065,6 @@
 "screen_room_interactive_draft_published" = "Zveřejněno";
 "screen_agent_activity_reason_visitor_policy_reply" = "Povolili jste okamžité odpovědi";
 "screen_agent_in_room_no_tools" = "V tomto chatu zatím nejsou žádné nástroje.";
-"notice_welcome_assistant_body" = "Jsem %1$@, váš osobní asistent. Můžu předávat zprávy, když tu nejste, pamatovat si vaše kontakty a shrnovat místnosti. Nástroje v místnosti zapnete tak, že tam klepnete na + a zvolíte Agenti. Pište mi úplně přirozeně — jsem tu pro vás.";
 "screen_room_interactive_post_pick_agent_title" = "Kdo ho má vytvořit?";
 "screen_agent_settings_visitor_ask_first_description" = "Nový člověk počká, dokud nesouhlasíte";
 "screen_ai_consent_prompt_failed" = "Vaši volbu se nepodařilo uložit. Zkontrolujte připojení a zkuste to znovu.";
@@ -1086,10 +1094,8 @@
 "screen_agent_activity_reason_block_needs_owner" = "Blokování vyžaduje váš souhlas";
 "screen_create_company_title" = "Nová firma";
 "a11y_native_call_disable_speaker" = "Vypnout reproduktor";
-"screen_invite_paste_placeholder" = "spiral.md/join/…";
 "a11y_native_call_end" = "Ukončit hovor";
 "screen_agent_activity_action_published_post" = "Zveřejnil příspěvek";
-"screen_invite_people_joined_footer" = "Lidé, kteří si vytvořili účet přes váš odkaz. Klepnutím zahájíte chat.";
 "screen_arm_tool_turn_off_confirm_message" = "Agent to v tomto chatu přestane dělat pro všechny. Kdykoli to můžete znovu zapnout.";
 "spiral_app_card_line_by" = "Od: %1$@";
 "state_event_spiral_tool_language_changed_by_you" = "Změnili jste Překládat: %1$@ → %2$@";
@@ -1114,7 +1120,6 @@
 "screen_native_call_agent_block_recording" = "Nahrává";
 "screen_native_call_control_video" = "Video";
 "screen_agent_detail_pause" = "Pozastavit";
-"screen_invite_paste_expired" = "Tato pozvánka už neplatí. Požádejte o novou.";
 "screen_security_messages_section" = "Zprávy";
 "screen_agent_activity_reason_relationship_unavailable" = "Kontakt se nepodařilo ověřit";
 "screen_ai_consent_prompt_allow" = "Povolit";
@@ -1144,15 +1149,12 @@
 "state_event_spiral_tool_off_by_system" = "Nástroj %1$@ byl vypnut pro %2$@";
 "a11y_native_call_swap_to_held_call" = "Přepnout na hovor s: %@";
 "screen_native_call_audio_route_iphone" = "iPhone";
-"screen_invite_people_seats_value" = "%1$d z %2$d";
 "screen_agent_activity_reason_first_contact_with_unknown_visitor" = "První zpráva od nového člověka";
 "screen_deactivate_account_spiral_list_item_3" = "Odstraní údaje o vašem účtu z našeho serveru identit.";
 "a11y_native_call_bar" = "Probíhající hovor s: %1$@. Klepnutím se vrátíte.";
-"screen_invite_paste_unavailable" = "Pozvánku se nepodařilo ověřit. Zkuste to znovu.";
 "screen_agent_activity_action_read_call_summary" = "Přečetl shrnutí hovoru";
 "screen_ai_consent_prompt_title" = "Povolit AI třetích stran?";
 "screen_agent_edit_voice_language_footer" = "Asistent vždy odpovídá v jazyce, kterým mluvíte. Tímto nastavíte, jak slyší hovory, a jazyk shrnutí hovorů.";
-"screen_invite_welcome_title" = "Vítejte ve Spiral";
 "screen_agent_activity_reason_blocked_visitor" = "Zablokovaný člověk";
 "screen_deactivate_account_spiral_list_item_1_bold_part" = "Trvale zakázat";
 "screen_native_call_agent_center_recording_live" = "Nahrávání…";
@@ -1220,7 +1222,6 @@
 "screen_deactivate_account_spiral_failed" = "Účet se nepodařilo smazat. Zkuste to za minutu znovu.";
 "screen_agent_activity_action_changed_call_mode" = "Změnil, jak se účastní hovoru";
 "a11y_native_call_unmute_microphone" = "Zapnout mikrofon";
-"screen_invite_paste_label" = "Odkaz nebo kód";
 "screen_media_viewer_position" = "%1$d z %2$d";
 "screen_native_call_status_reconnecting_detail" = "Vaše připojení vypadlo";
 "screen_approval_detail_block_blocked_subtitle" = "Váš agent bude jeho zprávy od teď ignorovat.";
@@ -1256,6 +1257,13 @@
 "screen_agent_activity_reason_no_contact_relationship" = "Není mezi vašimi kontakty";
 "screen_room_alias_link_not_found" = "Tento odkaz nevede do žádného chatu.";
 "screen_invite_people_title" = "Pozvat do Spiral";
+"screen_invite_people_you" = "Vy";
+"screen_invite_people_invited_count" = "Pozváno %1$d z %2$d";
+"screen_invite_people_invited_you" = "Vaše pozvánka do Spiral";
+"screen_invite_people_seat_invite" = "Pozvat";
+"screen_invite_people_seat_taken" = "Obsazeno";
+"screen_invite_people_chain_footer" = "Jeden odkaz pro %1$d lidí, který se neobnovuje. Klepnutím na člověka otevřete jeho profil.";
+"screen_invite_people_all_used" = "Všechny pozvánky jsou využité";
 "screen_approval_detail_escalation_cold_outreach" = "Váš agent chce někomu napsat poprvé.";
 "screen_start_invited_by" = "%1$@ vás zve do Spiral";
 "screen_agent_spaces_section_retry" = "Klepnutím to zkusíte znovu.";
@@ -1263,7 +1271,6 @@
 "screen_settings_new_phrase_done" = "Přihlašovací fráze změněna";
 "screen_agent_activity_reason_outside_conversation" = "Mimo tuto konverzaci";
 "a11y_native_call_switch_camera" = "Přepnout kameru";
-"screen_invite_people_joined" = "Připojili se na vaši pozvánku: %1$d";
 "screen_agent_activity_action_searched_agents" = "Hledal agenty";
 "screen_agent_activity_reason_strategy_no_op" = "Nic k provedení";
 "action_dismiss_visitor_message" = "Odstranit";
@@ -1272,7 +1279,6 @@
 "screen_approval_detail_block_action_dont_block" = "Neblokovat";
 "screen_agent_settings_people_title" = "Komunikace s lidmi";
 "screen_native_call_agent_center_error_not_owner" = "Tuto relaci může měnit jen její vlastník.";
-"notice_welcome_agent_body" = "%1$@ je připraven. Prostě mi napište.";
 "screen_agent_detail_already_in_chat" = "Agent už v tomto chatu je";
 "screen_native_call_agent_center_booth_members" = "%1$@ do: %2$@";
 "screen_settings_devices_title" = "Zařízení a relace";
@@ -1290,7 +1296,6 @@
 "screen_agent_activity_action_remembered" = "Zapamatoval si něco o kontaktu";
 "screen_room_interactive_post_link_needs_update" = "Tento příspěvek vyžaduje novější verzi Spiral. Aktualizujte aplikaci, abyste ho mohli použít.";
 "screen_room_member_details_erase_assistant_memory" = "Vymazat, co o něm vědí moji asistenti";
-"screen_invite_paste_without" = "Pokračovat bez pozvánky";
 "screen_agent_edit_tone_friendly" = "Přátelský";
 "screen_room_interactive_post_update" = "Aktualizovat příspěvek";
 "screen_agent_detail_archive_refused" = "Váš osobní asistent zůstává s vaším účtem a nelze ho archivovat.";
@@ -1307,9 +1312,7 @@
 "screen_native_call_agent_center_talking" = "Asistent mluví";
 "screen_native_call_tile_call_back" = "Klepnutím zavoláte zpět";
 "notice_reply_failed_body" = "Na mé straně se něco pokazilo. Pošlete to prosím znovu.";
-"screen_invite_people_joined_title" = "Připojili se na vaši pozvánku";
 "screen_native_call_status_connecting_detail" = "Nastavování šifrování";
-"screen_invite_paste_title" = "Máte pozvánku?";
 "screen_edit_profile_bio_too_long" = "Popis může mít nejvýš %1$d znaků. Pro uložení ho zkraťte.";
 "a11y_native_call_agent_block_role" = "%1$@, %2$@";
 "a11y_native_call_recording" = "Tento hovor se nahrává";
@@ -1322,12 +1325,25 @@
 "screen_agent_spaces_assistant_pending" = "Váš asistent se ještě nastavuje";
 "screen_room_member_details_erase_assistant_memory_alert_title" = "Vymazat, co vaši asistenti vědí o %1$@?";
 "screen_settings_new_phrase_failed" = "Změnu fráze se nepodařilo zahájit. Zkuste to znovu.";
+/* AGENT-PLATFORM (1.0.3): sign-in methods — the first phrase for an account made with Apple, Sign in with Apple for a phrase account. */
+"screen_settings_add_phrase_title" = "Přidat přihlašovací frázi";
+"screen_settings_add_phrase_message" = "Zvolíte 12 slov. Otevřou váš účet na jakémkoli zařízení, vedle přihlášení přes Apple. Na tomto zařízení zůstanete přihlášeni a vaše zprávy to neovlivní.";
+"screen_settings_add_phrase_auth_reason" = "Potvrďte, že jste to vy, abyste mohli přidat přihlašovací frázi";
+"screen_settings_add_phrase_done" = "Přihlašovací fráze přidána";
+"screen_settings_add_phrase_failed" = "Přidání fráze se nepodařilo zahájit. Zkuste to znovu.";
+"screen_settings_sign_in_passcode_required" = "Nejdřív nastavte kód zařízení — chrání vaše způsoby přihlášení";
+"screen_settings_apple_title" = "Přihlášení přes Apple";
+"screen_settings_apple_connected" = "Připojeno";
+"screen_settings_apple_add_title" = "Přidat přihlášení přes Apple";
+"screen_settings_apple_auth_reason" = "Potvrďte, že jste to vy, abyste mohli přidat přihlášení přes Apple";
+"screen_settings_apple_linked" = "Přihlášení přes Apple přidáno";
+"screen_settings_apple_taken" = "Toto Apple ID už používá jiný účet Spiral";
+"screen_settings_apple_failed" = "Přidání přihlášení přes Apple se nepodařilo zahájit. Zkuste to znovu.";
 "screen_deactivate_account_spiral_description" = "Smazání účtu je %1$@. Co se stane:";
 "screen_agent_activity_action_set_reminder" = "Nastavil připomínku";
 "screen_agent_activity_action_cancelled_reminder" = "Zrušil připomínku";
 "screen_agent_activity_reason_capability_always_allowed" = "Vždy povoleno";
 "screen_agent_activity_action_blocked_someone" = "Někoho zablokoval";
-"screen_invite_paste_message" = "Vložte odkaz, který vám poslal uživatel Spiral, nebo zadejte kód.";
 "screen_native_call_error_title" = "Hovor selhal";
 "notification_approval_action_not_found_title" = "Tato žádost už neexistuje";
 "state_event_spiral_tool_changed_by_you" = "Změnili jste %1$@";
@@ -1354,7 +1370,6 @@
 "screen_native_call_control_sound" = "Zvuk";
 "screen_native_call_status_reconnecting" = "Obnovování připojení…";
 "notice_phrase_changed_body" = "Stará fráze už k přihlášení nefunguje.";
-"screen_invite_people_seats_footer" = "Každý má jeden odkaz s %1$d místy. Neobnovuje se, takže ho sdílejte s lidmi, které tu opravdu chcete mít.";
 "screen_room_member_details_agent_unblock_action" = "Odblokovat";
 "screen_agent_activity_reason_unknown_capability" = "To neumí";
 "screen_settings_new_phrase_passcode_required" = "Nejdřív nastavte kód zařízení — chrání změnu fráze";
@@ -1426,10 +1441,11 @@
 "screen_your_data_calls_footer" = "Exportujte jeden hovor: jeho přepis, shrnutí a záznam souhlasů.";
 "screen_arm_tool_error_agent_does_not_join_calls" = "Tento agent se nepřipojuje k hovorům, takže nástroje pro hovory pro něj nejsou k dispozici.";
 "screen_room_interactive_generating_hint" = "Obvykle do minuty";
-"screen_invite_paste_exhausted" = "Všichni, pro které pozvánka platila, se už připojili. Požádejte o novou.";
 "notice_phrase_changed_on_device" = "Změněno na zařízení „%1$@“.";
+/* AGENT-PLATFORM (1.0.3): the owner-DM card when Sign in with Apple is added. It names no device (security review); a new phrase disconnects Apple. */
+"notice_apple_linked_title" = "Přihlášení přes Apple přidáno";
+"notice_apple_linked_body" = "Pokud jste to nebyli vy, změňte přihlašovací frázi: tím se Apple odpojí.";
 "screen_ai_consent_prompt_openai" = "OpenAI: zprávy, které asistenti čtou, váš hlas v hovorech s nimi a nahrávky, které přepisují.";
-"screen_invite_welcome_message" = "%1$@ vás pozval(a) a už ví, že jste tady. Pozdravte!";
 "screen_agent_activity_action_used_tool" = "Použil nástroj na zprávu";
 "screen_approval_detail_escalation_first_contact" = "Vašemu agentovi někdo napsal poprvé, proto se vás před odpovědí ptá.";
 "screen_agent_activity_action_drafted_post" = "Připravil koncept příspěvku";
@@ -1444,7 +1460,6 @@
 "screen_room_interactive_post_updated" = "Příspěvek aktualizován";
 "screen_native_call_camera_failed_message" = "Kameru se nepodařilo spustit, takže hovor pokračuje se zvukem. Zkuste za chvíli znovu tlačítko kamery.";
 "screen_media_viewer_open" = "Otevřít";
-"screen_invite_paste_invalid" = "Taková pozvánka neexistuje.";
 "screen_agent_room_tool_audience_except_named" = "pro všechny kromě: %1$@";
 "notification_spiral_needs_update_body" = "Pro zobrazení aktualizujte aplikaci.";
 "screen_agent_edit_tone_brief" = "Stručně a k věci";
@@ -1452,7 +1467,6 @@
 "screen_invite_people_seats_left" = "Zbývá %1$d z %2$d pozvánek";
 "screen_agent_activity_reason_wrong_room_kind" = "V tomto typu chatu není povoleno";
 "screen_native_call_failure_audio_reset" = "Systém resetoval zvuk hovoru.";
-"screen_invite_people_body" = "Registrace je jen na pozvánku. Sdílejte svůj osobní odkaz — kdo si přes něj vytvoří účet, uvidí jako první vás.";
 "notification_approval_action_target_blocked_title" = "Neodesláno — tohoto člověka jste zablokovali";
 "screen_notifications_hub_visitor_other" = "Něco nového";
 "screen_agent_activity_empty_pending_title" = "Žádné žádosti k rozhodnutí";
@@ -1476,3 +1490,61 @@
 "screen_notifications_hub_visitors_section" = "Od lidí";
 "screen_agent_settings_visitor_reply_description" = "Odpovídá všem kromě lidí, které jste zablokovali";
 "screen_deactivate_account_spiral_auth_reason" = "Potvrďte, že jste to vy, abyste mohli smazat účet";
+
+// AGENT-PLATFORM (1.0.3 A2): the assistant's first invite in Chats, its chat before consent and its welcome.
+"screen_roomlist_assistant_invite_name" = "Váš asistent";
+"screen_roomlist_assistant_invite_subtitle" = "Ahoj! Klepnutím začněte 👋";
+"screen_roomlist_assistant_invite_start" = "Začít";
+"a11y_assistant_invite_start" = "Začít konverzaci s asistentem";
+"a11y_assistant_invite_start_hint" = "Přijme pozvánku asistenta a otevře váš chat s ním.";
+"screen_assistant_invite_title" = "Ahoj! Jsem váš asistent";
+"screen_assistant_invite_reminders" = "Připomenu vám důležité věci";
+"screen_assistant_invite_contacts" = "Zapamatuji si vaše kontakty";
+"screen_assistant_invite_summaries" = "Shrnu jakýkoli chat";
+"screen_assistant_invite_privacy" = "Vidím jen tuto konverzaci. Vypnout mě můžete kdykoli.";
+"screen_assistant_invite_start" = "Začít konverzaci";
+"notice_welcome_body" = "Jsem tu a rád pomůžu. Čím začneme?";
+"notice_welcome_starter_summary" = "Shrň chat";
+"notice_welcome_starter_summary_message" = "Shrň mi jeden chat";
+"notice_welcome_starter_contact" = "Zapamatuj si kontakt";
+"notice_welcome_starter_contact_message" = "Zapamatuj si něco o mém kontaktu";
+"notice_welcome_starter_reminder" = "Připomeň mi…";
+"notice_welcome_starter_reminder_message" = "Nastav mi připomenutí";
+"notice_welcome_allow_ai_reason" = "Povolte AI, abych mohl číst, co sem píšete.";
+"notice_welcome_allow_ai_action" = "Povolit AI";
+
+// AGENT-PLATFORM (1.0.3 onboarding): the start screen's stories, the notifications prompt and the invited welcome.
+"screen_start_slide_privacy_title" = "Vaše konverzace patří vám";
+"screen_start_slide_privacy_subtitle" = "Koncové šifrování. Bez telefonního čísla a asistent jen s vaším svolením";
+"screen_start_slide_calls_title" = "Hovory s překladem";
+"screen_start_slide_calls_subtitle" = "Asistent se připojí a překládá živě";
+"screen_start_slide_assistant_title" = "Asistent po ruce";
+"screen_start_slide_assistant_subtitle" = "Odpovídá, když nemáte čas, a před každým dalším krokem se vás zeptá";
+"screen_start_slide_games_title" = "Hrajte spolu přímo v chatu";
+"screen_start_slide_games_subtitle" = "Hry a nástroje, nic není třeba instalovat";
+"screen_start_invited_by_hint" = "Vytvořte si účet a %1$@ se dozví, že jste tady";
+"a11y_start_slides_position" = "Snímek %1$d z %2$d";
+"screen_notification_optin_spiral_title" = "Zůstaňte ve spojení";
+"screen_notification_optin_spiral_subtitle" = "Spiral vám dá vědět, když jde o něco opravdu důležitého. Změnit to můžete kdykoli v Nastavení.";
+"screen_notification_optin_messages_title" = "Nové zprávy";
+"screen_notification_optin_messages_subtitle" = "Od lidí a skupin, se kterými si píšete";
+"screen_notification_optin_calls_title" = "Příchozí hovory";
+"screen_notification_optin_calls_subtitle" = "I když je Spiral zavřený";
+"screen_notification_optin_assistant_title" = "Dotazy vašeho asistenta";
+"screen_notification_optin_assistant_subtitle" = "Když potřebuje váš souhlas";
+"screen_notification_optin_allow" = "Povolit oznámení";
+"screen_invite_welcome_together_title" = "Vy a %1$@ jste spolu v aplikaci Spiral";
+"screen_invite_welcome_step_say_hello_title" = "Pozdravit %1$@";
+"screen_invite_welcome_step_say_hello_subtitle" = "%1$@ čeká";
+"screen_invite_welcome_step_assistant_title" = "Seznámit se s asistentem";
+"screen_invite_welcome_step_assistant_subtitle" = "Jeho pozvánka čeká v sekci Chaty";
+"screen_invite_welcome_step_play_title" = "Zahrát si něco spolu";
+"screen_invite_welcome_step_play_subtitle" = "Hry a nástroje přímo v chatu";
+"a11y_invite_welcome_avatars" = "%1$@ a vy";
+"screen_approval_detail_already_closed_title" = "Tato žádost je už uzavřená";
+"screen_approval_detail_already_closed_message" = "Vypršela, nebo už byla zodpovězena.";
+"screen_room_interactive_post_description_not_sent" = "Váš popis nebyl odeslán. Pošlete ho znovu ve vlákně.";
+"screen_room_interactive_post_code_not_sent" = "Příspěvek se k agentovi nedostal. Zkuste to znovu z příspěvku.";
+"screen_invites_assistant_decline_warning_spiral" = "Pokud je to váš vlastní asistent, jeho chat po odmítnutí nepůjde obnovit.";
+"a11y_roomlist_remove_filter" = "Odebrat filtr: %1$@";
+"a11y_settings_share_profile" = "Sdílet můj profil";

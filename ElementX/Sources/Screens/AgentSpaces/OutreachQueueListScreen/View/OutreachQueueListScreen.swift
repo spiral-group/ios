@@ -27,6 +27,8 @@ import SwiftUI
 
 struct OutreachQueueListScreen: View {
     @Bindable var context: OutreachQueueListScreenViewModel.Context
+    /// Pinned in snapshots (`EnvironmentValues.relativeTimeAnchor`); the clock otherwise.
+    @Environment(\.relativeTimeAnchor) private var timeAnchor
 
     var body: some View {
         Form {
@@ -114,11 +116,22 @@ struct OutreachQueueListScreen: View {
                     .foregroundStyle(.compound.textCriticalPrimary)
             }
 
-            Text(entry.createdAt, style: .relative)
+            createdAtText(entry.createdAt)
                 .font(.compound.bodyXS)
                 .foregroundStyle(.compound.textSecondary)
         }
         .padding(.vertical, 4)
+    }
+
+    /// How long ago an entry was made: a live count in the app, and against the pinned instant in snapshots, where a
+    /// count that moves with the clock read «30 min, 1 sec» one run and «30 min, 0 secs» the next. The pinned count
+    /// leaves out zero units («1 hr», where the app shows «1 hr, 0 min»).
+    private func createdAtText(_ date: Date) -> Text {
+        if let timeAnchor {
+            Text(date..<max(date, timeAnchor), format: .components(style: .abbreviated, fields: [.day, .hour, .minute, .second]))
+        } else {
+            Text(date, style: .relative)
+        }
     }
 
     /// Compact status pill: short label, foreground colour
@@ -211,32 +224,32 @@ struct OutreachQueueListScreen_Previews: PreviewProvider, TestablePreview, Spira
                            approvalID: nil,
                            draftBody: nil,
                            errorMessage: nil,
-                           createdAt: Date().addingTimeInterval(-3600),
-                           updatedAt: Date().addingTimeInterval(-3600)),
+                           createdAt: PreviewClock.now.addingTimeInterval(-3600),
+                           updatedAt: PreviewClock.now.addingTimeInterval(-3600)),
         OutreachQueueEntry(id: "row-2",
                            targetMXID: "@carol:spiral.md",
                            status: .pendingApproval,
                            approvalID: "approval-1",
                            draftBody: "Hi Carol! I'm reaching out from Acme Sales — saw your recent post about widget supply…",
                            errorMessage: nil,
-                           createdAt: Date().addingTimeInterval(-7200),
-                           updatedAt: Date().addingTimeInterval(-300)),
+                           createdAt: PreviewClock.now.addingTimeInterval(-7200),
+                           updatedAt: PreviewClock.now.addingTimeInterval(-300)),
         OutreachQueueEntry(id: "row-3",
                            targetMXID: "@dave:spiral.md",
                            status: .sent,
                            approvalID: "approval-2",
                            draftBody: "Hi Dave! Following up on yesterday's chat…",
                            errorMessage: nil,
-                           createdAt: Date().addingTimeInterval(-86400),
-                           updatedAt: Date().addingTimeInterval(-43200)),
+                           createdAt: PreviewClock.now.addingTimeInterval(-86400),
+                           updatedAt: PreviewClock.now.addingTimeInterval(-43200)),
         OutreachQueueEntry(id: "row-4",
                            targetMXID: "@eve:spiral.md",
                            status: .error,
                            approvalID: nil,
                            draftBody: nil,
                            errorMessage: "LLM 503 — retry scheduled",
-                           createdAt: Date().addingTimeInterval(-1800),
-                           updatedAt: Date().addingTimeInterval(-1800))
+                           createdAt: PreviewClock.now.addingTimeInterval(-1800),
+                           updatedAt: PreviewClock.now.addingTimeInterval(-1800))
     ]
 
     // Held here: the screen's context does not keep its view model alive, and the snapshot waits on it.

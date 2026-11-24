@@ -205,12 +205,30 @@ struct SettingsScreenViewModelTests {
     
     // AGENT-PLATFORM (decision 187): no add account row — Spiral's Settings keeps its own menu.
     
+    // AGENT-PLATFORM (1.0.3, operator 2026-11-19): the bar shares the owner's own spiral.md link.
+    @Test
+    mutating func shareLinkIsTheOwnersSpiralLink() throws {
+        setupViewModel(userID: "@alice:\(SpiralLink.serverName)")
+        
+        let shareLink = try #require(context.viewState.shareLink)
+        #expect(shareLink.absoluteString == "https://\(SpiralLink.serverName)/@alice")
+        #expect(shareLink == SpiralLink(userID: "@alice:\(SpiralLink.serverName)")?.webURL)
+    }
+    
+    @Test
+    mutating func noShareLinkForAnIDOnAnotherServer() {
+        setupViewModel(userID: "@alice:example.com")
+        
+        #expect(context.viewState.shareLink == nil)
+    }
+    
     // MARK: - Helpers
     
-    private mutating func setupViewModel(status: UserStatus = .init(),
+    private mutating func setupViewModel(userID: String = "",
+                                         status: UserStatus = .init(),
                                          userSettings: UserSettings = .mock(),
                                          securityState: SessionSecurityState = .init(verificationState: .verified, recoveryState: .enabled)) {
-        clientProxy = ClientProxyMock(.init(userID: "", status: status))
+        clientProxy = ClientProxyMock(.init(userID: userID, status: status))
         let userSession = UserSessionMock(.init(clientProxy: clientProxy, userSettings: userSettings))
         userSession.sessionSecurityStatePublisher = CurrentValueSubject(securityState).asCurrentValuePublisher()
         viewModel = SettingsScreenViewModel(userSession: userSession,

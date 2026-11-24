@@ -59,7 +59,7 @@ struct FeedActivityItem: Identifiable, Equatable {
         } else {
             parts.append(UntranslatedL10n.screenFeedSensitiveTitle)
         }
-        parts.append(entry.at.formatted(.relative(presentation: .named, unitsStyle: .wide)))
+        parts.append(FeedShortTime.spokenTime(entry.at))
         if entry.isUnread {
             parts.append(UntranslatedL10n.a11yFeedNoticeUnread)
         }

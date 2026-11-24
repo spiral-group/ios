@@ -13,11 +13,13 @@
 // after Face ID / the passcode it asks the platform for a one-time link, and
 // the identity page — in ticket mode, without the old phrase — lets the person
 // choose new words. The page returns to `spiral://phrase-changed?result=…`.
+// An account made with Sign in with Apple has no phrase yet; the same page
+// adds its first one (1.0.3).
 //
 
-import AuthenticationServices
+import UIKit
 
-final class NewPhrasePresenter: NSObject {
+final class NewPhrasePresenter {
     enum Outcome: Equatable {
         case changed
         case cancelled
@@ -26,24 +28,29 @@ final class NewPhrasePresenter: NSObject {
         case failed
     }
     
-    static let callbackScheme = "spiral"
-    
     private let agentPlatformService: AgentPlatformServiceProtocol
-    private let presentationAnchor: UIWindow
     private let authenticator: DeviceOwnerAuthenticatorProtocol
-    private var session: ASWebAuthenticationSession?
+    private let addsFirstPhrase: Bool
+    private let pageSession: IdentityPageSession
     
+    /// - Parameter addsFirstPhrase: the account has no phrase yet, so Face ID asks to add one rather than change it.
     init(agentPlatformService: AgentPlatformServiceProtocol,
          presentationAnchor: UIWindow,
+         addsFirstPhrase: Bool = false,
          authenticator: DeviceOwnerAuthenticatorProtocol = DeviceOwnerAuthenticator()) {
         self.agentPlatformService = agentPlatformService
-        self.presentationAnchor = presentationAnchor
         self.authenticator = authenticator
-        super.init()
+        self.addsFirstPhrase = addsFirstPhrase
+        // Nothing to share with Safari; the page needs no cookies but its own.
+        pageSession = IdentityPageSession(presentationAnchor: presentationAnchor, logName: "New phrase", prefersEphemeralSession: true)
     }
     
     func start() async -> Outcome {
-        switch await authenticator.authenticate(reason: UntranslatedL10n.screenSettingsNewPhraseAuthReason) {
+        // AGENT-PLATFORM (1.0.3): from the start, so a swipe home during Face ID or the ticket request cancels too.
+        pageSession.watchForBackground()
+        defer { pageSession.stopWatchingForBackground() }
+        let reason = addsFirstPhrase ? UntranslatedL10n.screenSettingsAddPhraseAuthReason : UntranslatedL10n.screenSettingsNewPhraseAuthReason
+        switch await authenticator.authenticate(reason: reason) {
         case .passcodeRequired:
             return .passcodeRequired
         case .cancelled:
@@ -54,84 +61,22 @@ final class NewPhrasePresenter: NSObject {
         
         switch await agentPlatformService.createPhraseReset() {
         case .success(let url):
-            await waitUntilWindowIsActive()
-            return await runWebSession(url: url)
+            switch await pageSession.open(url) {
+            case .returned(let callbackURL):
+                return Self.outcome(for: callbackURL)
+            case .cancelled:
+                return .cancelled
+            case .failed:
+                return .failed
+            }
         case .failure(let error):
             MXLog.error("New phrase: could not get a reset link: \(error)")
             return .failed
         }
     }
     
-    // MARK: - Identity page
-    
-    /// Right after the passcode sheet the window's scene is still
-    /// `foregroundInactive`, and `ASWebAuthenticationSession` refuses to
-    /// start on it (error 3). Wait for the scene to come back, briefly.
-    private func waitUntilWindowIsActive() async {
-        for _ in 0..<20 where presentationAnchor.windowScene?.activationState != .foregroundActive {
-            try? await Task.sleep(for: .milliseconds(100))
-        }
-    }
-    
-    private func runWebSession(url: URL) async -> Outcome {
-        await withCheckedContinuation { continuation in
-            // A refused `start()` normally fires the completion handler too,
-            // but that is not promised for every reason, and a checked
-            // continuation may resume exactly once: whichever comes first.
-            let resumeOnce = ResumeOnce(continuation)
-            let session = ASWebAuthenticationSession(url: url,
-                                                     callbackURLScheme: Self.callbackScheme) { callbackURL, error in
-                if let error {
-                    let code = (error as? ASWebAuthenticationSessionError)?.code
-                    if code != .canceledLogin {
-                        MXLog.error("New phrase: web session failed: \(error)")
-                    }
-                    resumeOnce.resume(code == .canceledLogin ? .cancelled : .failed)
-                    return
-                }
-                resumeOnce.resume(Self.outcome(for: callbackURL))
-            }
-            // Nothing to share with Safari; the page needs no cookies but its own.
-            session.prefersEphemeralWebBrowserSession = true
-            session.presentationContextProvider = self
-            self.session = session
-            if !session.start() {
-                MXLog.error("New phrase: web session did not start (canStart: \(session.canStart))")
-                resumeOnce.resume(.failed)
-            }
-        }
-    }
-    
-    /// The session's completion handler runs on the main thread, as does
-    /// `start()`; this is only «exactly once», not thread safety.
-    private final class ResumeOnce {
-        private var continuation: CheckedContinuation<Outcome, Never>?
-        
-        init(_ continuation: CheckedContinuation<Outcome, Never>) {
-            self.continuation = continuation
-        }
-        
-        func resume(_ outcome: Outcome) {
-            continuation?.resume(returning: outcome)
-            continuation = nil
-        }
-    }
-    
     /// `spiral://phrase-changed?result=changed|cancelled`.
     static func outcome(for callbackURL: URL?) -> Outcome {
-        guard let callbackURL,
-              callbackURL.scheme == callbackScheme,
-              callbackURL.host() == "phrase-changed" else {
-            return .cancelled
-        }
-        let result = URLComponents(url: callbackURL, resolvingAgainstBaseURL: false)?
-            .queryItems?.first { $0.name == "result" }?.value
-        return result == "changed" ? .changed : .cancelled
-    }
-}
-
-extension NewPhrasePresenter: ASWebAuthenticationPresentationContextProviding {
-    func presentationAnchor(for session: ASWebAuthenticationSession) -> ASPresentationAnchor {
-        presentationAnchor
+        IdentityPageSession.result(of: callbackURL, host: "phrase-changed") == "changed" ? .changed : .cancelled
     }
 }

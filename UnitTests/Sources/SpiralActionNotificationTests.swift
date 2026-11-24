@@ -53,7 +53,7 @@ struct SpiralActionNotificationTests {
         #expect(try body("record", "emm2 · 42") == "\(UntranslatedL10n.notificationInteractivePostRecord) · emm2 · 42")
         #expect(try body("challenge", nil) == UntranslatedL10n.notificationInteractivePostChallenge)
         #expect(try body("result", "X wins") == "\(UntranslatedL10n.notificationInteractivePostResult) · X wins")
-        #expect(try body("mention", "Andrii gave you «milk»") == "Andrii gave you «milk»", "a plain mention is its line")
+        #expect(try body("mention", "Alice gave you «milk»") == "Alice gave you «milk»", "a plain mention is its line")
         #expect(try body("mention", nil) == UntranslatedL10n.notificationInteractivePostMention)
         #expect(try body("an-unknown-kind", "x") == "\(UntranslatedL10n.notificationInteractivePostYourMove) · x")
     }

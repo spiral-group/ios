@@ -30,6 +30,8 @@ enum FeedPostScreenCoordinatorAction {
 
 final class FeedPostScreenCoordinator: CoordinatorProtocol {
     let viewModel: FeedPostScreenViewModelProtocol
+    /// The post shown: a second ask for it while it is on top is dropped.
+    let postID: String
     private var cancellables = Set<AnyCancellable>()
 
     private let actionsSubject: PassthroughSubject<FeedPostScreenCoordinatorAction, Never> = .init()
@@ -38,6 +40,7 @@ final class FeedPostScreenCoordinator: CoordinatorProtocol {
     }
 
     init(parameters: FeedPostScreenCoordinatorParameters) {
+        postID = parameters.postID
         viewModel = FeedPostScreenViewModel(postID: parameters.postID,
                                             post: parameters.post,
                                             focusedCommentID: parameters.focusedCommentID,

@@ -74,6 +74,8 @@ struct FeedAuthorScreenViewStateBindings {
 enum FeedAuthorScreenAlertType: Hashable {
     case confirmBlock
     case blockFailed
+    case confirmUnblock
+    case unblockFailed
     case confirmStartChat
     case chatFailed
 }
@@ -86,6 +88,7 @@ enum FeedAuthorScreenViewAction {
     case loadMore
     case message
     case block
+    case unblock
     case report
     case dismiss
     case card(postID: String, FeedPostCardAction)

@@ -151,7 +151,7 @@ enum FeedPreviewData {
                        commentID: String? = nil,
                        reportID: String? = nil,
                        statement: FeedNoticeStatement) -> FeedNotice {
-        FeedNotice(id: id, kind: kind, createdAt: .now.addingTimeInterval(-3600), isRead: isRead,
+        FeedNotice(id: id, kind: kind, createdAt: PreviewClock.now.addingTimeInterval(-3600), isRead: isRead,
                    postID: postID, commentID: commentID, reportID: reportID, statement: statement)
     }
 
@@ -215,11 +215,10 @@ enum FeedPreviewData {
         }
     }
 
-    /// Half a minute short of `minutesAgo`: the static data is made before the
-    /// snapshot renders, and "5 minutes ago" must not round to 6 on the way.
-    /// Under two minutes it would read in seconds, so a minute stays a minute.
+    /// `minutesAgo` before `PreviewClock.now`, which the snapshots render the
+    /// times against, so "5 min ago" reads the same whenever the test runs.
     private static func createdAt(minutesAgo: Int) -> Date {
-        .now.addingTimeInterval(-Double(minutesAgo) * 60 + (minutesAgo > 1 ? 30 : 0))
+        PreviewClock.now.addingTimeInterval(-Double(minutesAgo) * 60)
     }
 
     static func post(id: String,

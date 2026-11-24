@@ -1680,7 +1680,8 @@ private struct ClientProxyServices {
         
         let roomMessageEventStringBuilder = RoomMessageEventStringBuilder(attributedStringBuilder: AttributedStringBuilder(cacheKey: "roomList",
                                                                                                                            mentionBuilder: PlainMentionBuilder()),
-                                                                          style: .senderPrefixed)
+                                                                          style: .senderPrefixed,
+                                                                          templateTitle: RoomEventStringBuilder.readerLanguageTemplateTitle) // AGENT-PLATFORM
         
         eventStringBuilder = try RoomEventStringBuilder(stateEventStringBuilder: RoomStateEventStringBuilder(userID: client.userId()),
                                                         messageEventStringBuilder: roomMessageEventStringBuilder,

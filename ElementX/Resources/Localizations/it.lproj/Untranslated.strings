@@ -65,6 +65,9 @@
 "screen_agent_edit_persona_greeting" = "Saluto per te";
 "screen_agent_edit_persona_visitor_greeting" = "Saluto per gli ospiti";
 "screen_agent_edit_failure" = "Impossibile salvare le modifiche";
+"error_agent_name_reserved" = "Questo nome è riservato agli account di Spiral. Scegli un altro nome.";
+"error_agent_name_invalid_characters" = "Il nome contiene caratteri che non si possono usare.";
+"error_agent_name_unchecked" = "Impossibile verificare il nome. Riprova.";
 "screen_agent_edit_load_failure" = "Impossibile caricare il modulo di modifica";
 "screen_agent_edit_avatar_failure" = "Impossibile caricare la foto";
 "action_agent_activity" = "Attività";
@@ -250,7 +253,6 @@
 "screen_language_picker_title" = "Lingua";
 "screen_language_picker_empty" = "Nessuna lingua corrisponde alla ricerca.";
 "screen_start_sign_in" = "Accedi";
-"screen_start_welcome_subtitle" = "Messaggistica veloce e privata, con il tuo agente personale.";
 
 // AGENT-PLATFORM (Brief 0072, ADR-0083, ADR-0084): presence, worded as Telegram does
 "common_presence_online" = "online";
@@ -491,6 +493,16 @@
 "screen_native_call_assistants_record_confirm_title" = "Registrare la chiamata?";
 "screen_native_call_assistants_record_confirm_message" = "Tutti vedono REC in alto nella chiamata. La registrazione compare nella chat dopo la chiamata.";
 "screen_native_call_assistants_record_confirm_action" = "Registra";
+"screen_native_call_assistants_notes_confirm_title" = "Prendere appunti della chiamata?";
+"screen_native_call_assistants_notes_confirm_message" = "Il tuo assistente ascolta la chiamata e poi pubblica un riepilogo nella chat. Gli altri vedono che sta prendendo appunti.";
+"screen_native_call_assistants_notes_confirm_action" = "Prendi appunti";
+"screen_native_call_assistants_talk_confirm_title" = "Parlare con il tuo assistente?";
+"screen_native_call_assistants_talk_confirm_message" = "Sente solo te e risponde ad alta voce — tutti nella chiamata lo sentono.";
+"screen_native_call_assistants_talk_confirm_action" = "Inizia a parlare";
+"screen_native_call_assistants_translate_question_title" = "Traduci in";
+"screen_native_call_assistants_listen_question_title" = "Ascolta in";
+"screen_native_call_assistants_talk_info_title" = "Il tuo assistente risponde ad alta voce";
+"screen_native_call_assistants_talk_info_message" = "Sente solo te e tutti nella chiamata lo sentono. Niente traduzione mentre parla.";
 "screen_native_call_assistants_none_of_your_own" = "Non hai un assistente";
 "screen_native_call_assistants_which" = "Quale assistente";
 "screen_native_call_assistants_reason_paused" = "Il tuo assistente è in pausa";
@@ -571,7 +583,6 @@
 "screen_native_call_assistants_job_conversation" = "Parla";
 "screen_native_call_assistants_translating" = "Traduce in %1$@";
 "screen_native_call_assistants_stop_translation" = "Interrompi traduzione";
-"screen_native_call_assistants_talk_caption" = "Ti risponde ad alta voce e tutti lo sentono. Niente traduzione mentre parla.";
 "screen_native_call_assistants_pick_footer" = "Ricordata per questa chat";
 "screen_native_call_assistants_neighbour_language" = "Lingua della persona accanto a te";
 "screen_native_call_assistants_pocket_detail" = "Dopo ogni frase · in entrambe le direzioni";
@@ -591,10 +602,9 @@
 "screen_native_call_assistants_status_both_ways" = "Traduce in entrambe le direzioni";
 "screen_native_call_assistants_translate_into" = "Traduci in";
 "screen_native_call_assistants_translate_into_detail" = "Senti la chiamata in questa lingua";
+"screen_native_call_assistants_translate_into_language" = "Traduci in: %1$@";
 "screen_native_call_assistants_in_call" = "Nella chiamata";
 "screen_native_call_assistants_in_call_more" = "Nella chiamata: ancora %1$d";
-"screen_native_call_assistants_new_translation" = "Nuova traduzione";
-"screen_native_call_assistants_new_translation_detail" = "Il tuo assistente tradurrà la chiamata";
 "screen_native_call_assistants_new_translation_others" = "Il tuo assistente traduce %1$@. Gli altri sono già tradotti, gratis.";
 "screen_native_call_assistants_start_translation" = "Avvia traduzione";
 "screen_native_call_assistants_start_translation_detail" = "Usa il tuo limite. Chi sceglie questa lingua ascolta gratis.";
@@ -1044,7 +1054,6 @@
 "notice_phrase_changed_title" = "Frase di accesso cambiata";
 "a11y_message_read" = "Letto";
 "screen_legal_information_source_code_spiral" = "Codice sorgente";
-"screen_invite_people_seats_label" = "Inviti rimasti";
 "screen_native_call_tile_not_joined" = "Non hai partecipato";
 "screen_agent_settings_show_in_search_footer" = "Se le persone possono trovarlo nella ricerca. Chiunque abbia il suo indirizzo può comunque scrivergli.";
 "screen_agent_edit_tone_calm" = "Calmo";
@@ -1056,7 +1065,6 @@
 "screen_room_interactive_draft_published" = "Pubblicato";
 "screen_agent_activity_reason_visitor_policy_reply" = "Hai consentito di rispondere subito";
 "screen_agent_in_room_no_tools" = "Ancora nessuno strumento in questa chat.";
-"notice_welcome_assistant_body" = "Sono %1$@, il tuo assistente personale. Posso inoltrare i messaggi mentre sei via, ricordare i tuoi contatti e riassumere le stanze. Per attivare i miei strumenti in una stanza, tocca + lì e scegli Agenti. Scrivimi in modo naturale: sono qui.";
 "screen_room_interactive_post_pick_agent_title" = "Chi deve crearlo?";
 "screen_agent_settings_visitor_ask_first_description" = "Una persona nuova attende finché non accetti";
 "screen_ai_consent_prompt_failed" = "Impossibile salvare la tua scelta. Controlla la connessione e riprova.";
@@ -1086,10 +1094,8 @@
 "screen_agent_activity_reason_block_needs_owner" = "Il blocco richiede il tuo OK";
 "screen_create_company_title" = "Nuova azienda";
 "a11y_native_call_disable_speaker" = "Disattiva altoparlante";
-"screen_invite_paste_placeholder" = "spiral.md/join/…";
 "a11y_native_call_end" = "Termina chiamata";
 "screen_agent_activity_action_published_post" = "Ha pubblicato un post";
-"screen_invite_people_joined_footer" = "Persone che hanno creato il loro account tramite il tuo link. Tocca per avviare una chat.";
 "screen_arm_tool_turn_off_confirm_message" = "L'agente smette di farlo in questa chat per tutti. Puoi riattivarlo in qualsiasi momento.";
 "spiral_app_card_line_by" = "Da %1$@";
 "state_event_spiral_tool_language_changed_by_you" = "Hai cambiato Traduci: %1$@ → %2$@";
@@ -1114,7 +1120,6 @@
 "screen_native_call_agent_block_recording" = "Registrazione";
 "screen_native_call_control_video" = "Video";
 "screen_agent_detail_pause" = "Pausa";
-"screen_invite_paste_expired" = "Questo invito non è più valido. Chiedine uno nuovo.";
 "screen_security_messages_section" = "Messaggi";
 "screen_agent_activity_reason_relationship_unavailable" = "Impossibile verificare il contatto";
 "screen_ai_consent_prompt_allow" = "Consenti";
@@ -1144,15 +1149,12 @@
 "state_event_spiral_tool_off_by_system" = "%1$@ è stato disattivato per %2$@";
 "a11y_native_call_swap_to_held_call" = "Passa alla chiamata con %@";
 "screen_native_call_audio_route_iphone" = "iPhone";
-"screen_invite_people_seats_value" = "%1$d di %2$d";
 "screen_agent_activity_reason_first_contact_with_unknown_visitor" = "Primo messaggio da una persona nuova";
 "screen_deactivate_account_spiral_list_item_3" = "Elimina le informazioni del tuo account dal nostro server di identità.";
 "a11y_native_call_bar" = "Chiamata in corso con %1$@. Tocca per tornare.";
-"screen_invite_paste_unavailable" = "Impossibile verificare l'invito. Riprova.";
 "screen_agent_activity_action_read_call_summary" = "Ha letto un riepilogo di chiamata";
 "screen_ai_consent_prompt_title" = "Consentire l'IA di terze parti?";
 "screen_agent_edit_voice_language_footer" = "L'assistente risponde sempre nella lingua che parli. Questa impostazione stabilisce come sente le chiamate e la lingua dei riepiloghi delle chiamate.";
-"screen_invite_welcome_title" = "Ti diamo il benvenuto in Spiral";
 "screen_agent_activity_reason_blocked_visitor" = "Persona bloccata";
 "screen_deactivate_account_spiral_list_item_1_bold_part" = "Disattiva permanentemente";
 "screen_native_call_agent_center_recording_live" = "Registrazione…";
@@ -1220,7 +1222,6 @@
 "screen_deactivate_account_spiral_failed" = "Impossibile eliminare l'account. Riprova tra un minuto.";
 "screen_agent_activity_action_changed_call_mode" = "Ha cambiato il modo in cui partecipa a una chiamata";
 "a11y_native_call_unmute_microphone" = "Riattiva microfono";
-"screen_invite_paste_label" = "Link o codice";
 "screen_media_viewer_position" = "%1$d di %2$d";
 "screen_native_call_status_reconnecting_detail" = "La connessione si è interrotta";
 "screen_approval_detail_block_blocked_subtitle" = "D'ora in poi il tuo agente ignora i suoi messaggi.";
@@ -1256,6 +1257,13 @@
 "screen_agent_activity_reason_no_contact_relationship" = "Non è tra i tuoi contatti";
 "screen_room_alias_link_not_found" = "Questo link non porta a nessuna chat.";
 "screen_invite_people_title" = "Invita su Spiral";
+"screen_invite_people_you" = "Tu";
+"screen_invite_people_invited_count" = "Invitati %1$d su %2$d";
+"screen_invite_people_invited_you" = "Ti ha invitato su Spiral";
+"screen_invite_people_seat_invite" = "Invita";
+"screen_invite_people_seat_taken" = "Occupato";
+"screen_invite_people_chain_footer" = "Un link per %1$d persone, e non si rinnova. Tocca una persona per aprire il suo profilo.";
+"screen_invite_people_all_used" = "Tutti gli inviti sono stati usati";
 "screen_approval_detail_escalation_cold_outreach" = "Il tuo agente vuole scrivere a qualcuno per la prima volta.";
 "screen_start_invited_by" = "%1$@ ti ha invitato su Spiral";
 "screen_agent_spaces_section_retry" = "Tocca per riprovare.";
@@ -1263,7 +1271,6 @@
 "screen_settings_new_phrase_done" = "Frase di accesso cambiata";
 "screen_agent_activity_reason_outside_conversation" = "Fuori da questa conversazione";
 "a11y_native_call_switch_camera" = "Cambia fotocamera";
-"screen_invite_people_joined" = "Iscritti con il tuo invito: %1$d";
 "screen_agent_activity_action_searched_agents" = "Ha cercato agenti";
 "screen_agent_activity_reason_strategy_no_op" = "Niente da fare";
 "action_dismiss_visitor_message" = "Rimuovi";
@@ -1272,7 +1279,6 @@
 "screen_approval_detail_block_action_dont_block" = "Non bloccare";
 "screen_agent_settings_people_title" = "Parlare con le persone";
 "screen_native_call_agent_center_error_not_owner" = "Solo il proprietario di questa sessione può modificarla.";
-"notice_welcome_agent_body" = "%1$@ è pronto. Scrivimi pure.";
 "screen_agent_detail_already_in_chat" = "L'agente è già in questa chat";
 "screen_native_call_agent_center_booth_members" = "%1$@ in %2$@";
 "screen_settings_devices_title" = "Dispositivi e sessioni";
@@ -1290,7 +1296,6 @@
 "screen_agent_activity_action_remembered" = "Ha ricordato qualcosa su un contatto";
 "screen_room_interactive_post_link_needs_update" = "Questo post richiede una versione più recente di Spiral. Aggiorna l'app per usarlo.";
 "screen_room_member_details_erase_assistant_memory" = "Cancella ciò che i miei assistenti sanno di questa persona";
-"screen_invite_paste_without" = "Continua senza invito";
 "screen_agent_edit_tone_friendly" = "Amichevole";
 "screen_room_interactive_post_update" = "Aggiorna il post";
 "screen_agent_detail_archive_refused" = "Il tuo assistente personale resta con il tuo account e non può essere archiviato.";
@@ -1307,9 +1312,7 @@
 "screen_native_call_agent_center_talking" = "L'assistente sta parlando";
 "screen_native_call_tile_call_back" = "Tocca per richiamare";
 "notice_reply_failed_body" = "Qualcosa è andato storto da parte mia. Invialo di nuovo.";
-"screen_invite_people_joined_title" = "Iscritti con il tuo invito";
 "screen_native_call_status_connecting_detail" = "Configurazione della crittografia";
-"screen_invite_paste_title" = "Hai un invito?";
 "screen_edit_profile_bio_too_long" = "La bio può avere al massimo %1$d caratteri. Accorciala per salvarla.";
 "a11y_native_call_agent_block_role" = "%1$@, %2$@";
 "a11y_native_call_recording" = "Questa chiamata viene registrata";
@@ -1322,12 +1325,25 @@
 "screen_agent_spaces_assistant_pending" = "Il tuo assistente è ancora in configurazione";
 "screen_room_member_details_erase_assistant_memory_alert_title" = "Cancellare ciò che i tuoi assistenti sanno di %1$@?";
 "screen_settings_new_phrase_failed" = "Impossibile avviare il cambio della frase. Riprova.";
+/* AGENT-PLATFORM (1.0.3): sign-in methods — the first phrase for an account made with Apple, Sign in with Apple for a phrase account. */
+"screen_settings_add_phrase_title" = "Aggiungi frase di accesso";
+"screen_settings_add_phrase_message" = "Sceglierai 12 parole. Aprono il tuo account su qualsiasi dispositivo, oltre ad Accedi con Apple. Resti connesso su questo dispositivo e i tuoi messaggi non vengono toccati.";
+"screen_settings_add_phrase_auth_reason" = "Conferma la tua identità per aggiungere una frase di accesso";
+"screen_settings_add_phrase_done" = "Frase di accesso aggiunta";
+"screen_settings_add_phrase_failed" = "Impossibile avviare l'aggiunta della frase. Riprova.";
+"screen_settings_sign_in_passcode_required" = "Imposta prima un codice del dispositivo: protegge i tuoi modi di accesso";
+"screen_settings_apple_title" = "Accedi con Apple";
+"screen_settings_apple_connected" = "Collegato";
+"screen_settings_apple_add_title" = "Aggiungi Accedi con Apple";
+"screen_settings_apple_auth_reason" = "Conferma la tua identità per aggiungere Accedi con Apple";
+"screen_settings_apple_linked" = "Accedi con Apple aggiunto";
+"screen_settings_apple_taken" = "Questo ID Apple è già usato da un altro account Spiral";
+"screen_settings_apple_failed" = "Impossibile avviare l'aggiunta di Accedi con Apple. Riprova.";
 "screen_deactivate_account_spiral_description" = "L'eliminazione del tuo account è %1$@, e comporterà:";
 "screen_agent_activity_action_set_reminder" = "Ha impostato un promemoria";
 "screen_agent_activity_action_cancelled_reminder" = "Ha annullato un promemoria";
 "screen_agent_activity_reason_capability_always_allowed" = "Sempre consentito";
 "screen_agent_activity_action_blocked_someone" = "Ha bloccato qualcuno";
-"screen_invite_paste_message" = "Incolla il link che ti ha inviato un utente di Spiral o digita il codice.";
 "screen_native_call_error_title" = "Chiamata non riuscita";
 "notification_approval_action_not_found_title" = "Questa richiesta non esiste più";
 "state_event_spiral_tool_changed_by_you" = "Hai modificato %1$@";
@@ -1354,7 +1370,6 @@
 "screen_native_call_control_sound" = "Suono";
 "screen_native_call_status_reconnecting" = "Riconnessione…";
 "notice_phrase_changed_body" = "La vecchia frase non consente più l'accesso.";
-"screen_invite_people_seats_footer" = "Ogni persona ha un solo link con %1$d posti. Non si rinnova, quindi condividilo con le persone che vuoi davvero qui.";
 "screen_room_member_details_agent_unblock_action" = "Sblocca";
 "screen_agent_activity_reason_unknown_capability" = "Non è una cosa che sa fare";
 "screen_settings_new_phrase_passcode_required" = "Imposta prima un codice del dispositivo: protegge il cambio della frase";
@@ -1426,10 +1441,11 @@
 "screen_your_data_calls_footer" = "Esporta una chiamata: la trascrizione, il riepilogo e il registro dei consensi.";
 "screen_arm_tool_error_agent_does_not_join_calls" = "Questo agente non partecipa alle chiamate, quindi gli strumenti per le chiamate non sono disponibili.";
 "screen_room_interactive_generating_hint" = "Di solito meno di un minuto";
-"screen_invite_paste_exhausted" = "Sono già entrate tutte le persone previste da questo invito. Chiedine uno nuovo.";
 "notice_phrase_changed_on_device" = "Cambiata su «%1$@».";
+/* AGENT-PLATFORM (1.0.3): the owner-DM card when Sign in with Apple is added. It names no device (security review); a new phrase disconnects Apple. */
+"notice_apple_linked_title" = "Accedi con Apple aggiunto";
+"notice_apple_linked_body" = "Se non sei stato tu, cambia la frase di accesso: così Apple viene scollegato.";
 "screen_ai_consent_prompt_openai" = "OpenAI: i messaggi che gli assistenti leggono, la tua voce nelle chiamate con loro e le registrazioni che trascrivono.";
-"screen_invite_welcome_message" = "%1$@ ti ha invitato e sa già che sei qui. Saluta!";
 "screen_agent_activity_action_used_tool" = "Ha usato uno strumento su un messaggio";
 "screen_approval_detail_escalation_first_contact" = "Qualcuno ha scritto al tuo agente per la prima volta, quindi ti chiede prima di rispondere.";
 "screen_agent_activity_action_drafted_post" = "Ha preparato una bozza di post";
@@ -1444,7 +1460,6 @@
 "screen_room_interactive_post_updated" = "Post aggiornato";
 "screen_native_call_camera_failed_message" = "Non è stato possibile avviare la fotocamera, quindi la chiamata continua in audio. Riprova con il pulsante della fotocamera tra poco.";
 "screen_media_viewer_open" = "Apri";
-"screen_invite_paste_invalid" = "Questo invito non esiste.";
 "screen_agent_room_tool_audience_except_named" = "per tutti tranne %1$@";
 "notification_spiral_needs_update_body" = "Aggiorna l'app per vederlo.";
 "screen_agent_edit_tone_brief" = "Breve e diretto";
@@ -1452,7 +1467,6 @@
 "screen_invite_people_seats_left" = "%1$d di %2$d inviti rimasti";
 "screen_agent_activity_reason_wrong_room_kind" = "Non consentito in questo tipo di chat";
 "screen_native_call_failure_audio_reset" = "L'audio della chiamata è stato reimpostato dal sistema.";
-"screen_invite_people_body" = "La registrazione avviene su invito. Condividi il tuo link personale: chi crea un account tramite questo link ti vedrà per primo.";
 "notification_approval_action_target_blocked_title" = "Non inviato: hai bloccato questa persona";
 "screen_notifications_hub_visitor_other" = "Qualcosa di nuovo";
 "screen_agent_activity_empty_pending_title" = "Nessuna richiesta da decidere";
@@ -1476,3 +1490,61 @@
 "screen_notifications_hub_visitors_section" = "Dalle persone";
 "screen_agent_settings_visitor_reply_description" = "Risponde a tutti tranne alle persone che hai bloccato";
 "screen_deactivate_account_spiral_auth_reason" = "Conferma la tua identità per eliminare il tuo account";
+
+// AGENT-PLATFORM (1.0.3 A2): the assistant's first invite in Chats, its chat before consent and its welcome.
+"screen_roomlist_assistant_invite_name" = "Il tuo assistente";
+"screen_roomlist_assistant_invite_subtitle" = "Ciao! Tocca per iniziare 👋";
+"screen_roomlist_assistant_invite_start" = "Inizia";
+"a11y_assistant_invite_start" = "Inizia una conversazione con il tuo assistente";
+"a11y_assistant_invite_start_hint" = "Accetta l’invito del tuo assistente e apre la tua chat con lui.";
+"screen_assistant_invite_title" = "Ciao! Sono il tuo assistente";
+"screen_assistant_invite_reminders" = "Ti ricorderò le cose";
+"screen_assistant_invite_contacts" = "Ricorderò i tuoi contatti";
+"screen_assistant_invite_summaries" = "Riassumerò qualsiasi chat";
+"screen_assistant_invite_privacy" = "Vedo solo questa conversazione. Puoi disattivarmi in qualsiasi momento.";
+"screen_assistant_invite_start" = "Inizia la conversazione";
+"notice_welcome_body" = "Sono qui e pronto ad aiutarti. Da dove iniziamo?";
+"notice_welcome_starter_summary" = "Riassumi una chat";
+"notice_welcome_starter_summary_message" = "Riassumimi una chat";
+"notice_welcome_starter_contact" = "Ricorda un contatto";
+"notice_welcome_starter_contact_message" = "Ricorda qualcosa su un mio contatto";
+"notice_welcome_starter_reminder" = "Ricordami…";
+"notice_welcome_starter_reminder_message" = "Impostami un promemoria";
+"notice_welcome_allow_ai_reason" = "Consenti l’IA così posso leggere quello che scrivi qui.";
+"notice_welcome_allow_ai_action" = "Consenti IA";
+
+// AGENT-PLATFORM (1.0.3 onboarding): the start screen's stories, the notifications prompt and the invited welcome.
+"screen_start_slide_privacy_title" = "Le tue conversazioni sono tue";
+"screen_start_slide_privacy_subtitle" = "Crittografia end-to-end. Nessun numero di telefono, e l’assistente solo con il tuo permesso";
+"screen_start_slide_calls_title" = "Chiamate con traduzione";
+"screen_start_slide_calls_subtitle" = "Il tuo assistente si unisce e traduce in tempo reale";
+"screen_start_slide_assistant_title" = "Il tuo assistente, a portata di mano";
+"screen_start_slide_assistant_subtitle" = "Risponde quando sei occupato e ti chiede prima di ogni nuovo passo";
+"screen_start_slide_games_title" = "Giocate insieme, direttamente in chat";
+"screen_start_slide_games_subtitle" = "Giochi e strumenti, senza installare nulla";
+"screen_start_invited_by_hint" = "Crea un account e %1$@ saprà che ci sei";
+"a11y_start_slides_position" = "Slide %1$d di %2$d";
+"screen_notification_optin_spiral_title" = "Resta in contatto";
+"screen_notification_optin_spiral_subtitle" = "Spiral ti avvisa quando qualcosa conta davvero. Puoi cambiarlo quando vuoi in Impostazioni.";
+"screen_notification_optin_messages_title" = "Nuovi messaggi";
+"screen_notification_optin_messages_subtitle" = "Dalle persone e dai gruppi con cui parli";
+"screen_notification_optin_calls_title" = "Chiamate in arrivo";
+"screen_notification_optin_calls_subtitle" = "Anche quando Spiral è chiuso";
+"screen_notification_optin_assistant_title" = "Domande del tuo assistente";
+"screen_notification_optin_assistant_subtitle" = "Quando ha bisogno del tuo consenso";
+"screen_notification_optin_allow" = "Consenti notifiche";
+"screen_invite_welcome_together_title" = "Sei su Spiral insieme a %1$@";
+"screen_invite_welcome_step_say_hello_title" = "Saluta %1$@";
+"screen_invite_welcome_step_say_hello_subtitle" = "%1$@ ti aspetta";
+"screen_invite_welcome_step_assistant_title" = "Conosci il tuo assistente";
+"screen_invite_welcome_step_assistant_subtitle" = "Il suo invito ti aspetta in Conversazioni";
+"screen_invite_welcome_step_play_title" = "Gioca a qualcosa insieme";
+"screen_invite_welcome_step_play_subtitle" = "Giochi e strumenti direttamente in chat";
+"a11y_invite_welcome_avatars" = "%1$@ e tu";
+"screen_approval_detail_already_closed_title" = "Questa richiesta è già chiusa";
+"screen_approval_detail_already_closed_message" = "È scaduta o ha già ricevuto una risposta.";
+"screen_room_interactive_post_description_not_sent" = "La tua descrizione non è stata inviata. Inviala di nuovo nella discussione.";
+"screen_room_interactive_post_code_not_sent" = "Il post non è arrivato all’agente. Riprova dal post.";
+"screen_invites_assistant_decline_warning_spiral" = "Se è il tuo assistente, la sua chat non potrà essere ripristinata dopo il rifiuto.";
+"a11y_roomlist_remove_filter" = "Rimuovi filtro: %1$@";
+"a11y_settings_share_profile" = "Condividi il mio profilo";

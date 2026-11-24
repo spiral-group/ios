@@ -47,6 +47,16 @@ final class SpiralContrastExemptions {
         return hiddenElements
     }
 
+    /// The screen frames of the visible scroll views that can't scroll, such as a list under `scrollDisabled`: a row
+    /// their edge cuts never scrolls into view, so the runner's contrast triage L leaves it audited.
+    func fixedScrollViewFrames() -> [CGRect] {
+        var frames = [CGRect]()
+        for window in visibleWindows where window.windowLevel <= .normal {
+            collectFixedScrollViews(in: window, of: window, into: &frames)
+        }
+        return frames
+    }
+
     /// Puts the screen back as it was, before the next preview.
     func remove() {
         hiddenBars.forEach { $0.bar.accessibilityElementsHidden = $0.wasHidden }
@@ -152,6 +162,14 @@ final class SpiralContrastExemptions {
         let traits = element.accessibilityTraits
         guard traits.contains(.notEnabled) else { return false }
         return !traits.isDisjoint(with: controlTraits) || element is UITextField || element is UITextView
+    }
+
+    private func collectFixedScrollViews(in view: UIView, of window: UIWindow, into frames: inout [CGRect]) {
+        if let scrollView = view as? UIScrollView, !scrollView.isScrollEnabled, !scrollView.isHidden {
+            let frame = window.convert(scrollView.bounds, from: scrollView)
+            frames.append(window.windowScene.map { window.convert(frame, to: $0.screen.coordinateSpace) } ?? frame)
+        }
+        view.subviews.forEach { collectFixedScrollViews(in: $0, of: window, into: &frames) }
     }
 
     /// - Parameter screenFrame: An `accessibilityFrame`, which is in screen coordinates.

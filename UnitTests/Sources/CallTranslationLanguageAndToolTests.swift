@@ -274,7 +274,125 @@ struct CallTranslationLanguageAndToolTests {
         #expect(!viewModel.context.viewState.tool.isEnabled)
     }
 
+    /// A second change while the first is being stored isn't dropped: it shows at once and is stored right after.
+    @Test
+    func aChangeDuringASaveIsStoredAfterIt() async throws {
+        let service = ToolServiceStub()
+        let viewModel = CallTranslationToolScreenViewModel(service: service,
+                                                           myLanguageStore: NativeCallMyLanguageStore(defaults: defaults()) { "uk" },
+                                                           cachedCatalog: catalog.map { .init(code: $0, label: $0) })
+        try await deferFulfillment(viewModel.context.observe(\.viewState.isLoading)) { !$0 }.fulfill()
+
+        // Both on the main actor before the first store runs: the second meets the save under way.
+        viewModel.context.send(viewAction: .setEnabled(true))
+        #expect(viewModel.context.viewState.isSaving)
+        viewModel.context.send(viewAction: .setTranslatesIfNobodyDoes(false))
+        #expect(viewModel.context.viewState.tool.translatesIfNobodyDoes == false, "the second switch doesn't snap back")
+
+        try await deferFulfillment(viewModel.context.observe(\.viewState.isSaving)) { !$0 }.fulfill()
+
+        #expect(service.stored.count == 2)
+        #expect(service.stored.last?.isEnabled == true)
+        #expect(service.stored.last?.translatesIfNobodyDoes == false)
+        #expect(viewModel.context.viewState.tool.translatesIfNobodyDoes == false)
+        #expect(!viewModel.context.viewState.isSaveFailed)
+    }
+
+    /// A change made while the save reads the tool back isn't lost to that read: it is stored next, once.
+    @Test
+    func aChangeDuringTheReadBackIsStored() async throws {
+        let service = ToolServiceStub()
+        let viewModel = try await loadedToolScreen(service)
+
+        service.holdsNextRead = true
+        viewModel.context.send(viewAction: .setEnabled(true))
+        try await Self.waitUntil { service.isReadHeld }
+        #expect(service.stored.count == 1)
+        viewModel.context.send(viewAction: .setTranslatesIfNobodyDoes(false))
+        service.releaseRead()
+        try await deferFulfillment(viewModel.context.observe(\.viewState.isSaving)) { !$0 }.fulfill()
+
+        #expect(service.stored.count == 2)
+        #expect(service.stored.last?.translatesIfNobodyDoes == false)
+        #expect(viewModel.context.viewState.tool.translatesIfNobodyDoes == false, "the switch doesn't snap back")
+
+        // Nothing stale waits: the next change is written once.
+        viewModel.context.send(viewAction: .setTranslatesIfNobodyDoes(true))
+        try await deferFulfillment(viewModel.context.observe(\.viewState.isSaving)) { !$0 }.fulfill()
+        #expect(service.stored.count == 3)
+    }
+
+    /// A refused save puts back the tool before it, with the change that waited on it, and says so; nothing waits on.
+    @Test
+    func aRefusedSaveTakesTheWaitingChangeWithIt() async throws {
+        let service = ToolServiceStub()
+        service.isStoring = false
+        let viewModel = try await loadedToolScreen(service)
+
+        viewModel.context.send(viewAction: .setEnabled(true))
+        viewModel.context.send(viewAction: .setTranslatesIfNobodyDoes(false))
+        try await deferFulfillment(viewModel.context.observe(\.viewState.isSaving)) { !$0 }.fulfill()
+
+        #expect(viewModel.context.viewState.isSaveFailed)
+        #expect(viewModel.context.viewState.tool == NativeCallTranslationTool(language: "uk"))
+
+        service.isStoring = true
+        viewModel.context.send(viewAction: .setLanguage("en"))
+        try await deferFulfillment(viewModel.context.observe(\.viewState.isSaving)) { !$0 }.fulfill()
+        #expect(service.stored.count == 1, "the refused change didn't come back to be written")
+    }
+
+    /// Only the first switch-on chooses «translate if nobody does»: switched off and on again before the first save
+    /// lands, the person's own choice since stays.
+    @Test
+    func aSecondSwitchOnKeepsThePersonsChoice() async throws {
+        let service = ToolServiceStub()
+        let viewModel = try await loadedToolScreen(service)
+
+        viewModel.context.send(viewAction: .setEnabled(true))
+        viewModel.context.send(viewAction: .setTranslatesIfNobodyDoes(false))
+        viewModel.context.send(viewAction: .setEnabled(false))
+        viewModel.context.send(viewAction: .setEnabled(true))
+        try await deferFulfillment(viewModel.context.observe(\.viewState.isSaving)) { !$0 }.fulfill()
+
+        #expect(service.stored.last == NativeCallTranslationTool(isEnabled: true, language: "uk", translatesIfNobodyDoes: false))
+    }
+
+    /// A first switch-on that was refused (offline) leaves nothing stored: the next switch-on is the first again and
+    /// keeps the promise of the tool's name.
+    @Test
+    func aRefusedFirstSwitchOnLeavesTheNextOneFirst() async throws {
+        let service = ToolServiceStub()
+        service.isStoring = false
+        let viewModel = try await loadedToolScreen(service)
+
+        viewModel.context.send(viewAction: .setEnabled(true))
+        try await deferFulfillment(viewModel.context.observe(\.viewState.isSaving)) { !$0 }.fulfill()
+        #expect(viewModel.context.viewState.isSaveFailed)
+
+        service.isStoring = true
+        viewModel.context.send(viewAction: .setEnabled(true))
+        try await deferFulfillment(viewModel.context.observe(\.viewState.isSaving)) { !$0 }.fulfill()
+
+        #expect(service.stored.last == NativeCallTranslationTool(isEnabled: true, language: "uk", translatesIfNobodyDoes: true))
+    }
+
     // MARK: - Helpers
+
+    private func loadedToolScreen(_ service: ToolServiceStub) async throws -> CallTranslationToolScreenViewModel {
+        let viewModel = CallTranslationToolScreenViewModel(service: service,
+                                                           myLanguageStore: NativeCallMyLanguageStore(defaults: defaults()) { "uk" },
+                                                           cachedCatalog: catalog.map { .init(code: $0, label: $0) })
+        try await deferFulfillment(viewModel.context.observe(\.viewState.isLoading)) { !$0 }.fulfill()
+        return viewModel
+    }
+
+    private static func waitUntil(_ condition: () -> Bool) async throws {
+        for _ in 0..<200 where !condition() {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        #expect(condition())
+    }
 
     private func defaults() -> UserDefaults {
         let suite = "CallTranslationLanguageAndToolTests.\(UUID().uuidString)"
@@ -304,14 +422,30 @@ struct CallTranslationLanguageAndToolTests {
 private final class ToolServiceStub: CallTranslationToolServiceProtocol {
     var tool: NativeCallTranslationTool?
     var isStoring = true
+    /// Holds the next read until `releaseRead()`: a change can then land during a save's read-back.
+    var holdsNextRead = false
     private(set) var stored: [NativeCallTranslationTool] = []
+    private var heldRead: CheckedContinuation<Void, Never>?
+
+    var isReadHeld: Bool {
+        heldRead != nil
+    }
+
+    func releaseRead() {
+        heldRead?.resume()
+        heldRead = nil
+    }
 
     func languages() async -> [VoiceControlsCatalogLanguage]? {
         nil
     }
 
     func translationTool() async -> Result<NativeCallTranslationTool?, NativeCallTranslationPortError> {
-        .success(tool)
+        if holdsNextRead {
+            holdsNextRead = false
+            await withCheckedContinuation { heldRead = $0 }
+        }
+        return .success(tool)
     }
 
     func storeTranslationTool(_ tool: NativeCallTranslationTool) async -> Bool {

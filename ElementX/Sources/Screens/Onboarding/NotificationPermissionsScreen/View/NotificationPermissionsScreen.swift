@@ -9,12 +9,15 @@
 import Compound
 import SwiftUI
 
-/// A prompt that asks the user whether they would like to enable Analytics or not.
+/// A prompt that asks the user whether they would like to enable notifications or not.
+///
+/// AGENT-PLATFORM (1.0.3 onboarding, board pick A): Spark listening under a soft bell halo and three general lines on
+/// the canvas — no names, no message text, no Element gradient (operator, 2026-11-19 and 2026-11-20).
 struct NotificationPermissionsScreen: View {
     @ObservedObject var context: NotificationPermissionsScreenViewModel.Context
     
     var body: some View {
-        FullscreenDialog(topPadding: UIConstants.startScreenBreakerScreenTopPadding, background: .gradient) {
+        FullscreenDialog(topPadding: CompoundDesignTokens.space6X, horizontalPadding: CompoundDesignTokens.space6X, bottomHorizontalPadding: CompoundDesignTokens.space6X) {
             mainContent
         } bottomContent: {
             buttons
@@ -28,39 +31,66 @@ struct NotificationPermissionsScreen: View {
     
     /// The main content of the screen that is shown inside the scroll view.
     private var mainContent: some View {
-        VStack(spacing: 8) {
-            BigIcon(icon: \.notificationsSolid)
-                .padding(.bottom, 8)
+        VStack(spacing: CompoundDesignTokens.space6X) {
+            OnboardingSparkHalo(image: Asset.Images.sparkListen, badge: \.notificationsSolid)
             
-            Text(L10n.screenNotificationOptinTitle)
-                .font(.compound.headingMDBold)
-                .multilineTextAlignment(.center)
-                .foregroundColor(.compound.textPrimary)
+            VStack(spacing: CompoundDesignTokens.space2X) {
+                Text(UntranslatedL10n.screenNotificationOptinSpiralTitle)
+                    .font(.compound.headingXLBold)
+                    .foregroundStyle(.compound.textPrimary)
+                    .accessibilityAddTraits(.isHeader)
+                
+                Text(UntranslatedL10n.screenNotificationOptinSpiralSubtitle)
+                    .font(.compound.bodyLG)
+                    .foregroundStyle(.compound.textSecondary)
+            }
+            .multilineTextAlignment(.center)
             
-            Text(L10n.screenNotificationOptinSubtitle)
-                .font(.compound.bodyMD)
-                .multilineTextAlignment(.center)
-                .foregroundColor(.compound.textSecondary)
-            
-            Asset.Images.notificationsPromptGraphic
-                .swiftUIImage
-                .resizable()
-                .scaledToFit()
-                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: CompoundDesignTokens.space4X) {
+                benefit(icon: \.chat,
+                        title: UntranslatedL10n.screenNotificationOptinMessagesTitle,
+                        subtitle: UntranslatedL10n.screenNotificationOptinMessagesSubtitle)
+                benefit(icon: \.voiceCall,
+                        title: UntranslatedL10n.screenNotificationOptinCallsTitle,
+                        subtitle: UntranslatedL10n.screenNotificationOptinCallsSubtitle)
+                benefit(icon: \.host,
+                        title: UntranslatedL10n.screenNotificationOptinAssistantTitle,
+                        subtitle: UntranslatedL10n.screenNotificationOptinAssistantSubtitle)
+            }
+            .padding(.horizontal, CompoundDesignTokens.space2X)
         }
     }
     
+    private func benefit(icon: KeyPath<CompoundIcons, Image>, title: String, subtitle: String) -> some View {
+        HStack(spacing: CompoundDesignTokens.space4X) {
+            OnboardingIconTile(symbol: .compound(icon))
+            
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.compound.bodyLGSemibold)
+                    .foregroundStyle(.compound.textPrimary)
+                Text(subtitle)
+                    .font(.compound.bodyMD)
+                    .foregroundStyle(.compound.textSecondary)
+            }
+            
+            Spacer(minLength: 0)
+        }
+        .accessibilityElement(children: .combine)
+    }
+    
     private var buttons: some View {
-        VStack(spacing: 16) {
-            Button(L10n.actionOk) { context.send(viewAction: .enable) }
-                .buttonStyle(.compound(.primary))
-                .accessibilityIdentifier(A11yIdentifiers.notificationPermissionsScreen.enable) // AGENT-PLATFORM (decision 146)
+        VStack(spacing: CompoundDesignTokens.space2X) {
+            Button { context.send(viewAction: .enable) } label: {
+                Text(UntranslatedL10n.screenNotificationOptinAllow)
+            }
+            .buttonStyle(.compound(.primary))
+            .accessibilityIdentifier(A11yIdentifiers.notificationPermissionsScreen.enable) // AGENT-PLATFORM (decision 146)
             
             Button { context.send(viewAction: .notNow) } label: {
                 Text(L10n.actionNotNow)
-                    .font(.compound.bodyLGSemibold)
-                    .padding(14)
             }
+            .buttonStyle(.compound(.tertiary))
             .accessibilityIdentifier(A11yIdentifiers.notificationPermissionsScreen.notNow) // AGENT-PLATFORM (decision 146)
         }
     }
@@ -68,7 +98,8 @@ struct NotificationPermissionsScreen: View {
 
 // MARK: - Previews
 
-struct NotificationPermissionsScreen_Previews: PreviewProvider, TestablePreview {
+// AGENT-PLATFORM (1.0.3 onboarding): opted in to Spiral's gates.
+struct NotificationPermissionsScreen_Previews: PreviewProvider, TestablePreview, SpiralGatedPreview {
     static let viewModel = NotificationPermissionsScreenViewModel(notificationService: NotificationServiceMock(.init()))
     static var previews: some View {
         NotificationPermissionsScreen(context: viewModel.context)

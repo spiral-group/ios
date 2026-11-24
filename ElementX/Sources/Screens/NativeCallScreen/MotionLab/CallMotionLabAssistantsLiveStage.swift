@@ -481,7 +481,7 @@ final class NativeCallAssistantsLiveLab {
             context.assistantConfirmation = .removeFromChat(agentMxid: backend.foreignAgentMxids.first ?? "")
         case "recordAsk":
             context.send(viewAction: .showAgentCenter)
-            context.assistantConfirmation = .recording
+            context.assistantConfirmation = .start(.recording)
         case "recordCovered":
             // Question 404: the sheet, then the covered «Записує» tapped — the card says whose recording it is.
             context.send(viewAction: .showAgentCenter)
@@ -559,6 +559,7 @@ private final class LabSessionDelegate: NativeCallSessionDelegate {
 
     func nativeCallSession(_ session: NativeCallSession, didChangeState state: NativeCallSessionState) { }
     func nativeCallSession(_ session: NativeCallSession, didChangeParticipants participants: [NativeCallParticipant]) { }
+    func nativeCallSessionDidChangeParticipantLanguages(_ session: NativeCallSession) { }
     func nativeCallSession(_ session: NativeCallSession, didChangeListening listening: NativeCallListeningState) { }
     func nativeCallSession(_ session: NativeCallSession, didChangeAgentClaims claims: NativeCallAgentClaims) { }
     func nativeCallSessionDidChangeAgentState(_ session: NativeCallSession) { }
@@ -801,7 +802,7 @@ final class CallMotionLabOverlayHitArea {
 
 /// Puts `content` in a window of its own above the app's, so it stays reachable over a sheet at any height. The
 /// window passes every touch outside `hitArea` through to the app.
-private struct CallMotionLabOverlayWindow<Content: View>: UIViewRepresentable {
+struct CallMotionLabOverlayWindow<Content: View>: UIViewRepresentable {
     let hitArea: CallMotionLabOverlayHitArea
     @ViewBuilder let content: () -> Content
 

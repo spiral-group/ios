@@ -24,11 +24,15 @@ enum PlatformSyncConnectionState: Equatable {
     /// The last stream failed; the next attempt waits. `isOffline`: it failed
     /// on the network, not on the server's answer (a 429, a 5xx, an early end).
     case waiting(attempt: Int, isOffline: Bool)
+    /// The server refused the stream in a way waiting does not mend soon (a `401` after the retry, a `403`,
+    /// a certificate): no line, the screens' own reads show what is wrong. It is tried again quietly on a
+    /// long wait, and at once on the return to the foreground.
+    case refused
 
     /// The line at the top; `isCatchingUp` while the re-reads of `ready.fresh` or `limited` run.
     func status(isCatchingUp: Bool) -> PlatformSyncStatus? {
         switch self {
-        case .idle: nil
+        case .idle, .refused: nil
         case .connecting: .updating
         // The server is there but busy: the stream comes back by itself, nothing is wrong with the connection.
         case .waiting(_, let isOffline): isOffline ? .noConnection : .updating
@@ -48,6 +52,7 @@ final class PlatformSync {
     private let feedStore: FeedStore
     private let agentsStore: AgentsStore?
     private let backoff: (Int) -> Duration
+    private let refusalBackoff: (Int) -> Duration
     private let minimumHealthyLife: Duration
     private let isApplicationInBackground: () -> Bool
 
@@ -67,18 +72,21 @@ final class PlatformSync {
 
     /// - Parameters:
     ///   - backoff: the wait before the attempt after `n` failures in a row.
+    ///   - refusalBackoff: the same after a refusal, which is tried again quietly.
     ///   - minimumHealthyLife: a ready stream that ends sooner is a failure, not the server's end.
     ///   - isApplicationInBackground: read on `start`; later changes come as notifications.
     init(service: PlatformSyncServiceProtocol,
          feedStore: FeedStore,
          agentsStore: AgentsStore? = nil,
          backoff: @escaping (Int) -> Duration = PlatformSync.defaultBackoff,
+         refusalBackoff: @escaping (Int) -> Duration = PlatformSync.defaultRefusalBackoff,
          minimumHealthyLife: Duration = .seconds(5),
          isApplicationInBackground: @escaping () -> Bool = { UIApplication.shared.applicationState == .background }) {
         self.service = service
         self.feedStore = feedStore
         self.agentsStore = agentsStore
         self.backoff = backoff
+        self.refusalBackoff = refusalBackoff
         self.minimumHealthyLife = minimumHealthyLife
         self.isApplicationInBackground = isApplicationInBackground
     }
@@ -90,6 +98,11 @@ final class PlatformSync {
     /// 1, 2, 4 … 60 s.
     nonisolated static func defaultBackoff(_ failures: Int) -> Duration {
         .seconds(min(60, 1 << min(max(failures - 1, 0), 6)))
+    }
+
+    /// 5, 10, 20 … 30 minutes.
+    nonisolated static func defaultRefusalBackoff(_ failures: Int) -> Duration {
+        .seconds(min(30 * 60, 300 << min(max(failures - 1, 0), 3)))
     }
 
     // MARK: - Lifecycle
@@ -134,8 +147,8 @@ final class PlatformSync {
         guard isStarted, isActive else { return }
         streamTask?.cancel()
         connectionState = .connecting
-        streamTask = Task { [weak self, service, backoff, minimumHealthyLife] in
-            await Self.run(service: service, backoff: backoff, minimumHealthyLife: minimumHealthyLife) { self }
+        streamTask = Task { [weak self, service, backoff, refusalBackoff, minimumHealthyLife] in
+            await Self.run(service: service, backoff: backoff, refusalBackoff: refusalBackoff, minimumHealthyLife: minimumHealthyLife) { self }
         }
     }
 
@@ -150,6 +163,7 @@ final class PlatformSync {
     /// every frame, so an open stream never keeps it alive.
     private static func run(service: PlatformSyncServiceProtocol,
                             backoff: (Int) -> Duration,
+                            refusalBackoff: (Int) -> Duration,
                             minimumHealthyLife: Duration,
                             owner: () -> PlatformSync?) async {
         var failures = 0
@@ -157,6 +171,7 @@ final class PlatformSync {
             guard let since = owner().map(\.position) else { return }
             var wait: Duration?
             var isOffline = false
+            var isRefused = false
 
             switch await service.open(since: since) {
             case .success(let events):
@@ -170,8 +185,8 @@ final class PlatformSync {
                 if end.error != nil || !wasHealthy {
                     failures += 1
                     wait = backoff(failures)
-                    // A stream that broke off is the network; one the server ended early is not.
-                    isOffline = end.error != nil
+                    // Only a stream that broke off on the network is offline: not one the server ended early, nor TLS or a frame that did not decode.
+                    isOffline = end.error.map { PlatformSyncError(thrown: $0) == .transport } ?? false
                 }
                 MXLog.info("The sync stream \(end.summary(wasHealthy: wasHealthy))")
             case .failure(.invalidPosition) where since != nil:
@@ -188,19 +203,22 @@ final class PlatformSync {
             case .failure(let error):
                 guard !Task.isCancelled else { return }
                 failures += 1
-                wait = Self.wait(after: error, failures: failures, backoff: backoff)
+                // A refusal is not "Updating…" for good: it is tried again quietly, on a long wait
+                // (a token refreshed late, a captive portal left), and at once on the return to the foreground.
+                isRefused = error.isRefusal
+                wait = isRefused ? refusalBackoff(failures) : Self.wait(after: error, failures: failures, backoff: backoff)
                 isOffline = error == .transport
                 MXLog.info("Could not open the sync stream: \(error)")
             }
 
-            guard let owner = owner() else { return }
-            if let wait {
-                owner.connectionState = .waiting(attempt: failures, isOffline: isOffline)
-                try? await Task.sleep(for: wait)
-                guard !Task.isCancelled else { return }
-                owner.connectionState = .connecting
-            }
             // The server's healthy end reconnects at once, from the same position: the screens say nothing of it.
+            guard let wait else { continue }
+            owner()?.connectionState = isRefused ? .refused : .waiting(attempt: failures, isOffline: isOffline)
+            try? await Task.sleep(for: wait)
+            guard !Task.isCancelled else { return }
+            if !isRefused {
+                owner()?.connectionState = .connecting
+            }
         }
     }
 

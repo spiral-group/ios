@@ -186,7 +186,10 @@ struct CompletionSuggestionServiceTests {
         let roomSummaryProvider = RoomSummaryProviderMock(.init(state: .loaded(.mockRooms)))
         
         let (refreshesStream, refreshesContinuation) = AsyncStream<Void>.makeStream()
-        roomProxyMock.updateMembersClosure = { refreshesContinuation.yield() }
+        roomProxyMock.updateMembersClosure = { // AGENT-PLATFORM (1.0.3 B14): returns the read's result.
+            refreshesContinuation.yield()
+            return .success(())
+        }
         
         let service = CompletionSuggestionService(roomProxy: roomProxyMock,
                                                   roomListPublisher: roomSummaryProvider.roomListPublisher.eraseToAnyPublisher())

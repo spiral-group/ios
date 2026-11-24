@@ -514,6 +514,205 @@ struct NativeAgentCenterControllerTests {
         #expect(inviteRecorder.mxids == ["@assistant-red:spiral.md"])
     }
 
+    /// The backend lets the assistant go again when the attach that joined it is refused, a retryable 503 included, so
+    /// the automatic retry after the 503 meets an invite-required refusal. The app invites it once more, silently,
+    /// as the tap's own invite does (operator, 2026-11-23).
+    @Test
+    func theRetryAfterAServiceUnavailableReinvitesOnce() async {
+        let service = makeService(contexts: [], controls: nil)
+        let inviteRecorder = InviteRecorder()
+        let controller = makeController(service: service) { mxid in
+            inviteRecorder.record(mxid)
+            return true
+        }
+        await controller.reload()
+
+        let attachCounter = AttachCounter()
+        service.attachVoiceAgentAgentIDRoomIDParamsClosure = { _, _, _ in
+            attachCounter.increment()
+            switch attachCounter.count {
+            case 1: return .failure(.serviceUnavailable(retryAfter: .zero))
+            case 2: return .failure(.inviteRequired("invite it first"))
+            default: return .success("session-9")
+            }
+        }
+
+        let didSucceed = await controller.attach(agentID: "agent-1", params: makeAttachParams())
+
+        #expect(didSucceed)
+        #expect(attachCounter.count == 3)
+        #expect(inviteRecorder.mxids == ["@assistant-red:spiral.md"])
+        #expect(controller.snapshot.joinFailures["agent-1"] == nil)
+    }
+
+    /// No loop: one re-invite per tap. When the attach after it still needs an invite, the add row asks to join as
+    /// before, and the tap's own invite (the agent is not a member here) does not run on top of it.
+    @Test
+    func aSecondInviteRequiredAfterTheReinviteIsTheAnswer() async {
+        let service = makeService(contexts: [], controls: nil)
+        let inviteRecorder = InviteRecorder()
+        let controller = makeController(service: service, members: []) { mxid in
+            inviteRecorder.record(mxid)
+            return true
+        }
+        await controller.reload()
+
+        let attachCounter = AttachCounter()
+        service.attachVoiceAgentAgentIDRoomIDParamsClosure = { _, _, _ in
+            attachCounter.increment()
+            return attachCounter.count == 1
+                ? .failure(.serviceUnavailable(retryAfter: .zero))
+                : .failure(.inviteRequired("invite it first"))
+        }
+
+        let didSucceed = await controller.attach(agentID: "agent-1", params: makeAttachParams())
+
+        #expect(didSucceed == false)
+        #expect(attachCounter.count == 3)
+        #expect(inviteRecorder.mxids == ["@assistant-red:spiral.md"])
+        #expect(controller.snapshot.joinFailures["agent-1"] == .askToJoin)
+    }
+
+    /// The whole path on the phone: the tap invites the assistant, the attach that joined it gets a 503 and the
+    /// backend lets it go, so the retry re-invites once and the third attach lands.
+    @Test
+    func theTapsInviteAndTheRetrysReinviteBothRun() async {
+        let service = makeService(contexts: [], controls: nil)
+        let inviteRecorder = InviteRecorder()
+        let controller = makeController(service: service, members: []) { mxid in
+            inviteRecorder.record(mxid)
+            return true
+        }
+        await controller.reload()
+
+        let attachCounter = AttachCounter()
+        service.attachVoiceAgentAgentIDRoomIDParamsClosure = { _, _, _ in
+            attachCounter.increment()
+            switch attachCounter.count {
+            case 1, 3: return .failure(.inviteRequired("invite it first"))
+            case 2: return .failure(.serviceUnavailable(retryAfter: .zero))
+            default: return .success("session-9")
+            }
+        }
+
+        let didSucceed = await controller.attach(agentID: "agent-1", params: makeAttachParams())
+
+        #expect(didSucceed)
+        #expect(attachCounter.count == 4)
+        #expect(inviteRecorder.mxids == ["@assistant-red:spiral.md", "@assistant-red:spiral.md"])
+    }
+
+    /// The person hangs up while the add waits out a 503: the retry sends nothing, so the assistant is neither
+    /// attached to nor invited into the call they left.
+    @Test
+    func theCallEndingDuringTheWaitSendsNothingMore() async throws {
+        let service = makeService(contexts: [], controls: nil)
+        let inviteRecorder = InviteRecorder()
+        let controller = makeController(service: service, members: []) { mxid in
+            inviteRecorder.record(mxid)
+            return true
+        }
+        await controller.reload()
+
+        let attachCounter = AttachCounter()
+        service.attachVoiceAgentAgentIDRoomIDParamsClosure = { _, _, _ in
+            attachCounter.increment()
+            return attachCounter.count == 1
+                ? .failure(.serviceUnavailable(retryAfter: .milliseconds(300)))
+                : .failure(.inviteRequired("invite it first"))
+        }
+
+        let tap = Task { await controller.attach(agentID: "agent-1", params: makeAttachParams()) }
+        while attachCounter.count == 0 {
+            try await Task.sleep(for: .milliseconds(5))
+        }
+        controller.stop()
+
+        #expect(await tap.value == false)
+        #expect(attachCounter.count == 1)
+        #expect(inviteRecorder.mxids.isEmpty)
+        #expect(controller.snapshot.joinFailures["agent-1"] == nil)
+        #expect(await controller.attach(agentID: "agent-1", params: makeAttachParams()) == false)
+        #expect(attachCounter.count == 1, "a stopped agent center sends no new attach either")
+    }
+
+    /// The re-invite refused (an ask-to-join room, D8): the add row asks to join, with no third attach and no second
+    /// invite from the tap's own path.
+    @Test
+    func aRefusedReinviteIsAnAskToJoinRoom() async {
+        let service = makeService(contexts: [], controls: nil)
+        let inviteRecorder = InviteRecorder()
+        let controller = makeController(service: service, members: []) { mxid in
+            inviteRecorder.record(mxid)
+            return false
+        }
+        await controller.reload()
+
+        let attachCounter = AttachCounter()
+        service.attachVoiceAgentAgentIDRoomIDParamsClosure = { _, _, _ in
+            attachCounter.increment()
+            return attachCounter.count == 1
+                ? .failure(.serviceUnavailable(retryAfter: .milliseconds(20)))
+                : .failure(.inviteRequired("invite it first"))
+        }
+
+        #expect(await controller.attach(agentID: "agent-1", params: makeAttachParams()) == false)
+
+        #expect(attachCounter.count == 2)
+        #expect(inviteRecorder.mxids == ["@assistant-red:spiral.md"])
+        #expect(controller.snapshot.joinFailures["agent-1"] == .askToJoin)
+    }
+
+    /// The room still lists the assistant (its leave after a refused attach hasn't synced), but the backend says it
+    /// needs an invite: the backend's word decides, and the tap invites it.
+    @Test
+    func aStaleMemberIsInvitedOnTheBackendsWord() async {
+        let service = makeService(contexts: [], controls: nil)
+        let inviteRecorder = InviteRecorder()
+        let controller = makeController(service: service) { mxid in
+            inviteRecorder.record(mxid)
+            return true
+        }
+        await controller.reload()
+
+        let attachCounter = AttachCounter()
+        service.attachVoiceAgentAgentIDRoomIDParamsClosure = { _, _, _ in
+            attachCounter.increment()
+            return attachCounter.count == 1 ? .failure(.inviteRequired("invite it first")) : .success("session-9")
+        }
+
+        #expect(await controller.attach(agentID: "agent-1", params: makeAttachParams()))
+
+        #expect(attachCounter.count == 2)
+        #expect(inviteRecorder.mxids == ["@assistant-red:spiral.md"])
+    }
+
+    /// That invite is the tap's one re-invite: a 503 retry after it that needs an invite again is the answer.
+    @Test
+    func aStaleMembersInviteIsTheTapsOneReinvite() async {
+        let service = makeService(contexts: [], controls: nil)
+        let inviteRecorder = InviteRecorder()
+        let controller = makeController(service: service) { mxid in
+            inviteRecorder.record(mxid)
+            return true
+        }
+        await controller.reload()
+
+        let attachCounter = AttachCounter()
+        service.attachVoiceAgentAgentIDRoomIDParamsClosure = { _, _, _ in
+            attachCounter.increment()
+            return attachCounter.count == 2
+                ? .failure(.serviceUnavailable(retryAfter: .zero))
+                : .failure(.inviteRequired("invite it first"))
+        }
+
+        #expect(await controller.attach(agentID: "agent-1", params: makeAttachParams()) == false)
+
+        #expect(attachCounter.count == 3)
+        #expect(inviteRecorder.mxids == ["@assistant-red:spiral.md"])
+        #expect(controller.snapshot.joinFailures["agent-1"] == .askToJoin)
+    }
+
     @Test
     func aPolicyRejectionIsNotRetriedWithAnInvite() async {
         let service = makeService(contexts: [], controls: nil)
@@ -785,9 +984,10 @@ struct NativeAgentCenterControllerTests {
         return service
     }
 
-    private func makeContext(canControl: Bool = true,
+    private func makeContext(sessionID: String = "session-1",
+                             canControl: Bool = true,
                              state: String = "active") -> VoiceSessionControlContext {
-        VoiceSessionControlContext(sessionID: "session-1",
+        VoiceSessionControlContext(sessionID: sessionID,
                                    agentMxid: "@assistant-red:spiral.md",
                                    canControl: canControl,
                                    state: state)
@@ -1149,6 +1349,54 @@ extension NativeAgentCenterControllerTests {
 
         #expect(controller.snapshot.sessions.first?.conversation == .unknown)
     }
+
+    /// A 503 on the controls read is the room not readable just now: read again shortly, not an unread session.
+    @Test
+    func aServiceUnavailableControlsReadIsTriedAgain() async {
+        let controls = makeControls(recordingEnabled: true, recordingRevision: 2)
+        let service = makeService(contexts: [makeContext()], controls: nil)
+        var reads = 0
+        service.voiceSessionControlsSessionIDClosure = { _ in
+            reads += 1
+            return reads < 3 ? .failure(.serviceUnavailable(retryAfter: .zero)) : .success(controls)
+        }
+        let controller = makeController(service: service)
+
+        await controller.reload()
+
+        #expect(reads == 3)
+        #expect(controller.snapshot.sessions.first?.recording.revision == 2)
+        #expect(controller.snapshot.lastError == nil)
+    }
+
+    /// Two sessions still 503: the retries share one budget for the load, so the second session doesn't add its own
+    /// waits (a reload queued behind this one would wait for them); both stay unread, with no error.
+    @Test
+    func twoServiceUnavailableSessionsShareOneRetryBudget() async {
+        let service = makeService(contexts: [makeContext(sessionID: "session-1"), makeContext(sessionID: "session-2")], controls: nil)
+        service.voiceSessionControlsSessionIDReturnValue = .failure(.serviceUnavailable(retryAfter: .zero))
+        let controller = makeController(service: service)
+
+        await controller.reload()
+
+        #expect(service.voiceSessionControlsSessionIDCallsCount == 2 + NativeAgentCenterController.controlsRetryBudget)
+        #expect(controller.snapshot.sessions.map(\.conversation) == [.unknown, .unknown])
+        #expect(controller.snapshot.lastError == nil)
+    }
+
+    /// Still 503 after the retries: the session is unread (`.unknown`), and no error is shown.
+    @Test
+    func aControlsReadStill503IsUnreadNotAnError() async {
+        let service = makeService(contexts: [makeContext()], controls: nil)
+        service.voiceSessionControlsSessionIDReturnValue = .failure(.serviceUnavailable(retryAfter: .zero))
+        let controller = makeController(service: service)
+
+        await controller.reload()
+
+        #expect(service.voiceSessionControlsSessionIDCallsCount == 3)
+        #expect(controller.snapshot.sessions.first?.conversation == .unknown)
+        #expect(controller.snapshot.lastError == nil)
+    }
 }
 
 /// Holds a switch write inside the "backend" until the test answers it —
@@ -1327,12 +1575,13 @@ extension NativeAgentCenterControllerTests {
         #expect(controller.snapshot.joinStartedAt["session-9"] == nil)
     }
 
-    /// An ordinary end (the owner's Remove, the call over) is no refusal.
-    @Test
-    func anOrdinaryEndIsNoRefusal() async {
+    /// An ordinary end (the owner's Remove, the call over, the owner gone, translation not offered here) is no refusal
+    /// and no «update the app».
+    @Test(arguments: [VoiceSessionEndReason.manual, .callEnded, .ownerLeft, .translationNotHere])
+    func anOrdinaryEndIsNoRefusal(reason: VoiceSessionEndReason) async {
         let service = makeService(contexts: [], controls: nil)
         service.attachVoiceAgentAgentIDRoomIDParamsReturnValue = .success("session-9")
-        service.voiceSessionProgressSessionIDReturnValue = .success(.ended(.manual))
+        service.voiceSessionProgressSessionIDReturnValue = .success(.ended(reason))
         let controller = makeController(service: service)
         await controller.reload()
 
@@ -1340,6 +1589,31 @@ extension NativeAgentCenterControllerTests {
         await controller.pendingJoinFollow["session-9"]?.value
 
         #expect(controller.snapshot.joinFailures.isEmpty)
+    }
+
+    /// The platform's `owner_left` and `translation_not_here` are known ends; a value newer than this build stays unknown.
+    @Test
+    func theEndReasonsReadFromTheWire() {
+        #expect(VoiceSessionEndReason(wire: "owner_left") == .ownerLeft)
+        #expect(VoiceSessionEndReason(wire: "translation_not_here") == .translationNotHere)
+        #expect(VoiceSessionEndReason(wire: "something_newer") == .unknown("something_newer"))
+        #expect(NativeAgentCenterJoinFailure(VoiceSessionEndReason.ownerLeft) == nil)
+        #expect(NativeAgentCenterJoinFailure(VoiceSessionEndReason.translationNotHere) == nil)
+    }
+
+    /// A stop mid-call for either reason puts nothing on the owner's row and no call line.
+    @Test(arguments: [VoiceSessionEndReason.ownerLeft, .translationNotHere])
+    func anOrdinaryStopMidCallSaysNothing(reason: VoiceSessionEndReason) async {
+        let service = makeService(contexts: [makeContext()], controls: makeControls(recordingEnabled: false, recordingRevision: 0))
+        let controller = makeController(service: service)
+        await controller.reload()
+
+        service.voiceSessionControlContextsRoomIDReturnValue = .success([])
+        service.voiceSessionProgressSessionIDReturnValue = .success(.ended(reason))
+        await controller.reload()
+
+        #expect(controller.snapshot.joinFailures.isEmpty)
+        #expect(controller.snapshot.limitStop == nil)
     }
 
     /// A failed progress read is not an end: the follow keeps asking.
@@ -1368,7 +1642,7 @@ extension NativeAgentCenterControllerTests {
                       (.translationPaused(.init(reason: .aiLimit, pauseUntil: nil)), .budgetReached),
                       (.translationPaused(.init(reason: .callCap, pauseUntil: nil)), .categoryPaused(.callTranslation, .untilChanged)),
                       (.intentUnavailable(roomKind: "owner_dm"), .failed),
-                      (.serviceUnavailable(retryAfter: .seconds(5)), .failed),
+                      (.serviceUnavailable(retryAfter: .zero), .failed),
                       (.unavailable("offline"), .failed)])
     func aRefusedAttachLandsOnTheAddRow(error: VoiceControlsError, failure: NativeAgentCenterJoinFailure) async {
         let service = makeService(contexts: [], controls: nil)

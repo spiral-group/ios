@@ -23,6 +23,9 @@ class JoinRoomScreenViewModel: JoinRoomScreenViewModelType, JoinRoomScreenViewMo
     private var isLoadingPreview = true
     private var membershipStateChangeCancellable: AnyCancellable?
     private var hasSentJoinAction = false
+    // AGENT-PLATFORM (1.0.3 A2): whose assistant asks, when an assistant does.
+    private var assistantInviteWatch: AssistantInviteSpacesWatch?
+    private var hasLookedAtAssistantInvite = false
     
     private let actionsSubject: PassthroughSubject<JoinRoomScreenViewModelAction, Never> = .init()
     var actionsPublisher: AnyPublisher<JoinRoomScreenViewModelAction, Never> {
@@ -31,7 +34,8 @@ class JoinRoomScreenViewModel: JoinRoomScreenViewModelType, JoinRoomScreenViewMo
     
     init(source: JoinRoomScreenSource,
          userSession: UserSessionProtocol,
-         userIndicatorController: UserIndicatorControllerProtocol) {
+         userIndicatorController: UserIndicatorControllerProtocol,
+         assistantInviteUnconfirmedLimit: Duration = .seconds(30)) { // AGENT-PLATFORM (1.0.3): tests shorten the bound
         self.source = source
         userSettings = userSession.userSettings
         clientProxy = userSession.clientProxy
@@ -39,6 +43,12 @@ class JoinRoomScreenViewModel: JoinRoomScreenViewModelType, JoinRoomScreenViewMo
         
         let (roomID, _) = source.roomIDAndVia()
         super.init(initialViewState: JoinRoomScreenViewState(roomID: roomID), mediaProvider: userSession.mediaProvider)
+        
+        if let agentsStore = userSession.agentsStore { // AGENT-PLATFORM (1.0.3 A2)
+            assistantInviteWatch = AssistantInviteSpacesWatch(store: agentsStore, unconfirmedLimit: assistantInviteUnconfirmedLimit) { [weak self] in
+                self?.updateAssistantInvite()
+            }
+        }
         
         clientProxy.hideInviteAvatarsPublisher
             .removeDuplicates()
@@ -78,12 +88,14 @@ class JoinRoomScreenViewModel: JoinRoomScreenViewModelType, JoinRoomScreenViewMo
         case .forget:
             Task { await forgetRoom() }
         case .declineInvite:
+            guard allowsDecline else { return }
             showDeclineInviteConfirmationAlert()
         case .cancelKnock:
             showCancelKnockConfirmationAlert()
         case .dismiss:
             actionsSubject.send(.dismiss)
         case .declineInviteAndBlock(let userID):
+            guard allowsDecline else { return }
             Task { await showDeclineAndBlockConfirmationAlert(userID: userID) }
         }
     }
@@ -165,6 +177,7 @@ class JoinRoomScreenViewModel: JoinRoomScreenViewModelType, JoinRoomScreenViewMo
             await updateSpaceRoomDetails(spaceServiceRoom: spaceServiceRoom, inviter: inviter)
         }
         await updateMode()
+        updateAssistantInvite() // AGENT-PLATFORM (1.0.3 A2)
         
         // The homeserver can join us to the room without a join request from this client:
         // it auto-joined us after our knock was accepted
@@ -173,6 +186,42 @@ class JoinRoomScreenViewModel: JoinRoomScreenViewModelType, JoinRoomScreenViewMo
         // tapped, matching Android's RoomFlowNode.
         if case .joined = room {
             await finishJoinAction()
+        }
+    }
+    
+    /// AGENT-PLATFORM (1.0.3 A2, ADR-0017): the screen never offers to decline the person's own assistant's chat, which
+    /// the server creates once; nor an assistant's whose owner isn't known yet.
+    private var allowsDecline: Bool {
+        guard state.assistantInvite.allowsDecline else {
+            MXLog.error("Ignoring a decline of an assistant's invite to \(state.roomID)")
+            return false
+        }
+        return true
+    }
+    
+    /// AGENT-PLATFORM (1.0.3 A2): follows whose assistant sent a direct invite, for as long as the screen shows it. Opening
+    /// the screen asks again about an invite whose owner couldn't be told.
+    private func updateAssistantInvite() {
+        guard let assistantInviteWatch else { return }
+        let inviterID = state.roomDetails?.inviter?.id
+        let isDirect = state.roomDetails?.isDirect == true
+        guard state.mode.isInvite, AssistantInvite.isCandidate(inviterID: inviterID, isDirect: isDirect) else {
+            assistantInviteWatch.update(isNeeded: false)
+            state.assistantInvite = .none
+            return
+        }
+        let isFirstLook = !hasLookedAtAssistantInvite
+        hasLookedAtAssistantInvite = true
+        let invite = assistantInviteWatch.invite(inviterID: inviterID, isDirect: isDirect)
+        if isFirstLook {
+            assistantInviteWatch.refreshIfUnconfirmed()
+        }
+        if state.assistantInvite != invite {
+            state.assistantInvite = invite
+            // AGENT-PLATFORM (1.0.3): a decline alert opened while it was allowed goes once the answer forbids it.
+            if !invite.allowsDecline, [.declineInvite, .declineInviteAndBlock].contains(state.bindings.alertInfo?.id) {
+                state.bindings.alertInfo = nil
+            }
         }
     }
     
@@ -408,9 +457,12 @@ class JoinRoomScreenViewModel: JoinRoomScreenViewModelType, JoinRoomScreenViewMo
         let roomName = roomDetails.name ?? state.roomID
         state.bindings.alertInfo = .init(id: .declineInvite,
                                          title: L10n.screenInvitesDeclineChatTitle,
-                                         message: L10n.screenInvitesDeclineChatMessage(roomName),
+                                         message: withAssistantDeclineWarning(L10n.screenInvitesDeclineChatMessage(roomName)),
                                          primaryButton: .init(title: L10n.actionCancel, role: .cancel, action: nil),
-                                         secondaryButton: .init(title: L10n.actionDecline, role: .destructive) { Task { await self.declineInvite() } })
+                                         secondaryButton: .init(title: L10n.actionDecline, role: .destructive) { [weak self] in
+                                             guard let self, allowsDecline else { return } // AGENT-PLATFORM (1.0.3): checked again
+                                             Task { await self.declineInvite() }
+                                         })
     }
     
     private func showCancelKnockConfirmationAlert() {
@@ -423,14 +475,37 @@ class JoinRoomScreenViewModel: JoinRoomScreenViewModelType, JoinRoomScreenViewMo
     
     private func showDeclineAndBlockConfirmationAlert(userID: String) async {
         if await clientProxy.isReportRoomSupported {
-            actionsSubject.send(.presentDeclineAndBlock(userID: userID))
+            // AGENT-PLATFORM (1.0.3): the decline-and-block screen asks nothing first, so an assistant whose owner
+            // couldn't be told gets the warning here before it opens.
+            guard state.assistantInvite.declineNeedsWarning else {
+                actionsSubject.send(.presentDeclineAndBlock(userID: userID))
+                return
+            }
+            state.bindings.alertInfo = .init(id: .declineInviteAndBlock,
+                                             title: L10n.screenJoinRoomDeclineAndBlockAlertTitle,
+                                             message: UntranslatedL10n.screenInvitesAssistantDeclineWarningSpiral,
+                                             primaryButton: .init(title: L10n.actionCancel, role: .cancel, action: nil),
+                                             secondaryButton: .init(title: L10n.actionDeclineAndBlock, role: .destructive) { [weak self] in
+                                                 guard let self, allowsDecline else { return }
+                                                 actionsSubject.send(.presentDeclineAndBlock(userID: userID))
+                                             })
         } else {
             state.bindings.alertInfo = .init(id: .declineInviteAndBlock,
                                              title: L10n.screenJoinRoomDeclineAndBlockAlertTitle,
-                                             message: L10n.screenJoinRoomDeclineAndBlockAlertMessage(userID),
+                                             message: withAssistantDeclineWarning(L10n.screenJoinRoomDeclineAndBlockAlertMessage(userID)),
                                              primaryButton: .init(title: L10n.actionCancel, role: .cancel, action: nil),
-                                             secondaryButton: .init(title: L10n.screenJoinRoomDeclineAndBlockAlertConfirmation, role: .destructive) { Task { await self.declineAndBlock(userID: userID) } })
+                                             secondaryButton: .init(title: L10n.screenJoinRoomDeclineAndBlockAlertConfirmation, role: .destructive) { [weak self] in
+                                                 guard let self, allowsDecline else { return } // AGENT-PLATFORM (1.0.3): checked again
+                                                 Task { await self.declineAndBlock(userID: userID) }
+                                             })
         }
+    }
+    
+    /// AGENT-PLATFORM (1.0.3): an assistant whose owner couldn't be told may be the person's own, whose chat the server
+    /// never offers again.
+    private func withAssistantDeclineWarning(_ message: String) -> String {
+        guard state.assistantInvite.declineNeedsWarning else { return message }
+        return message + "\n\n" + UntranslatedL10n.screenInvitesAssistantDeclineWarningSpiral
     }
     
     private func declineAndBlock(userID: String) async {

@@ -236,6 +236,34 @@ struct SpiralAppRuntimeTests {
         window.isHidden = true
     }
 
+    /// A row that changes size while its app comes back (Dynamic Type, an iPad
+    /// resize, a zoomed page) never matches the size asked for. Counted in
+    /// frames, the wait outlasted the paint deadline and a healthy app was
+    /// replaced as silent; bounded by the clock, it answers in time.
+    @Test
+    func aPageThatNeverReachesItsRowsSizeIsNotTakenForASilentOne() async throws {
+        let bytes = Self.packed("export default () => 'still here';")
+        let artifact = try #require(SpiralAppArtifact.verified(packed: bytes, claimedDigest: Self.digest(of: bytes)))
+        let host = SpiralAppWebViewHost()
+        let scene = try #require(UIApplication.shared.connectedScenes.first as? UIWindowScene)
+        let window = UIWindow(windowScene: scene)
+        window.frame = CGRect(x: 0, y: 0, width: 300, height: 300)
+        let parent = UIViewController()
+        window.rootViewController = parent
+        window.makeKeyAndVisible()
+        host.containerView.frame = window.bounds
+        parent.view.addSubview(host.containerView)
+        try await host.mount(SpiralAppMount(instanceID: "resized", artifact: artifact, capabilities: [], viewerID: "@a:spiral.md"))
+
+        let start = ContinuousClock.now
+        let hasDrawn = await host.waitForLayout(CGSize(width: 320, height: 480))
+        MXLog.info("[experiment] a page that never reached its size answered after \(start.duration(to: .now))")
+
+        #expect(hasDrawn, "a healthy app was taken for a silent one")
+        host.destroy()
+        window.isHidden = true
+    }
+
     /// Of WebKit, in an opaque-origin frame on our scheme, not of the document:
     /// this artifact imports nothing, so only a preload asks for the SDK and
     /// the kit, and a preload that the import didn't reuse fetches React twice.

@@ -118,7 +118,7 @@ class DevE2ETestCase: XCTestCase {
     // attachments or screen recordings for the same reason.
     override func tearDownWithError() throws {
         let png = MainActor.assumeIsolated { () -> Data? in
-            let phrase = XCUIApplication(bundleIdentifier: "com.apple.SafariViewService").staticTexts.matching(NSPredicate(format: "label BEGINSWITH 'Write these 12 words' OR label BEGINSWITH 'Pick word #'"))
+            let phrase = XCUIApplication(bundleIdentifier: "com.apple.SafariViewService").staticTexts.matching(NSPredicate(format: "label BEGINSWITH 'Write these 12 words'"))
             return phrase.firstMatch.exists ? nil : XCUIScreen.main.screenshot().pngRepresentation
         }
         if let png {

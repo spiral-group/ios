@@ -15,6 +15,8 @@ import SwiftUI
 
 struct AgentActivityScreen: View {
     @Bindable var context: AgentActivityScreenViewModel.Context
+    /// Pinned in snapshots (`EnvironmentValues.relativeTimeAnchor`); the clock otherwise.
+    @Environment(\.relativeTimeAnchor) private var timeAnchor
 
     var body: some View {
         SwiftUI.TimelineView(AgentRelativeTime.refreshSchedule) { timeline in
@@ -25,7 +27,7 @@ struct AgentActivityScreen: View {
                 case .loaded where context.viewState.isEmpty:
                     emptySection
                 case .loaded(let items, _):
-                    rowsSection(items, now: timeline.date)
+                    rowsSection(items, now: timeAnchor ?? timeline.date)
                     if let sentinel = context.viewState.sentinel {
                         sentinelSection(sentinel)
                     }
@@ -299,7 +301,7 @@ struct AgentActivityScreen_Previews: PreviewProvider, TestablePreview, SpiralGat
                            longFlowID: nil,
                            outcome: outcome,
                            outcomeEventID: nil,
-                           createdAt: Date(timeIntervalSinceNow: -age),
+                           createdAt: PreviewClock.now.addingTimeInterval(-age),
                            resolvedAt: nil)
     }
 

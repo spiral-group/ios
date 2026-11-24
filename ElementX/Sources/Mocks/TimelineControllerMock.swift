@@ -33,6 +33,21 @@ struct TimelineControllerMockConfiguration {
                                      paginationState: TimelinePaginationState(backward: .endReached, forward: .endReached)))
     }
     
+    /// AGENT-PLATFORM (1.0.3 B14): nothing loaded yet, and every page fails until `paginateBackwardsRequestSizeReturnValue`
+    /// says otherwise. As the SDK does, each page goes to paginating and back to idle.
+    static var failingMediaGallery: TimelineControllerMock {
+        let idle = TimelinePaginationState(backward: .idle, forward: .endReached)
+        let mock = TimelineControllerMock(.init(timelineKind: .media(.mediaFilesScreen), timelineItems: [], paginationState: idle))
+        mock.paginateBackwardsRequestSizeReturnValue = .failure(.generic)
+        mock.paginateBackwardsRequestSizeClosure = { [weak mock] _ in
+            guard let mock else { return .failure(.generic) }
+            mock.callbacks.send(.paginationState(TimelinePaginationState(backward: .paginating, forward: .endReached)))
+            mock.callbacks.send(.paginationState(idle))
+            return mock.paginateBackwardsRequestSizeReturnValue
+        }
+        return mock
+    }
+    
     // swiftlint:disable:next function_body_length cyclomatic_complexity
     convenience init(_ configuration: TimelineControllerMockConfiguration) {
         self.init()

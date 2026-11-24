@@ -55,6 +55,10 @@ struct CreateRoomScreen: View {
         .toolbar { toolbar }
         .alert(item: $context.alertInfo)
         .shouldScrollOnKeyboardDidShow(focus == .alias, to: Focus.alias)
+        // AGENT-PLATFORM (1.0.3, operator 2026-11-21): the sheet takes the name field's keyboard.
+        .onChange(of: context.showSpaceSelectionSheet) { _, isShown in
+            if isShown { KeyboardDismissal.endEditing() }
+        }
         .sheet(isPresented: $context.showSpaceSelectionSheet) {
             CreateRoomSpaceSelectionSheet(context: context)
         }

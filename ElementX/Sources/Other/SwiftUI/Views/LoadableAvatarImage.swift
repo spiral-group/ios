@@ -79,6 +79,9 @@ struct LoadableAvatarImage: View {
                           mediaProvider: mediaProvider) { image in
                 image
                     .scaledToFill()
+                    // AGENT-PLATFORM (1.0.3): decoration beside the name it stands for, as the Peek is; shown, it was an
+                    // image without a description wherever a caller hadn't hidden the avatar.
+                    .accessibilityHidden(true)
             } placeholder: {
                 fallback
             }
@@ -93,6 +96,8 @@ struct LoadableAvatarImage: View {
         switch AgentAvatar.fallback(contentID: contentID) {
         case .letter:
             PlaceholderAvatarImage(name: name, contentID: contentID)
+                // AGENT-PLATFORM (1.0.3): hidden like the loaded picture, so an avatar reads the same before and after it loads.
+                .accessibilityHidden(true)
         case .peek:
             PeekAvatarImage(agentID: contentID)
         }

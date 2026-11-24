@@ -31,9 +31,13 @@ struct GalleryRoomTimelineView: View {
                                     onItemTap: tap)
                 } else {
                     GalleryGridView(items: timelineItem.content.items,
+                                    // AGENT-PLATFORM (1.0.3): under a caption the time sits below the grid, not in a tile.
+                                    hasCaption: hasMediaCaption,
                                     mediaProvider: context?.mediaProvider,
                                     contentScannerService: context?.contentScannerService,
                                     onItemTap: tap)
+                        // AGENT-PLATFORM (question 413): the album reads as one element, and each picture opens from its actions.
+                        .accessibilityHidden(true)
                 }
                 
                 if hasMediaCaption {
@@ -101,6 +105,10 @@ struct GalleryRoomTimelineView_Previews: PreviewProvider, TestablePreview {
         makeView(makeItem(itemCount: 4), viewModel).previewDisplayName("4 images")
         makeView(makeItem(itemCount: 5), viewModel).previewDisplayName("5 images")
         makeView(makeItem(itemCount: 9, caption: "A trip to remember 🌅"), viewModel).previewDisplayName("6+ images with caption")
+        // AGENT-PLATFORM (1.0.3): a narrow video tile keeps its chip inside, without the length when that doesn't fit.
+        makeView(makeItem(itemCount: 9), viewModel)
+            .dynamicTypeSize(.accessibility3)
+            .previewDisplayName("6+ images at an accessibility size")
         // AGENT-PLATFORM (question 413): an own album, blue under its caption.
         makeView(makeItem(itemCount: 3, caption: "Waterfalls from the trip", isOutgoing: true), viewModel).previewDisplayName("Own album with caption")
         makeView(makeMixedScanItem(), mixedScanViewModel).previewDisplayName("Mixed content scan")

@@ -175,12 +175,35 @@ struct FeedPressButtonStyle: ButtonStyle {
 /// A post's time, short enough to share the name's line. The system's own words in all 41 languages.
 struct FeedShortTime: View {
     let date: Date
+    /// Pinned in snapshots (`EnvironmentValues.relativeTimeAnchor`); the clock otherwise.
+    @Environment(\.relativeTimeAnchor) private var pinnedNow
 
     var body: some View {
-        Text(date, format: .relative(presentation: .numeric, unitsStyle: .narrow))
+        time(unitsStyle: .narrow)
             .lineLimit(1)
             .fixedSize()
-            .accessibilityLabel(Text(date, format: .relative(presentation: .numeric, unitsStyle: .wide)))
+            .accessibilityLabel(time(unitsStyle: .wide))
+    }
+
+    private func time(unitsStyle: Date.RelativeFormatStyle.UnitsStyle) -> Text {
+        if let pinnedNow {
+            // The style's anchor is the date it describes; its input is the "now" that date is described from.
+            let shown = Self.shownDate(date, now: pinnedNow)
+            return Text(pinnedNow, format: Date.AnchoredRelativeFormatStyle(anchor: shown, presentation: .numeric, unitsStyle: unitsStyle))
+        } else {
+            return Text(Self.shownDate(date, now: .now), format: .relative(presentation: .numeric, unitsStyle: unitsStyle))
+        }
+    }
+    
+    /// A post the server stamped a moment ahead of this phone's clock, or at this very second, is shown a second old:
+    /// the relative style words a zero or future difference as «in 0 s».
+    static func shownDate(_ date: Date, now: Date) -> Date {
+        min(date, now.addingTimeInterval(-1))
+    }
+    
+    /// The time as VoiceOver says it in a row's own label, by the same rule as the shown time.
+    static func spokenTime(_ date: Date, now: Date = .now) -> String {
+        Date.AnchoredRelativeFormatStyle(anchor: shownDate(date, now: now), presentation: .named, unitsStyle: .wide).format(now)
     }
 }
 

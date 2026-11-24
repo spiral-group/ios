@@ -16,13 +16,17 @@ nonisolated struct RoomTimelineItemFactory: RoomTimelineItemFactoryProtocol {
     
     /// The Matrix ID of the current user.
     private let userID: String
+    /// AGENT-PLATFORM: a template's post is titled in the reader's language wherever it shows.
+    private let templateTitles: SpiralAppTemplateTitles
     
     init(userID: String,
          attributedStringBuilder: AttributedStringBuilderProtocol,
-         stateEventStringBuilder: RoomStateEventStringBuilder) {
+         stateEventStringBuilder: RoomStateEventStringBuilder,
+         templateTitles: SpiralAppTemplateTitles = .standard) {
         self.userID = userID
         self.attributedStringBuilder = attributedStringBuilder
         self.stateEventStringBuilder = stateEventStringBuilder
+        self.templateTitles = templateTitles
     }
     
     // MARK: - Public
@@ -141,7 +145,7 @@ nonisolated struct RoomTimelineItemFactory: RoomTimelineItemFactoryProtocol {
     /// quotation exists to carry.
     func buildEventContent(messageType: MessageType, senderID: String, senderDisplayName: String?) -> TimelineEventContent {
         if case .interactivePost(let content) = messageType {
-            return .interactivePost(title: content.title)
+            return .interactivePost(title: readerTitle(content))
         }
 
         return .message(buildMessageTimelineItemContent(messageType: messageType,
@@ -176,13 +180,14 @@ nonisolated struct RoomTimelineItemFactory: RoomTimelineItemFactoryProtocol {
         // A reply or a pinned preview of a post: its title, as text. The live
         // app belongs to the post's own row, not to a quotation of it.
         case .interactivePost(let content):
-            .text(.init(body: content.title))
+            .text(.init(body: readerTitle(content)))
         case .interactiveDraft(let content):
             .text(.init(body: content.title))
         // AGENT-PLATFORM (Brief 0073): a notice quoted in a reply reads in
-        // the reader's language, as it does in the timeline.
+        // the reader's language, as it does in the timeline — and, as there,
+        // only an agent's; anyone else's is the plain body it carries.
         case .other(let msgtype, let body, let data):
-            .text(.init(body: SpiralNotice(msgtype: msgtype, data: data)?.plainText ?? body))
+            .text(.init(body: (SpiralAgentID.isAgent(senderID) ? SpiralNotice(msgtype: msgtype, data: data) : nil)?.plainText ?? body))
         case .none:
             .text(.init(body: L10n.commonUnsupportedEvent))
         }
@@ -243,7 +248,7 @@ nonisolated struct RoomTimelineItemFactory: RoomTimelineItemFactoryProtocol {
         // same msgtype is plain text — a person cannot forge a «sign-in
         // phrase changed» or «joined through your invitation» card.
         case .other(let msgtype, let body, let data) where msgtype == SpiralNotice.msgtype:
-            let isFromAgent = SpiralAppPostSession.isAgent(eventItemProxy.sender.id)
+            let isFromAgent = SpiralAgentID.isAgent(eventItemProxy.sender.id)
             // AGENT-PLATFORM (decision 371): the one kind that stays a message.
             if isFromAgent, let summary = SpiralCallSummary(msgtype: msgtype, data: data) {
                 return buildCallSummaryTimelineItem(eventItemProxy, messageLikeContent, messageContent, summary, body: body, isOutgoing)
@@ -265,45 +270,6 @@ nonisolated struct RoomTimelineItemFactory: RoomTimelineItemFactoryProtocol {
         }
     }
 
-    /// The row for an Interactive Post.
-    ///
-    /// Nothing is parsed here: the SDK already read the post's claims about
-    /// itself, so the row is sized and named from typed content. A post that
-    /// names no artifact never reaches this — it converts to an ordinary
-    /// unknown message, which is what it is.
-    ///
-    /// `properties` is built exactly as every other message builds it. It was
-    /// once left at its default, and the nine things it carries — reactions,
-    /// read receipts, delivery status, replies, threads, the edited marker and
-    /// the encryption shields — were all silently dead on a post while looking
-    /// deliberate.
-    private func buildInteractivePostTimelineItem(_ eventItemProxy: EventTimelineItemProxy,
-                                                  _ messageLikeContent: MsgLikeContent,
-                                                  _ messageContent: MessageContent,
-                                                  _ postContent: InteractivePostContent,
-                                                  _ isOutgoing: Bool) -> RoomTimelineItemProtocol? {
-        let post = SpiralAppPost(postContent)
-
-        return InteractivePostRoomTimelineItem(id: eventItemProxy.id,
-                                               // A catalogue template's post reads in the reader's language,
-                                               // not the publisher's it was stored in.
-                                               body: SpiralAppTemplateTitles.standard.title(forAppID: post.appID) ?? post.title,
-                                               timestamp: eventItemProxy.timestamp,
-                                               isOutgoing: isOutgoing,
-                                               isEditable: eventItemProxy.isEditable,
-                                               canBeRepliedTo: eventItemProxy.canBeRepliedTo,
-                                               sender: eventItemProxy.sender,
-                                               post: post,
-                                               properties: .init(replyDetails: buildTimelineItemReplyDetails(messageLikeContent.inReplyTo),
-                                                                 isThreaded: messageLikeContent.threadRoot != nil,
-                                                                 threadSummary: buildTimelineItemThreadSummary(messageLikeContent.threadSummary),
-                                                                 isEdited: messageContent.isEdited,
-                                                                 reactions: buildAggregatedReactions(eventItemProxy.reactions),
-                                                                 deliveryStatus: eventItemProxy.deliveryStatus,
-                                                                 encryptionAuthenticity: buildEncryptionAuthenticity(eventItemProxy.shieldState),
-                                                                 encryptionForwarder: eventItemProxy.forwarder))
-    }
-    
     private func buildInteractiveDraftTimelineItem(_ eventItemProxy: EventTimelineItemProxy,
                                                    _ messageLikeContent: MsgLikeContent,
                                                    _ messageContent: MessageContent,
@@ -1284,7 +1250,7 @@ nonisolated extension RoomTimelineItemFactory {
     }
 }
 
-// AGENT-PLATFORM: the agent-tools rows, kept apart from upstream's body.
+// AGENT-PLATFORM: the agent-tools and Interactive Post rows, kept apart from upstream's body.
 private extension RoomTimelineItemFactory {
     // AGENT-PLATFORM (Brief 0066 § 5.89)
     func buildSpiralToolsFallbackTimelineItem(for eventItemProxy: EventTimelineItemProxy, isOutgoing: Bool) -> RoomTimelineItemProtocol? {
@@ -1302,5 +1268,49 @@ private extension RoomTimelineItemFactory {
     func isAgentToolChangeByYou(_ eventItemProxy: EventTimelineItemProxy) -> Bool {
         guard let rawEventJSON = eventItemProxy.debugInfo.originalJSON else { return false }
         return stateEventStringBuilder.isSpiralToolsEventByYou(rawEventJSON: rawEventJSON, sender: eventItemProxy.sender)
+    }
+    
+    /// The row for an Interactive Post.
+    ///
+    /// Nothing is parsed here: the SDK already read the post's claims about
+    /// itself, so the row is sized and named from typed content. A post that
+    /// names no artifact never reaches this — it converts to an ordinary
+    /// unknown message, which is what it is.
+    ///
+    /// `properties` is built exactly as every other message builds it. It was
+    /// once left at its default, and the nine things it carries — reactions,
+    /// read receipts, delivery status, replies, threads, the edited marker and
+    /// the encryption shields — were all silently dead on a post while looking
+    /// deliberate.
+    func buildInteractivePostTimelineItem(_ eventItemProxy: EventTimelineItemProxy,
+                                          _ messageLikeContent: MsgLikeContent,
+                                          _ messageContent: MessageContent,
+                                          _ postContent: InteractivePostContent,
+                                          _ isOutgoing: Bool) -> RoomTimelineItemProtocol? {
+        let post = SpiralAppPost(postContent)
+
+        return InteractivePostRoomTimelineItem(id: eventItemProxy.id,
+                                               // A catalogue template's post reads in the reader's language,
+                                               // not the publisher's it was stored in.
+                                               body: templateTitles.title(forAppID: post.appID) ?? post.title, // AGENT-PLATFORM
+                                               timestamp: eventItemProxy.timestamp,
+                                               isOutgoing: isOutgoing,
+                                               isEditable: eventItemProxy.isEditable,
+                                               canBeRepliedTo: eventItemProxy.canBeRepliedTo,
+                                               sender: eventItemProxy.sender,
+                                               post: post,
+                                               properties: .init(replyDetails: buildTimelineItemReplyDetails(messageLikeContent.inReplyTo),
+                                                                 isThreaded: messageLikeContent.threadRoot != nil,
+                                                                 threadSummary: buildTimelineItemThreadSummary(messageLikeContent.threadSummary),
+                                                                 isEdited: messageContent.isEdited,
+                                                                 reactions: buildAggregatedReactions(eventItemProxy.reactions),
+                                                                 deliveryStatus: eventItemProxy.deliveryStatus,
+                                                                 encryptionAuthenticity: buildEncryptionAuthenticity(eventItemProxy.shieldState),
+                                                                 encryptionForwarder: eventItemProxy.forwarder))
+    }
+    
+    /// A catalogue template's title in the reader's language, as its card shows it; else the stored one.
+    func readerTitle(_ content: InteractivePostContent) -> String {
+        templateTitles.title(forAppID: content.appId) ?? content.title
     }
 }

@@ -8,6 +8,7 @@
 
 import Foundation
 import KeychainAccess
+import MatrixRustSDK
 @testable import Spiral
 import Testing
 
@@ -155,6 +156,137 @@ struct KeychainControllerTests {
         #expect(underlyingKeychain.allKeys().isEmpty, "The keychain should be empty again.")
     }
     
+    // AGENT-PLATFORM: a refresh that lands after a sign-out removed the token.
+    @Test
+    func savingSessionWithoutRestorationTokenWritesNothing() {
+        // Given an empty keychain (the user signed out).
+        #expect(keychain.restorationTokens().isEmpty, "The keychain should be empty to begin with.")
+
+        // When the SDK saves a refreshed session for that user.
+        keychain.saveSessionInKeychain(session: makeSession(accessToken: "refreshed", deviceId: "deviceId"))
+
+        // Then nothing traps and nothing is written.
+        #expect(keychain.restorationTokens().isEmpty, "A signed-out session must not be written back.")
+        #expect(keychain.restorationTokenForUsername("@test:example.com") == nil)
+    }
+
+    // AGENT-PLATFORM: a late refresh from a signed-out device after the same user signed in again.
+    @Test
+    func savingSessionFromAnotherDeviceKeepsTheStoredToken() {
+        // Given a keychain holding a newer login for the same user.
+        let stored = makeRestorationToken(session: makeSession(accessToken: "current", deviceId: "newDevice"))
+        keychain.setRestorationToken(stored, forUsername: "@test:example.com")
+
+        // When the old device's session is saved.
+        keychain.saveSessionInKeychain(session: makeSession(accessToken: "stale", deviceId: "oldDevice"))
+
+        // Then the newer login is untouched.
+        #expect(keychain.restorationTokenForUsername("@test:example.com") == stored)
+    }
+
+    @Test
+    func savingSessionUpdatesTheStoredToken() {
+        // Given a keychain with a stored restoration token.
+        let stored = makeRestorationToken(session: makeSession(accessToken: "old", deviceId: "deviceId"))
+        keychain.setRestorationToken(stored, forUsername: "@test:example.com")
+
+        // When the SDK saves a refreshed session.
+        let refreshed = makeSession(accessToken: "refreshed", deviceId: "deviceId")
+        keychain.saveSessionInKeychain(session: refreshed)
+
+        // Then the session is replaced and everything else is kept.
+        let saved = keychain.restorationTokenForUsername("@test:example.com")
+        #expect(saved?.session == refreshed)
+        #expect(saved?.sessionDirectories == stored.sessionDirectories)
+        #expect(saved?.passphrase == stored.passphrase)
+        #expect(saved?.pusherNotificationClientIdentifier == stored.pusherNotificationClientIdentifier)
+    }
+
+    /// AGENT-PLATFORM (1.0.3, NSE keychain review finding 1): with refresh-token rotation the stored pair is dead once
+    /// the SDK holds the new one, so a read that fails is tried again rather than taken for a sign-out.
+    @Test
+    func aReadThatFailsOnceIsTriedAgainAndTheSessionSaved() {
+        let failures = FailureBudget(count: 1)
+        let keychain = KeychainController(service: .tests,
+                                          accessGroup: InfoPlistReader.main.keychainAccessGroupIdentifier,
+                                          unreadableTokenRetryDelays: [0]) { keychain, username in
+            if failures.spend() { throw Status.interactionNotAllowed }
+            return try keychain.getData(username)
+        }
+        let stored = makeRestorationToken(session: makeSession(accessToken: "old", deviceId: "deviceId"))
+        keychain.setRestorationToken(stored, forUsername: "@test:example.com")
+        
+        let refreshed = makeSession(accessToken: "refreshed", deviceId: "deviceId")
+        keychain.saveSessionInKeychain(session: refreshed)
+        
+        #expect(keychain.restorationTokenForUsername("@test:example.com")?.session == refreshed)
+    }
+    
+    @Test
+    func aReadThatKeepsFailingLeavesTheStoredTokenAlone() {
+        let keychain = KeychainController(service: .tests,
+                                          accessGroup: InfoPlistReader.main.keychainAccessGroupIdentifier,
+                                          unreadableTokenRetryDelays: [0, 0]) { _, _ in throw Status.interactionNotAllowed }
+        let stored = makeRestorationToken(session: makeSession(accessToken: "old", deviceId: "deviceId"))
+        keychain.setRestorationToken(stored, forUsername: "@test:example.com")
+        
+        keychain.saveSessionInKeychain(session: makeSession(accessToken: "refreshed", deviceId: "deviceId"))
+        
+        #expect(keychain.restorationTokenForUsername("@test:example.com") == stored)
+    }
+    
+    /// Fable L2: data that doesn't decode is read once; only a keychain error is worth another read.
+    @Test
+    func undecodableDataIsNotReadAgain() {
+        let reads = FailureBudget(count: Int.max)
+        let keychain = KeychainController(service: .tests,
+                                          accessGroup: InfoPlistReader.main.keychainAccessGroupIdentifier,
+                                          unreadableTokenRetryDelays: [0, 0]) { _, _ in
+            _ = reads.spend()
+            return Data("not a token".utf8)
+        }
+        
+        keychain.saveSessionInKeychain(session: makeSession(accessToken: "refreshed", deviceId: "deviceId"))
+        
+        #expect(reads.spent == 1)
+    }
+    
+    /// AGENT-PLATFORM (1.0.3, NSE keychain review finding 2): a sign-out in another process between the read and the
+    /// write must not get the signed-out token written back.
+    @Test
+    func aSignOutBetweenTheReadAndTheWriteIsNotUndone() {
+        let keychain = KeychainController(service: .tests,
+                                          accessGroup: InfoPlistReader.main.keychainAccessGroupIdentifier) { keychain, username in
+            let data = try keychain.getData(username)
+            try keychain.remove(username) // The app signs out right after the NSE's read.
+            return data
+        }
+        keychain.setRestorationToken(makeRestorationToken(session: makeSession(accessToken: "old", deviceId: "deviceId")),
+                                     forUsername: "@test:example.com")
+        
+        keychain.saveSessionInKeychain(session: makeSession(accessToken: "refreshed", deviceId: "deviceId"))
+        
+        #expect(keychain.restorationTokenForUsername("@test:example.com") == nil)
+        #expect(keychain.restorationTokens().isEmpty)
+    }
+
+    private func makeSession(accessToken: String, deviceId: String) -> Session {
+        Session(accessToken: accessToken,
+                refreshToken: "refreshToken",
+                userId: "@test:example.com",
+                deviceId: deviceId,
+                homeserverUrl: "homeserverUrl",
+                oauthData: "oauthData",
+                slidingSyncVersion: .native)
+    }
+
+    private func makeRestorationToken(session: Session) -> RestorationToken {
+        RestorationToken(session: session,
+                         sessionDirectories: .init(),
+                         passphrase: RestorationTokenFixtures.passphrase,
+                         pusherNotificationClientIdentifier: "pusherClientID")
+    }
+
     @Test
     func addPINCode() throws {
         // Given a keychain without a PIN code set.
@@ -246,5 +378,29 @@ struct KeychainControllerTests {
         // Then the state should no longer be stored.
         #expect(!keychain.containsPINCodeBiometricState(), "The keychain should no longer contain the biometric state.")
         #expect(keychain.pinCodeBiometricState() == nil, "There shouldn't be any stored biometric state after removing it.")
+    }
+}
+
+/// Fails the first `count` reads, and counts them, from whichever thread the keychain is read on.
+private nonisolated final class FailureBudget: @unchecked Sendable {
+    private let lock = NSLock()
+    private var count: Int
+    private var spentCount = 0
+    
+    var spent: Int {
+        lock.withLock { spentCount }
+    }
+    
+    init(count: Int) {
+        self.count = count
+    }
+    
+    func spend() -> Bool {
+        lock.withLock {
+            guard count > 0 else { return false }
+            count -= 1
+            spentCount += 1
+            return true
+        }
     }
 }

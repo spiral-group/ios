@@ -83,6 +83,9 @@
 "screen_agent_edit_persona_too_long" = "Слишком длинный текст: %1$d / %2$d. Сократите, чтобы сохранить.";
 "screen_agent_edit_persona_empty" = "Обязательное поле. Заполните, чтобы сохранить.";
 "screen_agent_edit_failure" = "Не удалось сохранить изменения";
+"error_agent_name_reserved" = "Это имя зарезервировано для аккаунтов самого Spiral. Выберите другое имя.";
+"error_agent_name_invalid_characters" = "В имени есть символы, которые нельзя использовать.";
+"error_agent_name_unchecked" = "Не удалось проверить имя. Попробуйте ещё раз.";
 "screen_agent_edit_load_failure" = "Не удалось загрузить форму редактирования";
 "screen_agent_edit_avatar_failure" = "Не удалось загрузить фото";
 
@@ -401,7 +404,6 @@
 "screen_language_picker_suggested_section" = "Рекомендуемые";
 "screen_language_picker_all_section" = "Все языки";
 "screen_start_sign_in" = "Войти";
-"screen_start_welcome_subtitle" = "Быстрое приватное общение с вашим личным агентом.";
 
 // AGENT-PLATFORM (Brief 0063, audit C11b) — the 192 keys this file
 // was missing against en. Hand-translated, not machine output; the
@@ -592,33 +594,22 @@
 "screen_start_invited_by" = "%1$@ приглашает вас в Spiral";
 "screen_start_invited" = "Вас пригласили в Spiral";
 "screen_start_invited_hint" = "Создайте аккаунт, чтобы присоединиться.";
-"screen_invite_paste_title" = "Есть приглашение?";
-"screen_invite_paste_message" = "Вставьте ссылку, которую вам прислал пользователь Spiral, или введите код.";
-"screen_invite_paste_label" = "Ссылка или код";
-"screen_invite_paste_without" = "Продолжить без приглашения";
-"screen_invite_paste_placeholder" = "spiral.md/join/…";
-"screen_invite_paste_invalid" = "Такого приглашения нет.";
-"screen_invite_paste_expired" = "Это приглашение больше не действует. Попросите новое.";
-"screen_invite_paste_exhausted" = "По этому приглашению уже присоединились все, кому оно позволяло. Попросите новое.";
-"screen_invite_paste_unavailable" = "Не удалось проверить приглашение. Попробуйте ещё раз.";
 "invite_link_opened_while_signed_in" = "Это приглашение присоединиться к Spiral — вы уже здесь.";
 "screen_invite_people_share_message" = "Присоединяйся ко мне в Spiral — %1$@";
 "screen_invite_people_seats_left" = "Осталось приглашений: %1$d из %2$d";
 "screen_invite_people_exhausted" = "Все %1$d приглашений использованы. У каждого человека одна ссылка с фиксированным числом мест.";
-"screen_invite_people_joined" = "По вашему приглашению присоединились: %1$d";
-"screen_invite_people_joined_title" = "Присоединились по вашему приглашению";
-"screen_invite_people_joined_footer" = "Люди, создавшие аккаунт по вашей ссылке. Нажмите, чтобы начать чат.";
 "screen_invite_people_title" = "Пригласить в Spiral";
-"screen_invite_people_body" = "Регистрация только по приглашению. Поделитесь своей личной ссылкой — тот, кто создаст аккаунт по ней, увидит вас первым.";
-"screen_invite_people_seats_footer" = "У каждого человека одна ссылка на %1$d мест. Она не обновляется — делитесь ею с теми, кого действительно хотите видеть здесь.";
-"screen_invite_people_seats_label" = "Осталось приглашений";
-"screen_invite_people_seats_value" = "%1$d из %2$d";
+"screen_invite_people_you" = "Вы";
+"screen_invite_people_invited_count" = "Пригласили %1$d из %2$d";
+"screen_invite_people_invited_you" = "Ваше приглашение в Spiral";
+"screen_invite_people_seat_invite" = "Пригласить";
+"screen_invite_people_seat_taken" = "Занято";
+"screen_invite_people_chain_footer" = "Одна ссылка на %1$d человек, она не обновляется. Нажмите на человека, чтобы открыть его профиль.";
+"screen_invite_people_all_used" = "Все приглашения использованы";
 "notice_referral_joined" = "%1$@ теперь в Spiral — по вашему приглашению.";
 "notice_referral_joined_title" = "Присоединение по вашему приглашению";
 "notice_referral_joined_hint" = "Открывает профиль";
 "notice_welcome_title" = "Привет, %1$@! 👋";
-"notice_welcome_assistant_body" = "Я %1$@, ваш личный ассистент. Могу пересказывать сообщения, пока вас нет, помнить ваши контакты и подводить итоги комнат. Чтобы включить мои инструменты в комнате, нажмите там + и выберите «Агенты». Просто напишите мне — я здесь.";
-"notice_welcome_agent_body" = "%1$@ готов. Просто напишите мне.";
 
 /* AGENT-PLATFORM (Brief 0075): a new account phrase from a signed-in device. */
 "screen_settings_new_phrase_title" = "Новая фраза входа";
@@ -627,6 +618,20 @@
 "screen_settings_new_phrase_passcode_required" = "Сначала установите код-пароль устройства — он защищает смену фразы";
 "screen_settings_new_phrase_done" = "Фраза входа изменена";
 "screen_settings_new_phrase_failed" = "Не удалось начать смену фразы. Попробуйте ещё раз.";
+/* AGENT-PLATFORM (1.0.3): sign-in methods — the first phrase for an account made with Apple, Sign in with Apple for a phrase account. */
+"screen_settings_add_phrase_title" = "Добавить фразу входа";
+"screen_settings_add_phrase_message" = "Вы выберете 12 слов. Они открывают аккаунт на любом устройстве, вместе со входом через Apple. На этом устройстве вы останетесь в Spiral, переписку это не затронет.";
+"screen_settings_add_phrase_auth_reason" = "Подтвердите, что это вы, чтобы добавить фразу входа";
+"screen_settings_add_phrase_done" = "Фраза входа добавлена";
+"screen_settings_add_phrase_failed" = "Не удалось начать добавление фразы. Попробуйте ещё раз.";
+"screen_settings_sign_in_passcode_required" = "Сначала установите код-пароль устройства — он защищает способы входа";
+"screen_settings_apple_title" = "Вход через Apple";
+"screen_settings_apple_connected" = "Подключено";
+"screen_settings_apple_add_title" = "Добавить вход через Apple";
+"screen_settings_apple_auth_reason" = "Подтвердите, что это вы, чтобы добавить вход через Apple";
+"screen_settings_apple_linked" = "Вход через Apple добавлен";
+"screen_settings_apple_taken" = "Этот Apple ID уже используется в другом аккаунте Spiral";
+"screen_settings_apple_failed" = "Не удалось начать добавление входа через Apple. Попробуйте ещё раз.";
 "screen_deactivate_account_spiral_description" = "Удаление аккаунта %1$@. Вот что произойдёт:";
 "screen_deactivate_account_spiral_description_bold_part" = "необратимо";
 "screen_deactivate_account_spiral_list_item_1" = "Ваш аккаунт будет %1$@: вы не сможете снова войти, а ваше имя пользователя никто не сможет занять.";
@@ -643,6 +648,9 @@
 "notice_phrase_changed_title" = "Фраза входа изменена";
 "notice_phrase_changed_body" = "Старая фраза больше не открывает аккаунт.";
 "notice_phrase_changed_on_device" = "Изменено на устройстве «%1$@».";
+/* AGENT-PLATFORM (1.0.3): the owner-DM card when Sign in with Apple is added. It names no device (security review); a new phrase disconnects Apple. */
+"notice_apple_linked_title" = "Вход через Apple добавлен";
+"notice_apple_linked_body" = "Если это были не вы — смените фразу входа: это отключит Apple.";
 
 /* AGENT-PLATFORM (Brief 0079): notices the server used to write in English. */
 "notice_reply_failed_title" = "Не удалось ответить";
@@ -669,8 +677,6 @@
 "notice_ai_consent_needed_allowed_body" = "Вы разрешили ИИ. %1$@ будет отвечать на ваши новые сообщения.";
 
 /* AGENT-PLATFORM (Brief 0073): the first screen after an invited registration. Localazy: change %1$@ -> %1$s */
-"screen_invite_welcome_title" = "Добро пожаловать в Spiral";
-"screen_invite_welcome_message" = "Вас пригласил(а) %1$@ — и уже знает, что вы здесь. Поздоровайтесь!";
 "screen_invite_welcome_message_action" = "Написать %1$@";
 "screen_invite_welcome_later" = "Позже";
 "screen_ai_consent_prompt_title" = "Разрешить сторонний ИИ?";
@@ -1427,6 +1433,16 @@
 "screen_native_call_assistants_record_confirm_title" = "Записывать звонок?";
 "screen_native_call_assistants_record_confirm_message" = "Все увидят «ЗАПИСЬ» в шапке. Запись появится в чате после звонка.";
 "screen_native_call_assistants_record_confirm_action" = "Записывать";
+"screen_native_call_assistants_notes_confirm_title" = "Вести заметки звонка?";
+"screen_native_call_assistants_notes_confirm_message" = "Ассистент будет слушать звонок и после него опубликует итоги в чате. Остальные будут видеть, что он ведёт заметки.";
+"screen_native_call_assistants_notes_confirm_action" = "Вести заметки";
+"screen_native_call_assistants_talk_confirm_title" = "Говорить с ассистентом?";
+"screen_native_call_assistants_talk_confirm_message" = "Ассистент будет слышать только вас и отвечать вслух — его слышат все в звонке.";
+"screen_native_call_assistants_talk_confirm_action" = "Начать разговор";
+"screen_native_call_assistants_translate_question_title" = "Переводить на";
+"screen_native_call_assistants_listen_question_title" = "Слушать";
+"screen_native_call_assistants_talk_info_title" = "Ассистент отвечает вслух";
+"screen_native_call_assistants_talk_info_message" = "Он слышит только вас, а его слышат все в звонке. Перевод недоступен, пока идёт разговор.";
 "screen_native_call_assistants_none_of_your_own" = "У вас нет ассистента";
 "screen_native_call_assistants_which" = "Какой ассистент";
 "screen_native_call_assistants_reason_paused" = "Ваш ассистент приостановлен";
@@ -1552,7 +1568,6 @@
 "screen_native_call_assistants_job_conversation" = "Разговор";
 "screen_native_call_assistants_translating" = "Переводит на %1$@";
 "screen_native_call_assistants_stop_translation" = "Остановить перевод";
-"screen_native_call_assistants_talk_caption" = "Отвечает вам вслух — его слышат все. Перевод недоступен, пока идёт разговор.";
 "screen_native_call_assistants_pick_footer" = "Запомним для этого чата";
 "screen_native_call_assistants_neighbour_language" = "Язык человека рядом";
 "screen_native_call_assistants_pocket_detail" = "После каждой фразы · в обе стороны";
@@ -1572,10 +1587,9 @@
 "screen_native_call_assistants_status_both_ways" = "Переводит в обе стороны";
 "screen_native_call_assistants_translate_into" = "Перевод на";
 "screen_native_call_assistants_translate_into_detail" = "На нём вы слышите звонок";
+"screen_native_call_assistants_translate_into_language" = "Переводить на %1$@";
 "screen_native_call_assistants_in_call" = "В звонке";
 "screen_native_call_assistants_in_call_more" = "В звонке ещё %1$d";
-"screen_native_call_assistants_new_translation" = "Новый перевод";
-"screen_native_call_assistants_new_translation_detail" = "Ваш ассистент переведёт звонок";
 "screen_native_call_assistants_new_translation_others" = "Ваш ассистент переведёт: %1$@. Остальных уже переводят бесплатно.";
 "screen_native_call_assistants_start_translation" = "Начать перевод";
 "screen_native_call_assistants_start_translation_detail" = "Расходует ваш лимит. Кто выберет этот язык, слушает бесплатно.";
@@ -1620,3 +1634,61 @@
 "screen_media_viewer_position" = "%1$d из %2$d";
 "a11y_media_viewer_more" = "Ещё";
 "a11y_album_open_item" = "Открыть элемент %1$d";
+
+// AGENT-PLATFORM (1.0.3 A2): the assistant's first invite in Chats, its chat before consent and its welcome.
+"screen_roomlist_assistant_invite_name" = "Ваш ассистент";
+"screen_roomlist_assistant_invite_subtitle" = "Привет! Нажмите, чтобы начать 👋";
+"screen_roomlist_assistant_invite_start" = "Начать";
+"a11y_assistant_invite_start" = "Начать разговор с ассистентом";
+"a11y_assistant_invite_start_hint" = "Принимает приглашение ассистента и открывает ваш чат с ним.";
+"screen_assistant_invite_title" = "Привет! Я ваш ассистент";
+"screen_assistant_invite_reminders" = "Напомню о важном";
+"screen_assistant_invite_contacts" = "Запомню ваши контакты";
+"screen_assistant_invite_summaries" = "Подведу итоги любого чата";
+"screen_assistant_invite_privacy" = "Вижу только этот разговор. Отключить можно в любой момент.";
+"screen_assistant_invite_start" = "Начать разговор";
+"notice_welcome_body" = "Я здесь и готов помочь. С чего начнём?";
+"notice_welcome_starter_summary" = "Подведи итоги чата";
+"notice_welcome_starter_summary_message" = "Подведи для меня итоги чата";
+"notice_welcome_starter_contact" = "Запомни контакт";
+"notice_welcome_starter_contact_message" = "Запомни кое-что о моём контакте";
+"notice_welcome_starter_reminder" = "Напомни мне…";
+"notice_welcome_starter_reminder_message" = "Поставь мне напоминание";
+"notice_welcome_allow_ai_reason" = "Разрешите ИИ, чтобы я мог читать, что вы здесь пишете.";
+"notice_welcome_allow_ai_action" = "Разрешить ИИ";
+
+// AGENT-PLATFORM (1.0.3 onboarding): the start screen's stories, the notifications prompt and the invited welcome.
+"screen_start_slide_privacy_title" = "Ваши разговоры — ваши";
+"screen_start_slide_privacy_subtitle" = "Сквозное шифрование. Без номера телефона, а ассистент — только с вашего разрешения";
+"screen_start_slide_calls_title" = "Звонки с переводом";
+"screen_start_slide_calls_subtitle" = "Ассистент подключается и переводит вживую";
+"screen_start_slide_assistant_title" = "Ассистент рядом";
+"screen_start_slide_assistant_subtitle" = "Отвечает, когда вы заняты, — и спрашивает вас перед каждым новым шагом";
+"screen_start_slide_games_title" = "Играйте вместе прямо в чате";
+"screen_start_slide_games_subtitle" = "Игры и инструменты — ничего не нужно устанавливать";
+"screen_start_invited_by_hint" = "Создайте аккаунт — %1$@ узнает";
+"a11y_start_slides_position" = "Слайд %1$d из %2$d";
+"screen_notification_optin_spiral_title" = "Будьте на связи";
+"screen_notification_optin_spiral_subtitle" = "Spiral сообщит, когда что-то действительно важно. Изменить это можно в любой момент в Настройках.";
+"screen_notification_optin_messages_title" = "Новые сообщения";
+"screen_notification_optin_messages_subtitle" = "От людей и групп, с которыми вы общаетесь";
+"screen_notification_optin_calls_title" = "Входящие звонки";
+"screen_notification_optin_calls_subtitle" = "Даже когда Spiral закрыт";
+"screen_notification_optin_assistant_title" = "Вопросы вашего ассистента";
+"screen_notification_optin_assistant_subtitle" = "Когда ему нужно ваше согласие";
+"screen_notification_optin_allow" = "Разрешить уведомления";
+"screen_invite_welcome_together_title" = "%1$@ и вы — вместе в Spiral";
+"screen_invite_welcome_step_say_hello_title" = "Поздороваться с %1$@";
+"screen_invite_welcome_step_say_hello_subtitle" = "%1$@ ждёт";
+"screen_invite_welcome_step_assistant_title" = "Познакомиться с ассистентом";
+"screen_invite_welcome_step_assistant_subtitle" = "Его приглашение ждёт в Чатах";
+"screen_invite_welcome_step_play_title" = "Сыграть во что-нибудь вместе";
+"screen_invite_welcome_step_play_subtitle" = "Игры и инструменты прямо в чате";
+"a11y_invite_welcome_avatars" = "%1$@ и вы";
+"screen_approval_detail_already_closed_title" = "Этот запрос уже закрыт";
+"screen_approval_detail_already_closed_message" = "Его срок истёк, или на него уже ответили.";
+"screen_room_interactive_post_description_not_sent" = "Ваше описание не отправлено. Отправьте его ещё раз в обсуждении.";
+"screen_room_interactive_post_code_not_sent" = "Пост не дошёл до агента. Попробуйте ещё раз из поста.";
+"screen_invites_assistant_decline_warning_spiral" = "Если это ваш собственный ассистент, его чат нельзя будет восстановить после отказа.";
+"a11y_roomlist_remove_filter" = "Убрать фильтр: %1$@";
+"a11y_settings_share_profile" = "Поделиться моим профилем";

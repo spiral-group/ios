@@ -105,6 +105,37 @@ struct TimelineDeliveryStatusTests {
     }
     
     @Test
+    func anAlbumReadsItsTimeAndWarningWithItselfAsAPhotoDoes() {
+        let warning = EncryptionAuthenticity.unknownDevice(color: .red)
+        let album = incomingGallery(items: [.mockImage(index: 0), .mockImage(index: 1)],
+                                    properties: .init(encryptionAuthenticity: warning))
+        let sendInfo = TimelineItemSendInfo(timelineItem: album, adjustedDeliveryStatus: nil, deliveryStatus: nil)
+        
+        #expect(sendInfo.isReadWithMessage)
+        #expect(sendInfo.isAccessibilityHidden)
+        #expect(sendInfo.statusAccessibilityLabel == warning.message)
+    }
+    
+    @Test
+    func aListOfFilesStillAnnouncesItsTimeOnEnteringIt() {
+        let list = incomingGallery(items: [.mockImage(index: 0), .mockFile(index: 1)], properties: .init())
+        let sendInfo = TimelineItemSendInfo(timelineItem: list, adjustedDeliveryStatus: nil, deliveryStatus: nil)
+        
+        #expect(!sendInfo.isReadWithMessage)
+        #expect(sendInfo.isAccessibilityHidden)
+    }
+    
+    @Test
+    func anAlbumsOwnLabelLeavesTheSenderAndTheTimeToTheRow() {
+        let album = incomingGallery(items: [.mockImage(index: 0), .mockImage(index: 1), .mockImage(index: 2)],
+                                    caption: "The trip",
+                                    properties: .init())
+        
+        #expect(album.albumAccessibilityLabel == "\(UntranslatedL10n.a11yAlbumItems(3)), The trip")
+        #expect(!album.albumAccessibilityLabel.contains(album.localizedSendInfo))
+    }
+    
+    @Test
     func aFailedSendKeepsItsMarkAndItsTimeInTheBubble() {
         let sendInfo = TimelineItemSendInfo(timelineItem: ownMessage(),
                                             adjustedDeliveryStatus: .sendingFailed(.unknown(reason: nil)),
@@ -207,6 +238,17 @@ struct TimelineDeliveryStatusTests {
                                 canBeRepliedTo: true,
                                 sender: .init(id: RoomMemberProxyMock.mockMe.userID),
                                 content: .init(body: "Gallery", caption: caption, items: []),
+                                properties: properties)
+    }
+    
+    private func incomingGallery(items: [GalleryItem], caption: String? = nil, properties: RoomTimelineItemProperties) -> GalleryRoomTimelineItem {
+        GalleryRoomTimelineItem(id: .randomEvent,
+                                timestamp: .mock,
+                                isOutgoing: false,
+                                isEditable: false,
+                                canBeRepliedTo: true,
+                                sender: .init(id: person.userID),
+                                content: .init(body: "Gallery", caption: caption, items: items),
                                 properties: properties)
     }
     

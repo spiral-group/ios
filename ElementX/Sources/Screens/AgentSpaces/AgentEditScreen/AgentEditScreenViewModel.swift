@@ -242,7 +242,9 @@ class AgentEditScreenViewModel: AgentEditScreenViewModelType, AgentEditScreenVie
     
     private func showSaveFailure(_ error: AgentPlatformError) {
         MXLog.error("Failed to save agent edits: \(error)")
+        // The field keeps the typed name, so a refused one can be fixed in place.
         state.bindings.alertInfo = AlertInfo(id: .saveFailed,
-                                             title: UntranslatedL10n.screenAgentEditFailure)
+                                             title: UntranslatedL10n.screenAgentEditFailure,
+                                             message: error.agentNameRefusal)
     }
 }

@@ -87,10 +87,11 @@ final class ApprovalActionRunner {
             MXLog.info("ApprovalActionRunner: succeeded for \(approvalID)")
             pendingStore?.markCompleted(approvalID: approvalID)
         case .failure(.conflict):
-            // Already decided elsewhere (likely another device).
-            // Idempotent on the server; drop the queue entry.
-            MXLog.info("ApprovalActionRunner: 409 conflict for \(approvalID), treating as success")
+            // Already decided: it expired, or another device answered it. Final, and the owner hears so — this tap
+            // decided nothing, and silence read as if it had gone through.
+            MXLog.info("ApprovalActionRunner: 409 conflict for \(approvalID) — the card is already closed")
             pendingStore?.markCompleted(approvalID: approvalID)
+            await postClosedNotification(for: approvalID, threadIdentifier: threadIdentifier)
         case .failure(.targetBlocked):
             // Refused, not decided: the owner blocked the card's target, so
             // the platform closed the card. No retry can change that.
@@ -140,8 +141,12 @@ final class ApprovalActionRunner {
         MXLog.info("ApprovalActionRunner: replaying \(pending.count) queued action(s)")
         for entry in pending {
             switch await service.decideApproval(id: entry.approvalID, decision: entry.decision) {
-            case .success, .failure(.conflict):
+            case .success:
                 pendingStore.markCompleted(approvalID: entry.approvalID)
+            case .failure(.conflict):
+                MXLog.info("ApprovalActionRunner: queued \(entry.approvalID) is already closed (409)")
+                pendingStore.markCompleted(approvalID: entry.approvalID)
+                await postClosedNotification(for: entry.approvalID, threadIdentifier: nil)
             case .failure(.targetBlocked):
                 MXLog.info("ApprovalActionRunner: queued \(entry.approvalID) refused — target blocked, card closed")
                 pendingStore.markCompleted(approvalID: entry.approvalID)
@@ -213,6 +218,18 @@ final class ApprovalActionRunner {
         await postNotification(gone, identifier: "agent-platform.approval-gone.\(approvalID)")
     }
 
+    /// Plain, like the gone notice: the card was decided already (expired, or answered on another device), so there
+    /// is nothing left to decide. It replaces this card's "couldn't deliver".
+    private func postClosedNotification(for approvalID: String, threadIdentifier: String?) async {
+        notificationCenter.removeDeliveredNotifications(withIdentifiers: [Self.failureNotificationIdentifier(approvalID)])
+        let closed = UNMutableNotificationContent()
+        closed.title = strings.closedTitle
+        closed.body = strings.closedBody
+        if let threadIdentifier { closed.threadIdentifier = threadIdentifier }
+        closed.interruptionLevel = .active
+        await postNotification(closed, identifier: "agent-platform.approval-closed.\(approvalID)")
+    }
+
     /// Plain: Approve would only be refused again until the resume. The card
     /// stays in the hub, to decide then. It replaces this card's "couldn't deliver".
     private func postAgentPausedNotification(for approvalID: String, threadIdentifier: String?) async {
@@ -261,6 +278,8 @@ nonisolated struct ApprovalActionRunnerStrings {
     let notFoundBody: String
     let agentPausedTitle: String
     let agentPausedBody: String
+    let closedTitle: String
+    let closedBody: String
 
     static let live = ApprovalActionRunnerStrings(failureTitle: UntranslatedL10n.notificationApprovalActionFailedTitle,
                                                   failureBody: UntranslatedL10n.notificationApprovalActionFailedBody,
@@ -271,5 +290,7 @@ nonisolated struct ApprovalActionRunnerStrings {
                                                   notFoundTitle: UntranslatedL10n.notificationApprovalActionNotFoundTitle,
                                                   notFoundBody: UntranslatedL10n.notificationApprovalActionNotFoundBody,
                                                   agentPausedTitle: UntranslatedL10n.notificationApprovalActionAgentPausedTitle,
-                                                  agentPausedBody: UntranslatedL10n.notificationApprovalActionAgentPausedBody)
+                                                  agentPausedBody: UntranslatedL10n.notificationApprovalActionAgentPausedBody,
+                                                  closedTitle: UntranslatedL10n.screenApprovalDetailAlreadyClosedTitle,
+                                                  closedBody: UntranslatedL10n.screenApprovalDetailAlreadyClosedMessage)
 }

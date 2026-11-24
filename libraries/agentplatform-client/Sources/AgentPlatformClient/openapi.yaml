@@ -2185,6 +2185,221 @@ paths:
                 $ref: '#/components/schemas/ProblemDetails'
       security:
       - bearer_auth: []
+  /api/v1/admin/waitlist:
+    get:
+      tags:
+      - admin
+      summary: The waitlist, newest first.
+      operationId: list_waitlist
+      parameters:
+      - name: page
+        in: query
+        required: false
+        schema:
+          type: integer
+          format: int32
+          minimum: 0
+      - name: per_page
+        in: query
+        required: false
+        schema:
+          type: integer
+          format: int32
+          minimum: 0
+      - name: not_invited
+        in: query
+        description: '`true` leaves out the rows already invited.'
+        required: false
+        schema:
+          type: boolean
+      responses:
+        '200':
+          description: A page of the waitlist
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminWaitlistResponse'
+        '400':
+          description: A page outside the rules
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '401':
+          description: Missing or invalid bearer token
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '403':
+          description: The token lacks `urn:mas:admin`
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '500':
+          description: 'Internal server error (`/errors/internal`): something the request depends on failed; the `detail` says no more'
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+      security:
+      - bearer_auth: []
+  /api/v1/admin/waitlist/export:
+    get:
+      tags:
+      - admin
+      summary: The waitlist as a CSV download.
+      operationId: export_waitlist
+      parameters:
+      - name: not_invited
+        in: query
+        description: '`true` leaves out the rows already invited.'
+        required: false
+        schema:
+          type: boolean
+      responses:
+        '200':
+          description: The waitlist as CSV (UTF-8 with a byte-order mark)
+          content:
+            text/csv: {}
+        '400':
+          description: 'Request could not be read (`/errors/validation-failed`): a query parameter does not parse'
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '401':
+          description: Missing or invalid bearer token
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '403':
+          description: The token lacks `urn:mas:admin`
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '500':
+          description: 'Internal server error (`/errors/internal`): something the request depends on failed; the `detail` says no more'
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+      security:
+      - bearer_auth: []
+  /api/v1/admin/waitlist/{entry_id}:
+    delete:
+      tags:
+      - admin
+      summary: |-
+        Delete a waitlist row for good (a request to support@, GDPR). An invite
+        it was given stays a working link; revoke it under Invites if it must
+        not be used.
+      operationId: delete_waitlist_entry
+      parameters:
+      - name: entry_id
+        in: path
+        description: The waitlist row's id
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '204':
+          description: Deleted
+        '400':
+          description: Not a UUID
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '401':
+          description: Missing or invalid bearer token
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '403':
+          description: The token lacks `urn:mas:admin`
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '404':
+          description: No waitlist row has this id
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '500':
+          description: 'Internal server error (`/errors/internal`): something the request depends on failed; the `detail` says no more'
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+      security:
+      - bearer_auth: []
+  /api/v1/admin/waitlist/{entry_id}/invite:
+    post:
+      tags:
+      - admin
+      summary: '"Issue invite": a one-seat campaign for the row, and its link.'
+      operationId: invite_waitlist_entry
+      parameters:
+      - name: entry_id
+        in: path
+        description: The waitlist row's id
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '200':
+          description: 'Invited already: the row with the link it was given'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminWaitlistEntryResponse'
+        '201':
+          description: 'Invited now: the row with its join link'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminWaitlistEntryResponse'
+        '400':
+          description: Not a UUID
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '401':
+          description: Missing or invalid bearer token
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '403':
+          description: The token lacks `urn:mas:admin`
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '404':
+          description: No waitlist row has this id
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '500':
+          description: 'Internal server error (`/errors/internal`): something the request depends on failed; the `detail` says no more'
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+      security:
+      - bearer_auth: []
   /api/v1/agent-spaces:
     post:
       tags:
@@ -2398,7 +2613,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/AgentDetailResponse'
         '400':
-          description: Not a company / bad slug / schema-bound violation
+          description: Not a company / bad slug / schema-bound violation / a display name with control or text-direction characters
           content:
             application/problem+json:
               schema:
@@ -2428,13 +2643,19 @@ paths:
               schema:
                 $ref: '#/components/schemas/ProblemDetails'
         '422':
-          description: '`/errors/invalid-request-body`: the body is JSON but does not fit the schema; `detail` names the field and what was expected'
+          description: '`/errors/display-name-reserved`: the display name imitates Spiral or its staff (sign-up''s reserved-name rule); nothing written. `/errors/invalid-request-body`: the body is JSON but does not fit the schema; `detail` names the field and what was expected'
           content:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/ProblemDetails'
         '500':
           description: 'Internal server error (`/errors/internal`): something the request depends on failed; the `detail` says no more'
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '503':
+          description: '`/errors/service-unavailable`: the display name could not be checked; nothing written, try again'
           content:
             application/problem+json:
               schema:
@@ -2590,7 +2811,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/AgentDetailResponse'
         '400':
-          description: Empty body, a schema-bound violation or a persona rule (empty after trimming, control characters, prompt injection, a bad timezone); nothing written
+          description: Empty body, a schema-bound violation, a persona rule (empty after trimming, control characters, prompt injection, a bad timezone) or a display name with control or text-direction characters; nothing written
           content:
             application/problem+json:
               schema:
@@ -2626,13 +2847,19 @@ paths:
               schema:
                 $ref: '#/components/schemas/ProblemDetails'
         '422':
-          description: '`/errors/invalid-request-body`: the body is JSON but does not fit the schema; `detail` names the field and what was expected'
+          description: '`/errors/display-name-reserved`: the new display name imitates Spiral or its staff (sign-up''s reserved-name rule); nothing written. `/errors/invalid-request-body`: the body is JSON but does not fit the schema; `detail` names the field and what was expected'
           content:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/ProblemDetails'
         '500':
           description: 'Internal server error (`/errors/internal`): something the request depends on failed; the `detail` says no more'
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '503':
+          description: '`/errors/service-unavailable`: the new display name could not be checked; nothing written, try again'
           content:
             application/problem+json:
               schema:
@@ -3742,7 +3969,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ProblemDetails'
         '503':
-          description: '`/errors/service-unavailable`: a translating attach could not read the call''s participants (or classify the room); nothing was attached. Retry the same request after `Retry-After`'
+          description: '`/errors/service-unavailable`: a translating attach could not read the call''s participants (or classify the room), or another attach of this agent to this room is still running; nothing was attached. Retry the same request after `Retry-After`'
           headers:
             Retry-After:
               schema:
@@ -6306,6 +6533,41 @@ paths:
                 $ref: '#/components/schemas/ProblemDetails'
       security:
       - bearer_auth: []
+  /api/v1/me/apple-link:
+    post:
+      tags:
+      - me
+      summary: |-
+        A one-time link to attach an Apple ID to the caller's account. Issuing a
+        new link retires the previous unused one.
+      operationId: create_apple_link
+      responses:
+        '200':
+          description: A one-time add-Apple link
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AppleLinkResponse'
+        '401':
+          description: Missing or invalid bearer token
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '404':
+          description: No account for this caller yet
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '500':
+          description: 'Internal server error (`/errors/internal`): something the request depends on failed; the `detail` says no more'
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+      security:
+      - bearer_auth: []
   /api/v1/me/blocks:
     get:
       tags:
@@ -6490,6 +6752,56 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/JoinedResponse'
+        '401':
+          description: Missing or invalid bearer token
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '500':
+          description: 'Internal server error (`/errors/internal`): something the request depends on failed; the `detail` says no more'
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+      security:
+      - bearer_auth: []
+  /api/v1/me/invited-by:
+    get:
+      tags:
+      - me
+      summary: Who invited the caller, and whether the welcome is still owed.
+      operationId: get_invited_by
+      responses:
+        '200':
+          description: The inviter (or null) and whether the welcome is owed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InvitedByResponse'
+        '401':
+          description: Missing or invalid bearer token
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '500':
+          description: 'Internal server error (`/errors/internal`): something the request depends on failed; the `detail` says no more'
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+      security:
+      - bearer_auth: []
+  /api/v1/me/invited-by/welcomed:
+    post:
+      tags:
+      - me
+      summary: 'The app showed the welcome: it is no longer owed. Idempotent.'
+      operationId: mark_invite_welcomed
+      responses:
+        '204':
+          description: Recorded (or nothing was owed)
         '401':
           description: Missing or invalid bearer token
           content:
@@ -6807,6 +7119,47 @@ paths:
                 $ref: '#/components/schemas/ProblemDetails'
       security:
       - bearer_auth: []
+  /api/v1/me/sign-in-methods:
+    get:
+      tags:
+      - me
+      summary: |-
+        How the caller can sign in. Read from identity-login on every call: an
+        outage is a 503 ("couldn't check"), never "no phrase".
+      operationId: get_sign_in_methods
+      responses:
+        '200':
+          description: The caller's sign-in methods
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SignInMethodsResponse'
+        '401':
+          description: Missing or invalid bearer token
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '404':
+          description: identity-login has no identity for the caller
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '500':
+          description: 'Internal server error (`/errors/internal`): something the request depends on failed; the `detail` says no more'
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '503':
+          description: identity-login could not be asked
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+      security:
+      - bearer_auth: []
   /api/v1/rooms/{room_id}/tools:
     get:
       tags:
@@ -6865,7 +7218,9 @@ paths:
         `id:` = its position), `limited` (`SyncLimited`). Resume with
         `Last-Event-ID` or `since` (the header wins). The server ends a stream
         after 30 minutes and at shutdown: resume at once. Keepalive comments
-        every 15 s.
+        every 15 s. `Accept-Language` picks the translation `feed.post_published`
+        announces by the rule Latest uses (`feed::reader_language`), so the two
+        never disagree; without it, English.
       operationId: get_sync
       parameters:
       - name: since
@@ -6881,6 +7236,14 @@ paths:
       - name: Last-Event-ID
         in: header
         description: The last `changes` id received; wins over `since`
+        required: false
+        schema:
+          type:
+          - string
+          - 'null'
+      - name: Accept-Language
+        in: header
+        description: 'The app''s language, as on Latest: `feed.post_published` of an official post with translations is sent for the one in it (en, uk, ru), else the English one'
         required: false
         schema:
           type:
@@ -7419,6 +7782,12 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/ProblemDetails'
+        '503':
+          description: The room's kind could not be read (its owner DM or member count) while the personal Tool would decide the call's translation; retry
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
       security:
       - bearer_auth: []
   /api/v1/voice-sessions/{session_id}/controls/{control}:
@@ -7685,6 +8054,61 @@ paths:
                 $ref: '#/components/schemas/ProblemDetails'
       security:
       - bearer_auth: []
+  /api/v1/waitlist:
+    post:
+      tags:
+      - waitlist
+      summary: Join the spiral.md waitlist.
+      operationId: join_waitlist
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WaitlistJoinRequest'
+        required: true
+      responses:
+        '202':
+          description: Accepted — the same answer whether the address is new or already on the list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WaitlistJoinResponse'
+        '400':
+          description: Not JSON, not an email address, or an unknown lang
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '413':
+          description: The body is over 1 KiB
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '415':
+          description: The body is not `application/json`
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '422':
+          description: '`/errors/invalid-request-body`: the body is JSON but does not fit the schema; `detail` names the field and what was expected'
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '429':
+          description: Too many requests from this address
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '500':
+          description: 'Internal server error (`/errors/internal`): something the request depends on failed; the `detail` says no more'
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
 components:
   schemas:
     AcceptFeedRulesRequest:
@@ -9522,6 +9946,51 @@ components:
             stored, so comparable only within one model.
         usd:
           type: string
+    AdminWaitlistEntryResponse:
+      type: object
+      description: A waitlist row.
+      required:
+      - id
+      - email
+      - lang
+      - created_at
+      properties:
+        created_at:
+          type: string
+          format: date-time
+        email:
+          type: string
+          description: 'The canonical address: trimmed and lower-cased.'
+        id:
+          type: string
+          format: uuid
+        invite_url:
+          type:
+          - string
+          - 'null'
+          description: The one-seat invite's join link, while the invite exists.
+        invited_at:
+          type:
+          - string
+          - 'null'
+          format: date-time
+          description: When "Issue invite" made its link; `null` until then.
+        lang:
+          type: string
+          example: uk
+    AdminWaitlistResponse:
+      type: object
+      required:
+      - items
+      - total
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/AdminWaitlistEntryResponse'
+        total:
+          type: integer
+          format: int64
     AgentActivityEntry:
       type: object
       description: |-
@@ -10134,6 +10603,18 @@ components:
           description: |-
             Whether AI may process the caller's data now: their latest decision
             is a grant of `current_version`.
+    AppleLinkResponse:
+      type: object
+      description: Where the app sends the person to add Sign in with Apple.
+      required:
+      - url
+      properties:
+        url:
+          type: string
+          description: |-
+            The identity page that attaches an Apple ID — open it in the in-app
+            web session; it ends at `spiral://apple-linked?result=…`
+            (`linked`, `cancelled` or `taken`). Single use, 15 minutes.
     ApprovalListResponse:
       type: object
       description: |-
@@ -12346,6 +12827,30 @@ components:
           type: integer
           format: int32
           description: Seats taken (reserved + completed).
+    InvitedByResponse:
+      type: object
+      description: |-
+        1.0.3 — who invited the caller, for the Invite to Spiral screen («Invited
+        you») and the app's welcome after sign-up. The platform decides whether
+        the welcome is owed, so an invite pasted on the web page counts, a sign-in
+        to an account registered otherwise is never greeted, freshness is the
+        server's clock, and once the app has shown it (`POST …/welcomed`) no later
+        sign-in, second device or reinstall shows it again.
+      required:
+      - welcome_owed
+      properties:
+        inviter_user_id:
+          type:
+          - string
+          - 'null'
+          description: |-
+            The inviter's MXID; null without a personal link (none, or a
+            campaign), or once either account is gone.
+        welcome_owed:
+          type: boolean
+          description: |-
+            Whether the app should still show the welcome: a seat taken within a
+            day, not yet welcomed. False with no inviter.
     JoinCheckResponse:
       type: object
       description: |-
@@ -13394,6 +13899,25 @@ components:
             The Matrix room the app will send the message to (`!…:server`). It
             is checked, never stored.
           example: '!PGBmctdJNFwoAOHtvM:spiral.md'
+    SignInMethodsResponse:
+      type: object
+      description: How the caller can sign in (the app's account settings).
+      required:
+      - phrase
+      - apple
+      - apple_available
+      properties:
+        apple:
+          type: boolean
+          description: The account has an Apple ID attached.
+        apple_available:
+          type: boolean
+          description: |-
+            Sign in with Apple is configured on this server: the app may offer
+            «Add Sign in with Apple» (`POST /me/apple-link`).
+        phrase:
+          type: boolean
+          description: The account has an active sign-in phrase.
     SyncChange:
       type: object
       description: |-
@@ -14159,6 +14683,35 @@ components:
             behavioural mode at attach time.
         was_room_member_before:
           type: boolean
+    WaitlistJoinRequest:
+      type: object
+      description: The sign-up.
+      required:
+      - email
+      - lang
+      properties:
+        email:
+          type: string
+          description: |-
+            An email address, at most 254 characters. Stored trimmed and
+            lower-cased.
+        lang:
+          type: string
+          description: 'The page''s language: `en` | `uk`.'
+        website:
+          type:
+          - string
+          - 'null'
+          description: A honeypot people never see. Leave it out or empty.
+    WaitlistJoinResponse:
+      type: object
+      description: The one success answer, for a new address, a repeat and a honeypot hit.
+      required:
+      - status
+      properties:
+        status:
+          type: string
+          description: Always `accepted`.
   securitySchemes:
     bearer_auth:
       type: http
@@ -14185,6 +14738,8 @@ tags:
   description: Notifications hub (Brief 0041, ADR-0054) — needs-action union + activity feed + last-seen marker + unified SSE stream
 - name: admin
   description: 'OPERATOR — the admin panel''s read-only API (Brief 0081): needs a MAS token with `urn:mas:admin`; every request is written to an access log; no content'
+- name: waitlist
+  description: 'PUBLIC — the spiral.md landing''s waitlist sign-up: no token, a strict per-IP limit, a body of 1 KiB, the same answer for a new and a repeated address'
 - name: tools
   description: Unified Tool + Trigger API (Brief 0036 / ADR-0048) — arm / read / disable any typed Tool through the gate; the /controls* successor
 - name: sync

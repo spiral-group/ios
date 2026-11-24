@@ -29,6 +29,10 @@ struct FeedPostScreen: View {
             .interactiveQuickLook(item: $context.mediaPreviewItem, allowEditing: false)
             .toolbar { toolbar }
             .alert(item: $context.alertInfo)
+            // AGENT-PLATFORM (1.0.3): the comment field's keyboard would cover the rules' Agree, as on the composer.
+            .onChange(of: context.isPresentingRules) { _, isShown in
+                if isShown { KeyboardDismissal.endEditing() }
+            }
             // An alert waiting on the sheet shows only after it has closed.
             .sheet(isPresented: $context.isPresentingRules,
                    onDismiss: { context.send(viewAction: .rulesSheetDismissed) },

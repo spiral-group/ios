@@ -51,11 +51,34 @@ import SwiftUI
     /// The lowest-level `AlertInfo`, directly available to the root of the app.
     var alertInfo: AlertInfo<UUID>?
     
+    // AGENT-PLATFORM (1.0.3, operator 2026-11-23): drawn over the root and under everything the root presents, so
+    // one screen stays up while the root changes beneath it (the sign-in's logo until onboarding covers the tabs).
+    fileprivate var coverModule: NavigationModule? {
+        didSet {
+            if let oldValue {
+                logPresentationChange("Remove cover", oldValue)
+                oldValue.tearDown()
+            }
+            
+            if let coverModule {
+                logPresentationChange("Set cover", coverModule)
+                coverModule.coordinator?.start()
+            }
+        }
+    }
+    
+    /// AGENT-PLATFORM (1.0.3): the coordinator drawn over the root, see `coverModule`.
+    var coverCoordinator: (any CoordinatorProtocol)? {
+        coverModule?.coordinator
+    }
+    
     /// Sets or replaces the presented coordinator
     /// - Parameter coordinator: the coordinator to display
     func setRootCoordinator(_ coordinator: (any CoordinatorProtocol)?, animated: Bool = true, dismissalCallback: (() -> Void)? = nil) {
         var transaction = Transaction()
-        transaction.disablesAnimations = !animated
+        // AGENT-PLATFORM (1.0.3): under the cover nothing shows the change, and a crossfade still running when the
+        // cover goes would show the old root again.
+        transaction.disablesAnimations = !animated || coverModule != nil
         
         withTransaction(transaction) {
             guard let coordinator else {
@@ -64,6 +87,16 @@ import SwiftUI
             }
             
             rootModule = NavigationModule(coordinator, dismissalCallback: dismissalCallback)
+        }
+    }
+    
+    /// AGENT-PLATFORM (1.0.3): sets or removes the coordinator drawn over the root, see `coverModule`.
+    func setCoverCoordinator(_ coordinator: (any CoordinatorProtocol)?, animated: Bool = false) {
+        var transaction = Transaction()
+        transaction.disablesAnimations = !animated
+        
+        withTransaction(transaction) {
+            coverModule = coordinator.map { NavigationModule($0) }
         }
     }
     
@@ -117,9 +150,18 @@ private struct NavigationRootCoordinatorView: View {
     var body: some View {
         ZStack {
             rootCoordinator.rootModule?.coordinator?.toPresentable()
+                .accessibilityHidden(rootCoordinator.coverModule != nil) // AGENT-PLATFORM (1.0.3)
+            
+            // AGENT-PLATFORM (1.0.3): see `coverModule`.
+            if let coverModule = rootCoordinator.coverModule {
+                coverModule.coordinator?.toPresentable()
+                    .id(coverModule.id)
+                    .transition(.opacity)
+            }
         }
         .alert(item: $rootCoordinator.alertInfo)
         .animation(.elementDefault, value: rootCoordinator.rootModule)
+        .animation(.elementDefault, value: rootCoordinator.coverModule) // AGENT-PLATFORM (1.0.3)
         .sheet(item: $rootCoordinator.sheetModule) { module in
             module.coordinator?.toPresentable()
         }

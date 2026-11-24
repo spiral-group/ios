@@ -400,7 +400,7 @@ class JoinedRoomProxy: JoinedRoomProxyProtocol {
         }
     }
     
-    func updateMembers() async {
+    @discardableResult func updateMembers() async -> Result<Void, RoomProxyError> { // AGENT-PLATFORM (1.0.3 B14)
         // We always update members first using the no sync API in case internet is not readily available
         // To get the members stored on disk first, this API call is very fast.
         do {
@@ -418,8 +418,10 @@ class JoinedRoomProxy: JoinedRoomProxyProtocol {
             if let members = membersIterator.nextChunk(chunkSize: membersIterator.len()) {
                 membersSubject.value = members.map(RoomMemberProxy.init)
             }
+            return .success(())
         } catch {
             MXLog.error("Failed updating members using sync API: \(error)")
+            return .failure(.sdkError(error))
         }
     }
     

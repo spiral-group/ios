@@ -14,8 +14,12 @@
 //   latest list goes last;
 // - not before the first sync after launch, which may change a cached list,
 //   and then once on every launch;
-// - a failed PUT stays pending and is retried on the next sync (throttled to
-//   5 s);
+// - a failed PUT stays pending and is retried on a later sync (throttled to
+//   5 s), each failure in a row waiting twice as long, up to 5 min; a
+//   validation refusal (400, e.g. a list over the cap) drops it until the
+//   list changes or is resynced. A 403 or 404 is not the route's answer
+//   (a proxy, a deploy) and is retried: dropping it would let the agents
+//   talk to someone just blocked;
 // - again when the platform dropped or created the rows the owner's blocks
 //   live in: an erase of an assistant's memory about a person, a new company
 //   agent, a new personal assistant (decision 136) (`resync()`).
@@ -41,12 +45,22 @@ final class OwnerBlocksSync {
     /// The session's token was refused (a soft logout): every PUT would be a
     /// 401 until the person signs in again, which builds a new session.
     private var isSignedOut = false
+    private let firstRetryDelay: Duration
+    private let longestRetryDelay: Duration
+    /// The wait after the last failure in a row; `nil` once a PUT goes through.
+    private var retryDelay: Duration?
+    /// No retry before this; a new list or a resync goes at once.
+    private var retryNotBefore: ContinuousClock.Instant?
     
     init(clientProxy: ClientProxyProtocol,
          agentPlatformService: AgentPlatformServiceProtocol,
          debounce: DispatchQueue.SchedulerTimeType.Stride = .seconds(1),
-         syncThrottle: DispatchQueue.SchedulerTimeType.Stride = .seconds(5)) {
+         syncThrottle: DispatchQueue.SchedulerTimeType.Stride = .seconds(5),
+         firstRetryDelay: Duration = .seconds(5),
+         longestRetryDelay: Duration = .seconds(300)) {
         self.agentPlatformService = agentPlatformService
+        self.firstRetryDelay = firstRetryDelay
+        self.longestRetryDelay = longestRetryDelay
         
         clientProxy.ignoredUsersPublisher
             .compactMap { $0.map(Set.init) }
@@ -95,6 +109,7 @@ final class OwnerBlocksSync {
     private func setPending(_ list: Set<String>) {
         pendingList = list
         pendingGeneration += 1
+        retryNotBefore = nil
         Task { await flush() }
     }
     
@@ -108,6 +123,7 @@ final class OwnerBlocksSync {
     /// list whatever order the requests would have finished in.
     private func flush() async {
         guard hasSynced, !isSignedOut, !isWriting else { return }
+        if let retryNotBefore, ContinuousClock.now < retryNotBefore { return }
         isWriting = true
         defer { isWriting = false }
         
@@ -115,14 +131,35 @@ final class OwnerBlocksSync {
             let generation = pendingGeneration
             switch await agentPlatformService.syncIgnoredUsers(list.sorted()) {
             case .success:
+                retryDelay = nil
                 if pendingGeneration == generation {
                     pendingList = nil
                 }
             case .failure(let error):
-                // Kept pending: the next sync retries.
+                if let refusal = Self.finalRefusal(error) {
+                    // The same list would be refused again: it goes with the next change or resync.
+                    MXLog.error("The platform refused the ignore list (\(refusal)); not retried until it changes")
+                    if pendingGeneration == generation {
+                        pendingList = nil
+                    }
+                    continue
+                }
+                // Kept pending: a later sync retries, once the wait is over.
+                let delay = retryDelay.map { min($0 * 2, longestRetryDelay) } ?? firstRetryDelay
+                retryDelay = delay
+                retryNotBefore = .now + delay
                 MXLog.error("Failed sending the ignore list to the agents: \(error)")
                 return
             }
+        }
+    }
+    
+    /// A refusal no retry of the same list can change, named without its detail (it may echo the list).
+    /// The route answers only 204, 400, 401 and 500.
+    private static func finalRefusal(_ error: AgentPlatformError) -> String? {
+        switch error {
+        case .validation: "400"
+        default: nil
         }
     }
 }

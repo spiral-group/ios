@@ -295,20 +295,21 @@ nonisolated extension AgentPlatformService {
             case .created:
                 return .success(())
             case .badRequest(let bad):
-                let detail = (try? bad.body.applicationProblemJson.detail) ?? "bad request"
-                return .failure(.validation(detail: detail))
+                return .failure(Self.displayNameAwareBadRequest(try? bad.body.applicationProblemJson, sentName: displayName != nil))
             case .unauthorized:
                 return .failure(.unauthorized)
             case .forbidden:
                 return .failure(.forbidden)
             case .notFound:
                 return .failure(.notFound)
-            case .unprocessableContent:
-                return .failure(.validation(detail: "unprocessable"))
+            case .unprocessableContent(let unprocessable):
+                return .failure(Self.displayNameAwareUnprocessable(try? unprocessable.body.applicationProblemJson))
             case .unsupportedMediaType:
                 return .failure(.validation(detail: "unsupported media type"))
             case .internalServerError:
                 return .failure(.serverError(status: 500))
+            case .serviceUnavailable:
+                return .failure(displayName != nil ? .displayNameUnchecked : .serverError(status: 503))
             case .undocumented(statusCode: let code, _):
                 return .failure(Self.mapUndocumented(code))
             }
@@ -318,6 +319,26 @@ nonisolated extension AgentPlatformService {
             await ownerBlocksNeedResync()
         }
         return result
+    }
+
+    // AGENT-PLATFORM (1.0.3): the backend judges a new agent name by sign-up's reserved-name rule.
+
+    /// A 400 on a write that carried a name: the name's bad characters are told apart by the detail, the
+    /// only thing that names them (every 400 is `/errors/validation-failed`).
+    nonisolated static func displayNameAwareBadRequest(_ problem: Components.Schemas.ProblemDetails?, sentName: Bool) -> AgentPlatformError {
+        let detail = problem?.detail ?? "bad request"
+        if sentName, detail.contains(AgentPlatformError.displayNameInvalidCharactersDetail) {
+            return .displayNameInvalidCharacters
+        }
+        return .validation(detail: detail)
+    }
+
+    /// A 422: the reserved name by its `type`, anything else (a body that doesn't fit the schema) by its detail.
+    nonisolated static func displayNameAwareUnprocessable(_ problem: Components.Schemas.ProblemDetails?) -> AgentPlatformError {
+        if problem?._type == AgentPlatformError.displayNameReservedTypeURI {
+            return .displayNameReserved
+        }
+        return .validation(detail: problem?.detail ?? "unprocessable")
     }
 
     private nonisolated static func mapAgentSpaceAgentCard(_ card: Components.Schemas.AgentCardResponse) -> AgentSpaceAgentCard {
@@ -414,8 +435,7 @@ nonisolated extension AgentPlatformService {
             case .ok(let ok):
                 return try .success(Self.mapAgentReadModel(ok.body.json))
             case .badRequest(let bad):
-                let detail = (try? bad.body.applicationProblemJson.detail) ?? "bad request"
-                return .failure(.validation(detail: detail))
+                return .failure(Self.displayNameAwareBadRequest(try? bad.body.applicationProblemJson, sentName: patch.displayName != nil))
             case .conflict(let conflict):
                 let detail = (try? conflict.body.applicationProblemJson.detail) ?? "conflict"
                 return .failure(.conflict(detail: detail))
@@ -425,12 +445,14 @@ nonisolated extension AgentPlatformService {
                 return .failure(.forbidden)
             case .notFound:
                 return .failure(.notFound)
-            case .unprocessableContent:
-                return .failure(.validation(detail: "unprocessable"))
+            case .unprocessableContent(let unprocessable):
+                return .failure(Self.displayNameAwareUnprocessable(try? unprocessable.body.applicationProblemJson))
             case .unsupportedMediaType:
                 return .failure(.validation(detail: "unsupported media type"))
             case .internalServerError:
                 return .failure(.serverError(status: 500))
+            case .serviceUnavailable:
+                return .failure(patch.displayName != nil ? .displayNameUnchecked : .serverError(status: 503))
             case .undocumented(statusCode: let code, _):
                 return .failure(Self.mapUndocumented(code))
             }

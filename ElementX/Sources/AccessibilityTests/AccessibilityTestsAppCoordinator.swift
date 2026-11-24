@@ -98,7 +98,8 @@ class AccessibilityTestsAppCoordinator: AppCoordinatorProtocol {
                     case .prepareContrastAudit: // AGENT-PLATFORM (Brief 0083): Spiral's gate audits contrast again, without its exemptions.
                         let hiddenElements = contrastExemptions.apply()
                         do {
-                            try client.send(.accessibilityAudit(.contrastAuditReady(name: previewsWrapper.previewName, hiddenElements: hiddenElements)))
+                            try client.send(.accessibilityAudit(.contrastAuditReady(name: previewsWrapper.previewName, hiddenElements: hiddenElements,
+                                                                                    fixedScrollViewFrames: contrastExemptions.fixedScrollViewFrames())))
                         } catch {
                             fatalError("Failed sending signal: \(signal)")
                         }

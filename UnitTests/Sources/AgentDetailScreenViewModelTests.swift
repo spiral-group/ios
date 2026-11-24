@@ -836,3 +836,15 @@ struct AgentDetailScreenViewModelTests {
         return service
     }
 }
+
+/// Bug reports carry the logs: a view action names a room by its ID, never by its name, a person's in a DM.
+struct AgentScreenViewActionLogTests {
+    @Test
+    func aSelectedRoomIsLoggedByItsIDOnly() {
+        let dm = AgentRoomEntry(roomID: "!dm:host", displayName: "Olena Petrenko", kind: "dm", activeTools: [])
+
+        #expect(String(describing: AgentDetailScreenViewAction.selectRoom(dm)) == "selectRoom(!dm:host)")
+        #expect(String(describing: AgentChatsScreenViewAction.selectRoom(dm)) == "selectRoom(!dm:host)")
+        #expect("\(AgentDetailScreenViewAction.openSettings(.people))" == "openSettings(people)")
+    }
+}

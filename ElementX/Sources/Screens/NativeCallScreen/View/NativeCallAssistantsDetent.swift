@@ -3,9 +3,9 @@
 //
 // AGENT-PLATFORM (Brief 0085, operator remark 403 L8): the Assistants sheet's resting height hugs its root page instead
 // of half the screen, so the call above it — the other person's name — stays in view. The height is the root laid out
-// in its tallest common state (the header, the four buttons and two rows), measured once per text size on the call
-// screen before the sheet opens; an inline confirmation (1.5 / 4.4) takes the buttons' place inside it (option A) and
-// scrolls if it is ever taller. It never follows the live content, so the sheet doesn't move when a row comes or goes
+// in its resting state (the header, the four buttons, Translation's question and Start — 1.0.3, the call lab's pick C,
+// lowered at the operator's word), measured once per text size on the call screen before the sheet opens; a job's
+// question with Cancel, or a card in the buttons' place, scrolls if it is ever taller. It never follows the live content, so the sheet doesn't move when a row comes or goes
 // (no jumps); a root with less content leaves a gap.
 // Pushed pages keep it, and `.large` stays for the pull. At accessibility sizes it is never taller than `.medium`.
 
@@ -85,11 +85,15 @@ struct NativeCallAssistantsDetentMeasurer: View {
         }
     }
 
-    /// The four buttons and two capsule rows (1.3: the language, then «Stop»).
+    /// The four buttons, Translation's question (its cost line under the title, the language beside it) and Start.
     @ViewBuilder
     private var rows: some View {
         NativeCallAssistantDockView(state: NativeCallAssistantDockState(.init()), isInteractive: false) { _ in }
-        NativeCallSheetRow(icon: "translate", title: UntranslatedL10n.screenNativeCallAssistantsTranslateInto, value: NativeCallTranslationCopy.languageTitle("uk"), showsChevron: true)
-        NativeCallSheetRow(icon: "stop", title: UntranslatedL10n.screenNativeCallAssistantsStopTranslation, role: .destructive)
+        NativeCallSheetRow(icon: "translate",
+                           title: UntranslatedL10n.screenNativeCallAssistantsTranslateQuestionTitle,
+                           detail: UntranslatedL10n.screenNativeCallAssistantsStartTranslationDetail,
+                           value: NativeCallTranslationCopy.languageTitle("uk"),
+                           showsChevron: true)
+        NativeCallSheetPrimaryButton(title: UntranslatedL10n.screenNativeCallAssistantsStartTranslation) { }
     }
 }

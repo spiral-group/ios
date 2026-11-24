@@ -80,7 +80,7 @@ struct PresenceServiceTests {
     @Test
     func becomingActiveNotificationWhileSharingReportsOnlineImmediately() async throws {
         userSettings.account.sharePresence = true
-        let service = makeService(initialApplicationState: .inactive)
+        let service = makeService(initialApplicationState: .background)
         
         let deferred = deferFulfillment(sendsSubject) { $0.presence == .online }
         notificationCenter.post(name: UIApplication.didBecomeActiveNotification, object: nil)
@@ -92,14 +92,31 @@ struct PresenceServiceTests {
     }
     
     @Test
-    func resigningActiveNotificationWhileSharingReportsUnavailableImmediately() async throws {
+    func aStoppedServiceSendsNothingWhenTheAppBecomesActive() async throws {
+        userSettings.account.sharePresence = true
+        // The seed send while backgrounded.
+        let seeded = deferFulfillment(sendsSubject) { $0.presence == .unavailable }
+        let service = makeService(initialApplicationState: .background)
+        _ = try await seeded.fulfill()
+        
+        service.stop()
+        
+        let nothing = deferFailure(sendsSubject, timeout: .seconds(1)) { _ in true }
+        notificationCenter.post(name: UIApplication.didBecomeActiveNotification, object: nil)
+        notificationCenter.post(name: UIApplication.didEnterBackgroundNotification, object: nil)
+        userSettings.account.sharePresence = false
+        try await nothing.fulfill()
+    }
+    
+    @Test
+    func enteringBackgroundWhileSharingReportsUnavailableImmediately() async throws {
         userSettings.account.sharePresence = true
         let initialDeferred = deferFulfillment(sendsSubject) { $0.presence == .online }
         let service = makeService(initialApplicationState: .active)
         _ = try await initialDeferred.fulfill()
         
         let deferred = deferFulfillment(sendsSubject) { $0.presence == .unavailable }
-        notificationCenter.post(name: UIApplication.willResignActiveNotification, object: nil)
+        notificationCenter.post(name: UIApplication.didEnterBackgroundNotification, object: nil)
         let send = try await deferred.fulfill()
         
         #expect(send.presence == .unavailable)
@@ -126,6 +143,41 @@ struct PresenceServiceTests {
         #expect(offline.presence == .offline)
         #expect(offline.sendImmediately)
         
+        _ = service
+    }
+    
+    @Test
+    func briefInactivityLikeNotificationCentreSendsNothing() async throws {
+        userSettings.account.sharePresence = true
+        
+        let initialDeferred = deferFulfillment(sendsSubject) { $0.presence == .online }
+        let service = makeService(initialApplicationState: .active)
+        _ = try await initialDeferred.fulfill()
+        await Task.yield()
+        
+        // Pulling Notification Centre, Control Centre or the app switcher: resign, a pause, then active again.
+        notificationCenter.post(name: UIApplication.willResignActiveNotification, object: nil)
+        await Task.yield()
+        notificationCenter.post(name: UIApplication.didBecomeActiveNotification, object: nil)
+        await Task.yield()
+        
+        let sent = clientProxy.configurePresenceSendImmediatelyReceivedInvocations.map(\.presence)
+        #expect(!sent.contains(.unavailable))
+        #expect(sent == [.online])
+        _ = service
+    }
+    
+    @Test
+    func launchingInactiveWhileSharingReportsOnline() async throws {
+        userSettings.account.sharePresence = true
+        
+        // Inactive at launch is on screen, e.g. behind the app lock's Face ID sheet.
+        let deferred = deferFulfillment(sendsSubject) { $0.presence == .online }
+        let service = makeService(initialApplicationState: .inactive)
+        let send = try await deferred.fulfill()
+        
+        #expect(send.presence == .online)
+        #expect(clientProxy.configurePresenceSendImmediatelyReceivedInvocations.map(\.presence) == [.online])
         _ = service
     }
     
@@ -164,7 +216,7 @@ struct PresenceServiceTests {
         #expect(clientProxy.configurePresenceSendImmediatelyReceivedInvocations.map(\.presence) == [.online])
         
         let transitionDeferred = deferFulfillment(sendsSubject) { $0.presence == .unavailable }
-        notificationCenter.post(name: UIApplication.willResignActiveNotification, object: nil)
+        notificationCenter.post(name: UIApplication.didEnterBackgroundNotification, object: nil)
         _ = try await transitionDeferred.fulfill()
         
         #expect(clientProxy.configurePresenceSendImmediatelyReceivedInvocations.map(\.presence) == [.online, .unavailable])
@@ -193,7 +245,7 @@ struct PresenceServiceTests {
         try await onlineStartedDeferred.fulfill()
         
         let unavailableDeferred = deferFulfillment(sendsSubject) { $0.presence == .unavailable }
-        notificationCenter.post(name: UIApplication.willResignActiveNotification, object: nil)
+        notificationCenter.post(name: UIApplication.didEnterBackgroundNotification, object: nil)
         
         resumeOnlineSendContinuation.yield()
         resumeOnlineSendContinuation.finish()
@@ -201,6 +253,80 @@ struct PresenceServiceTests {
         
         let applied = clientProxy.configurePresenceSendImmediatelyReceivedInvocations.map(\.presence)
         #expect(applied == [.online, .unavailable], "Expected in-order latest-wins drain, got \(applied)")
+        _ = service
+    }
+    
+    private struct BlockedFirstSend {
+        let started: AsyncStream<Void>
+        let resume: AsyncStream<Void>.Continuation
+        /// Every send's 1-based index.
+        let calls: PassthroughSubject<Int, Never>
+    }
+    
+    /// Blocks the first send until `resume` yields.
+    private func blockFirstSend() -> BlockedFirstSend {
+        let (startedStream, startedContinuation) = AsyncStream<Void>.makeStream()
+        let (resumeStream, resumeContinuation) = AsyncStream<Void>.makeStream()
+        let calls = PassthroughSubject<Int, Never>()
+        var callCount = 0
+        clientProxy.configurePresenceSendImmediatelyClosure = { [sendsSubject] presence, sendImmediately in
+            callCount += 1
+            let call = callCount
+            if call == 1 {
+                startedContinuation.yield()
+                var iterator = resumeStream.makeAsyncIterator()
+                _ = await iterator.next()
+            }
+            
+            sendsSubject.send((presence, sendImmediately))
+            calls.send(call)
+            return .success(())
+        }
+        return BlockedFirstSend(started: startedStream, resume: resumeContinuation, calls: calls)
+    }
+    
+    // A request equal to the one in flight is queued, then dropped when that send finishes (`finishSending`):
+    // Synapse rate-limits presence, so a second identical PUT must never go out (1.0.3 B12).
+    @Test
+    func becomingActiveWhileOnlineIsInFlightSendsNoDuplicate() async throws {
+        userSettings.account.sharePresence = true
+        let blocked = blockFirstSend()
+        
+        let startedDeferred = deferFulfillment(blocked.started) { _ in true }
+        let service = makeService(initialApplicationState: .active)
+        try await startedDeferred.fulfill()
+        
+        // A second didBecomeActive (e.g. Face ID finishing) while the launch's online is still on the wire.
+        notificationCenter.post(name: UIApplication.didBecomeActiveNotification, object: nil)
+        
+        let duplicateDeferred = deferFailure(blocked.calls, timeout: .milliseconds(500)) { $0 >= 2 }
+        blocked.resume.yield()
+        blocked.resume.finish()
+        try await duplicateDeferred.fulfill()
+        
+        #expect(clientProxy.configurePresenceSendImmediatelyReceivedInvocations.map(\.presence) == [.online])
+        _ = service
+    }
+    
+    @Test
+    func returningToTheInFlightPresenceDropsTheQueuedOne() async throws {
+        userSettings.account.sharePresence = true
+        let blocked = blockFirstSend()
+        
+        let startedDeferred = deferFulfillment(blocked.started) { _ in true }
+        let service = makeService(initialApplicationState: .active)
+        try await startedDeferred.fulfill()
+        
+        // Away and back while online is in flight: the queued unavailable is superseded by what is already sent.
+        notificationCenter.post(name: UIApplication.didEnterBackgroundNotification, object: nil)
+        notificationCenter.post(name: UIApplication.didBecomeActiveNotification, object: nil)
+        
+        let extraDeferred = deferFailure(blocked.calls, timeout: .milliseconds(500)) { $0 >= 2 }
+        blocked.resume.yield()
+        blocked.resume.finish()
+        try await extraDeferred.fulfill()
+        
+        #expect(clientProxy.configurePresenceSendImmediatelyReceivedInvocations.map(\.presence) == [.online])
         _ = service
     }
     
@@ -226,7 +352,7 @@ struct PresenceServiceTests {
         try await onlineStartedDeferred.fulfill()
         
         // Queue an unavailable send behind the in-flight online one.
-        notificationCenter.post(name: UIApplication.willResignActiveNotification, object: nil)
+        notificationCenter.post(name: UIApplication.didEnterBackgroundNotification, object: nil)
         
         let onlineFinishedDeferred = deferFulfillment(onlineFinishedStream) { _ in true }
         service = nil

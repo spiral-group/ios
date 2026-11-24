@@ -25,9 +25,18 @@ struct SpiralNoticeRoomTimelineView: View {
     @State private var readerAllowsAI: Bool?
     
     var body: some View {
+        // AGENT-PLATFORM (1.0.3 A3): the assistant's welcome is a hello with starters, not a card.
+        if case .welcome = timelineItem.notice.kind {
+            SpiralWelcomeNoticeView(timelineItem: timelineItem)
+        } else {
+            card
+        }
+    }
+    
+    private var card: some View {
         // Brief 0083, question 359: a card in the chat's family, on the incoming side.
         VStack(alignment: .trailing, spacing: 2) {
-            ChatCardRow(icon: icon, isCritical: timelineItem.notice.kind.isFailure, title: title) {
+            ChatCardRow(icon: icon, systemSymbol: systemSymbol, isCritical: timelineItem.notice.kind.isFailure, title: title) {
                 VStack(alignment: .leading, spacing: 6) {
                     ForEach(Array(paragraphs.enumerated()), id: \.offset) { _, paragraph in
                         Text(paragraph)
@@ -74,6 +83,7 @@ struct SpiralNoticeRoomTimelineView: View {
         case .referralJoined: \.userAdd
         case .welcome: \.chat
         case .phraseChanged: \.key
+        case .appleLinked: \.key // The fallback; `systemSymbol` draws Apple's logo.
         case .replyFailed: \.error
         case .replyWithheld: \.info
         case .aiBudgetReached: \.time
@@ -87,11 +97,17 @@ struct SpiralNoticeRoomTimelineView: View {
         }
     }
     
+    /// Apple's logo, as the Security screen's Apple row draws it.
+    private var systemSymbol: (name: String, label: String)? {
+        if case .appleLinked = timelineItem.notice.kind { ("apple.logo", "Apple") } else { nil }
+    }
+    
     private var title: String {
         switch timelineItem.notice.kind {
         case .referralJoined: UntranslatedL10n.noticeReferralJoinedTitle
-        case .welcome(let ownerDisplayName, _, _): UntranslatedL10n.noticeWelcomeTitle(ownerDisplayName)
+        case .welcome(let ownerDisplayName, _, _): UntranslatedL10n.noticeWelcomeTitle(SpiralNotice.firstName(of: ownerDisplayName))
         case .phraseChanged: UntranslatedL10n.noticePhraseChangedTitle
+        case .appleLinked: UntranslatedL10n.noticeAppleLinkedTitle
         case .replyFailed: UntranslatedL10n.noticeReplyFailedTitle
         case .replyWithheld: UntranslatedL10n.noticeReplyWithheldTitle
         case .aiBudgetReached: UntranslatedL10n.noticeAiBudgetReachedTitle
@@ -112,19 +128,17 @@ struct SpiralNoticeRoomTimelineView: View {
         switch timelineItem.notice.kind {
         // The name first; the MXID is the fallback and the link's target.
         case .referralJoined(let joinedUserID, let joinedDisplayName): joinedDisplayName ?? joinedUserID
-        // The assistant's name as the room knows it now, so a rename reads
-        // through the welcome too; the name the server sent is the fallback
-        // while the profile is still loading.
-        case .welcome(_, let agentDisplayName, let behavior):
-            behavior == "personal_assistant"
-                ? UntranslatedL10n.noticeWelcomeAssistantBody(Self.liveName(sender: timelineItem.sender, fallback: agentDisplayName))
-                : UntranslatedL10n.noticeWelcomeAgentBody(Self.liveName(sender: timelineItem.sender, fallback: agentDisplayName))
+        case .welcome:
+            UntranslatedL10n.noticeWelcomeBody
         case .phraseChanged(let deviceName):
             if let deviceName {
                 "\(UntranslatedL10n.noticePhraseChangedOnDevice(deviceName)) \(UntranslatedL10n.noticePhraseChangedBody)"
             } else {
                 UntranslatedL10n.noticePhraseChangedBody
             }
+        // No device: see `SpiralNotice.Kind.appleLinked`. A new phrase disconnects Apple, so the line says how to undo it.
+        case .appleLinked:
+            UntranslatedL10n.noticeAppleLinkedBody
         case .replyFailed:
             UntranslatedL10n.noticeReplyFailedBody
         case .replyWithheld:
@@ -179,7 +193,7 @@ struct SpiralNoticeRoomTimelineView: View {
         case .referralJoined, .introSuggestion: true
         case .relayedToOwner(_, let fromUserID, _): fromUserID != context?.viewState.ownUserID
         case .aiConsentNeeded: readerAllowsAI != true
-        case .welcome, .phraseChanged, .replyFailed, .replyWithheld, .aiBudgetReached, .aiCategoryPaused, .messagePassedToOwner,
+        case .welcome, .phraseChanged, .appleLinked, .replyFailed, .replyWithheld, .aiBudgetReached, .aiCategoryPaused, .messagePassedToOwner,
              .summaryMovedToDM, .recordingMovedToDM: false
         }
     }
@@ -268,7 +282,7 @@ struct SpiralNoticeRoomTimelineView: View {
         case .relayedToOwner(_, let fromUserID, _):
             guard isActionable else { return }
             userID = fromUserID
-        case .welcome, .phraseChanged, .replyFailed, .replyWithheld, .aiBudgetReached, .aiCategoryPaused, .messagePassedToOwner,
+        case .welcome, .phraseChanged, .appleLinked, .replyFailed, .replyWithheld, .aiBudgetReached, .aiCategoryPaused, .messagePassedToOwner,
              .summaryMovedToDM, .recordingMovedToDM:
             return
         }
@@ -293,13 +307,6 @@ struct SpiralNoticeRoomTimelineView_Previews: PreviewProvider, TestablePreview, 
                                                          timestamp: .mock,
                                                          sender: .init(id: "@assistant-alice:spiral.md", displayName: "Alice's Assistant"),
                                                          notice: SpiralNotice(msgtype: SpiralNotice.msgtype,
-                                                                              data: #"{"com.spiral.notice":{"kind":"welcome","owner_display_name":"Alice","agent_display_name":"Alice's Assistant","behavior":"personal_assistant"}}"#)!))
-            .previewDisplayName("Welcome")
-            .previewLayout(.sizeThatFits)
-        SpiralNoticeRoomTimelineView(timelineItem: .init(id: .randomEvent,
-                                                         timestamp: .mock,
-                                                         sender: .init(id: "@assistant-alice:spiral.md", displayName: "Alice's Assistant"),
-                                                         notice: SpiralNotice(msgtype: SpiralNotice.msgtype,
                                                                               data: #"{"com.spiral.notice":{"kind":"phrase_changed","device_name":"Spiral на iPhone 15"}}"#)!))
             .previewDisplayName("Phrase changed")
             .previewLayout(.sizeThatFits)
@@ -309,6 +316,9 @@ struct SpiralNoticeRoomTimelineView_Previews: PreviewProvider, TestablePreview, 
                                                          notice: SpiralNotice(msgtype: SpiralNotice.msgtype,
                                                                               data: #"{"com.spiral.notice":{"kind":"phrase_changed"}}"#)!))
             .previewDisplayName("Phrase changed, device unknown")
+            .previewLayout(.sizeThatFits)
+        notice(#"{"kind":"apple_linked"}"#)
+            .previewDisplayName("Apple linked")
             .previewLayout(.sizeThatFits)
         notice(#"{"kind":"reply_failed"}"#)
             .previewDisplayName("Reply failed")

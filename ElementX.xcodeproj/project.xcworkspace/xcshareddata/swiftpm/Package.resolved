@@ -176,8 +176,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/spiral-group/matrix-rust-components-swift",
       "state" : {
-        "revision" : "f4e10e0fc45e21a3150f2f4a498f5af56f1e876e",
-        "version" : "26.10.29-spiral.6"
+        "revision" : "f0849fcbf6d207212aae277b6f78facb510b5134",
+        "version" : "26.10.29-spiral.7"
       }
     },
     {

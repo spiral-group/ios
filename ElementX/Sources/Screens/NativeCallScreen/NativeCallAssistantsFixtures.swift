@@ -9,10 +9,16 @@ import Foundation
 
 enum NativeCallAssistantsLabState: String, CaseIterable, Identifiable {
     case empty = "1 Empty"
+    /// 1.0.3, B: Mira speaks French, so «Start translation» waits under «Translate into», whichever way the sheet opened.
+    case startTranslation = "1b Start translation"
+    /// 1.0.3, the call lab's pick C: Notes tapped — its question under the buttons, the button ringed.
+    case notesAsked = "1c Notes asked"
     case listeningNotesRecording = "2 Listening, notes, recording"
     case delivered = "2b Recording delivered, notes failed"
     case talks = "3 Talks with you"
     case translatingYou = "4 Translates you"
+    /// 1.0.3, B: French picked in «Translate into» while it translates into English; «Translate into French» applies it.
+    case languagePicked = "4b Another language picked"
     case twoAssistants = "5 Yours and someone else's"
     case moderator = "5b Someone else's, moderator"
     case removalRefused = "5c Removal from chat refused"
@@ -80,6 +86,16 @@ enum NativeCallAssistantsLabModel {
         if state == .nothingToTranslate {
             viewState.bindings.assistantConfirmation = .nothingToTranslate
         }
+        if state == .languagePicked {
+            viewState.pickedTranslationLanguage = "fr"
+        }
+        if state == .notesAsked {
+            viewState.bindings.assistantConfirmation = .start(.summary)
+        }
+        if state == .startTranslation {
+            // English as a catalog code, as once the catalog is read: only then can your assistant produce it.
+            viewState.myLanguageCode = "en"
+        }
         viewModel.state = viewState
         return viewModel
     }
@@ -119,7 +135,7 @@ enum NativeCallAssistantsLabModel {
             snapshot.sessions = [session(recording: true, summary: true)]
         case .talks:
             snapshot.sessions = [session(conversation: .init(isAvailable: true, revision: 1))]
-        case .translatingYou:
+        case .translatingYou, .languagePicked:
             snapshot.sessions = [session(translation: translation(.init(source: "override", style: "simultaneous", forLanguage: "en",
                                                                         lanes: [.init(speaker: person, language: "en")])))]
         case .twoAssistants:
@@ -144,8 +160,9 @@ enum NativeCallAssistantsLabModel {
             paused.effective.pause = .untilChanged
             snapshot.sessions = [session(summary: true, translation: paused)]
         case .joining:
+            // No start time: «Joining…» then never turns into «Still joining…» 20 s after the fixture was made, however
+            // late a snapshot renders it.
             snapshot.sessions = [session()]
-            snapshot.joinStartedAt = [sessionID: Date()]
         case .stillJoining:
             snapshot.sessions = [session()]
             snapshot.joinStartedAt = [sessionID: Date(timeIntervalSinceNow: -25)]
@@ -153,6 +170,8 @@ enum NativeCallAssistantsLabModel {
             snapshot.joinFailures = [candidateID: .failed]
         case .standby:
             snapshot.sessions = [session(translation: translation(.init(source: "room_tool", style: "simultaneous", forLanguage: "en", isStandby: true)))]
+        case .startTranslation, .notesAsked:
+            snapshot.translationFacts.languages = [person: "fr"]
         case .nothingToTranslate:
             // Mira speaks English too: «Translate into English» would translate nobody.
             snapshot.translationFacts.languages = [person: "en"]
@@ -181,7 +200,7 @@ enum NativeCallAssistantsLabModel {
             people.append(participant(person))
         }
         switch state {
-        case .empty, .paused, .consentOwner, .consentRoom, .askToJoin, .budget, .categoryPaused, .joining, .stillJoining, .joinFailed, .unavailable,
+        case .empty, .startTranslation, .notesAsked, .paused, .consentOwner, .consentRoom, .askToJoin, .budget, .categoryPaused, .joining, .stillJoining, .joinFailed, .unavailable,
              .nothingToTranslate:
             break
         case .twoAssistants:
@@ -199,7 +218,7 @@ enum NativeCallAssistantsLabModel {
         case .listeningNotesRecording: [myAgent: .make(recording: true, summaryArmed: true)]
         case .talks: [myAgent: .make(conversation: true)]
         case .delivered: [myAgent: .make()]
-        case .translatingYou: [myAgent: .make(translation: live(for: "en", owner: me, lanes: [.init(speaker: person, language: "en")]))]
+        case .translatingYou, .languagePicked: [myAgent: .make(translation: live(for: "en", owner: me, lanes: [.init(speaker: person, language: "en")]))]
         case .standby: [myAgent: .make(translation: standby(for: "en", owner: me))]
         case .syncing: [myAgent: .make(translation: standby(for: "en", owner: me))]
         case .pocketInterpreter:

@@ -11,7 +11,7 @@ tag's version, without a leading `v`), all from `https://github.com/spiral-group
 
 | Package | Tag | What it is |
 |---|---|---|
-| `matrix-rust-components-swift` | `26.10.29-spiral.6` | the Matrix SDK's Swift bindings; the release carries `MatrixSDKFFI.xcframework.zip`, built from `matrix-rust-sdk` at the commit its `PROVENANCE.json` names |
+| `matrix-rust-components-swift` | `26.10.29-spiral.7` | the Matrix SDK's Swift bindings; the release carries `MatrixSDKFFI.xcframework.zip`, built from `matrix-rust-sdk` at the commit its `PROVENANCE.json` names |
 | `client-sdk-swift` | `2.16.0-spiral.1` | the LiveKit client |
 | `compound-design-tokens` | `v11.3.1-spiral.4` | design tokens and icons, read by `compound-ios` |
 | `spiral-app-shell` | `1.1.0` | the Interactive Posts runtime |
@@ -20,13 +20,13 @@ Git LFS holds the media files the tests use (`DevelopmentAssets/Media`):
 run `git lfs install` before cloning this repository, or `git lfs pull`
 after. In Spiral's own repository LFS also holds the tests' reference
 images: the `__Snapshots__` folders of `PreviewTests`, `UITests` and
-`compound-ios/Tests/CompoundTests`, about 3,200 images for 1.0.2. The
+`compound-ios/Tests/CompoundTests`, about 18,500 images for 1.0.3. The
 published source leaves all of those images out, Element's included; the
 test code that uses them stays.
 
 ## Requirements
 
-- macOS with Xcode 27.1 (27A9275), the version Spiral 1.0.2 is built with.
+- macOS with Xcode 27.2 (27B52), the version Spiral 1.0.3 is built with.
 - Homebrew. `swift run tools setup-project` uses it: the command points
   git at the repository's hooks (`.githooks`), installs `xcodegen`,
   `swiftgen`, `swiftformat`, `git-lfs`, `sourcery`, `mint`, `pkl`,
@@ -74,7 +74,7 @@ above, swap the comment for the `url:` lines, and run `xcodegen`.
 - **The SDK framework.** Clone `matrix-rust-sdk` (at the commit the
   components tag's `PROVENANCE.json` names) and
   `matrix-rust-components-swift` side by side. You need Rust at least the
-  `rust-version` in `matrix-rust-sdk/Cargo.toml` (1.96 for 1.0.2) with
+  `rust-version` in `matrix-rust-sdk/Cargo.toml` (1.96 for 1.0.3) with
   `rustup target add aarch64-apple-ios aarch64-apple-ios-sim`.
   Then:
 

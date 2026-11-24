@@ -14,6 +14,13 @@ struct TimelineView: View {
     @ObservedObject var timelineContext: TimelineViewModel.Context
     @State private var dragOver = false
     
+    /// AGENT-PLATFORM (1.0.3): any of the timeline's own sheets is up.
+    private var isSheetShown: Bool {
+        timelineContext.manageMemberViewModel != nil || timelineContext.debugInfo != nil || timelineContext.draftCode != nil
+            || timelineContext.redactConfirmationInfo != nil || timelineContext.actionMenuInfo != nil
+            || timelineContext.reactionSummaryInfo != nil || timelineContext.readReceiptsSummaryInfo != nil
+    }
+
     var body: some View {
         TimelineViewRepresentable()
             .id(timelineContext.viewState.roomID)
@@ -23,6 +30,10 @@ struct TimelineView: View {
             .environment(\.timelineContext, timelineContext)
             .environment(\.focussedEventID, timelineContext.viewState.timelineState.focussedEvent?.eventID)
             .alert(item: $timelineContext.alertInfo)
+            // AGENT-PLATFORM (1.0.3, operator 2026-11-21): a sheet over the composer takes its keyboard.
+            .onChange(of: isSheetShown) { _, isShown in
+                if isShown { KeyboardDismissal.endEditing() }
+            }
             .sheet(item: $timelineContext.manageMemberViewModel) {
                 ManageRoomMemberSheetView(context: $0.context)
             }

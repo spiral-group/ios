@@ -51,6 +51,16 @@ nonisolated enum SpiralEnvironment {
     }
     
     /// The platform API. The dev stack's goes through Caddy, whose root CA the simulator must trust.
+    /// AGENT-PLATFORM (1.0.3): identity-login's host (`IDENTITY_PUBLIC_URL` in the backend's deploy vars),
+    /// where the one-time New phrase and Add Sign in with Apple pages live.
+    var identityHost: String {
+        switch self {
+        case .production: "id.spiral.md"
+        case .staging: "id.staging.spiral.md"
+        case .localDev: "id.localhost"
+        }
+    }
+    
     var platformURL: URL {
         switch self {
         case .production, .staging: baseURL

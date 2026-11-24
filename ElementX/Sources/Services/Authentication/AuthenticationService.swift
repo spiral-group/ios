@@ -102,9 +102,10 @@ class AuthenticationService: AuthenticationServiceProtocol {
             // AGENT-PLATFORM (Brief 0073 / ADR-0008): the invitation rides
             // along to identity-login as `spiral_invite` — on registration
             // only; a sign-in has no seat to take.
+            let inviteToken = flow == .register ? appSettings.pendingInvite?.token : nil
             return .success(OAuthAuthorizationDataProxy(underlyingData: oAuthData,
                                                         homeserver: client.homeserver(),
-                                                        inviteToken: flow == .register ? appSettings.pendingInvite?.token : nil,
+                                                        inviteToken: inviteToken,
                                                         isRegistration: flow == .register))
         } catch {
             MXLog.error("Failed to get URL for OAuth login: \(error)")
@@ -122,7 +123,8 @@ class AuthenticationService: AuthenticationServiceProtocol {
         guard let client else { return .failure(.failedLoggingIn) }
         do {
             try await client.loginWithOauthCallback(callbackUrl: callbackURL.absoluteString)
-            return await userSession(for: client) // AGENT-PLATFORM (Brief 0083 L1b): no Classic secrets import
+            // AGENT-PLATFORM (Brief 0083 L1b): no Classic secrets import.
+            return await userSession(for: client)
         } catch MatrixRustSDK.OAuthError.Cancelled {
             return .failure(.oAuthError(.userCancellation))
         } catch {
@@ -264,6 +266,8 @@ class AuthenticationService: AuthenticationServiceProtocol {
     private func userSession(for client: ClientProtocol) async -> Result<UserSessionProtocol, AuthenticationServiceError> {
         switch await userSessionManager.userSession(for: client, sessionDirectories: sessionDirectories, passphrase: passphrase) {
         case .success(let clientProxy):
+            // AGENT-PLATFORM (1.0.3): the welcome after sign-in comes from the platform (`InviteWelcomeOffer`), so a
+            // pending invitation can't greet the wrong account; the app coordinator drops it once a session starts.
             return .success(clientProxy)
         case .failure:
             return .failure(.failedLoggingIn)

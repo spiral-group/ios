@@ -35,7 +35,15 @@ nonisolated enum AgentChatsScreenLoadState: Equatable {
     case failure
 }
 
-enum AgentChatsScreenViewAction {
+enum AgentChatsScreenViewAction: CustomStringConvertible {
     case selectRoom(AgentRoomEntry)
     case retry
+    
+    /// A room's name, a person's in a DM, ships in bug reports: the log names the room by its ID.
+    var description: String {
+        switch self {
+        case .selectRoom(let entry): "selectRoom(\(entry.roomID))"
+        case .retry: "retry"
+        }
+    }
 }

@@ -70,6 +70,10 @@ final class AgentPlatformService: AgentPlatformServiceProtocol {
     /// The backend's OpenAPI export declares no header, so the generated client can't read it; the value is the
     /// contract's. A test passes a shorter one.
     let serviceUnavailableRetryDelay: Duration
+    
+    /// AGENT-PLATFORM (1.0.3): the host the one-time identity pages (New phrase, Add Sign in with Apple) must be
+    /// on; `nil` when the platform URL belongs to no known environment, which leaves only the `https` check.
+    let identityHost: String?
 
     // AGENT-PLATFORM (decision 98)
     private let ownerBlocksResyncSubject = PassthroughSubject<Void, Never>()
@@ -88,9 +92,13 @@ final class AgentPlatformService: AgentPlatformServiceProtocol {
 
     /// - Parameter feedCacheDirectory: where the feed keeps its first page for
     ///   the offline state; the session's cache directory, `nil` for none.
-    init(client: AgentPlatformClient, feedCacheDirectory: URL? = nil, serviceUnavailableRetryDelay: Duration = .seconds(5)) {
+    init(client: AgentPlatformClient,
+         feedCacheDirectory: URL? = nil,
+         serviceUnavailableRetryDelay: Duration = .seconds(5),
+         identityHost: String? = SpiralEnvironment.current.identityHost) {
         self.client = client
         self.serviceUnavailableRetryDelay = serviceUnavailableRetryDelay
+        self.identityHost = identityHost
         personalAssistantSightings = PersonalAssistantSightings()
         feed = FeedService(client: client, cacheDirectory: feedCacheDirectory)
         sync = PlatformSyncService(client: client)
@@ -689,14 +697,11 @@ final class AgentPlatformService: AgentPlatformServiceProtocol {
     }
     
     func createPhraseReset() async -> Result<URL, AgentPlatformError> {
-        await withUnauthorizedRetry { [client] in
+        await withUnauthorizedRetry { [client, identityHost] in
             let response = try await client.underlying.createPhraseReset()
             switch response {
             case .ok(let ok):
-                guard let url = URL(string: try ok.body.json.url) else {
-                    return .failure(.validation(detail: "phrase-reset url"))
-                }
-                return .success(url)
+                return try Self.identityPageURL(ok.body.json.url, identityHost: identityHost)
             case .unauthorized:
                 return .failure(.unauthorized)
             case .notFound:
@@ -1260,5 +1265,42 @@ final class AgentPlatformService: AgentPlatformServiceProtocol {
                          textTranslationLanguages: body.textTranslationLanguages.map(AgentLanguage.init(catalog:)),
                          voiceTranslationLanguages: body.voiceTranslationLanguages.map(AgentLanguage.init(catalog:)),
                          availableToolKinds: body.availableToolKinds)
+    }
+}
+
+// MARK: - 1.0.3: the invite welcome (out of the class body, which is at its length limit)
+
+extension AgentPlatformService {
+    func fetchInvitedBy() async -> Result<InvitedBy?, AgentPlatformError> {
+        await withUnauthorizedRetry { [client] in
+            let response = try await client.underlying.getInvitedBy()
+            switch response {
+            case .ok(let ok):
+                let body = try ok.body.json
+                return .success(body.inviterUserId.map { InvitedBy(inviterUserID: $0, isWelcomeOwed: body.welcomeOwed) })
+            case .unauthorized:
+                return .failure(.unauthorized)
+            case .internalServerError:
+                return .failure(.serverError(status: 500))
+            case .undocumented(statusCode: let code, _):
+                return .failure(Self.mapUndocumented(code))
+            }
+        }
+    }
+    
+    func markInviteWelcomed() async -> Result<Void, AgentPlatformError> {
+        await withUnauthorizedRetry { [client] in
+            let response = try await client.underlying.markInviteWelcomed()
+            switch response {
+            case .noContent:
+                return .success(())
+            case .unauthorized:
+                return .failure(.unauthorized)
+            case .internalServerError:
+                return .failure(.serverError(status: 500))
+            case .undocumented(statusCode: let code, _):
+                return .failure(Self.mapUndocumented(code))
+            }
+        }
     }
 }

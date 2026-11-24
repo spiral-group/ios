@@ -45,6 +45,10 @@ struct MediaEventsTimelineScreen: View {
     private var mainContent: some View {
         if context.viewState.shouldShowEmptyState {
             emptyState
+        } else if context.viewState.hasFailedToLoad, context.viewState.groups.isEmpty {
+            // AGENT-PLATFORM (1.0.3 B14): nothing loaded and the read failed.
+            loadFailedState(size: .regular)
+                .centredInScrollView()
         } else {
             scrollView
                 // Remove the glass effect of iOS 26+
@@ -134,10 +138,17 @@ struct MediaEventsTimelineScreen: View {
     private var header: some View {
         // Needs to be wrapped in a LazyStack otherwise appearance calls don't trigger
         LazyVStack(spacing: 0) {
-            ProgressView()
-                .padding()
-                .opacity(context.viewState.isBackPaginating ? 1 : 0)
-                .scaleEffect(.init(width: 1, height: -1)) // Make sure it spins the right way around 🙃
+            // AGENT-PLATFORM (1.0.3 B14): older items that failed to load aren't the list's end.
+            if context.viewState.hasFailedToLoad {
+                loadFailedState(size: .compact)
+                    .padding()
+                    .scaleEffect(.init(width: 1, height: -1))
+            } else {
+                ProgressView()
+                    .padding()
+                    .opacity(context.viewState.isBackPaginating ? 1 : 0)
+                    .scaleEffect(.init(width: 1, height: -1)) // Make sure it spins the right way around 🙃
+            }
             
             Rectangle()
                 .frame(height: 1)
@@ -170,6 +181,15 @@ struct MediaEventsTimelineScreen: View {
         default:
             EmptyView()
         }
+    }
+    
+    // AGENT-PLATFORM (1.0.3 B14): upstream's own words, in Spiral's state as on the room's thread list.
+    private func loadFailedState(size: SpiralEmptyState.Size) -> some View {
+        SpiralEmptyState(symbol: .exclamationmarkCircle,
+                         title: L10n.commonSomethingWentWrong,
+                         message: size == .regular ? L10n.commonSomethingWentWrongMessage : nil,
+                         action: .init(L10n.actionRetry) { context.send(viewAction: .retry) },
+                         size: size)
     }
     
     // AGENT-PLATFORM (Brief 0083, question 413): Spiral's own empty state, as on the room's other lists.
@@ -241,6 +261,7 @@ struct MediaEventsTimelineScreen_Previews: PreviewProvider, TestablePreview {
     static let filesViewModel = makeViewModel(screenMode: .files)
     static let emptyMediaViewModel = makeViewModel(empty: true, screenMode: .media)
     static let emptyFilesViewModel = makeViewModel(empty: true, screenMode: .files)
+    static let failedMediaViewModel = makeViewModel(failsToLoad: true, screenMode: .media) // AGENT-PLATFORM (1.0.3 B14)
     
     static var previews: some View {
         MediaEventsTimelineScreen(context: mediaViewModel.context)
@@ -262,20 +283,30 @@ struct MediaEventsTimelineScreen_Previews: PreviewProvider, TestablePreview {
             MediaEventsTimelineScreen(context: emptyFilesViewModel.context)
         }
         .previewDisplayName("Empty Files")
+        
+        // AGENT-PLATFORM (1.0.3 B14)
+        ElementNavigationStack {
+            MediaEventsTimelineScreen(context: failedMediaViewModel.context)
+        }
+        .snapshotPreferences(expect: failedMediaViewModel.context.observe(\.viewState.hasFailedToLoad))
+        .previewDisplayName("Failed Media")
     }
     
     private static func makeViewModel(empty: Bool = false,
+                                      failsToLoad: Bool = false,
                                       screenMode: MediaEventsTimelineScreenMode) -> MediaEventsTimelineScreenViewModel {
-        MediaEventsTimelineScreenViewModel(mediaTimelineViewModel: makeTimelineViewModel(empty: empty, screenMode: .media),
-                                           filesTimelineViewModel: makeTimelineViewModel(empty: empty, screenMode: .files),
+        MediaEventsTimelineScreenViewModel(mediaTimelineViewModel: makeTimelineViewModel(empty: empty, failsToLoad: failsToLoad, screenMode: .media),
+                                           filesTimelineViewModel: makeTimelineViewModel(empty: empty, failsToLoad: failsToLoad, screenMode: .files),
                                            initialScreenMode: screenMode,
                                            mediaProvider: MediaProviderMock(.init()),
                                            userIndicatorController: UserIndicatorControllerMock(),
                                            appMediator: AppMediatorMock())
     }
     
-    private static func makeTimelineViewModel(empty: Bool, screenMode: MediaEventsTimelineScreenMode) -> TimelineViewModel {
-        let timelineController = if empty {
+    private static func makeTimelineViewModel(empty: Bool, failsToLoad: Bool, screenMode: MediaEventsTimelineScreenMode) -> TimelineViewModel {
+        let timelineController = if failsToLoad {
+            TimelineControllerMock.failingMediaGallery // AGENT-PLATFORM (1.0.3 B14)
+        } else if empty {
             TimelineControllerMock.emptyMediaGallery
         } else {
             makeTimelineController(screenMode: screenMode)

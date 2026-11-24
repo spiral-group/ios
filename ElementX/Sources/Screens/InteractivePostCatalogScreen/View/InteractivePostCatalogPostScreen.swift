@@ -22,6 +22,8 @@ struct InteractivePostCatalogPostScreen: View {
     /// Where the pager opens: on the page's post, by id.
     @State private var position: ScrollPosition
     @State private var hold = InteractivePostCatalogPagerHold()
+    /// The post waiting to become the page's once the pager settles; one at a time, and none once the page has gone.
+    @State private var settling: Task<Void, Never>?
 
     init(context: InteractivePostCatalogScreenViewModel.Context) {
         self.context = context
@@ -46,15 +48,18 @@ struct InteractivePostCatalogPostScreen: View {
                         .scrollTargetLayout()
                     }
                     .scrollTargetBehavior(.paging)
+                    // The first layout already on the page's post: on iOS 18 the scroll position by id lands a layout
+                    // later, so a page laid out once (a snapshot) showed the section's first post under the page's
+                    // pill. The pages are all as wide as the pager, so the post's share of the scroll is its index's.
+                    .defaultScrollAnchor(Self.openingAnchor(of: page.currentID, in: context.viewState.templates(of: page.section).map(\.id)),
+                                         for: .initialOffset)
                     .scrollPosition($position)
                     .scrollIndicators(.hidden)
                     // The bar's hard edge drew a band across the Mist; nothing scrolls under the bar here.
                     .backportScrollEdgeEffectHidden()
                     .ignoresSafeArea(.container, edges: .bottom)
                     .onScrollPhaseChange { _, phase in
-                        if phase == .interacting {
-                            hold.fingerMoved()
-                        }
+                        hold.scrollPhaseChanged(to: phase)
                     }
                     .onScrollTargetVisibilityChange(idType: String.self, threshold: 0.5) { templateIDs in
                         switch hold.postsOnScreen(templateIDs, pagePost: page.currentID) {
@@ -62,6 +67,8 @@ struct InteractivePostCatalogPostScreen: View {
                             break
                         case .show(let templateID):
                             context.send(viewAction: .showPage(templateID: templateID))
+                        case .showOnceSettled(let templateID):
+                            showOnceSettled(templateID, over: page.currentID)
                         case .scrollBack:
                             proxy.scrollTo(page.currentID, anchor: .center)
                         }
@@ -79,38 +86,79 @@ struct InteractivePostCatalogPostScreen: View {
             }
         }
         .onAppear { context.send(viewAction: .screenAppeared(.post)) }
-        .onDisappear { context.send(viewAction: .screenDisappeared(.post)) }
+        .onDisappear {
+            settling?.cancel()
+            context.send(viewAction: .screenDisappeared(.post))
+        }
+    }
+
+    /// Where the pager's first layout puts it: on `postID`, as a share of the scroll across `postIDs`.
+    static func openingAnchor(of postID: String, in postIDs: [String]) -> UnitPoint {
+        guard postIDs.count > 1, let index = postIDs.firstIndex(of: postID) else { return .leading }
+        return UnitPoint(x: CGFloat(index) / CGFloat(postIDs.count - 1), y: 0.5)
+    }
+
+    /// A post the pager showed with no scroll moving it becomes the page's only if it is still there a moment later:
+    /// on iOS 18 the pager jumped to the section's first post for one layout and came back, and the page took the
+    /// jump for a swipe (the snapshot gate, 2026-11-22).
+    private func showOnceSettled(_ templateID: String, over pagePost: String) {
+        settling?.cancel()
+        settling = Task {
+            try? await Task.sleep(for: InteractivePostCatalogPagerHold.settling)
+            guard !Task.isCancelled, hold.stillShows(templateID, over: pagePost), context.viewState.page?.currentID == pagePost else { return }
+            context.send(viewAction: .showPage(templateID: templateID))
+        }
     }
 }
 
-/// What the post page's pager does with the posts it reports on screen. Its first frame is on the section's first
+/// What the post page's pager does with the posts it reports on screen. Its first frame was on the section's first
 /// post — reported before the page's — and the page took that for a swipe or stayed there: a card opened its shelf's
 /// first post (operator, 2026-11-15). So until the page's post has been on screen once, another post is scrolled
 /// back from; after that, or once a finger moves the pager, the post on screen is the page's post, however it got
-/// there (a swipe, VoiceOver, Full Keyboard Access or Switch Control).
+/// there (a swipe, VoiceOver, Full Keyboard Access or Switch Control). One that got there with no scroll is the
+/// page's only once it stays: on iOS 18 the pager could jump to the first post for one layout and come back.
 struct InteractivePostCatalogPagerHold {
     enum Response: Equatable {
         case none
         /// The post on screen becomes the page's post.
         case show(String)
+        /// The post on screen becomes the page's post if it is still on screen after `settling`.
+        case showOnceSettled(String)
         /// The pager goes back to the page's post.
         case scrollBack
     }
 
+    /// Long enough for a pager that jumped for one layout to come back.
+    static let settling = Duration.milliseconds(150)
+
     private(set) var hasShownPage = false
+    /// A swipe, its deceleration, or an animated scroll (VoiceOver's among them) is moving the pager.
+    private(set) var isScrolling = false
+    /// The posts the pager reported last.
+    private(set) var lastReported: [String] = []
 
     mutating func postsOnScreen(_ templateIDs: [String], pagePost: String) -> Response {
+        lastReported = templateIDs
         if templateIDs.contains(pagePost) {
             hasShownPage = true
             return .none
         }
         guard let templateID = templateIDs.first else { return .none }
-        return hasShownPage ? .show(templateID) : .scrollBack
+        guard hasShownPage else { return .scrollBack }
+        return isScrolling ? .show(templateID) : .showOnceSettled(templateID)
     }
 
     /// A finger always wins, even on a page whose post never showed.
-    mutating func fingerMoved() {
-        hasShownPage = true
+    mutating func scrollPhaseChanged(to phase: ScrollPhase) {
+        if phase == .interacting {
+            hasShownPage = true
+        }
+        isScrolling = phase.isScrolling
+    }
+
+    /// Whether the pager still shows `templateID`, and nothing of the page's post.
+    func stillShows(_ templateID: String, over pagePost: String) -> Bool {
+        lastReported.first == templateID && !lastReported.contains(pagePost)
     }
 }
 
@@ -396,9 +444,11 @@ private struct InteractivePostCatalogPostActions: View {
     /// The Peek in glass. Its name is VoiceOver's, and a long press's.
     private var changeWithAgent: some View {
         Button { context.send(viewAction: .changeTemplate(template)) } label: {
+            // The button's only content (WCAG 1.4.11): the action accent read ~2.9:1 on this glass in dark, so it takes
+            // the chips' link accent, as «Create an agent» does.
             Image(asset: Asset.spiralPeekFill)
                 .font(.compound.headingMDBold)
-                .foregroundStyle(.compound.iconAccentPrimary)
+                .foregroundStyle(.compound.textLinkExternal)
                 .frame(width: circle, height: circle)
                 .spiralGlass(in: Circle(), isInteractive: true)
                 .contentShape(.circle)
@@ -429,14 +479,29 @@ private struct InteractivePostCatalogPostActions: View {
         .accessibilityIdentifier(A11yIdentifiers.interactivePostCatalogScreen.fillIn, isEnabled: isCurrent)
     }
 
+    /// While the agents are read again it spins, as «setting up» does, and can't be pressed.
     private var retryAgents: some View {
-        Button { context.send(viewAction: .retryAgents(templateID: template.id)) } label: {
-            Label(L10n.actionRetry, icon: \.restart)
-                .labelStyle(.titleAndIcon)
-                .lineLimit(labelLineLimit)
-                .frame(minHeight: 24)
+        Button { context.send(viewAction: .retryAgents) } label: {
+            Group {
+                if context.viewState.isReadingAgents {
+                    Label { Text(L10n.actionRetry) } icon: {
+                        // The restart icon, hidden, holds the slot so the button keeps its width as the icon swaps.
+                        // The spinner takes the Mist's quiet ink as «setting up»'s does: the plain grey all but
+                        // vanished on the disabled fill.
+                        CompoundIcon(\.restart)
+                            .hidden()
+                            .overlay { ProgressView().tint(.spiral.chatBackgroundTextSecondary) }
+                    }
+                } else {
+                    Label(L10n.actionRetry, icon: \.restart)
+                }
+            }
+            .labelStyle(.titleAndIcon)
+            .lineLimit(labelLineLimit)
+            .frame(minHeight: 24)
         }
         .buttonStyle(.compound(.primary))
+        .disabled(context.viewState.isReadingAgents)
         .accessibilityIdentifier(A11yIdentifiers.interactivePostCatalogScreen.retryAgents, isEnabled: isCurrent)
     }
 
@@ -622,6 +687,12 @@ struct InteractivePostCatalogPostScreen_Previews: PreviewProvider, TestablePrevi
     static let fillInNoAgent = fixture.viewModel(assistant: .none, page: "invite")
     static let fillInSettingUp = fixture.viewModel(assistant: .settingUp, page: "invite")
     static let fillInUnknown = fixture.viewModel(assistant: .unknown, page: "invite")
+    /// Retry pressed: the agents are being read again.
+    static let fillInReading = {
+        let viewModel = fixture.viewModel(assistant: .unknown, page: "invite")
+        viewModel.context.send(viewAction: .retryAgents)
+        return viewModel
+    }()
 
     static var previews: some View {
         screen(send, "Send")
@@ -631,6 +702,7 @@ struct InteractivePostCatalogPostScreen_Previews: PreviewProvider, TestablePrevi
         screen(fillInNoAgent, "Filled in, no agent")
         screen(fillInSettingUp, "Filled in, the agent setting up")
         screen(fillInUnknown, "Filled in, the agents unread")
+        screen(fillInReading, "Filled in, the agents being read")
     }
 
     private static func screen(_ viewModel: InteractivePostCatalogScreenViewModel, _ name: String) -> some View {

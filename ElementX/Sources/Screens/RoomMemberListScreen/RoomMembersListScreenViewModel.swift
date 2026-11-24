@@ -18,6 +18,8 @@ class RoomMembersListScreenViewModel: RoomMembersListScreenViewModelType, RoomMe
     private let analytics: AnalyticsServiceProtocol
     
     private var members: [RoomMemberProxyProtocol] = []
+    /// AGENT-PLATFORM (1.0.3 B14): which members read is the newest, so an older one's answer doesn't override it.
+    private var membersReadGeneration = 0
     private var currentUserProxy: RoomMemberProxyProtocol?
     
     // AGENT-PLATFORM (Brief 0072, ADR-0083)
@@ -64,6 +66,9 @@ class RoomMembersListScreenViewModel: RoomMembersListScreenViewModelType, RoomMe
         case .memberDisappeared(let userID):
             visibleMemberIDs.remove(userID)
             visibleMembersSubject.send(visibleMemberIDs)
+        case .retry: // AGENT-PLATFORM (1.0.3 B14)
+            state.hasFailedToLoad = false
+            loadMembers()
         }
     }
     
@@ -105,11 +110,7 @@ class RoomMembersListScreenViewModel: RoomMembersListScreenViewModelType, RoomMe
     // MARK: - Members
     
     private func setupMembers() {
-        Task {
-            showLoadingIndicator(Self.setupMembersLoadingIndicatorIdentifier)
-            await roomProxy.updateMembers()
-            hideLoadingIndicator(Self.setupMembersLoadingIndicatorIdentifier)
-        }
+        loadMembers()
         
         roomProxy.membersPublisher
             .combineLatest(roomProxy.identityStatusChangesPublisher)
@@ -120,8 +121,8 @@ class RoomMembersListScreenViewModel: RoomMembersListScreenViewModelType, RoomMe
             }
             .store(in: &cancellables)
         
-        roomProxy.timeline.timelineItemProvider.membershipChangePublisher.sink { [roomProxy] _ in
-            Task { await roomProxy.updateMembers() }
+        roomProxy.timeline.timelineItemProvider.membershipChangePublisher.sink { [weak self] _ in
+            Task { await self?.updateMembers() } // AGENT-PLATFORM (1.0.3 B14): records the outcome.
         }
         .store(in: &cancellables)
         
@@ -129,9 +130,33 @@ class RoomMembersListScreenViewModel: RoomMembersListScreenViewModelType, RoomMe
             .map(\.powerLevels)
             .removeDuplicates { $0?.userPowerLevels == $1?.userPowerLevels }
             .sink { [weak self] _ in
-                Task { await self?.roomProxy.updateMembers() }
+                Task { await self?.updateMembers() } // AGENT-PLATFORM (1.0.3 B14): records the outcome.
             }
             .store(in: &cancellables)
+    }
+    
+    private func loadMembers() {
+        Task {
+            showLoadingIndicator(Self.setupMembersLoadingIndicatorIdentifier)
+            await updateMembers()
+            hideLoadingIndicator(Self.setupMembersLoadingIndicatorIdentifier)
+        }
+    }
+    
+    /// AGENT-PLATFORM (1.0.3 B14): a failed read is kept, so it neither shimmers for good nor reads as an empty room.
+    /// It counts only with nobody to show: cached members are on their way to the list, and Retry mustn't flash first.
+    private func updateMembers() async {
+        membersReadGeneration += 1
+        let generation = membersReadGeneration
+        let result = await roomProxy.updateMembers()
+        guard generation == membersReadGeneration else { return }
+        
+        switch result {
+        case .success:
+            state.hasFailedToLoad = false
+        case .failure:
+            state.hasFailedToLoad = roomProxy.membersPublisher.value.isEmpty
+        }
     }
     
     private func updateState(members: [RoomMemberProxyProtocol]) {
@@ -151,11 +176,13 @@ class RoomMembersListScreenViewModel: RoomMembersListScreenViewModelType, RoomMe
             if roomMembersDetails.bannedMembers.isEmpty {
                 newBindings.mode = .members
             }
+            let hasFailedToLoad = state.hasFailedToLoad // AGENT-PLATFORM (1.0.3 B14)
             self.state = .init(joinedMembersCount: roomProxy.infoPublisher.value.joinedMembersCount,
                                joinedMembers: roomMembersDetails.joinedMembers,
                                invitedMembers: roomMembersDetails.invitedMembers,
                                bannedMembers: roomMembersDetails.bannedMembers,
                                bindings: newBindings)
+            self.state.hasFailedToLoad = hasFailedToLoad // AGENT-PLATFORM (1.0.3 B14): the rebuild keeps the last read's outcome.
             
             // AGENT-PLATFORM (Brief 0072, ADR-0083): the state was rebuilt;
             // the presence known so far carries over, for today's members.

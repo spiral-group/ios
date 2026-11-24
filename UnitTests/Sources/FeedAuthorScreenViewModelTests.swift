@@ -157,6 +157,52 @@ struct FeedAuthorScreenViewModelTests {
         try await failed.fulfill()
     }
 
+    /// An author blocked here or elsewhere has the way back on their sheet, behind the chat's own confirmation.
+    @Test
+    func aBlockedAuthorCanBeUnblocked() async throws {
+        clientProxy.ignoredUsersPublisher = CurrentValueSubject<[String]?, Never>([FeedPreviewData.ann.userID]).asCurrentValuePublisher()
+        clientProxy.unignoreUserReturnValue = .success(())
+        let viewModel = try await loadedViewModel()
+        try await deferFulfillment(viewModel.context.observe(\.viewState.isBlocked)) { $0 }.fulfill()
+
+        viewModel.context.send(viewAction: .unblock)
+        let alert = try #require(viewModel.context.alertInfo)
+        #expect(alert.id == .confirmUnblock)
+        #expect(!clientProxy.unignoreUserCalled)
+
+        alert.secondaryButton?.action?()
+        try await Self.waitUntil { clientProxy.unignoreUserCalled }
+        #expect(clientProxy.unignoreUserReceivedUserID == FeedPreviewData.ann.userID)
+    }
+
+    @Test
+    func aFailedUnblockSaysSo() async throws {
+        clientProxy.ignoredUsersPublisher = CurrentValueSubject<[String]?, Never>([FeedPreviewData.ann.userID]).asCurrentValuePublisher()
+        clientProxy.unignoreUserReturnValue = .failure(.sdkError(ClientProxyMockError.generic))
+        let viewModel = try await loadedViewModel()
+        try await deferFulfillment(viewModel.context.observe(\.viewState.isBlocked)) { $0 }.fulfill()
+
+        viewModel.context.send(viewAction: .unblock)
+        let failed = deferFulfillment(viewModel.context.observe(\.viewState.bindings.alertInfo?.id)) { $0 == .unblockFailed }
+        viewModel.context.alertInfo?.secondaryButton?.action?()
+        try await failed.fulfill()
+    }
+
+    /// Unblock is only for one who is blocked.
+    @Test
+    func anUnblockedAuthorHasNoUnblock() async throws {
+        let viewModel = try await loadedViewModel()
+        viewModel.context.send(viewAction: .unblock)
+        #expect(viewModel.context.alertInfo == nil)
+    }
+
+    private static func waitUntil(_ condition: () -> Bool) async throws {
+        for _ in 0..<200 where !condition() {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        #expect(condition())
+    }
+
     // MARK: - Message
 
     @Test

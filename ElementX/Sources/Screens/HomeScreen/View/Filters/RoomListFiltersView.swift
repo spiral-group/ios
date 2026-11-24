@@ -50,8 +50,10 @@ struct RoomListFiltersView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(filter.localizedName)
-        .accessibilityAddTraits(.isSelected)
+        // AGENT-PLATFORM (1.0.3): named for what a tap does; «Unread, selected» read as though it chose the filter.
+        .accessibilityLabel(UntranslatedL10n.a11yRoomlistRemoveFilter(filter.localizedName))
+        // Voice Control still answers to the word on screen.
+        .accessibilityInputLabels([UntranslatedL10n.a11yRoomlistRemoveFilter(filter.localizedName), filter.localizedName])
     }
 }
 

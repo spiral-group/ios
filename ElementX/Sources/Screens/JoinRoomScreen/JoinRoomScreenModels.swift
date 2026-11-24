@@ -62,7 +62,21 @@ struct JoinRoomScreenViewState: BindableState {
     
     var hideInviteAvatars = false
     
+    /// AGENT-PLATFORM (1.0.3 A2): whether the invite is the person's own assistant asking for its chat.
+    var assistantInvite = AssistantInvite.none
+    
     var bindings = JoinRoomScreenViewStateBindings()
+    
+    /// AGENT-PLATFORM (1.0.3 A2): the assistant's own screen before consent replaces Element's invite.
+    var showsAssistantInvite: Bool {
+        mode.isInvite && assistantInvite == .own
+    }
+    
+    /// AGENT-PLATFORM (1.0.3 A2): an assistant's invite holds the screen blank while its owner is being read, so the
+    /// person's own assistant doesn't flash past as a stranger's invite.
+    var isReadingAssistantInvite: Bool {
+        mode.isInvite && assistantInvite == .unconfirmed(isReading: true)
+    }
     
     var shouldHideAvatars: Bool {
         hideInviteAvatars && mode.isInvite

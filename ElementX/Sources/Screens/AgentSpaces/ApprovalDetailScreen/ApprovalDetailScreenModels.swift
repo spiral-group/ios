@@ -98,6 +98,8 @@ enum ApprovalDetailScreenAlertType: Hashable {
     case notFound
     /// The approve or edit was refused: the agent is paused. The card stays pending.
     case agentPaused
+    /// 409: already decided — it expired, or another device answered it.
+    case alreadyClosed
 }
 
 enum ApprovalDetailScreenViewAction {

@@ -413,5 +413,22 @@
 			<string>ხელსაწყოები შეიცვალა %1$d-ჯერ</string>
 		</dict>
 	</dict>
+	<!-- AGENT-PLATFORM (1.0.3): a noun after a number stays singular in Georgian; upstream's other was the plural. -->
+	<key>common_member_count</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@COUNT@</string>
+		<key>COUNT</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%1$d წევრი</string>
+			<key>other</key>
+			<string>%1$d წევრი</string>
+		</dict>
+	</dict>
 </dict>
 </plist>

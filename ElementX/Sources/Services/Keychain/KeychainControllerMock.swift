@@ -22,11 +22,10 @@ extension KeychainControllerMock {
 
 /// Adds the missing methods for conformance to the protocol.
 extension KeychainControllerMock {
+    // AGENT-PLATFORM: a mock that traps took the test runner down with it; a missing session is the honest answer.
     func retrieveSessionFromKeychain(userId: String) throws -> Session {
-        fatalError("Not implemented")
+        throw ClientError.Generic(msg: "KeychainControllerMock holds no sessions.", details: nil)
     }
     
-    func saveSessionInKeychain(session: Session) {
-        fatalError("Not implemented")
-    }
+    func saveSessionInKeychain(session: Session) { }
 }

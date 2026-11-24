@@ -118,6 +118,8 @@ enum TimelineViewAction {
     case displayPredecessorRoom
     case joinActiveCall(isVoiceCall: Bool)
     case openAIConsentSettings // AGENT-PLATFORM (decision 150)
+    /// AGENT-PLATFORM (1.0.3 A3): a starter under the assistant's welcome, sent as the person's own message.
+    case sendWelcomeStarter(SpiralWelcomeStarter)
 }
 
 enum TimelineComposerAction {
@@ -199,6 +201,9 @@ struct TimelineViewState: BindableState {
     /// AGENT-PLATFORM (decision 150): whether the reader allowed third-party
     /// AI — nil when unknown (no platform, a failed read). Nil in previews.
     var spiralAIConsentResolver: (@MainActor () async -> Bool?)?
+    
+    /// AGENT-PLATFORM (1.0.3 A3): what the assistant's welcome offers under its hello.
+    var spiralWelcomeExtras = SpiralWelcomeExtras.none
     
     /// The published post this thread's drafts update, read off the newest
     /// `com.spiral.live_post` marker in it (§ 5.55). Nil anywhere else.
@@ -359,6 +364,9 @@ struct RoomMemberState: Equatable {
 struct TimelineState {
     var isLive = true
     var paginationState = TimelinePaginationState.initial
+    /// AGENT-PLATFORM (1.0.3 B14): the last back pagination failed. The SDK's state goes back to idle, so this is how a
+    /// screen tells a failure from a page still to load.
+    var hasBackPaginationFailed = false
     
     /// The room is in the process of loading items from a new timeline (switching to/from a detached timeline).
     var isSwitchingTimelines = false

@@ -16,15 +16,16 @@ import Testing
 @MainActor
 struct PlatformSyncServiceTests {
     private let testID = UUID().uuidString
+    private let client: AgentPlatformClient
     private let service: PlatformSyncService
 
     init() throws {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [FeedURLProtocol.self]
         configuration.httpAdditionalHeaders = [FeedURLProtocol.testIDHeader: testID]
-        let client = try AgentPlatformClient(serverURL: "https://platform.test",
-                                             authProvider: StaticAuthTokenProvider(token: "mat_test"),
-                                             urlSession: URLSession(configuration: configuration))
+        client = try AgentPlatformClient(serverURL: "https://platform.test",
+                                         authProvider: StaticAuthTokenProvider(token: "mat_test"),
+                                         urlSession: URLSession(configuration: configuration))
         service = PlatformSyncService(client: client)
     }
 
@@ -85,6 +86,31 @@ struct PlatformSyncServiceTests {
         #expect(request.query == "since=8125-4417")
     }
 
+    /// The reader's language goes with the stream as with the feed's reads (B13), sent explicitly:
+    /// the ephemeral session would otherwise send the device's language list, or nothing.
+    @Test
+    func theStreamSendsTheGivenLanguage() async throws {
+        let service = PlatformSyncService(client: client, language: "uk")
+        stub(status: 200, body: Data("event: ready\ndata: {\"position\":\"p0\",\"fresh\":true}\n\n".utf8),
+             contentType: "text/event-stream")
+
+        _ = try await collect(service.open(since: nil).get())
+
+        #expect(lastRequest?.headers["Accept-Language"] == "uk")
+    }
+
+    /// Unless told otherwise, the language is the app's own, as for the feed.
+    @Test
+    func theStreamsLanguageIsTheAppsByDefault() async throws {
+        let language = try #require(FeedAppLanguage.current)
+        stub(status: 200, body: Data("event: ready\ndata: {\"position\":\"p0\",\"fresh\":true}\n\n".utf8),
+             contentType: "text/event-stream")
+
+        _ = try await collect(service.open(since: nil).get())
+
+        #expect(lastRequest?.headers["Accept-Language"] == language)
+    }
+
     @Test
     func theRefusalsSayWhatTheyAre() async {
         stub(status: 429, body: Self.problem(status: 429, type: FeedError.tooManyRequestsType), headers: ["Retry-After": "7"])
@@ -101,7 +127,7 @@ struct PlatformSyncServiceTests {
         stub(status: 404, body: Self.problem(status: 404, type: FeedError.routeNotFoundType))
         #expect(await service.open(since: nil).failureValue == .unavailable)
 
-        // Any other 404 (a proxy) is retried, never "no sync".
+        // Any other 404 (a proxy) is a refusal, never "no sync".
         stub(status: 404, body: Data())
         #expect(await service.open(since: nil).failureValue == .server(status: 404))
     }
@@ -129,6 +155,54 @@ struct PlatformSyncServiceTests {
         #expect(PlatformSyncService.isCancellation(wrapped(CancellationError())))
         #expect(!PlatformSyncService.isCancellation(URLError(.networkConnectionLost)))
         #expect(!PlatformSyncService.isCancellation(wrapped(URLError(.notConnectedToInternet))))
+    }
+
+    /// DEBT L3: only a network that is not there is `transport` ("No connection"); TLS and an answer that did not decode are not.
+    @Test
+    func aThrownErrorSaysWhetherTheNetworkIsThere() {
+        let wrapped = { (error: any Error) in
+            ClientError(operationID: "getSync", operationInput: "", causeDescription: "Transport threw an error.", underlyingError: error)
+        }
+        #expect(PlatformSyncError(thrown: URLError(.notConnectedToInternet)) == .transport)
+        #expect(PlatformSyncError(thrown: wrapped(URLError(.networkConnectionLost))) == .transport)
+        #expect(PlatformSyncError(thrown: URLError(.timedOut)) == .transport)
+        #expect(PlatformSyncError(thrown: wrapped(URLError(.serverCertificateUntrusted))) == .untrustedServer)
+        #expect(PlatformSyncError(thrown: URLError(.secureConnectionFailed)) == .badResponse)
+        #expect(PlatformSyncError(thrown: wrapped(DecodingError.dataCorrupted(.init(codingPath: [], debugDescription: "")))) == .badResponse)
+    }
+
+    /// Review of B9: a certificate refused on the wire reaches the sync's quiet path, so a captive
+    /// portal left for cellular heals by itself, with no line at the top meanwhile.
+    @Test
+    func aRefusedCertificateTakesTheQuietPath() async throws {
+        FeedURLProtocol.stubs.withLock { $0[testID] = .init(status: 0, body: Data(), error: URLError(.serverCertificateUntrusted)) }
+        #expect(await service.open(since: nil).failureValue == .untrustedServer)
+
+        let feed = FeedServiceMock()
+        feed.activityCursorLimitReturnValue = .success(FeedActivityPage(items: [], nextCursor: nil, unread: 0))
+        feed.noticesCursorLimitLanguageReturnValue = .success(FeedNoticePage(items: [], nextCursor: nil, unread: 0))
+        let store = FeedStore(feedService: feed, currentUserID: "@me:spiral.md")
+        let sync = PlatformSync(service: service, feedStore: store, backoff: { _ in .milliseconds(1) },
+                                refusalBackoff: { _ in .seconds(3600) }, minimumHealthyLife: .zero, isApplicationInBackground: { false })
+        sync.start()
+        for _ in 0..<300 where sync.connectionState != .refused {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        #expect(sync.connectionState == .refused)
+        #expect(store.syncStatus == nil)
+        sync.stop()
+    }
+
+    /// DEBT L3: what waiting does not change, against what it does.
+    @Test
+    func theRefusalsAreToldFromWhatWaitingMends() {
+        for error in [PlatformSyncError.unauthorized, .invalidPosition, .untrustedServer, .server(status: 403), .server(status: 404)] {
+            #expect(error.isRefusal, "\(error)")
+        }
+        for error in [PlatformSyncError.unavailable, .transport, .badResponse, .rateLimited(retryAfterSeconds: nil),
+                      .temporarilyUnavailable(retryAfterSeconds: nil), .server(status: 408), .server(status: 500)] {
+            #expect(!error.isRefusal, "\(error)")
+        }
     }
 
     @Test

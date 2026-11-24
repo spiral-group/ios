@@ -36,12 +36,32 @@ struct SecuritySettingsScreen: View {
     
     private var signInSection: some View {
         Section {
-            ListRow(label: .default(title: UntranslatedL10n.screenSettingsNewPhraseTitle,
+            // 1.0.3: «Add sign-in phrase» for an account made with Apple. Same row, so nothing moves.
+            ListRow(label: .default(title: context.viewState.phraseRowTitle,
                                     icon: \.devicePasskey),
                     kind: .button {
                         context.send(viewAction: .newPhrase)
                     })
                     .accessibilityIdentifier(A11yIdentifiers.securitySettingsScreen.newPhrase)
+            
+            // 1.0.3: shown only once the server has answered — never a placeholder.
+            switch context.viewState.signInMethods.appleRow {
+            case .linked:
+                ListRow(label: .default(title: UntranslatedL10n.screenSettingsAppleTitle,
+                                        icon: Self.appleIcon),
+                        details: .title(UntranslatedL10n.screenSettingsAppleConnected),
+                        kind: .label)
+                    .accessibilityIdentifier(A11yIdentifiers.securitySettingsScreen.apple)
+            case .add:
+                ListRow(label: .default(title: UntranslatedL10n.screenSettingsAppleAddTitle,
+                                        icon: Self.appleIcon),
+                        kind: .button {
+                            context.send(viewAction: .addApple)
+                        })
+                        .accessibilityIdentifier(A11yIdentifiers.securitySettingsScreen.apple)
+            case nil:
+                EmptyView()
+            }
             
             // The account page opens in a web session, so the row shows where it leads.
             if let url = context.viewState.accountProfileURL {
@@ -68,6 +88,11 @@ struct SecuritySettingsScreen: View {
             Text(UntranslatedL10n.screenSecuritySignInFooter)
                 .compoundListSectionFooter()
         }
+    }
+    
+    /// Compound has no Apple glyph; the SF Symbol drawn like its neighbours (decision 320).
+    private static var appleIcon: CompoundIcon {
+        CompoundIcon(systemName: "apple.logo", label: "Apple")
     }
     
     private var messagesSection: some View {
@@ -109,6 +134,11 @@ struct SecuritySettingsScreen: View {
 struct SecuritySettingsScreen_Previews: PreviewProvider, TestablePreview, SpiralGatedPreview {
     static let viewModel = makeViewModel(recoveryState: .enabled)
     static let recoveryDisabledViewModel = makeViewModel(recoveryState: .disabled)
+    // 1.0.3: an account made with Apple, and a phrase account the server can add Apple to.
+    static let appleAccountViewModel = makeViewModel(recoveryState: .enabled,
+                                                     signInMethods: .init(phrase: false, apple: true, appleAvailable: true))
+    static let phraseAccountViewModel = makeViewModel(recoveryState: .enabled,
+                                                      signInMethods: .init(phrase: true, apple: false, appleAvailable: true))
     
     static var previews: some View {
         ElementNavigationStack {
@@ -122,11 +152,28 @@ struct SecuritySettingsScreen_Previews: PreviewProvider, TestablePreview, Spiral
         }
         .snapshotPreferences(expect: recoveryDisabledViewModel.context.observe(\.viewState.accountProfileURL).map { $0 != nil })
         .previewDisplayName("Recovery not set up")
+        
+        ElementNavigationStack {
+            SecuritySettingsScreen(context: appleAccountViewModel.context)
+        }
+        .snapshotPreferences(expect: appleAccountViewModel.context.observe(\.viewState).map { $0.accountProfileURL != nil && $0.signInMethods.phrase != nil })
+        .previewDisplayName("Add sign-in phrase")
+        
+        ElementNavigationStack {
+            SecuritySettingsScreen(context: phraseAccountViewModel.context)
+        }
+        .snapshotPreferences(expect: phraseAccountViewModel.context.observe(\.viewState).map { $0.accountProfileURL != nil && $0.signInMethods.phrase != nil })
+        .previewDisplayName("Add Sign in with Apple")
     }
     
-    static func makeViewModel(recoveryState: SecureBackupRecoveryState) -> SecuritySettingsScreenViewModel {
+    static func makeViewModel(recoveryState: SecureBackupRecoveryState, signInMethods: SignInMethods? = nil) -> SecuritySettingsScreenViewModel {
         let userSession = UserSessionMock(.init())
         userSession.sessionSecurityStatePublisher = CurrentValueSubject(.init(verificationState: .verified, recoveryState: recoveryState)).asCurrentValuePublisher()
+        if let signInMethods {
+            let service = AgentPlatformServiceMock()
+            service.fetchSignInMethodsReturnValue = .success(signInMethods)
+            userSession.agentPlatformService = service
+        }
         return SecuritySettingsScreenViewModel(userSession: userSession, appSettings: .volatile())
     }
 }

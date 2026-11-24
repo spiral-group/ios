@@ -281,6 +281,7 @@ private struct SpiralAppViewerPresenter<Viewer: View>: ViewModifier {
             .onChange(of: isPresented) { _, isShown in
                 SpiralAppReturnTrace.note("viewer \(isShown ? "asked for (expand)" : "flag cleared (dismiss started)") — isReady=\(isReady)")
                 if isShown {
+                    KeyboardDismissal.endEditing() // AGENT-PLATFORM (1.0.3): a post played full screen takes the composer's keyboard
                     hasReportedClosing = false
                     onExpanded()
                 } else {

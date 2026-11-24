@@ -24,6 +24,22 @@ enum AgentRelativeTime {
     }
 }
 
+// AGENT-PLATFORM (1.0.3 snapshot gate): the instant relative times count from.
+extension EnvironmentValues {
+    /// `nil` in the app, where a relative time reads the clock and follows it. The snapshot tests pin it to
+    /// `PreviewClock.now`, the instant the previews' fixtures date themselves from, so «5 min ago» can't turn into
+    /// «6 min ago» between making a fixture and rendering it (DEBT § Final pass 1.0.2, "feed fixtures' times drift").
+    /// Read by the feed's times (`FeedShortTime`), the outreach queue and the Agents tab's activity and hub; a relative
+    /// time elsewhere still follows the clock.
+    @Entry var relativeTimeAnchor: Date?
+}
+
+/// The instant the previews' fixtures date themselves from: «5 minutes ago» is five minutes before it. Snapshot tests
+/// render relative times against it too (`EnvironmentValues.relativeTimeAnchor`).
+enum PreviewClock {
+    static let now = Date()
+}
+
 /// The one status chip (F5): a capsule built from SEMANTIC tokens —
 /// replaces the hand-rolled `color.opacity(0.15)` chips that derived
 /// backgrounds from icon colours (token misuse, canon §7). Variants map

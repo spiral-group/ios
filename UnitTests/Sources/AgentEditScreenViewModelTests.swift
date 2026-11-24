@@ -455,4 +455,46 @@ struct AgentEditScreenViewModelTests {
         #expect(viewModel.context.viewState.initialDisplayName == "Renamed")
         #expect(viewModel.context.viewState.canSave == false)
     }
+    
+    // MARK: - 1.0.3: a refused name
+    
+    nonisolated static let nameRefusals: [AgentPlatformError] = [.displayNameReserved, .displayNameInvalidCharacters, .displayNameUnchecked]
+    
+    /// Spelled out rather than read from `agentNameRefusal`, so the test pins which line each refusal shows.
+    static func expectedMessage(for error: AgentPlatformError) -> String? {
+        switch error {
+        case .displayNameReserved: UntranslatedL10n.errorAgentNameReserved
+        case .displayNameInvalidCharacters: UntranslatedL10n.errorAgentNameInvalidCharacters
+        case .displayNameUnchecked: UntranslatedL10n.errorAgentNameUnchecked
+        default: nil
+        }
+    }
+    
+    @Test(arguments: nameRefusals)
+    func aRefusedNameSaysWhyAndKeepsWhatWasTyped(_ error: AgentPlatformError) async throws {
+        let service = AgentPlatformServiceMock()
+        let viewModel = try await loadedViewModel(service: service)
+        viewModel.context.displayName = "Spiral Support"
+        
+        service.editAgentAgentIDPatchReturnValue = .failure(error)
+        try await save(viewModel, expecting: true)
+        
+        #expect(viewModel.context.viewState.bindings.alertInfo?.message == Self.expectedMessage(for: error))
+        #expect(viewModel.context.displayName == "Spiral Support")
+        #expect(viewModel.context.viewState.initialDisplayName == Self.paCard.displayName)
+        #expect(viewModel.context.viewState.canSave)
+    }
+    
+    @Test
+    func anotherFailureNamesNoNameRule() async throws {
+        let service = AgentPlatformServiceMock()
+        let viewModel = try await loadedViewModel(service: service)
+        viewModel.context.displayName = "Renamed"
+        
+        service.editAgentAgentIDPatchReturnValue = .failure(.serverError(status: 500))
+        try await save(viewModel, expecting: true)
+        
+        #expect(viewModel.context.viewState.bindings.alertInfo?.message == nil)
+        #expect(viewModel.context.displayName == "Renamed")
+    }
 }

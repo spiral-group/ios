@@ -203,7 +203,7 @@ enum AgentDetailScreenAlertType: Hashable {
     case alreadyInChat
 }
 
-enum AgentDetailScreenViewAction {
+enum AgentDetailScreenViewAction: CustomStringConvertible {
     case selectRoom(AgentRoomEntry)
     case edit
     case message
@@ -222,6 +222,28 @@ enum AgentDetailScreenViewAction {
     case confirmArchive
     /// Read again after a failure.
     case retry
+    
+    /// A room's name, a person's in a DM, ships in bug reports: the log names the room by its ID.
+    var description: String {
+        switch self {
+        case .selectRoom(let entry): "selectRoom(\(entry.roomID))"
+        case .edit: "edit"
+        case .message: "message"
+        case .addToChat: "addToChat"
+        case .openVerification: "openVerification"
+        case .openActivity: "openActivity"
+        case .openUsage: "openUsage"
+        case .openQueue: "openQueue"
+        case .openSettings(let section): "openSettings(\(section))"
+        case .openPendingApprovals: "openPendingApprovals"
+        case .openBlocked: "openBlocked"
+        case .setPaused(let isPaused): "setPaused(\(isPaused))"
+        case .setShowInSearch(let isShown): "setShowInSearch(\(isShown))"
+        case .archiveTapped: "archiveTapped"
+        case .confirmArchive: "confirmArchive"
+        case .retry: "retry"
+        }
+    }
 }
 
 extension AgentRoomEntry {

@@ -209,6 +209,11 @@ protocol AgentPlatformServiceProtocol: RoomToolsServiceProtocol {
     /// Who registered through the caller's links, newest first
     /// (`GET /api/v1/me/invite/joined`).
     func fetchMyInviteJoined() async -> Result<[InviteJoinedEntry], AgentPlatformError>
+    /// 1.0.3: who invited the account, and whether its welcome («X invited you») is still owed
+    /// (`GET /api/v1/me/invited-by`); `nil` without a personal link.
+    func fetchInvitedBy() async -> Result<InvitedBy?, AgentPlatformError>
+    /// 1.0.3: the welcome was shown, so it is no longer owed on any device (`POST /api/v1/me/invited-by/welcomed`).
+    func markInviteWelcomed() async -> Result<Void, AgentPlatformError>
     
     // MARK: - New phrase from a signed-in device (Brief 0075)
     
@@ -216,7 +221,17 @@ protocol AgentPlatformServiceProtocol: RoomToolsServiceProtocol {
     /// without the old one (`POST /api/v1/me/phrase-reset`). The caller
     /// asks for Face ID / the passcode first.
     func createPhraseReset() async -> Result<URL, AgentPlatformError>
-    
+
+    // MARK: - Sign-in methods (1.0.3)
+
+    /// Whether the account has a phrase and Sign in with Apple
+    /// (`GET /api/v1/me/sign-in-methods`). A failure means unknown.
+    func fetchSignInMethods() async -> Result<SignInMethods, AgentPlatformError>
+    /// A one-time identity-page link that adds Sign in with Apple to the
+    /// account (`POST /api/v1/me/apple-link`). The caller asks for Face ID /
+    /// the passcode first.
+    func createAppleLink() async -> Result<URL, AgentPlatformError>
+
     // MARK: - Account deletion (Brief 0078)
     
     /// Deletes the account everywhere (`DELETE /api/v1/me`): the person is
@@ -398,7 +413,8 @@ protocol AgentPlatformServiceProtocol: RoomToolsServiceProtocol {
     /// controls (Brief 0055): add the agent to THIS call,
     /// session-scoped (`leave_policy=call_end`), configured
     /// explicitly. Returns the new session id (or the existing one on
-    /// a benign 409). A 503 is retried once after its `Retry-After`.
+    /// a benign 409). A 503 comes back as `.serviceUnavailable`: the
+    /// caller retries it, re-inviting the agent if the retry needs it.
     func attachVoiceAgent(agentID: String, roomID: String, params: VoiceAttachParams) async -> Result<String, VoiceControlsError>
 
     /// `DELETE /api/v1/voice-sessions/{id}` — remove the agent from
@@ -1248,6 +1264,14 @@ nonisolated struct InviteJoinedEntry: Equatable, Hashable {
     let joinedAt: Date
 }
 
+/// 1.0.3: who invited the signed-in account (shown on Invite to Spiral), and whether the platform still owes it the
+/// welcome after sign-up.
+nonisolated struct InvitedBy: Equatable {
+    let inviterUserID: String
+    let isWelcomeOwed: Bool
+}
+
+
 nonisolated struct UserProfileView: Equatable {
     /// Canonical MXID echoed back by the backend. Surfaced as
     /// the screen's secondary header so the user can confirm
@@ -1327,6 +1351,15 @@ nonisolated enum AgentPlatformError: Error, CustomStringConvertible {
     /// can be approved after the resume. Not a `.conflict`, which the
     /// lock-screen runner takes as the decision having landed.
     case agentPaused
+    /// 422 `/errors/display-name-reserved` on an agent's create or rename: the
+    /// name imitates Spiral or its staff. Nothing was written.
+    case displayNameReserved
+    /// 400 on an agent's create or rename whose detail names the name's
+    /// control or text-direction characters. Nothing was written.
+    case displayNameInvalidCharacters
+    /// 503 on an agent's create or rename that carried a name: the backend
+    /// could not check it, so it wrote nothing. Worth a retry.
+    case displayNameUnchecked
     /// 400 — malformed request body / params.
     case validation(detail: String)
     /// 5xx — server side problem.
@@ -1340,6 +1373,10 @@ nonisolated enum AgentPlatformError: Error, CustomStringConvertible {
     static let approvalNotFoundTypeURI = "/errors/approval-not-found"
     /// The `type` URI the platform stamps on a refusal because the agent is paused.
     static let agentPausedTypeURI = "/errors/agent-paused"
+    /// The `type` URI the platform stamps on a reserved agent name.
+    static let displayNameReservedTypeURI = "/errors/display-name-reserved"
+    /// What the platform's 400 says of a name with control or text-direction characters.
+    static let displayNameInvalidCharactersDetail = "control or text-direction characters"
 
     var description: String {
         switch self {
@@ -1350,6 +1387,9 @@ nonisolated enum AgentPlatformError: Error, CustomStringConvertible {
         case .targetBlocked: return "target blocked — the card is closed, nothing was sent"
         case .approvalNotFound: return "approval not found — the card is gone, nothing was sent"
         case .agentPaused: return "agent paused — nothing was decided, the card stays pending"
+        case .displayNameReserved: return "display name reserved — nothing was written"
+        case .displayNameInvalidCharacters: return "display name has control or text-direction characters — nothing was written"
+        case .displayNameUnchecked: return "display name could not be checked — nothing was written"
         case .validation(let d): return "validation failed: \(d)"
         case .serverError(let s): return "server error \(s)"
         case .transport(let e): return "transport: \(e.localizedDescription)"
@@ -1640,5 +1680,51 @@ nonisolated struct AgentEditSchema: Equatable {
         let tone: FieldBounds
         let greeting: FieldBounds
         let visitorGreeting: FieldBounds
+    }
+}
+
+/// AGENT-PLATFORM (1.0.3, operator 2026-11-21): the welcome after sign-up («X invited you»), as the platform owes it.
+/// Asked at each session start until settled for the account: nothing owed settles it; an owed welcome is shown once
+/// on this device and recorded on the platform, so no later sign-in, second device or reinstall shows it again; a
+/// record that failed is retried next time instead of showing the welcome again.
+enum InviteWelcomeOffer {
+    /// Asks the platform and hands an owed welcome to `present`, with what to call once it is really on screen (the
+    /// session's flow queues it until onboarding has settled; a queue lost with the app must leave it owed).
+    @MainActor
+    static func run(service: AgentPlatformServiceProtocol,
+                    account: AccountSettings,
+                    ownUserID: String,
+                    isStillCurrent: @MainActor () -> Bool,
+                    present: @MainActor (_ inviterUserID: String, _ onShown: @escaping @MainActor () -> Void) -> Void) async {
+        guard !account.hasSettledInviteWelcome else { return }
+        if account.hasShownInviteWelcome {
+            await record(service: service, account: account)
+            return
+        }
+        guard case .success(let invitedBy) = await service.fetchInvitedBy() else { return }
+        guard let invitedBy, invitedBy.isWelcomeOwed, invitedBy.inviterUserID != ownUserID else {
+            account.hasSettledInviteWelcome = true
+            return
+        }
+        let inviter = invitedBy.inviterUserID
+        guard isStillCurrent() else { return }
+        present(inviter) {
+            Task { await shown(service: service, account: account) }
+        }
+    }
+
+    /// The welcome is on screen: never shown again on this device, and recorded on the platform so no other device or
+    /// reinstall shows it.
+    @MainActor
+    static func shown(service: AgentPlatformServiceProtocol, account: AccountSettings) async {
+        account.hasShownInviteWelcome = true
+        await record(service: service, account: account)
+    }
+
+    @MainActor
+    private static func record(service: AgentPlatformServiceProtocol, account: AccountSettings) async {
+        if case .success = await service.markInviteWelcomed() {
+            account.hasSettledInviteWelcome = true
+        }
     }
 }

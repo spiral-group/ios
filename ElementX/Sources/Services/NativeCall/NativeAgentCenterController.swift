@@ -62,7 +62,7 @@ enum NativeAgentCenterJoinFailure: Equatable {
     /// An ended session's reason, when it says the agent never got in; nil for an ordinary end.
     init?(_ reason: VoiceSessionEndReason) {
         switch reason {
-        case .callEnded, .manual: return nil
+        case .callEnded, .manual, .ownerLeft, .translationNotHere: return nil
         case .optOut, .aiConsentRoom: self = .aiConsentRoom
         case .aiConsentOwner: self = .aiConsentOwner
         case .budgetReached: self = .budgetReached
@@ -536,8 +536,11 @@ final class NativeAgentCenterController {
         }
 
         var sessions: [NativeAgentCenterSession] = []
+        // One retry budget for the whole read: sessions read one after another, and each 503 retried on its own
+        // would keep the load (and a reload queued behind it) waiting seconds per session.
+        var retries = Self.controlsRetryBudget
         for context in contexts {
-            switch await agentPlatformService.voiceSessionControls(sessionID: context.sessionID) {
+            switch await Self.readControls(sessionID: context.sessionID, from: agentPlatformService, retries: &retries) {
             case .success(let controls):
                 sessions.append(Self.session(context: context, controls: controls))
             case .failure(.gone):
@@ -612,7 +615,7 @@ final class NativeAgentCenterController {
             guard let consent = NativeAgentCenterJoinFailure(reason) else { return }
             stop = nil
             failure = consent
-        case .callEnded, .manual, .failed, .unknown:
+        case .callEnded, .manual, .ownerLeft, .translationNotHere, .failed, .unknown:
             return
         }
 
@@ -676,13 +679,21 @@ final class NativeAgentCenterController {
 
     // MARK: - Actions
 
+    /// Set by `stop()`: the call is over for this agent center.
+    private(set) var isStopped = false
+
     /// Adds an agent to this call. An invite-only room refuses the attach
-    /// until the agent is a member, so that one rejection — and only that one
-    /// — is retried after inviting. A refusal lands on the agent's own add row
-    /// (question 387, F3), and an accepted attach is followed until the agent
-    /// is in the call or its session says why it never got there (B1).
+    /// until the agent is a member, so that one rejection — and only that
+    /// one — is retried after inviting. The backend's invite-required answer
+    /// decides, not the room's local membership, which can lag the backend
+    /// letting the agent go after a refused attach. A 503 is retried in
+    /// `sendAttach`, re-inviting at most once. A call that ends meanwhile
+    /// stops the tap: nothing more is sent. A refusal lands on the agent's
+    /// own add row (question 387, F3), and an accepted attach is followed
+    /// until the agent is in the call or its session says why it never got
+    /// there (B1).
     func attach(agentID: String, params: VoiceAttachParams) async -> Bool {
-        guard let agentPlatformService else { return false }
+        guard let agentPlatformService, !isStopped else { return false }
 
         guard let candidate = snapshotSubject.value.candidates.first(where: { $0.id == agentID }) else {
             setJoinFailure(.failed, for: agentID)
@@ -693,17 +704,28 @@ final class NativeAgentCenterController {
         cleared.acceptedAttaches.remove(agentID)
         snapshotSubject.value = cleared
 
-        var result = await agentPlatformService.attachVoiceAgent(agentID: agentID, roomID: roomID, params: params)
+        var reinvited = false
+        guard var result = await sendAttach(agentID: agentID, agentMxid: candidate.mxid, params: params,
+                                            service: agentPlatformService, reinvited: &reinvited) else { return false }
 
-        if !candidate.isRoomMember, case .failure(let error) = result, Self.isInviteRequired(error) {
+        if !reinvited, case .failure(let error) = result, Self.isInviteRequired(error) {
+            guard !isStopped else { return false }
+            // Listed as a member yet refused as one: the local membership lags, so this invite is the tap's re-invite.
+            if candidate.isRoomMember { reinvited = true }
             guard await inviteAgent(candidate.mxid) else {
+                guard !isStopped else { return false }
                 // An ask-to-join room: only admins may add members (D8).
                 await reload()
                 setJoinFailure(.askToJoin, for: agentID)
                 return false
             }
-            result = await agentPlatformService.attachVoiceAgent(agentID: agentID, roomID: roomID, params: params)
+            guard let next = await sendAttach(agentID: agentID, agentMxid: candidate.mxid, params: params,
+                                              service: agentPlatformService, reinvited: &reinvited) else { return false }
+            result = next
         }
+
+        // The call ended while the answer was on its way: nothing more to show or follow.
+        guard !isStopped else { return false }
 
         switch result {
         case .success(let sessionID):
@@ -726,6 +748,48 @@ final class NativeAgentCenterController {
             setJoinFailure(Self.joinFailure(error), for: agentID)
             return false
         }
+    }
+
+    /// One attach as the tap sends it. A 503 (ADR-0094 A.2: the room couldn't be read, or another attach holds it) is
+    /// tried once more after its `Retry-After`. The backend lets the assistant go again when the attach that joined it
+    /// is refused, so that retry can meet an invite-required refusal: the assistant is then re-invited, silently like
+    /// the tap's own invite, and the attach goes once more (operator, 2026-11-23). One re-invite per tap; whatever
+    /// comes after it is the answer. `nil` when the call ended or the tap was cancelled during the wait: nothing more
+    /// is sent and nothing is shown.
+    private func sendAttach(agentID: String,
+                            agentMxid: String,
+                            params: VoiceAttachParams,
+                            service: AgentPlatformServiceProtocol,
+                            reinvited: inout Bool) async -> Result<String, VoiceControlsError>? {
+        guard !isStopped else { return nil }
+        let first = await service.attachVoiceAgent(agentID: agentID, roomID: roomID, params: params)
+        guard case .failure(.serviceUnavailable(let retryAfter)) = first else { return first }
+        MXLog.info("Agent center: attach unavailable, retrying once after \(retryAfter)")
+        do {
+            try await Task.sleep(for: retryAfter)
+        } catch {
+            MXLog.info("Agent center: the add was cancelled during the attach's wait; not retrying")
+            return nil
+        }
+        guard !isStopped else {
+            MXLog.info("Agent center: the call ended during the attach's wait; not retrying")
+            return nil
+        }
+
+        let retried = await service.attachVoiceAgent(agentID: agentID, roomID: roomID, params: params)
+        guard !reinvited, case .failure(let error) = retried, Self.isInviteRequired(error) else { return retried }
+        guard !isStopped else { return nil }
+        reinvited = true
+        // A refused invite is an ask-to-join room (D8): the invite-required answer says so on the add row.
+        guard await inviteAgent(agentMxid) else { return retried }
+        guard !isStopped else { return nil }
+        return await service.attachVoiceAgent(agentID: agentID, roomID: roomID, params: params)
+    }
+
+    /// The call this agent center serves has ended, or its screen stopped: an add still waiting to retry sends
+    /// nothing more, so no assistant is attached to, or invited into, a call the person left.
+    func stop() {
+        isStopped = true
     }
 
     /// `translation-intent-unavailable` (ADR-0094 A.2) is the app's own mistake, never the person's: refused quietly,
@@ -1362,6 +1426,23 @@ final class NativeAgentCenterController {
         pending.lastError = error
         pending.lastErrorScope = scope
         snapshotSubject.value = pending
+    }
+
+    /// Retries of a 503 controls read in one load, all sessions together.
+    static let controlsRetryBudget = 2
+
+    /// One session's controls. A 503 is the platform failing to read the room just now: tried again shortly while the
+    /// load's budget lasts, then it counts as unread (`.unknown`, never an error); the next refresh reads it again.
+    private static func readControls(sessionID: String,
+                                     from service: AgentPlatformServiceProtocol,
+                                     retries: inout Int) async -> Result<VoiceControlsState, VoiceControlsError> {
+        var result = await service.voiceSessionControls(sessionID: sessionID)
+        while retries > 0, case .failure(.serviceUnavailable(let retryAfter)) = result {
+            retries -= 1
+            try? await Task.sleep(for: min(retryAfter, .seconds(2)))
+            result = await service.voiceSessionControls(sessionID: sessionID)
+        }
+        return result
     }
 
     private static func session(context: VoiceSessionControlContext,

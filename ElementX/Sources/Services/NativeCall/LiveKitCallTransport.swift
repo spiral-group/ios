@@ -208,7 +208,7 @@ final class LiveKitCallTransport: NSObject, NativeCallTransportProtocol {
                                    token: token,
                                    connectOptions: .init(autoSubscribe: false))
         } catch {
-            throw NativeCallTransportError.connectionFailed(String(describing: error))
+            throw Self.connectFailure(for: error)
         }
         // The manager this connect created starts every sender on index 0;
         // a key rotated before (or during) a reconnect lives elsewhere.
@@ -217,6 +217,25 @@ final class LiveKitCallTransport: NSObject, NativeCallTransportProtocol {
 
     func disconnect() async {
         await room.disconnect()
+    }
+
+    /// Which connect failures mean "the room is gone" (bug B3). After a
+    /// failed signalling connect the SDK asks LiveKit's validate endpoint,
+    /// and only its HTTP 404 becomes `.serviceNotFound`; 401/403 and other
+    /// 4xx are `.validation`, 429/5xx `.network` (client-sdk-swift
+    /// `Support/Network/HTTP.swift:56-57`, rethrown by
+    /// `Core/SignalClient.swift:205`). We connect on the v0 path
+    /// (`singlePeerConnection` is off), so the v1 fallback in
+    /// `Room+Engine.swift:266` never consumes it. `.roomDeleted` is the
+    /// server's own leave reason (`Errors.swift:255`) for a room closing
+    /// under a join.
+    nonisolated static func connectFailure(for error: Error) -> NativeCallTransportError {
+        let detail = String(describing: error)
+        guard let liveKitError = error as? LiveKitError else { return .connectionFailed(detail) }
+        switch liveKitError.type {
+        case .serviceNotFound, .roomDeleted: return .roomNotFound(detail)
+        default: return .connectionFailed(detail)
+        }
     }
 
     func setMicrophone(enabled: Bool) async throws {

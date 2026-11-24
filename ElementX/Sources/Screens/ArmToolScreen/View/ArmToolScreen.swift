@@ -165,8 +165,12 @@ struct ArmToolScreen: View {
         }
         ToolbarItem(placement: .confirmationAction) {
             // AGENT-PLATFORM: a visible "Turn on" word, not a bare ✓ disc.
-            Button(confirmTitle) {
+            Button {
                 context.send(viewAction: .submit)
+            } label: {
+                // AGENT-PLATFORM (1.0.3): white in both schemes; dark mode's own black label read 4.32:1 on the blue.
+                Text(confirmTitle)
+                    .backportProminentLabelColor(.compound.textOnSolidPrimary)
             }
             // AGENT-PLATFORM (decision 306): the filled blue, not the window tint (#0A84FF, 3.65:1 under white in dark).
             .backportButtonStyleGlassProminent(tint: .compound.bgActionPrimaryRest)

@@ -76,6 +76,9 @@ nonisolated extension AgentPlatformService {
                 return .failure(.unauthorized)
             case .internalServerError:
                 return .failure(.unavailable("status 500"))
+            // A 503 says the room couldn't be read just now (transient): the reader tries again shortly.
+            case .serviceUnavailable:
+                return .failure(.serviceUnavailable(retryAfter: self.serviceUnavailableRetryDelay))
             case .undocumented(statusCode: let code, _):
                 return .failure(.unavailable("status \(code)"))
             }
@@ -141,10 +144,12 @@ nonisolated extension AgentPlatformService {
 
     // MARK: - Brief 0055: attach / end / artifact disable
 
+    /// One attempt: a 503 goes back to the agent center, which retries it, because the backend lets an assistant the
+    /// refused attach had joined go again and the retry may need it invited back.
     func attachVoiceAgent(agentID: String,
                           roomID: String,
                           params: VoiceAttachParams) async -> Result<String, VoiceControlsError> {
-        await enablingCall {
+        await controlsCall {
             // WYSIWYG: the sheet's toggles are the whole truth for this
             // call, so every control is sent EXPLICITLY (translation off
             // = `disabled`, not "inherit whatever Tools say").

@@ -65,6 +65,9 @@
 "screen_agent_edit_persona_greeting" = "آپ کے لیے خوش آمدید";
 "screen_agent_edit_persona_visitor_greeting" = "مہمانوں کے لیے خوش آمدید";
 "screen_agent_edit_failure" = "تبدیلیاں محفوظ نہیں کی جا سکیں";
+"error_agent_name_reserved" = "یہ نام Spiral کے اپنے اکاؤنٹس کے لیے مخصوص ہے۔ کوئی اور نام منتخب کریں۔";
+"error_agent_name_invalid_characters" = "نام میں ایسے حروف ہیں جو استعمال نہیں کیے جا سکتے۔";
+"error_agent_name_unchecked" = "نام کی جانچ نہیں ہو سکی۔ دوبارہ کوشش کریں۔";
 "screen_agent_edit_load_failure" = "تدوینی فارم لوڈ نہیں ہو سکا";
 "screen_agent_edit_avatar_failure" = "تصویر اپ لوڈ نہیں کی جا سکی";
 "action_agent_activity" = "سرگرمی";
@@ -250,7 +253,6 @@
 "screen_language_picker_title" = "زبان";
 "screen_language_picker_empty" = "آپ کی تلاش سے کوئی زبان مطابقت نہیں رکھتی۔";
 "screen_start_sign_in" = "سائن ان کریں";
-"screen_start_welcome_subtitle" = "آپ کے ذاتی ایجنٹ کے ساتھ تیز، نجی پیغام رسانی۔";
 
 // AGENT-PLATFORM (Brief 0072, ADR-0083, ADR-0084): presence, worded as Telegram does
 "common_presence_online" = "آن لائن";
@@ -491,6 +493,16 @@
 "screen_native_call_assistants_record_confirm_title" = "کال ریکارڈ کریں؟";
 "screen_native_call_assistants_record_confirm_message" = "سب کو کال کے اوپر REC نظر آتا ہے۔ ریکارڈنگ کال کے بعد چیٹ میں ظاہر ہوتی ہے۔";
 "screen_native_call_assistants_record_confirm_action" = "ریکارڈ کریں";
+"screen_native_call_assistants_notes_confirm_title" = "کال کے نوٹس لیں؟";
+"screen_native_call_assistants_notes_confirm_message" = "آپ کا اسسٹنٹ کال سنتا ہے اور اس کے بعد چیٹ میں خلاصہ پوسٹ کرتا ہے۔ دوسرے دیکھتے ہیں کہ وہ نوٹس لے رہا ہے۔";
+"screen_native_call_assistants_notes_confirm_action" = "نوٹس لیں";
+"screen_native_call_assistants_talk_confirm_title" = "اپنے اسسٹنٹ سے بات کریں؟";
+"screen_native_call_assistants_talk_confirm_message" = "یہ صرف آپ کو سنتا ہے اور بلند آواز میں جواب دیتا ہے — کال میں سب اسے سنتے ہیں۔";
+"screen_native_call_assistants_talk_confirm_action" = "بات شروع کریں";
+"screen_native_call_assistants_translate_question_title" = "ترجمے کی زبان";
+"screen_native_call_assistants_listen_question_title" = "سننے کی زبان";
+"screen_native_call_assistants_talk_info_title" = "آپ کا اسسٹنٹ بلند آواز میں جواب دیتا ہے";
+"screen_native_call_assistants_talk_info_message" = "یہ صرف آپ کو سنتا ہے، اور کال میں سب اسے سنتے ہیں۔ بات کرتے وقت ترجمہ بند رہتا ہے۔";
 "screen_native_call_assistants_none_of_your_own" = "آپ کا کوئی اسسٹنٹ نہیں ہے";
 "screen_native_call_assistants_which" = "کون سا اسسٹنٹ";
 "screen_native_call_assistants_reason_paused" = "آپ کا اسسٹنٹ موقوف ہے";
@@ -571,7 +583,6 @@
 "screen_native_call_assistants_job_conversation" = "بات چیت";
 "screen_native_call_assistants_translating" = "%1$@ میں ترجمہ کر رہا ہے";
 "screen_native_call_assistants_stop_translation" = "ترجمہ روکیں";
-"screen_native_call_assistants_talk_caption" = "آپ کو بلند آواز میں جواب دیتا ہے اور سب سنتے ہیں۔ بات کرتے وقت ترجمہ بند رہتا ہے۔";
 "screen_native_call_assistants_pick_footer" = "اس چیٹ کے لیے یاد رکھا گیا";
 "screen_native_call_assistants_neighbour_language" = "آپ کے ساتھ والے شخص کی زبان";
 "screen_native_call_assistants_pocket_detail" = "ہر جملے کے بعد · دونوں طرف";
@@ -591,10 +602,9 @@
 "screen_native_call_assistants_status_both_ways" = "دونوں طرف ترجمہ کر رہا ہے";
 "screen_native_call_assistants_translate_into" = "ترجمے کی زبان";
 "screen_native_call_assistants_translate_into_detail" = "آپ کال اس زبان میں سنتے ہیں";
+"screen_native_call_assistants_translate_into_language" = "ترجمے کی زبان: %1$@";
 "screen_native_call_assistants_in_call" = "کال میں";
 "screen_native_call_assistants_in_call_more" = "کال میں: مزید %1$d";
-"screen_native_call_assistants_new_translation" = "نیا ترجمہ";
-"screen_native_call_assistants_new_translation_detail" = "آپ کا اسسٹنٹ کال کا ترجمہ کرے گا";
 "screen_native_call_assistants_new_translation_others" = "آپ کا اسسٹنٹ %1$@ کا ترجمہ کرتا ہے۔ باقیوں کا ترجمہ پہلے سے مفت ہو رہا ہے۔";
 "screen_native_call_assistants_start_translation" = "ترجمہ شروع کریں";
 "screen_native_call_assistants_start_translation_detail" = "آپ کی حد استعمال کرتا ہے۔ جو بھی یہ زبان چنے، مفت سنتا ہے۔";
@@ -1044,7 +1054,6 @@
 "notice_phrase_changed_title" = "داخلے کا فقرہ تبدیل ہو گیا";
 "a11y_message_read" = "پڑھ لیا گیا";
 "screen_legal_information_source_code_spiral" = "سورس کوڈ";
-"screen_invite_people_seats_label" = "باقی دعوت نامے";
 "screen_native_call_tile_not_joined" = "آپ شامل نہیں ہوئے";
 "screen_agent_settings_show_in_search_footer" = "کیا لوگ اسے تلاش میں ڈھونڈ سکتے ہیں۔ جس کے پاس بھی اس کا پتہ ہو وہ پھر بھی اسے لکھ سکتا ہے۔";
 "screen_agent_edit_tone_calm" = "پُرسکون";
@@ -1056,7 +1065,6 @@
 "screen_room_interactive_draft_published" = "شائع ہو گئی";
 "screen_agent_activity_reason_visitor_policy_reply" = "آپ نے فوراً جواب دینے کی اجازت دی";
 "screen_agent_in_room_no_tools" = "اس چیٹ میں ابھی کوئی ٹول نہیں۔";
-"notice_welcome_assistant_body" = "میں %1$@ ہوں، آپ کا ذاتی اسسٹنٹ۔ آپ کی غیر موجودگی میں پیغامات پہنچا سکتا ہوں، آپ کے رابطے یاد رکھ سکتا ہوں اور کمروں کا خلاصہ کر سکتا ہوں۔ کسی کمرے میں میرے ٹولز آن کرنے کے لیے وہاں + پر تھپتھپائیں اور «ایجنٹس» منتخب کریں۔ بس مجھے فطری انداز میں لکھیں — میں یہاں ہوں۔";
 "screen_room_interactive_post_pick_agent_title" = "اسے کون بنائے؟";
 "screen_agent_settings_visitor_ask_first_description" = "نیا شخص آپ کی رضامندی تک انتظار کرتا ہے";
 "screen_ai_consent_prompt_failed" = "آپ کا انتخاب محفوظ نہیں ہو سکا۔ اپنا کنکشن چیک کریں اور دوبارہ کوشش کریں۔";
@@ -1086,10 +1094,8 @@
 "screen_agent_activity_reason_block_needs_owner" = "مسدود کرنے کے لیے آپ کی منظوری چاہیے";
 "screen_create_company_title" = "نئی کمپنی";
 "a11y_native_call_disable_speaker" = "اسپیکر بند کریں";
-"screen_invite_paste_placeholder" = "spiral.md/join/…";
 "a11y_native_call_end" = "کال ختم کریں";
 "screen_agent_activity_action_published_post" = "ایک پوسٹ شائع کی";
-"screen_invite_people_joined_footer" = "وہ لوگ جنہوں نے آپ کے لنک سے اپنا اکاؤنٹ بنایا۔ چیٹ شروع کرنے کے لیے تھپتھپائیں۔";
 "screen_arm_tool_turn_off_confirm_message" = "ایجنٹ اس چیٹ میں سب کے لیے یہ کام کرنا بند کر دیتا ہے۔ آپ اسے کسی بھی وقت دوبارہ آن کر سکتے ہیں۔";
 "spiral_app_card_line_by" = "%1$@ کی طرف سے";
 "state_event_spiral_tool_language_changed_by_you" = "آپ نے «ترجمہ» تبدیل کیا: %1$@ → %2$@";
@@ -1114,7 +1120,6 @@
 "screen_native_call_agent_block_recording" = "ریکارڈنگ";
 "screen_native_call_control_video" = "ویڈیو";
 "screen_agent_detail_pause" = "متوقف";
-"screen_invite_paste_expired" = "یہ دعوت نامہ اب درست نہیں۔ نیا مانگیں۔";
 "screen_security_messages_section" = "پیغامات";
 "screen_agent_activity_reason_relationship_unavailable" = "رابطے کی جانچ نہیں ہو سکی";
 "screen_ai_consent_prompt_allow" = "اجازت دیں";
@@ -1144,15 +1149,12 @@
 "state_event_spiral_tool_off_by_system" = "%2$@ کے لیے %1$@ بند کر دیا گیا";
 "a11y_native_call_swap_to_held_call" = "%@ کے ساتھ کال پر جائیں";
 "screen_native_call_audio_route_iphone" = "iPhone";
-"screen_invite_people_seats_value" = "%2$d میں سے %1$d";
 "screen_agent_activity_reason_first_contact_with_unknown_visitor" = "کسی نئے شخص کا پہلا پیغام";
 "screen_deactivate_account_spiral_list_item_3" = "ہمارے شناختی سرور سے آپ کے اکاؤنٹ کی معلومات حذف کر دے گا۔";
 "a11y_native_call_bar" = "%1$@ کے ساتھ جاری کال۔ واپس جانے کے لیے تھپتھپائیں۔";
-"screen_invite_paste_unavailable" = "دعوت نامہ چیک نہیں ہو سکا۔ دوبارہ کوشش کریں۔";
 "screen_agent_activity_action_read_call_summary" = "کال کا خلاصہ پڑھا";
 "screen_ai_consent_prompt_title" = "تھرڈ پارٹی اے آئی کی اجازت دیں؟";
 "screen_agent_edit_voice_language_footer" = "اسسٹنٹ ہمیشہ اسی زبان میں جواب دیتا ہے جو آپ بولتے ہیں۔ یہ طے کرتا ہے کہ وہ کالز کو کیسے سنتا ہے اور کال کے خلاصے کس زبان میں ہوں۔";
-"screen_invite_welcome_title" = "Spiral میں خوش آمدید";
 "screen_agent_activity_reason_blocked_visitor" = "مسدود شخص";
 "screen_deactivate_account_spiral_list_item_1_bold_part" = "مستقل طور پر غیر فعال کر دے گا";
 "screen_native_call_agent_center_recording_live" = "ریکارڈنگ ہو رہی ہے…";
@@ -1220,7 +1222,6 @@
 "screen_deactivate_account_spiral_failed" = "اکاؤنٹ حذف نہیں ہو سکا۔ ایک منٹ بعد دوبارہ کوشش کریں۔";
 "screen_agent_activity_action_changed_call_mode" = "کال میں اپنی شرکت کا طریقہ تبدیل کیا";
 "a11y_native_call_unmute_microphone" = "مائیکروفون آن کریں";
-"screen_invite_paste_label" = "لنک یا کوڈ";
 "screen_media_viewer_position" = "%2$d میں سے %1$d";
 "screen_native_call_status_reconnecting_detail" = "آپ کا کنکشن ٹوٹ گیا";
 "screen_approval_detail_block_blocked_subtitle" = "آپ کا ایجنٹ اب سے ان کے پیغامات نظرانداز کرے گا۔";
@@ -1256,6 +1257,13 @@
 "screen_agent_activity_reason_no_contact_relationship" = "آپ کے رابطوں میں سے نہیں";
 "screen_room_alias_link_not_found" = "یہ لنک کسی چیٹ تک نہیں لے جاتا۔";
 "screen_invite_people_title" = "Spiral میں مدعو کریں";
+"screen_invite_people_you" = "آپ";
+"screen_invite_people_invited_count" = "%2$d میں سے %1$d مدعو کیے";
+"screen_invite_people_invited_you" = "آپ کو Spiral میں مدعو کیا";
+"screen_invite_people_seat_invite" = "مدعو کریں";
+"screen_invite_people_seat_taken" = "لیا گیا";
+"screen_invite_people_chain_footer" = "%1$d لوگوں کے لیے ایک لنک، اور یہ تجدید نہیں ہوتا۔ کسی کا پروفائل کھولنے کے لیے اس پر ٹیپ کریں۔";
+"screen_invite_people_all_used" = "تمام دعوت نامے استعمال ہو چکے";
 "screen_approval_detail_escalation_cold_outreach" = "آپ کا ایجنٹ پہلی بار کسی کو لکھنا چاہتا ہے۔";
 "screen_start_invited_by" = "%1$@ نے آپ کو Spiral میں مدعو کیا";
 "screen_agent_spaces_section_retry" = "دوبارہ کوشش کے لیے تھپتھپائیں۔";
@@ -1263,7 +1271,6 @@
 "screen_settings_new_phrase_done" = "داخلے کا فقرہ تبدیل ہو گیا";
 "screen_agent_activity_reason_outside_conversation" = "اس گفتگو سے باہر";
 "a11y_native_call_switch_camera" = "کیمرا تبدیل کریں";
-"screen_invite_people_joined" = "آپ کی دعوت سے شامل ہوئے: %1$d";
 "screen_agent_activity_action_searched_agents" = "ایجنٹس تلاش کیے";
 "screen_agent_activity_reason_strategy_no_op" = "کرنے کو کچھ نہیں تھا";
 "action_dismiss_visitor_message" = "ہٹائیں";
@@ -1272,7 +1279,6 @@
 "screen_approval_detail_block_action_dont_block" = "مسدود نہ کریں";
 "screen_agent_settings_people_title" = "لوگوں سے بات چیت";
 "screen_native_call_agent_center_error_not_owner" = "صرف اس سیشن کا مالک اسے تبدیل کر سکتا ہے۔";
-"notice_welcome_agent_body" = "%1$@ تیار ہے۔ بس مجھے لکھیں۔";
 "screen_agent_detail_already_in_chat" = "ایجنٹ پہلے سے اس چیٹ میں ہے";
 "screen_native_call_agent_center_booth_members" = "%1$@ کو %2$@ میں";
 "screen_settings_devices_title" = "آلات اور سیشنز";
@@ -1290,7 +1296,6 @@
 "screen_agent_activity_action_remembered" = "کسی رابطے کے بارے میں کچھ یاد رکھا";
 "screen_room_interactive_post_link_needs_update" = "اس پوسٹ کے لیے Spiral کا نیا ورژن درکار ہے۔ اسے استعمال کرنے کے لیے ایپ اپ ڈیٹ کریں۔";
 "screen_room_member_details_erase_assistant_memory" = "میرے اسسٹنٹس ان کے بارے میں جو جانتے ہیں اسے مٹائیں";
-"screen_invite_paste_without" = "دعوت نامے کے بغیر جاری رکھیں";
 "screen_agent_edit_tone_friendly" = "دوستانہ";
 "screen_room_interactive_post_update" = "پوسٹ اپ ڈیٹ کریں";
 "screen_agent_detail_archive_refused" = "آپ کا ذاتی اسسٹنٹ آپ کے اکاؤنٹ کے ساتھ رہتا ہے اور آرکائیو نہیں کیا جا سکتا۔";
@@ -1307,9 +1312,7 @@
 "screen_native_call_agent_center_talking" = "اسسٹنٹ بول رہا ہے";
 "screen_native_call_tile_call_back" = "واپس کال کرنے کے لیے تھپتھپائیں";
 "notice_reply_failed_body" = "میری طرف کچھ گڑبڑ ہو گئی۔ براہِ کرم اسے دوبارہ بھیجیں۔";
-"screen_invite_people_joined_title" = "آپ کی دعوت سے شامل ہوئے";
 "screen_native_call_status_connecting_detail" = "انکرپشن ترتیب دی جا رہی ہے";
-"screen_invite_paste_title" = "دعوت نامہ ہے؟";
 "screen_edit_profile_bio_too_long" = "تعارف زیادہ سے زیادہ %1$d حروف کا ہو سکتا ہے۔ محفوظ کرنے کے لیے اسے مختصر کریں۔";
 "a11y_native_call_agent_block_role" = "%1$@، %2$@";
 "a11y_native_call_recording" = "اس کال کی ریکارڈنگ ہو رہی ہے";
@@ -1322,12 +1325,25 @@
 "screen_agent_spaces_assistant_pending" = "آپ کا اسسٹنٹ ابھی سیٹ اپ ہو رہا ہے";
 "screen_room_member_details_erase_assistant_memory_alert_title" = "آپ کے اسسٹنٹس %1$@ کے بارے میں جو جانتے ہیں، اسے مٹا دیں؟";
 "screen_settings_new_phrase_failed" = "فقرہ تبدیل کرنا شروع نہیں ہو سکا۔ دوبارہ کوشش کریں۔";
+/* AGENT-PLATFORM (1.0.3): sign-in methods — the first phrase for an account made with Apple, Sign in with Apple for a phrase account. */
+"screen_settings_add_phrase_title" = "داخلے کا فقرہ شامل کریں";
+"screen_settings_add_phrase_message" = "آپ 12 الفاظ منتخب کریں گے۔ یہ Apple کے ساتھ سائن ان کے علاوہ، کسی بھی آلے پر آپ کا اکاؤنٹ کھولتے ہیں۔ آپ اس آلے پر داخل رہیں گے، اور آپ کے پیغامات متاثر نہیں ہوں گے۔";
+"screen_settings_add_phrase_auth_reason" = "داخلے کا فقرہ شامل کرنے کے لیے تصدیق کریں کہ یہ آپ ہیں";
+"screen_settings_add_phrase_done" = "داخلے کا فقرہ شامل ہو گیا";
+"screen_settings_add_phrase_failed" = "فقرہ شامل کرنا شروع نہیں ہو سکا۔ دوبارہ کوشش کریں۔";
+"screen_settings_sign_in_passcode_required" = "پہلے آلے کا پاس کوڈ سیٹ کریں — یہ آپ کے داخلے کے طریقوں کو محفوظ رکھتا ہے";
+"screen_settings_apple_title" = "Apple کے ساتھ سائن ان";
+"screen_settings_apple_connected" = "منسلک";
+"screen_settings_apple_add_title" = "Apple کے ساتھ سائن ان شامل کریں";
+"screen_settings_apple_auth_reason" = "Apple کے ساتھ سائن ان شامل کرنے کے لیے تصدیق کریں کہ یہ آپ ہیں";
+"screen_settings_apple_linked" = "Apple کے ساتھ سائن ان شامل ہو گیا";
+"screen_settings_apple_taken" = "یہ Apple ID پہلے ہی کسی دوسرے Spiral اکاؤنٹ میں استعمال ہو رہی ہے";
+"screen_settings_apple_failed" = "Apple کے ساتھ سائن ان شامل کرنا شروع نہیں ہو سکا۔ دوبارہ کوشش کریں۔";
 "screen_deactivate_account_spiral_description" = "اپنا اکاؤنٹ حذف کرنا %1$@ ہے۔ یہ کرے گا:";
 "screen_agent_activity_action_set_reminder" = "ایک یاد دہانی سیٹ کی";
 "screen_agent_activity_action_cancelled_reminder" = "ایک یاد دہانی منسوخ کی";
 "screen_agent_activity_reason_capability_always_allowed" = "ہمیشہ اجازت ہے";
 "screen_agent_activity_action_blocked_someone" = "کسی کو مسدود کیا";
-"screen_invite_paste_message" = "وہ لنک چسپاں کریں جو کسی Spiral صارف نے آپ کو بھیجا، یا کوڈ ٹائپ کریں۔";
 "screen_native_call_error_title" = "کال ناکام ہو گئی";
 "notification_approval_action_not_found_title" = "یہ درخواست اب موجود نہیں";
 "state_event_spiral_tool_changed_by_you" = "آپ نے %1$@ تبدیل کیا";
@@ -1354,7 +1370,6 @@
 "screen_native_call_control_sound" = "آواز";
 "screen_native_call_status_reconnecting" = "دوبارہ منسلک ہو رہا ہے…";
 "notice_phrase_changed_body" = "پرانے فقرے سے اب داخل نہیں ہوا جا سکتا۔";
-"screen_invite_people_seats_footer" = "ہر شخص کے پاس %1$d نشستوں والا ایک لنک ہوتا ہے۔ یہ دوبارہ نہیں ملتا، اس لیے اسے انہی لوگوں کے ساتھ شیئر کریں جنہیں آپ واقعی یہاں چاہتے ہیں۔";
 "screen_room_member_details_agent_unblock_action" = "غیر مسدود کریں";
 "screen_agent_activity_reason_unknown_capability" = "یہ ایسا کام نہیں جو یہ کر سکے";
 "screen_settings_new_phrase_passcode_required" = "پہلے آلے کا پاس کوڈ سیٹ کریں — یہ فقرہ تبدیل کرنے کو محفوظ رکھتا ہے";
@@ -1426,10 +1441,11 @@
 "screen_your_data_calls_footer" = "ایک کال ایکسپورٹ کریں: اس کی تحریر، اس کا خلاصہ اور اس کا رضامندی ریکارڈ۔";
 "screen_arm_tool_error_agent_does_not_join_calls" = "یہ ایجنٹ کالز میں شامل نہیں ہوتا، اس لیے کال ٹولز اس کے لیے دستیاب نہیں۔";
 "screen_room_interactive_generating_hint" = "عموماً ایک منٹ سے کم";
-"screen_invite_paste_exhausted" = "اس دعوت نامے کے تحت سب لوگ شامل ہو چکے ہیں۔ نیا مانگیں۔";
 "notice_phrase_changed_on_device" = "«%1$@» پر تبدیل کیا گیا۔";
+/* AGENT-PLATFORM (1.0.3): the owner-DM card when Sign in with Apple is added. It names no device (security review); a new phrase disconnects Apple. */
+"notice_apple_linked_title" = "Apple کے ساتھ سائن ان شامل ہو گیا";
+"notice_apple_linked_body" = "اگر یہ آپ نہیں تھے تو اپنا داخلے کا فقرہ تبدیل کریں: اس سے Apple منقطع ہو جائے گا۔";
 "screen_ai_consent_prompt_openai" = "OpenAI: وہ پیغامات جو اسسٹنٹس پڑھتے ہیں، ان کے ساتھ کالز میں آپ کی آواز، اور وہ ریکارڈنگز جنہیں وہ تحریر میں بدلتے ہیں۔";
-"screen_invite_welcome_message" = "%1$@ نے آپ کو مدعو کیا اور جانتے ہیں کہ آپ یہاں ہیں۔ ہیلو کہیں!";
 "screen_agent_activity_action_used_tool" = "ایک پیغام پر ٹول استعمال کیا";
 "screen_approval_detail_escalation_first_contact" = "کسی نے پہلی بار آپ کے ایجنٹ کو لکھا، اس لیے وہ جواب دینے سے پہلے آپ سے پوچھتا ہے۔";
 "screen_agent_activity_action_drafted_post" = "ایک پوسٹ کا مسودہ بنایا";
@@ -1444,7 +1460,6 @@
 "screen_room_interactive_post_updated" = "پوسٹ اپ ڈیٹ ہو گئی";
 "screen_native_call_camera_failed_message" = "کیمرا شروع نہیں ہو سکا، اس لیے کال آواز کے ساتھ جاری ہے۔ تھوڑی دیر میں کیمرے کا بٹن دوبارہ آزمائیں۔";
 "screen_media_viewer_open" = "کھولیں";
-"screen_invite_paste_invalid" = "ایسا کوئی دعوت نامہ نہیں ہے۔";
 "screen_agent_room_tool_audience_except_named" = "%1$@ کے سوا سب کے لیے";
 "notification_spiral_needs_update_body" = "یہ دیکھنے کے لیے ایپ اپ ڈیٹ کریں۔";
 "screen_agent_edit_tone_brief" = "مختصر اور جامع";
@@ -1452,7 +1467,6 @@
 "screen_invite_people_seats_left" = "%2$d میں سے %1$d دعوت نامے باقی";
 "screen_agent_activity_reason_wrong_room_kind" = "اس قسم کی چیٹ میں اجازت نہیں";
 "screen_native_call_failure_audio_reset" = "سسٹم نے کال کی آواز ری سیٹ کر دی۔";
-"screen_invite_people_body" = "رجسٹریشن دعوت کے ذریعے ہے۔ اپنا ذاتی لنک شیئر کریں — جو بھی اس کے ذریعے اکاؤنٹ بنائے گا وہ سب سے پہلے آپ کو دیکھے گا۔";
 "notification_approval_action_target_blocked_title" = "نہیں بھیجا گیا — آپ نے اس شخص کو مسدود کیا ہے";
 "screen_notifications_hub_visitor_other" = "کچھ نیا";
 "screen_agent_activity_empty_pending_title" = "فیصلے کے لیے کوئی درخواست نہیں";
@@ -1476,3 +1490,61 @@
 "screen_notifications_hub_visitors_section" = "لوگوں کی طرف سے";
 "screen_agent_settings_visitor_reply_description" = "سب کو جواب دیتا ہے سوائے ان لوگوں کے جنہیں آپ نے مسدود کیا";
 "screen_deactivate_account_spiral_auth_reason" = "اپنا اکاؤنٹ حذف کرنے کے لیے تصدیق کریں کہ یہ آپ ہیں";
+
+// AGENT-PLATFORM (1.0.3 A2): the assistant's first invite in Chats, its chat before consent and its welcome.
+"screen_roomlist_assistant_invite_name" = "آپ کا اسسٹنٹ";
+"screen_roomlist_assistant_invite_subtitle" = "ہیلو! شروع کرنے کے لیے تھپتھپائیں 👋";
+"screen_roomlist_assistant_invite_start" = "شروع کریں";
+"a11y_assistant_invite_start" = "اپنے اسسٹنٹ کے ساتھ گفتگو شروع کریں";
+"a11y_assistant_invite_start_hint" = "آپ کے اسسٹنٹ کی دعوت قبول کرتا ہے اور اس کے ساتھ آپ کی چیٹ کھولتا ہے۔";
+"screen_assistant_invite_title" = "ہیلو! میں آپ کا اسسٹنٹ ہوں";
+"screen_assistant_invite_reminders" = "میں آپ کو چیزیں یاد دلاؤں گا";
+"screen_assistant_invite_contacts" = "میں آپ کے رابطے یاد رکھوں گا";
+"screen_assistant_invite_summaries" = "میں کسی بھی چیٹ کا خلاصہ کروں گا";
+"screen_assistant_invite_privacy" = "میں صرف یہ گفتگو دیکھتا ہوں۔ آپ مجھے کبھی بھی بند کر سکتے ہیں۔";
+"screen_assistant_invite_start" = "گفتگو شروع کریں";
+"notice_welcome_body" = "میں یہاں ہوں اور مدد کے لیے تیار ہوں۔ کہاں سے شروع کریں؟";
+"notice_welcome_starter_summary" = "چیٹ کا خلاصہ";
+"notice_welcome_starter_summary_message" = "میرے لیے ایک چیٹ کا خلاصہ کرو";
+"notice_welcome_starter_contact" = "رابطہ یاد رکھو";
+"notice_welcome_starter_contact_message" = "میرے ایک رابطے کے بارے میں کچھ یاد رکھو";
+"notice_welcome_starter_reminder" = "مجھے یاد دلاؤ…";
+"notice_welcome_starter_reminder_message" = "میرے لیے یاد دہانی لگاؤ";
+"notice_welcome_allow_ai_reason" = "اے آئی کی اجازت دیں تاکہ میں پڑھ سکوں کہ آپ یہاں کیا لکھتے ہیں۔";
+"notice_welcome_allow_ai_action" = "اے آئی کی اجازت دیں";
+
+// AGENT-PLATFORM (1.0.3 onboarding): the start screen's stories, the notifications prompt and the invited welcome.
+"screen_start_slide_privacy_title" = "آپ کی گفتگو آپ کی ہے";
+"screen_start_slide_privacy_subtitle" = "اینڈ ٹو اینڈ انکرپشن۔ فون نمبر کی ضرورت نہیں، اور اسسٹنٹ صرف آپ کی اجازت سے";
+"screen_start_slide_calls_title" = "ترجمے کے ساتھ کالز";
+"screen_start_slide_calls_subtitle" = "اسسٹنٹ کال میں شامل ہو کر براہِ راست ترجمہ کرتا ہے";
+"screen_start_slide_assistant_title" = "اسسٹنٹ آپ کے پاس";
+"screen_start_slide_assistant_subtitle" = "جب آپ مصروف ہوں تو جواب دیتا ہے، اور ہر نئے قدم سے پہلے آپ سے پوچھتا ہے";
+"screen_start_slide_games_title" = "چیٹ ہی میں مل کر کھیلیں";
+"screen_start_slide_games_subtitle" = "گیمز اور ٹولز، کچھ انسٹال کیے بغیر";
+"screen_start_invited_by_hint" = "اکاؤنٹ بنائیں تاکہ %1$@ کو پتا چلے کہ آپ آ گئے ہیں";
+"a11y_start_slides_position" = "سلائیڈ %1$d از %2$d";
+"screen_notification_optin_spiral_title" = "رابطے میں رہیں";
+"screen_notification_optin_spiral_subtitle" = "جب کوئی بات واقعی اہم ہو تو Spiral آپ کو بتا دے گا۔ آپ اسے کسی بھی وقت ترتیبات میں بدل سکتے ہیں۔";
+"screen_notification_optin_messages_title" = "نئے پیغامات";
+"screen_notification_optin_messages_subtitle" = "ان لوگوں اور گروپس سے جن سے آپ بات کرتے ہیں";
+"screen_notification_optin_calls_title" = "آنے والی کالز";
+"screen_notification_optin_calls_subtitle" = "تب بھی جب Spiral بند ہو";
+"screen_notification_optin_assistant_title" = "آپ کے اسسٹنٹ کے سوالات";
+"screen_notification_optin_assistant_subtitle" = "جب اسے آپ کی اجازت درکار ہو";
+"screen_notification_optin_allow" = "اطلاعات کی اجازت دیں";
+"screen_invite_welcome_together_title" = "آپ اور %1$@ اب ساتھ ساتھ Spiral پر ہیں";
+"screen_invite_welcome_step_say_hello_title" = "%1$@ کو سلام کہیں";
+"screen_invite_welcome_step_say_hello_subtitle" = "%1$@ منتظر ہیں";
+"screen_invite_welcome_step_assistant_title" = "اپنے اسسٹنٹ سے ملیں";
+"screen_invite_welcome_step_assistant_subtitle" = "اس کا دعوت نامہ “گفتگوئیں” میں منتظر ہے";
+"screen_invite_welcome_step_play_title" = "مل کر کچھ کھیلیں";
+"screen_invite_welcome_step_play_subtitle" = "گیمز اور ٹولز، سیدھے چیٹ میں";
+"a11y_invite_welcome_avatars" = "%1$@ اور آپ";
+"screen_approval_detail_already_closed_title" = "یہ درخواست پہلے ہی بند ہو چکی ہے";
+"screen_approval_detail_already_closed_message" = "اس کی میعاد ختم ہو گئی یا اس کا جواب پہلے ہی دیا جا چکا ہے۔";
+"screen_room_interactive_post_description_not_sent" = "آپ کی وضاحت نہیں بھیجی گئی۔ اسے دھاگے میں دوبارہ بھیجیں۔";
+"screen_room_interactive_post_code_not_sent" = "پوسٹ ایجنٹ تک نہیں پہنچی۔ پوسٹ سے دوبارہ کوشش کریں۔";
+"screen_invites_assistant_decline_warning_spiral" = "اگر یہ آپ کا اپنا اسسٹنٹ ہے تو انکار کے بعد اس کی چیٹ بحال نہیں ہو سکے گی۔";
+"a11y_roomlist_remove_filter" = "فلٹر ہٹائیں: %1$@";
+"a11y_settings_share_profile" = "میرا پروفائل شیئر کریں";

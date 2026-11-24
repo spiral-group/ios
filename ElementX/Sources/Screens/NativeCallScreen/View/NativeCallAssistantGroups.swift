@@ -3,10 +3,11 @@
 //
 // AGENT-PLATFORM (Brief 0083, question 387; Brief 0085, question 403): the pages of the call's "Assistants" sheet, in
 // the call's glass (L5, `NativeCallAssistantsGlass`). The root is your own assistant: the four job buttons, then one
-// row or one question under them — the language it translates into (L1), Stop, a refusal and its one way out, or the
-// recording's confirmation in place — and at the bottom "In the call · N more" for everyone else's. "New translation"
-// (L4) is the root opened from the 文A menu's "+". Someone else's assistant is one row from your side, its page the same
-// four buttons read-only and what they mean for you. No listener counts anywhere (403, Q3).
+// row or one question under them — Translation's question at rest (the language, then Start), Stop, a refusal and its
+// one way out, or the question a tapped job asks before it starts (1.0.3, the call lab's pick C) — and at the bottom
+// "In the call · N more" for everyone else's. The 文A menu's "+" opens this same root. Someone else's assistant is one
+// row from your side, its page the same four buttons read-only and what they mean for you. No listener counts anywhere
+// (403, Q3).
 
 import Compound
 import SpiralComponents
@@ -61,6 +62,52 @@ enum NativeCallOwnAssistantStage: Equatable {
     }
 }
 
+/// 1.0.3 (operator's pick B, 2026-11-19): the one action under your assistant's translation, the same whichever way
+/// the sheet opened — the 文A menu's «Add your own translation…» or the Assistant button. None in the private call, whose
+/// interpreter starts from its pair (L11).
+enum NativeCallTranslationAction: Equatable {
+    /// Not running: «Start translation» and what it costs, or «Listen» when someone already translates into it (L4.3).
+    case start
+    /// Running: «Stop translation».
+    case stop
+    /// Running, and another language picked in «Translate into»: only this moves it there.
+    case translateInto(language: String)
+
+    init?(stage: NativeCallOwnAssistantStage, viewState: NativeCallScreenViewState) {
+        guard !viewState.isAssistantPage else { return nil }
+        switch stage {
+        case .inCall(let agent):
+            if !agent.isTranslationOn {
+                // As the buttons: nothing starts on an assistant still waiting, leaving, or without its session yet.
+                guard agent.control != nil, agent.shown.presence == .present else { return nil }
+                self = .start
+            } else if let picked = viewState.pickedTranslationLanguage, picked != agent.translationLanguage {
+                self = .translateInto(language: picked)
+            } else {
+                self = .stop
+            }
+        case .notInCall:
+            self = .start
+        case .loading, .unavailable, .joining, .none:
+            return nil
+        }
+    }
+}
+
+extension NativeCallAgentPresentation.Agent {
+    /// 1.0.3: its translation is on — the document translates, or the platform has it on while the lanes start. The
+    /// sheet's bottom button, the Translation button and a held pick all read this one fact.
+    var isTranslationOn: Bool {
+        shown.isTranslating || control?.translation.isOn == true
+    }
+
+    /// The language its translation runs in: the platform's intent, else what the document translates into. A held
+    /// pick is compared with this, never with «my language», which a failed switch may already have moved.
+    var translationLanguage: String? {
+        control?.translation.effective.forLanguage ?? shown.languages.first
+    }
+}
+
 /// L6: the own assistant's "…" menu — its profile and your limit always, removing it only while it is in the call.
 enum NativeCallOwnAssistantMenuItem: Hashable {
     case profile
@@ -97,11 +144,25 @@ struct NativeCallOwnAssistantPage: View {
         NativeCallOwnAssistantStage(context)
     }
 
-    private var isCreating: Bool {
-        // The private call's translation is the pocket interpreter: its one pick is the neighbour's language (L11).
-        guard context.isCreatingTranslation, !context.viewState.isAssistantPage else { return false }
-        if case .inCall(let agent) = stage { return !agent.shown.isTranslating }
-        return true
+    /// The stage's case alone, so a change of what the assistant does isn't a change of stage.
+    private var stageKind: Int {
+        switch stage {
+        case .loading: 0
+        case .unavailable: 1
+        case .inCall: 2
+        case .joining: 3
+        case .notInCall: 4
+        case .none: 5
+        }
+    }
+
+    private var translationAction: NativeCallTranslationAction? {
+        NativeCallTranslationAction(stage: stage, viewState: context.viewState)
+    }
+
+    /// «Start translation» and its line at the bottom, whenever your assistant could start translating and doesn't.
+    private var showsStart: Bool {
+        translationAction == .start
     }
 
     var body: some View {
@@ -124,7 +185,8 @@ struct NativeCallOwnAssistantPage: View {
                 case .none:
                     EmptyView()
                 }
-                if stage != .loading, stage != .unavailable, !isCreating, !isCardInPlace {
+                // A job's question is brief and fills the sheet's resting height: everyone else's row comes back after it.
+                if stage != .loading, stage != .unavailable, !isCardInPlace, !isJobQuestionShown {
                     othersRow
                 }
             }
@@ -132,13 +194,19 @@ struct NativeCallOwnAssistantPage: View {
         }
         .animation(NativeCallAssistantsMotion.change, value: stage)
         .animation(NativeCallAssistantsMotion.change, value: context.assistantConfirmation)
-        .animation(NativeCallAssistantsMotion.change, value: context.isCreatingTranslation)
         .animation(NativeCallAssistantsMotion.change, value: context.viewState.translation)
         .animation(NativeCallAssistantsMotion.change, value: context.viewState.recordingCover)
+        .onChange(of: stageKind) { _, _ in
+            // A question asked while not in the call doesn't wait through the join and pop up once it arrives.
+            if isQuestionAsked { context.assistantConfirmation = nil }
+        }
         .onChange(of: context.assistantConfirmation) { _, confirmation in
-            // Question 404: the card replaces the buttons without moving focus, so VoiceOver hears what it says.
+            // Question 404: the card replaces the buttons without moving focus, so VoiceOver hears what it says; a job's
+            // question comes under the button just tapped, which keeps focus, so it is read out too.
             if let card = card(confirmation) {
                 AccessibilityNotification.Announcement("\(card.title). \(card.detail ?? "")").post()
+            } else if case .start(let job) = confirmation, let title = questionTitle(job) {
+                AccessibilityNotification.Announcement("\(title). \(questionDetail(job) ?? "")").post()
             }
         }
         .confirmationDialog(removeConfirmationMessage ?? "", isPresented: $isRemoveConfirmationPresented, titleVisibility: .visible) {
@@ -158,15 +226,16 @@ struct NativeCallOwnAssistantPage: View {
 
     private func header(_ stage: NativeCallOwnAssistantStage) -> some View {
         let status = status(stage)
-        return NativeCallSheetHeader(title: isCreating ? UntranslatedL10n.screenNativeCallAssistantsNewTranslation : title(stage),
+        return NativeCallSheetHeader(title: title(stage),
                                      status: status?.text,
                                      isStatusCritical: status?.isCritical ?? false,
                                      isLoading: stage == .loading,
+                                     hasAccessory: ownMxid(stage) != nil,
                                      onClose: { context.send(viewAction: .dismissAgentCenter) },
                                      leading: { avatar(stage) },
                                      accessory: {
                                          // L6: the limits are always one tap away, in or out of the call.
-                                         if let mxid = ownMxid(stage), !isCreating {
+                                         if let mxid = ownMxid(stage) {
                                              menu(mxid: mxid, items: menuItems(stage))
                                          }
                                      })
@@ -211,9 +280,6 @@ struct NativeCallOwnAssistantPage: View {
 
     /// One line on what it does, or why it can't (L5): «Не в звонке», «Идёт в звонок…», «Переводит на украинский».
     private func status(_ stage: NativeCallOwnAssistantStage) -> (text: String, isCritical: Bool)? {
-        if isCreating, stage != .loading {
-            return (UntranslatedL10n.screenNativeCallAssistantsNewTranslationDetail, false)
-        }
         switch stage {
         case .loading:
             return nil
@@ -354,13 +420,11 @@ struct NativeCallOwnAssistantPage: View {
         return nil
     }
 
-    /// L8 A: an inline confirmation takes the place of the buttons and the rows under them, in the same frame; the
-    /// header stays. Answered or cancelled, they come back. Question 404's card (layout C) does the same.
+    /// Question 404's card (layout C) and «nothing to translate» take the place of the buttons and the rows under them, in
+    /// the same frame; the header stays. A job's question sits under the buttons instead (1.0.3, pick C).
     @ViewBuilder
     private func inCall(_ agent: NativeCallAgentPresentation.Agent) -> some View {
-        if context.assistantConfirmation == .recording {
-            recordingConfirmation
-        } else if let card = card(context.assistantConfirmation) {
+        if let card = card(context.assistantConfirmation) {
             noticeCard(card)
         } else {
             VStack(spacing: CompoundDesignTokens.space3X) {
@@ -378,9 +442,14 @@ struct NativeCallOwnAssistantPage: View {
         if let control {
             NativeCallInlineError(scope: .session(control.sessionID, .remove), context: context)
         }
-        if let refusal = refusal(agent) {
+        if let job = questionJob {
+            question(job)
+        } else if let refusal = refusal(agent) {
             NativeCallSheetNotice(systemImage: "exclamationmark.circle", title: refusal.reason, detail: nil)
-            NativeCallSheetSecondaryButton(title: UntranslatedL10n.screenNativeCallAssistantsTryAgain) { tap(refusal.job) }
+            // The retry of the refused write — confirmed already, so no new question.
+            NativeCallSheetSecondaryButton(title: UntranslatedL10n.screenNativeCallAssistantsTryAgain) {
+                context.send(viewAction: .retryAssistantJob(refusal.job))
+            }
         } else if let pauseLine = pauseLine(agent) {
             // L5 2.4: your translation stopped for everyone on your limit.
             NativeCallSheetNotice(systemImage: "exclamationmark.circle",
@@ -390,25 +459,34 @@ struct NativeCallOwnAssistantPage: View {
                 context.send(viewAction: .showAgentLimit(agentMxid: agent.mxid))
             }
         } else if agent.shown.isConversationActive, !context.viewState.isAssistantPage {
-            // L5 1.4: one line instead of a card. Not in the private call, where translation isn't off while it talks:
-            // its pair, «Я говорю» and «Человек рядом», is there instead, and picking the neighbour's language switches (L11).
-            NativeCallSheetCaption(text: UntranslatedL10n.screenNativeCallAssistantsTalkCaption)
-        } else if isCreating {
+            // L5 1.4, as an info block since 1.0.3 (operator, 2026-11-21: «текст … не дуже видно»). Not in the private
+            // call, where translation isn't off while it talks: its pair, «Я говорю» and «Человек рядом», is there instead,
+            // and picking the neighbour's language switches (L11).
+            NativeCallSheetNotice(systemImage: "waveform",
+                                  title: UntranslatedL10n.screenNativeCallAssistantsTalkInfoTitle,
+                                  detail: UntranslatedL10n.screenNativeCallAssistantsTalkInfoMessage,
+                                  isCritical: false,
+                                  isIconCritical: false)
+        } else if showsStart {
             newTranslation
         } else {
             translationRow
-            if agent.shown.isTranslating, let control {
-                stopRow(control, isStandby: agent.shown.isStandby)
+            if agent.isTranslationOn, let control {
+                if let translationAction {
+                    runningAction(translationAction, control: control, isStandby: agent.shown.isStandby)
+                } else {
+                    stopRow(control, isStandby: agent.shown.isStandby)
+                }
             }
         }
-        if !agent.shown.isConversationActive, !isCardInPlace, let delivery = delivery(control) {
+        if !agent.shown.isConversationActive, !isCardInPlace, !isJobQuestionShown, let delivery = delivery(control) {
             NativeCallSheetCaption(text: delivery)
         }
     }
 
     private func dock(_ agent: NativeCallAgentPresentation.Agent) -> NativeCallAssistantDockState {
         let control = agent.control
-        var facts = NativeCallAssistantDockState.Facts(isTranslating: agent.shown.isTranslating,
+        var facts = NativeCallAssistantDockState.Facts(isTranslating: agent.isTranslationOn,
                                                        isTakingNotes: agent.shown.isSummaryArmed,
                                                        isRecording: agent.shown.isRecording,
                                                        isTalking: agent.shown.isConversationActive,
@@ -418,7 +496,9 @@ struct NativeCallOwnAssistantPage: View {
             facts.busy = Set(NativeCallAssistantJob.allCases.filter { context.viewState.agentActionsInFlight.contains(.session(control.sessionID, $0.row)) })
         }
         facts.refused = refusal(agent)?.job ?? (pauseLine(agent) == nil ? nil : .translation)
-        facts.pending = context.viewState.switchingAssistantJob ?? pendingJob
+        // «Start translation» is offered under the buttons only when no refusal, limit or talk stands there instead.
+        let isStartOffered = showsStart && hasStartAction && facts.refused == nil && !agent.shown.isConversationActive
+        facts.pending = context.viewState.switchingAssistantJob ?? pendingJob(isStartOffered: isStartOffered)
         facts.switchesTalkAndTranslation = context.viewState.isAssistantPage
         facts.isTranslationSyncing = control?.translation.isSyncing == true
         facts.isTalkUnavailable = control.map { !$0.conversation.isAvailable } ?? false
@@ -426,10 +506,17 @@ struct NativeCallOwnAssistantPage: View {
         return NativeCallAssistantDockState(facts)
     }
 
-    /// The job waiting on a question (recording) or on "Start translation" (2.1).
-    private var pendingJob: NativeCallAssistantJob? {
-        if context.assistantConfirmation == .recording { return .recording }
-        return isCreating ? .translation : nil
+    /// «New translation» has a main action: «Start translation», or «Listen» free; none while everyone already speaks
+    /// the language.
+    private var hasStartAction: Bool {
+        let translation = context.viewState.translation
+        return translation.production != nil || translation.options.contains { $0.language == translation.myLanguage && !$0.producers.isEmpty }
+    }
+
+    /// The job waiting on its question, or on "Start translation" (2.1), ringed only while that is offered.
+    private func pendingJob(isStartOffered: Bool) -> NativeCallAssistantJob? {
+        if let job = questionJob { return job }
+        return isStartOffered ? .translation : nil
     }
 
     /// The `call_translation` cap stopped translation (L5 2.4).
@@ -453,8 +540,30 @@ struct NativeCallOwnAssistantPage: View {
         return NativeCallAssistantsCopy.notesDelivery(control.summary)
     }
 
+    /// The Translation button is the same switch as the action under it: on is «Start translation», off is Stop. It
+    /// never applies a language picked while translation runs; only «Translate into …» does.
     private func tap(_ job: NativeCallAssistantJob) {
         context.send(viewAction: .tapAssistantJob(job))
+    }
+
+    /// While your translation runs, the bottom action follows it: «Stop translation», or «Translate into …» once another
+    /// language is picked, which only this applies (1.0.3, B).
+    @ViewBuilder
+    private func runningAction(_ action: NativeCallTranslationAction, control: NativeCallAgentPresentation.Control, isStandby: Bool) -> some View {
+        let isWaiting = context.viewState.agentActionsInFlight.contains(.session(control.sessionID, .translation))
+        if case .translateInto(let language) = action {
+            NativeCallSheetPrimaryButton(title: UntranslatedL10n.screenNativeCallAssistantsTranslateIntoLanguage(NativeCallTranslationCopy.languageName(language)),
+                                         isWaiting: isWaiting) {
+                context.send(viewAction: .applyPickedTranslationLanguage)
+            }
+            NativeCallSheetCaption(text: UntranslatedL10n.screenNativeCallAssistantsStartTranslationDetail)
+        } else {
+            NativeCallSheetSecondaryButton(title: isStandby ? UntranslatedL10n.screenNativeCallAssistantsStopStandby : UntranslatedL10n.screenNativeCallAssistantsStopTranslation,
+                                           isDestructive: true,
+                                           isWaiting: isWaiting) {
+                context.send(viewAction: .disableAgentTranslation(sessionID: control.sessionID))
+            }
+        }
     }
 
     // MARK: On its way (1.2, 3.4)
@@ -509,12 +618,10 @@ struct NativeCallOwnAssistantPage: View {
         if isAdding, let job = lastJob {
             facts.busy = [job]
         }
-        facts.pending = pendingJob
+        facts.pending = pendingJob(isStartOffered: showsStart && hasStartAction && failure == nil && !isChecking)
         facts.recordingCover = context.viewState.recordingCover?.phase
         return Group {
-            if context.assistantConfirmation == .recording {
-                recordingConfirmation
-            } else if let card = card(context.assistantConfirmation) {
+            if let card = card(context.assistantConfirmation) {
                 noticeCard(card)
             } else {
                 notInCallJobs(facts: facts, failure: failure, candidate: candidate, isAdding: isAdding, isChecking: isChecking)
@@ -533,12 +640,15 @@ struct NativeCallOwnAssistantPage: View {
         VStack(spacing: CompoundDesignTokens.space3X) {
             NativeCallAssistantDockView(state: dock, isInteractive: !isAdding && !isChecking, coverBadge: coverBadge, onTap: tap)
                 .spiralLoadingSlot(isChecking, label: L10n.commonLoading)
-            if isChecking {
+            // A tapped job's question shows over a failed join too: its action is the retry.
+            if let job = questionJob, !isChecking, failure == nil || isQuestionAsked {
+                question(job)
+            } else if isChecking {
                 // Whether it can come is still being asked: the rows' placeholders, never a start that's refused next.
                 translationPlaceholderRows
             } else if let failure {
                 blocked(failure, candidate: candidate)
-            } else if isCreating {
+            } else if showsStart {
                 newTranslation
             } else {
                 translationRow
@@ -614,10 +724,12 @@ struct NativeCallOwnAssistantPage: View {
     /// L1: «Перевод на · Украинский ›» — the language you hear, which your assistant translates into. Shown before it
     /// starts too, so the language is picked first.
     private var languageRow: some View {
-        NativeCallSheetRow(icon: "translate",
-                           title: UntranslatedL10n.screenNativeCallAssistantsTranslateInto,
-                           value: NativeCallTranslationCopy.languageTitle(context.viewState.myLanguage),
-                           showsChevron: true) {
+        // A language picked while it runs shows here until «Translate into …» applies it.
+        let picked: String? = if case .translateInto(let language) = translationAction { language } else { nil }
+        return NativeCallSheetRow(icon: "translate",
+                                  title: UntranslatedL10n.screenNativeCallAssistantsTranslateInto,
+                                  value: NativeCallTranslationCopy.languageTitle(picked ?? context.viewState.myLanguage),
+                                  showsChevron: true) {
             path.append(.myLanguage)
         }
     }
@@ -644,7 +756,7 @@ struct NativeCallOwnAssistantPage: View {
         }
     }
 
-    /// «Остановить перевод»; «Остановить» while it stands by (row 10): it isn't translating yet.
+    /// The private call's «Остановить перевод»; «Остановить» while it stands by (row 10): it isn't translating yet.
     private func stopRow(_ control: NativeCallAgentPresentation.Control, isStandby: Bool) -> some View {
         NativeCallSheetRow(icon: "stop",
                            title: isStandby ? UntranslatedL10n.screenNativeCallAssistantsStopStandby : UntranslatedL10n.screenNativeCallAssistantsStopTranslation,
@@ -664,12 +776,11 @@ struct NativeCallOwnAssistantPage: View {
                                      mediaProvider: context.mediaProvider)
     }
 
-    /// «Записувати дзвінок?», question 404's card or «nothing to translate» stands in for the buttons and the rows under
-    /// them.
+    /// Question 404's card or «nothing to translate» stands in for the buttons and the rows under them.
     private var isCardInPlace: Bool {
         switch context.assistantConfirmation {
-        case .recording, .recordingCovered, .nothingToTranslate: true
-        case .removeFromChat, nil: false
+        case .recordingCovered, .nothingToTranslate: true
+        case .start, .removeFromChat, nil: false
         }
     }
 
@@ -681,7 +792,7 @@ struct NativeCallOwnAssistantPage: View {
             NativeCallAssistantsCopy.recordingCoveredCard(context.viewState.recordingCover, context: context)
         case .nothingToTranslate:
             NativeCallAssistantsCopy.nothingToTranslateCard(context.viewState.translation, context: context)
-        case .recording, .removeFromChat, nil:
+        case .start, .removeFromChat, nil:
             nil
         }
     }
@@ -699,26 +810,139 @@ struct NativeCallOwnAssistantPage: View {
         .transition(.opacity)
     }
 
-    /// L5 1.5: «Записывать звонок?» in the sheet, not a system alert.
-    private var recordingConfirmation: some View {
-        VStack(spacing: CompoundDesignTokens.space3X) {
-            recordingConfirmationContent
+    // MARK: Questions (1.0.3, the call lab's pick C)
+
+    /// A job's button was tapped and its question is up (Translation's included).
+    private var isQuestionAsked: Bool {
+        if case .start = context.assistantConfirmation { true } else { false }
+    }
+
+    /// Notes, Talk or Recording asking right now — not Translation, whose question is the resting one.
+    private var isJobQuestionShown: Bool {
+        if case .start(let job) = context.assistantConfirmation { job != .translation } else { false }
+    }
+
+    /// Whether your assistant already does `job`: a question for it is answered.
+    private func isOn(_ job: NativeCallAssistantJob) -> Bool {
+        guard let shown = ownAgent?.shown else { return false }
+        switch job {
+        case .translation: return ownAgent?.isTranslationOn == true
+        case .summary: return shown.isSummaryArmed
+        case .recording: return shown.isRecording
+        case .conversation: return shown.isConversationActive
         }
-        .transition(.opacity)
+    }
+
+    /// The job whose question stands under the buttons: the one a tap asked about, or Translation's at rest — whenever a
+    /// translation could start and nothing else stands there (operator, 2026-11-21: «за замовченням буде цей з кнопкою
+    /// почати переклад»). Not in the private call, whose interpreter keeps its own pair (L11), not while the assistant
+    /// talks (translation is off then; the talk's info block stands there), and not over a refusal or a limit.
+    private var questionJob: NativeCallAssistantJob? {
+        if case .start(let job) = context.assistantConfirmation {
+            return isOn(job) ? nil : job
+        }
+        guard context.assistantConfirmation == nil, showsStart, !context.viewState.isAssistantPage,
+              ownAgent?.shown.isConversationActive != true,
+              ownAgent.map({ refusal($0) == nil && pauseLine($0) == nil }) ?? true else { return nil }
+        return .translation
+    }
+
+    private func questionDetail(_ job: NativeCallAssistantJob) -> String? {
+        switch job {
+        case .translation: nil
+        case .summary: UntranslatedL10n.screenNativeCallAssistantsNotesConfirmMessage
+        case .conversation: UntranslatedL10n.screenNativeCallAssistantsTalkConfirmMessage
+        case .recording: NativeCallAssistantsCopy.recordingConfirmationDetail(context.viewState.recordingCover, context: context)
+        }
+    }
+
+    private func questionTitle(_ job: NativeCallAssistantJob) -> String? {
+        switch job {
+        case .translation: nil
+        case .summary: UntranslatedL10n.screenNativeCallAssistantsNotesConfirmTitle
+        case .conversation: UntranslatedL10n.screenNativeCallAssistantsTalkConfirmTitle
+        case .recording: UntranslatedL10n.screenNativeCallAssistantsRecordConfirmTitle
+        }
     }
 
     @ViewBuilder
-    private var recordingConfirmationContent: some View {
-        NativeCallSheetNotice(systemImage: "record.circle",
-                              title: UntranslatedL10n.screenNativeCallAssistantsRecordConfirmTitle,
-                              detail: NativeCallAssistantsCopy.recordingConfirmationDetail(context.viewState.recordingCover, context: context),
-                              isCritical: false)
-        NativeCallSheetPrimaryButton(title: UntranslatedL10n.screenNativeCallAssistantsRecordConfirmAction) {
-            context.assistantConfirmation = nil
-            context.send(viewAction: .toggleAssistantJob(.recording))
+    private func question(_ job: NativeCallAssistantJob) -> some View {
+        switch job {
+        case .translation:
+            translationQuestion
+        case .summary:
+            jobQuestion(job,
+                        symbol: "square.and.pencil",
+                        title: UntranslatedL10n.screenNativeCallAssistantsNotesConfirmTitle,
+                        detail: UntranslatedL10n.screenNativeCallAssistantsNotesConfirmMessage,
+                        action: UntranslatedL10n.screenNativeCallAssistantsNotesConfirmAction)
+        case .conversation:
+            jobQuestion(job,
+                        symbol: "waveform",
+                        title: UntranslatedL10n.screenNativeCallAssistantsTalkConfirmTitle,
+                        detail: UntranslatedL10n.screenNativeCallAssistantsTalkConfirmMessage,
+                        action: UntranslatedL10n.screenNativeCallAssistantsTalkConfirmAction)
+        case .recording:
+            // L5 1.5: «Записувати дзвінок?» in the sheet, not a system alert; red like the call's ЗАПИС.
+            jobQuestion(job,
+                        symbol: "record.circle",
+                        title: UntranslatedL10n.screenNativeCallAssistantsRecordConfirmTitle,
+                        detail: NativeCallAssistantsCopy.recordingConfirmationDetail(context.viewState.recordingCover, context: context),
+                        action: UntranslatedL10n.screenNativeCallAssistantsRecordConfirmAction)
+        }
+    }
+
+    /// Notes, Talk or Recording: what turning it on means, the action, and Cancel, which brings Translation's question
+    /// back.
+    @ViewBuilder
+    private func jobQuestion(_ job: NativeCallAssistantJob, symbol: String, title: String, detail: String, action: String) -> some View {
+        NativeCallSheetNotice(systemImage: symbol, title: title, detail: detail, isCritical: false, isIconCritical: job == .recording)
+        NativeCallSheetPrimaryButton(title: action) {
+            context.send(viewAction: .confirmAssistantJob(job))
         }
         NativeCallSheetSecondaryButton(title: L10n.actionCancel) {
             context.assistantConfirmation = nil
+        }
+    }
+
+    /// Translation at rest: one block with what it costs and the language beside its title, which a tap changes, then
+    /// Start — or Listen, free, when someone already translates into it. No Cancel: this is where the sheet rests
+    /// (operator, 2026-11-21). Start says «nothing to translate» when everyone already speaks the language.
+    @ViewBuilder
+    private var translationQuestion: some View {
+        let translation = context.viewState.translation
+        let language = translation.myLanguage
+        let listenOption = translation.production == nil
+            ? translation.options.first { $0.language == language && !$0.producers.isEmpty }
+            : nil
+        let detail: String = if let listenOption {
+            listenOption.producerOwners.first.map { UntranslatedL10n.screenNativeCallAssistantsListenFreeBy(NativeCallTranslationCopy.firstName($0, context: context)) }
+                ?? UntranslatedL10n.screenNativeCallAssistantsListenFree
+        } else if case .others(_, let speakers) = translation.production {
+            UntranslatedL10n.screenNativeCallAssistantsNewTranslationOthers(speakers.map { NativeCallTranslationCopy.firstName($0, context: context) }
+                .formatted(.list(type: .and)))
+        } else {
+            UntranslatedL10n.screenNativeCallAssistantsStartTranslationDetail
+        }
+        NativeCallSheetRow(icon: "translate",
+                           title: listenOption == nil ? UntranslatedL10n.screenNativeCallAssistantsTranslateQuestionTitle
+                               : UntranslatedL10n.screenNativeCallAssistantsListenQuestionTitle,
+                           detail: detail,
+                           value: NativeCallTranslationCopy.languageTitle(language),
+                           showsChevron: true) {
+            path.append(.myLanguage)
+        }
+        if listenOption != nil {
+            NativeCallSheetPrimaryButton(title: UntranslatedL10n.screenNativeCallAssistantsListenLanguage(NativeCallTranslationCopy.languageName(language))) {
+                context.send(viewAction: .setListeningChoice(.language(language)))
+                context.send(viewAction: .dismissAgentCenter)
+            }
+        } else {
+            let isWaiting = panel.candidates.contains { context.viewState.agentActionsInFlight.contains(.add(agentID: $0.id)) }
+                || ownAgent?.control.map { context.viewState.agentActionsInFlight.contains(.session($0.sessionID, .translation)) } == true
+            NativeCallSheetPrimaryButton(title: UntranslatedL10n.screenNativeCallAssistantsStartTranslation, isWaiting: isWaiting) {
+                context.send(viewAction: .produceTranslation)
+            }
         }
     }
 

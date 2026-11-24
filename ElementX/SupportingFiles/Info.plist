@@ -117,5 +117,7 @@
 	<string>$(KEYCHAIN_ACCESS_GROUP_IDENTIFIER)</string>
 	<key>productionAppName</key>
 	<string>$(PRODUCTION_APP_NAME)</string>
+	<key>spiralServerName</key>
+	<string>$(SPIRAL_ASSOCIATED_DOMAIN)</string>
 </dict>
 </plist>

@@ -65,6 +65,9 @@
 "screen_agent_edit_persona_greeting" = "Begroeting voor jou";
 "screen_agent_edit_persona_visitor_greeting" = "Begroeting voor gasten";
 "screen_agent_edit_failure" = "Kon de wijzigingen niet opslaan";
+"error_agent_name_reserved" = "Deze naam is gereserveerd voor de eigen accounts van Spiral. Kies een andere naam.";
+"error_agent_name_invalid_characters" = "De naam bevat tekens die niet gebruikt kunnen worden.";
+"error_agent_name_unchecked" = "Kon de naam niet controleren. Probeer het opnieuw.";
 "screen_agent_edit_load_failure" = "Kon het bewerkformulier niet laden";
 "screen_agent_edit_avatar_failure" = "Kon de foto niet uploaden";
 "action_agent_activity" = "Activiteit";
@@ -250,7 +253,6 @@
 "screen_language_picker_title" = "Taal";
 "screen_language_picker_empty" = "Geen talen komen overeen met je zoekopdracht.";
 "screen_start_sign_in" = "Inloggen";
-"screen_start_welcome_subtitle" = "Snel, privé berichten sturen met je persoonlijke agent.";
 
 // AGENT-PLATFORM (Brief 0072, ADR-0083, ADR-0084): presence, worded as Telegram does
 "common_presence_online" = "online";
@@ -491,6 +493,16 @@
 "screen_native_call_assistants_record_confirm_title" = "Gesprek opnemen?";
 "screen_native_call_assistants_record_confirm_message" = "Iedereen ziet REC bovenaan het gesprek. De opname verschijnt na het gesprek in de chat.";
 "screen_native_call_assistants_record_confirm_action" = "Opnemen";
+"screen_native_call_assistants_notes_confirm_title" = "Aantekeningen maken van het gesprek?";
+"screen_native_call_assistants_notes_confirm_message" = "Je assistent luistert mee en plaatst na het gesprek een samenvatting in de chat. Anderen zien dat hij aantekeningen maakt.";
+"screen_native_call_assistants_notes_confirm_action" = "Aantekeningen maken";
+"screen_native_call_assistants_talk_confirm_title" = "Praten met je assistent?";
+"screen_native_call_assistants_talk_confirm_message" = "Hij hoort alleen jou en antwoordt hardop — iedereen in het gesprek hoort hem.";
+"screen_native_call_assistants_talk_confirm_action" = "Begin met praten";
+"screen_native_call_assistants_translate_question_title" = "Vertalen naar";
+"screen_native_call_assistants_listen_question_title" = "Luisteren in";
+"screen_native_call_assistants_talk_info_title" = "Je assistent antwoordt hardop";
+"screen_native_call_assistants_talk_info_message" = "Hij hoort alleen jou, en iedereen in het gesprek hoort hem. Geen vertaling zolang hij praat.";
 "screen_native_call_assistants_none_of_your_own" = "Je hebt geen assistent";
 "screen_native_call_assistants_which" = "Welke assistent";
 "screen_native_call_assistants_reason_paused" = "Je assistent is gepauzeerd";
@@ -571,7 +583,6 @@
 "screen_native_call_assistants_job_conversation" = "Praten";
 "screen_native_call_assistants_translating" = "Vertaalt naar het %1$@";
 "screen_native_call_assistants_stop_translation" = "Vertaling stoppen";
-"screen_native_call_assistants_talk_caption" = "Antwoordt je hardop, en iedereen hoort het. Geen vertaling zolang hij praat.";
 "screen_native_call_assistants_pick_footer" = "Onthouden voor deze chat";
 "screen_native_call_assistants_neighbour_language" = "Taal van de persoon naast je";
 "screen_native_call_assistants_pocket_detail" = "Na elke zin · in beide richtingen";
@@ -591,10 +602,9 @@
 "screen_native_call_assistants_status_both_ways" = "Vertaalt in beide richtingen";
 "screen_native_call_assistants_translate_into" = "Vertalen naar";
 "screen_native_call_assistants_translate_into_detail" = "Hierin hoor je het gesprek";
+"screen_native_call_assistants_translate_into_language" = "Vertalen naar: %1$@";
 "screen_native_call_assistants_in_call" = "In het gesprek";
 "screen_native_call_assistants_in_call_more" = "In het gesprek: nog %1$d";
-"screen_native_call_assistants_new_translation" = "Nieuwe vertaling";
-"screen_native_call_assistants_new_translation_detail" = "Je assistent vertaalt het gesprek";
 "screen_native_call_assistants_new_translation_others" = "Je assistent vertaalt %1$@. De anderen worden al vertaald, gratis.";
 "screen_native_call_assistants_start_translation" = "Vertaling starten";
 "screen_native_call_assistants_start_translation_detail" = "Gebruikt je limiet. Wie deze taal kiest, luistert gratis.";
@@ -1044,7 +1054,6 @@
 "notice_phrase_changed_title" = "Inlogzin gewijzigd";
 "a11y_message_read" = "Gelezen";
 "screen_legal_information_source_code_spiral" = "Broncode";
-"screen_invite_people_seats_label" = "Uitnodigingen over";
 "screen_native_call_tile_not_joined" = "Je deed niet mee";
 "screen_agent_settings_show_in_search_footer" = "Of mensen hem kunnen vinden via zoeken. Iedereen met zijn adres kan hem nog steeds schrijven.";
 "screen_agent_edit_tone_calm" = "Rustig";
@@ -1056,7 +1065,6 @@
 "screen_room_interactive_draft_published" = "Gepubliceerd";
 "screen_agent_activity_reason_visitor_policy_reply" = "Je stond direct antwoorden toe";
 "screen_agent_in_room_no_tools" = "Nog geen tools in deze chat.";
-"notice_welcome_assistant_body" = "Ik ben %1$@, je persoonlijke assistent. Ik kan berichten doorgeven als je weg bent, je contacten onthouden en chats samenvatten. Om mijn tools in een chat aan te zetten, tik je daar op + en kies je Agenten. Schrijf me gewoon zoals je altijd schrijft — ik ben er.";
 "screen_room_interactive_post_pick_agent_title" = "Wie moet hem maken?";
 "screen_agent_settings_visitor_ask_first_description" = "Een nieuw persoon wacht tot je akkoord gaat";
 "screen_ai_consent_prompt_failed" = "Kon je keuze niet opslaan. Controleer je verbinding en probeer het opnieuw.";
@@ -1086,10 +1094,8 @@
 "screen_agent_activity_reason_block_needs_owner" = "Blokkeren heeft je akkoord nodig";
 "screen_create_company_title" = "Nieuw bedrijf";
 "a11y_native_call_disable_speaker" = "Luidspreker uitzetten";
-"screen_invite_paste_placeholder" = "spiral.md/join/…";
 "a11y_native_call_end" = "Oproep beëindigen";
 "screen_agent_activity_action_published_post" = "Heeft een post gepubliceerd";
-"screen_invite_people_joined_footer" = "Mensen die hun account via jouw link hebben aangemaakt. Tik om een chat te starten.";
 "screen_arm_tool_turn_off_confirm_message" = "De agent stopt hiermee in deze chat, voor iedereen. Je kunt het altijd weer aanzetten.";
 "spiral_app_card_line_by" = "Van %1$@";
 "state_event_spiral_tool_language_changed_by_you" = "Je hebt Vertalen gewijzigd: %1$@ → %2$@";
@@ -1114,7 +1120,6 @@
 "screen_native_call_agent_block_recording" = "Neemt op";
 "screen_native_call_control_video" = "Video";
 "screen_agent_detail_pause" = "Pauzeren";
-"screen_invite_paste_expired" = "Deze uitnodiging is niet meer geldig. Vraag om een nieuwe.";
 "screen_security_messages_section" = "Berichten";
 "screen_agent_activity_reason_relationship_unavailable" = "Kon het contact niet controleren";
 "screen_ai_consent_prompt_allow" = "Toestaan";
@@ -1144,15 +1149,12 @@
 "state_event_spiral_tool_off_by_system" = "%1$@ is uitgezet voor %2$@";
 "a11y_native_call_swap_to_held_call" = "Overschakelen naar de oproep met %@";
 "screen_native_call_audio_route_iphone" = "iPhone";
-"screen_invite_people_seats_value" = "%1$d van %2$d";
 "screen_agent_activity_reason_first_contact_with_unknown_visitor" = "Eerste bericht van iemand nieuws";
 "screen_deactivate_account_spiral_list_item_3" = "Je accountgegevens verwijderen van onze identiteitsserver.";
 "a11y_native_call_bar" = "Lopende oproep met %1$@. Tik om terug te gaan.";
-"screen_invite_paste_unavailable" = "Kon de uitnodiging niet controleren. Probeer het opnieuw.";
 "screen_agent_activity_action_read_call_summary" = "Heeft een samenvatting van een oproep gelezen";
 "screen_ai_consent_prompt_title" = "AI van derden toestaan?";
 "screen_agent_edit_voice_language_footer" = "De assistent antwoordt altijd in de taal die je spreekt. Dit bepaalt hoe hij oproepen verstaat en in welke taal samenvattingen van oproepen worden gemaakt.";
-"screen_invite_welcome_title" = "Welkom bij Spiral";
 "screen_agent_activity_reason_blocked_visitor" = "Geblokkeerde persoon";
 "screen_deactivate_account_spiral_list_item_1_bold_part" = "permanent uitschakelen";
 "screen_native_call_agent_center_recording_live" = "Opnemen…";
@@ -1220,7 +1222,6 @@
 "screen_deactivate_account_spiral_failed" = "Kon het account niet verwijderen. Probeer het over een minuut opnieuw.";
 "screen_agent_activity_action_changed_call_mode" = "Heeft gewijzigd hoe hij aan een oproep deelneemt";
 "a11y_native_call_unmute_microphone" = "Microfoon aanzetten";
-"screen_invite_paste_label" = "Link of code";
 "screen_media_viewer_position" = "%1$d van %2$d";
 "screen_native_call_status_reconnecting_detail" = "Je verbinding is weggevallen";
 "screen_approval_detail_block_blocked_subtitle" = "Je agent negeert vanaf nu hun berichten.";
@@ -1256,6 +1257,13 @@
 "screen_agent_activity_reason_no_contact_relationship" = "Niet een van je contacten";
 "screen_room_alias_link_not_found" = "Deze link leidt niet naar een chat.";
 "screen_invite_people_title" = "Uitnodigen voor Spiral";
+"screen_invite_people_you" = "Jij";
+"screen_invite_people_invited_count" = "%1$d van %2$d uitgenodigd";
+"screen_invite_people_invited_you" = "Heeft je uitgenodigd voor Spiral";
+"screen_invite_people_seat_invite" = "Uitnodigen";
+"screen_invite_people_seat_taken" = "Bezet";
+"screen_invite_people_chain_footer" = "Eén link voor %1$d mensen, en die wordt niet vernieuwd. Tik op iemand om diens profiel te openen.";
+"screen_invite_people_all_used" = "Alle uitnodigingen zijn gebruikt";
 "screen_approval_detail_escalation_cold_outreach" = "Je agent wil iemand voor het eerst schrijven.";
 "screen_start_invited_by" = "%1$@ heeft je uitgenodigd voor Spiral";
 "screen_agent_spaces_section_retry" = "Tik om het opnieuw te proberen.";
@@ -1263,7 +1271,6 @@
 "screen_settings_new_phrase_done" = "Inlogzin gewijzigd";
 "screen_agent_activity_reason_outside_conversation" = "Buiten dit gesprek";
 "a11y_native_call_switch_camera" = "Camera wisselen";
-"screen_invite_people_joined" = "Via jouw uitnodiging lid geworden: %1$d";
 "screen_agent_activity_action_searched_agents" = "Heeft naar agenten gezocht";
 "screen_agent_activity_reason_strategy_no_op" = "Niets te doen";
 "action_dismiss_visitor_message" = "Verwijderen";
@@ -1272,7 +1279,6 @@
 "screen_approval_detail_block_action_dont_block" = "Niet blokkeren";
 "screen_agent_settings_people_title" = "Praten met mensen";
 "screen_native_call_agent_center_error_not_owner" = "Alleen de eigenaar van deze sessie kan hem wijzigen.";
-"notice_welcome_agent_body" = "%1$@ is klaar. Schrijf me gewoon.";
 "screen_agent_detail_already_in_chat" = "De agent zit al in deze chat";
 "screen_native_call_agent_center_booth_members" = "%1$@ naar het %2$@";
 "screen_settings_devices_title" = "Apparaten en sessies";
@@ -1290,7 +1296,6 @@
 "screen_agent_activity_action_remembered" = "Heeft iets over een contact onthouden";
 "screen_room_interactive_post_link_needs_update" = "Deze post vereist een nieuwere versie van Spiral. Werk de app bij om hem te gebruiken.";
 "screen_room_member_details_erase_assistant_memory" = "Wissen wat mijn assistenten over deze persoon weten";
-"screen_invite_paste_without" = "Doorgaan zonder uitnodiging";
 "screen_agent_edit_tone_friendly" = "Vriendelijk";
 "screen_room_interactive_post_update" = "Post bijwerken";
 "screen_agent_detail_archive_refused" = "Je persoonlijke assistent hoort bij je account en kan niet worden gearchiveerd.";
@@ -1307,9 +1312,7 @@
 "screen_native_call_agent_center_talking" = "Assistent praat";
 "screen_native_call_tile_call_back" = "Tik om terug te bellen";
 "notice_reply_failed_body" = "Er ging aan mijn kant iets mis. Stuur het alsjeblieft opnieuw.";
-"screen_invite_people_joined_title" = "Via jouw uitnodiging lid geworden";
 "screen_native_call_status_connecting_detail" = "Versleuteling instellen";
-"screen_invite_paste_title" = "Heb je een uitnodiging?";
 "screen_edit_profile_bio_too_long" = "Een bio mag maximaal %1$d tekens lang zijn. Maak hem korter om op te slaan.";
 "a11y_native_call_agent_block_role" = "%1$@, %2$@";
 "a11y_native_call_recording" = "Deze oproep wordt opgenomen";
@@ -1322,12 +1325,25 @@
 "screen_agent_spaces_assistant_pending" = "Je assistent wordt nog ingesteld";
 "screen_room_member_details_erase_assistant_memory_alert_title" = "Wissen wat je assistenten over %1$@ weten?";
 "screen_settings_new_phrase_failed" = "Kon het wijzigen van de zin niet starten. Probeer het opnieuw.";
+/* AGENT-PLATFORM (1.0.3): sign-in methods — the first phrase for an account made with Apple, Sign in with Apple for a phrase account. */
+"screen_settings_add_phrase_title" = "Inlogzin toevoegen";
+"screen_settings_add_phrase_message" = "Je kiest 12 woorden. Ze openen je account op elk apparaat, naast Inloggen met Apple. Je blijft ingelogd op dit apparaat en je berichten blijven onaangetast.";
+"screen_settings_add_phrase_auth_reason" = "Bevestig dat jij het bent om een inlogzin toe te voegen";
+"screen_settings_add_phrase_done" = "Inlogzin toegevoegd";
+"screen_settings_add_phrase_failed" = "Kon het toevoegen van de zin niet starten. Probeer het opnieuw.";
+"screen_settings_sign_in_passcode_required" = "Stel eerst een toegangscode voor je apparaat in — die beschermt je manieren om in te loggen";
+"screen_settings_apple_title" = "Inloggen met Apple";
+"screen_settings_apple_connected" = "Verbonden";
+"screen_settings_apple_add_title" = "Inloggen met Apple toevoegen";
+"screen_settings_apple_auth_reason" = "Bevestig dat jij het bent om Inloggen met Apple toe te voegen";
+"screen_settings_apple_linked" = "Inloggen met Apple toegevoegd";
+"screen_settings_apple_taken" = "Deze Apple ID wordt al gebruikt door een ander Spiral-account";
+"screen_settings_apple_failed" = "Kon het toevoegen van Inloggen met Apple niet starten. Probeer het opnieuw.";
 "screen_deactivate_account_spiral_description" = "Je account verwijderen is %1$@. Het zal:";
 "screen_agent_activity_action_set_reminder" = "Heeft een herinnering ingesteld";
 "screen_agent_activity_action_cancelled_reminder" = "Heeft een herinnering geannuleerd";
 "screen_agent_activity_reason_capability_always_allowed" = "Altijd toegestaan";
 "screen_agent_activity_action_blocked_someone" = "Heeft iemand geblokkeerd";
-"screen_invite_paste_message" = "Plak de link die een Spiral-gebruiker je heeft gestuurd, of typ de code.";
 "screen_native_call_error_title" = "Oproep mislukt";
 "notification_approval_action_not_found_title" = "Dit verzoek bestaat niet meer";
 "state_event_spiral_tool_changed_by_you" = "Je hebt %1$@ gewijzigd";
@@ -1354,7 +1370,6 @@
 "screen_native_call_control_sound" = "Geluid";
 "screen_native_call_status_reconnecting" = "Opnieuw verbinden…";
 "notice_phrase_changed_body" = "Met de oude zin kun je niet meer inloggen.";
-"screen_invite_people_seats_footer" = "Iedereen heeft één link met %1$d plaatsen. Die wordt niet aangevuld, dus deel hem met de mensen die je hier echt wilt hebben.";
 "screen_room_member_details_agent_unblock_action" = "Deblokkeren";
 "screen_agent_activity_reason_unknown_capability" = "Niet iets wat hij kan";
 "screen_settings_new_phrase_passcode_required" = "Stel eerst een toegangscode voor je apparaat in — die beschermt het wijzigen van de zin";
@@ -1426,10 +1441,11 @@
 "screen_your_data_calls_footer" = "Exporteer één oproep: het transcript, de samenvatting en het toestemmingslogboek.";
 "screen_arm_tool_error_agent_does_not_join_calls" = "Deze agent neemt niet deel aan oproepen, dus oproeptools zijn voor hem niet beschikbaar.";
 "screen_room_interactive_generating_hint" = "Meestal binnen een minuut";
-"screen_invite_paste_exhausted" = "Iedereen die deze uitnodiging toeliet, is al lid geworden. Vraag om een nieuwe.";
 "notice_phrase_changed_on_device" = "Gewijzigd op “%1$@”.";
+/* AGENT-PLATFORM (1.0.3): the owner-DM card when Sign in with Apple is added. It names no device (security review); a new phrase disconnects Apple. */
+"notice_apple_linked_title" = "Inloggen met Apple toegevoegd";
+"notice_apple_linked_body" = "Was jij dit niet? Wijzig dan je inlogzin: dat ontkoppelt Apple.";
 "screen_ai_consent_prompt_openai" = "OpenAI: berichten die assistenten lezen, je stem in oproepen met hen en opnames die ze uitschrijven.";
-"screen_invite_welcome_message" = "%1$@ heeft je uitgenodigd en weet al dat je er bent. Zeg hallo!";
 "screen_agent_activity_action_used_tool" = "Heeft een tool op een bericht gebruikt";
 "screen_approval_detail_escalation_first_contact" = "Iemand heeft je agent voor het eerst geschreven, dus hij vraagt het je voordat hij antwoordt.";
 "screen_agent_activity_action_drafted_post" = "Heeft een concept voor een post gemaakt";
@@ -1444,7 +1460,6 @@
 "screen_room_interactive_post_updated" = "Post bijgewerkt";
 "screen_native_call_camera_failed_message" = "De camera kon niet starten, dus de oproep gaat verder met alleen geluid. Probeer de cameraknop zo nog eens.";
 "screen_media_viewer_open" = "Openen";
-"screen_invite_paste_invalid" = "Deze uitnodiging bestaat niet.";
 "screen_agent_room_tool_audience_except_named" = "voor iedereen behalve %1$@";
 "notification_spiral_needs_update_body" = "Werk de app bij om dit te zien.";
 "screen_agent_edit_tone_brief" = "Kort en bondig";
@@ -1452,7 +1467,6 @@
 "screen_invite_people_seats_left" = "%1$d van %2$d uitnodigingen over";
 "screen_agent_activity_reason_wrong_room_kind" = "Niet toegestaan in dit soort chat";
 "screen_native_call_failure_audio_reset" = "Het geluid van de oproep is door het systeem opnieuw ingesteld.";
-"screen_invite_people_body" = "Registreren kan alleen met een uitnodiging. Deel je persoonlijke link — wie er een account mee aanmaakt, ziet jou als eerste.";
 "notification_approval_action_target_blocked_title" = "Niet verzonden — je hebt deze persoon geblokkeerd";
 "screen_notifications_hub_visitor_other" = "Iets nieuws";
 "screen_agent_activity_empty_pending_title" = "Geen verzoeken om over te beslissen";
@@ -1476,3 +1490,61 @@
 "screen_notifications_hub_visitors_section" = "Van mensen";
 "screen_agent_settings_visitor_reply_description" = "Antwoordt iedereen behalve de mensen die je hebt geblokkeerd";
 "screen_deactivate_account_spiral_auth_reason" = "Bevestig dat jij het bent om je account te verwijderen";
+
+// AGENT-PLATFORM (1.0.3 A2): the assistant's first invite in Chats, its chat before consent and its welcome.
+"screen_roomlist_assistant_invite_name" = "Je assistent";
+"screen_roomlist_assistant_invite_subtitle" = "Hoi! Tik om te beginnen 👋";
+"screen_roomlist_assistant_invite_start" = "Beginnen";
+"a11y_assistant_invite_start" = "Begin een gesprek met je assistent";
+"a11y_assistant_invite_start_hint" = "Accepteert de uitnodiging van je assistent en opent je chat ermee.";
+"screen_assistant_invite_title" = "Hoi! Ik ben je assistent";
+"screen_assistant_invite_reminders" = "Ik herinner je aan dingen";
+"screen_assistant_invite_contacts" = "Ik onthoud je contacten";
+"screen_assistant_invite_summaries" = "Ik vat elke chat samen";
+"screen_assistant_invite_privacy" = "Ik zie alleen dit gesprek. Je kunt me altijd uitzetten.";
+"screen_assistant_invite_start" = "Gesprek beginnen";
+"notice_welcome_body" = "Ik ben er en help je graag. Waar beginnen we mee?";
+"notice_welcome_starter_summary" = "Vat een chat samen";
+"notice_welcome_starter_summary_message" = "Vat een chat voor me samen";
+"notice_welcome_starter_contact" = "Onthoud een contact";
+"notice_welcome_starter_contact_message" = "Onthoud iets over een van mijn contacten";
+"notice_welcome_starter_reminder" = "Herinner me…";
+"notice_welcome_starter_reminder_message" = "Zet een herinnering voor me";
+"notice_welcome_allow_ai_reason" = "Sta AI toe zodat ik kan lezen wat je hier schrijft.";
+"notice_welcome_allow_ai_action" = "AI toestaan";
+
+// AGENT-PLATFORM (1.0.3 onboarding): the start screen's stories, the notifications prompt and the invited welcome.
+"screen_start_slide_privacy_title" = "Je gesprekken zijn van jou";
+"screen_start_slide_privacy_subtitle" = "End-to-end versleuteld. Geen telefoonnummer nodig, en je assistent alleen met jouw toestemming";
+"screen_start_slide_calls_title" = "Bellen met vertaling";
+"screen_start_slide_calls_subtitle" = "Je assistent doet mee en vertaalt live";
+"screen_start_slide_assistant_title" = "Je assistent, altijd dichtbij";
+"screen_start_slide_assistant_subtitle" = "Antwoordt als je het druk hebt, en vraagt het je vóór elke nieuwe stap";
+"screen_start_slide_games_title" = "Samen spelen, gewoon in de chat";
+"screen_start_slide_games_subtitle" = "Games en tools, zonder iets te installeren";
+"screen_start_invited_by_hint" = "Maak een account aan en %1$@ weet dat je er bent";
+"a11y_start_slides_position" = "Dia %1$d van %2$d";
+"screen_notification_optin_spiral_title" = "Blijf in contact";
+"screen_notification_optin_spiral_subtitle" = "Spiral laat het je weten als iets er echt toe doet. Je kunt dit altijd wijzigen in Instellingen.";
+"screen_notification_optin_messages_title" = "Nieuwe berichten";
+"screen_notification_optin_messages_subtitle" = "Van de mensen en groepen met wie je praat";
+"screen_notification_optin_calls_title" = "Inkomende oproepen";
+"screen_notification_optin_calls_subtitle" = "Ook als Spiral gesloten is";
+"screen_notification_optin_assistant_title" = "Vragen van je assistent";
+"screen_notification_optin_assistant_subtitle" = "Als hij je toestemming nodig heeft";
+"screen_notification_optin_allow" = "Meldingen toestaan";
+"screen_invite_welcome_together_title" = "Je zit samen met %1$@ op Spiral";
+"screen_invite_welcome_step_say_hello_title" = "%1$@ gedag zeggen";
+"screen_invite_welcome_step_say_hello_subtitle" = "%1$@ wacht op je";
+"screen_invite_welcome_step_assistant_title" = "Kennismaken met je assistent";
+"screen_invite_welcome_step_assistant_subtitle" = "Zijn uitnodiging staat klaar in Chats";
+"screen_invite_welcome_step_play_title" = "Samen iets spelen";
+"screen_invite_welcome_step_play_subtitle" = "Games en tools gewoon in de chat";
+"a11y_invite_welcome_avatars" = "%1$@ en jij";
+"screen_approval_detail_already_closed_title" = "Dit verzoek is al gesloten";
+"screen_approval_detail_already_closed_message" = "Het is verlopen of al beantwoord.";
+"screen_room_interactive_post_description_not_sent" = "Je beschrijving is niet verzonden. Stuur hem opnieuw in het gesprek.";
+"screen_room_interactive_post_code_not_sent" = "Het bericht heeft de agent niet bereikt. Probeer het opnieuw vanuit het bericht.";
+"screen_invites_assistant_decline_warning_spiral" = "Als dit je eigen assistent is, kan de chat na het weigeren niet worden hersteld.";
+"a11y_roomlist_remove_filter" = "Filter verwijderen: %1$@";
+"a11y_settings_share_profile" = "Mijn profiel delen";

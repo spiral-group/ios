@@ -97,6 +97,10 @@
 "screen_agent_edit_persona_too_long" = "Too long: %1$d / %2$d. Shorten it to save.";
 "screen_agent_edit_persona_empty" = "Required. Fill it in to save.";
 "screen_agent_edit_failure" = "Couldn't save the changes";
+/* AGENT-PLATFORM (1.0.3): the backend refused an agent's new name. Shown when creating or renaming an agent. */
+"error_agent_name_reserved" = "This name is reserved for Spiral's own accounts. Choose another name.";
+"error_agent_name_invalid_characters" = "The name contains characters that can't be used.";
+"error_agent_name_unchecked" = "Couldn't check the name. Try again.";
 "screen_agent_edit_load_failure" = "Couldn't load the edit form";
 "screen_agent_edit_avatar_failure" = "Couldn't upload the photo";
 
@@ -585,7 +589,6 @@
 
 // ADR-0005 auth start screen v2 (public single-server messenger).
 "screen_start_sign_in" = "Sign in";
-"screen_start_welcome_subtitle" = "Fast, private messaging with your personal agent.";
 
 /* AGENT-PLATFORM: the native 1:1 voice-call screen (Brief 0063). */
 "screen_native_call_status_connecting" = "Connecting…";
@@ -848,40 +851,25 @@
 "screen_start_invited_by" = "%1$@ invited you to Spiral";
 "screen_start_invited" = "You were invited to Spiral";
 "screen_start_invited_hint" = "Create an account to join.";
-"screen_invite_paste_title" = "Have an invitation?";
-"screen_invite_paste_message" = "Paste the link a Spiral user sent you, or type the code.";
-"screen_invite_paste_label" = "Link or code";
-"screen_invite_paste_without" = "Continue without an invitation";
-"screen_invite_paste_placeholder" = "spiral.md/join/…";
-"screen_invite_paste_invalid" = "There is no such invitation.";
-"screen_invite_paste_expired" = "This invitation is no longer valid. Ask for a new one.";
-"screen_invite_paste_exhausted" = "Everyone this invitation allowed has already joined. Ask for a new one.";
-"screen_invite_paste_unavailable" = "Could not check the invitation. Try again.";
 "invite_link_opened_while_signed_in" = "That is an invitation to join Spiral — you already have.";
 "screen_invite_people_share_message" = "Join me on Spiral — %1$@";
 "screen_invite_people_seats_left" = "%1$d of %2$d invitations left";
 "screen_invite_people_exhausted" = "All %1$d invitations have been used. Every person has one link with a fixed number of seats.";
-"screen_invite_people_joined" = "Joined by your invitation: %1$d";
-"screen_invite_people_joined_title" = "Joined by your invitation";
-"screen_invite_people_joined_footer" = "People who created their account through your link. Tap to start a chat.";
 "screen_invite_people_title" = "Invite to Spiral";
-"screen_invite_people_body" = "Registration is by invitation. Share your personal link — anyone who creates an account through it will see you first.";
-"screen_invite_people_seats_footer" = "Every person has one link with %1$d seats. It does not renew, so share it with the people you actually want here.";
-"screen_invite_people_seats_label" = "Invitations left";
-"screen_invite_people_seats_value" = "%1$d of %2$d";
+"screen_invite_people_you" = "You";
+"screen_invite_people_invited_count" = "Invited %1$d of %2$d";
+"screen_invite_people_invited_you" = "Invited you to Spiral";
+"screen_invite_people_seat_invite" = "Invite";
+"screen_invite_people_seat_taken" = "Taken";
+"screen_invite_people_chain_footer" = "One link for %1$d people, and it doesn't renew. Tap a person to open their profile.";
+"screen_invite_people_all_used" = "All invitations used";
 // Brief 0073 — client-rendered notices (com.spiral.notice).
 // Localazy: change %1$@ -> %1$s
 "notice_referral_joined" = "%1$@ joined Spiral through your invitation.";
 "notice_referral_joined_title" = "Joined through your invitation";
 "notice_referral_joined_hint" = "Opens their profile";
 // Localazy: change %1$@ -> %1$s
-"notice_welcome_title" = "Hi %1$@! 👋";
-// Localazy: change %1$@ -> %1$s
-/* AGENT-PLATFORM (ADR-0088): room tools are turned on in the app, never by
-   chat; the entry point is the composer's + → Agents. */
-"notice_welcome_assistant_body" = "I'm %1$@, your personal assistant. I can relay messages while you're away, remember your contacts and summarise rooms. To turn on my tools in a room, tap + there and choose Agents. Just write to me naturally — I'm here.";
-// Localazy: change %1$@ -> %1$s
-"notice_welcome_agent_body" = "%1$@ is ready. Just write to me.";
+"notice_welcome_title" = "Hi, %1$@! 👋";
 
 /* AGENT-PLATFORM (Brief 0075): a new account phrase from a signed-in device. */
 "screen_settings_new_phrase_title" = "New sign-in phrase";
@@ -890,6 +878,20 @@
 "screen_settings_new_phrase_passcode_required" = "Set a device passcode first — it protects changing the phrase";
 "screen_settings_new_phrase_done" = "Sign-in phrase changed";
 "screen_settings_new_phrase_failed" = "Couldn't start changing the phrase. Try again.";
+/* AGENT-PLATFORM (1.0.3): sign-in methods — the first phrase for an account made with Apple, Sign in with Apple for a phrase account. */
+"screen_settings_add_phrase_title" = "Add sign-in phrase";
+"screen_settings_add_phrase_message" = "You will choose 12 words. They open your account on any device, alongside Sign in with Apple. You stay signed in on this device, and your messages are not affected.";
+"screen_settings_add_phrase_auth_reason" = "Confirm it's you to add a sign-in phrase";
+"screen_settings_add_phrase_done" = "Sign-in phrase added";
+"screen_settings_add_phrase_failed" = "Couldn't start adding the phrase. Try again.";
+"screen_settings_sign_in_passcode_required" = "Set a device passcode first — it protects your sign-in methods";
+"screen_settings_apple_title" = "Sign in with Apple";
+"screen_settings_apple_connected" = "Connected";
+"screen_settings_apple_add_title" = "Add Sign in with Apple";
+"screen_settings_apple_auth_reason" = "Confirm it's you to add Sign in with Apple";
+"screen_settings_apple_linked" = "Sign in with Apple added";
+"screen_settings_apple_taken" = "This Apple ID is already used by another Spiral account";
+"screen_settings_apple_failed" = "Couldn't start adding Sign in with Apple. Try again.";
 // Localazy: change %1$@ -> %1$s
 "screen_deactivate_account_spiral_description" = "Deleting your account is %1$@. It will:";
 "screen_deactivate_account_spiral_description_bold_part" = "irreversible";
@@ -909,6 +911,9 @@
 "notice_phrase_changed_title" = "Sign-in phrase changed";
 "notice_phrase_changed_body" = "The old phrase no longer signs in.";
 "notice_phrase_changed_on_device" = "Changed on “%1$@”.";
+/* AGENT-PLATFORM (1.0.3): the owner-DM card when Sign in with Apple is added. It names no device (security review); a new phrase disconnects Apple. */
+"notice_apple_linked_title" = "Sign in with Apple added";
+"notice_apple_linked_body" = "If it wasn't you, change your sign-in phrase: that disconnects Apple.";
 
 /* AGENT-PLATFORM (Brief 0079): notices the server used to write in English. Localazy: change %1$@ -> %1$s */
 "notice_reply_failed_title" = "Couldn't answer";
@@ -941,8 +946,6 @@
 "notice_ai_consent_needed_allowed_body" = "You allowed AI. %1$@ answers your new messages.";
 
 /* AGENT-PLATFORM (Brief 0073): the first screen after an invited registration. Localazy: change %1$@ -> %1$s */
-"screen_invite_welcome_title" = "Welcome to Spiral";
-"screen_invite_welcome_message" = "%1$@ invited you and already knows you're here. Say hello!";
 "screen_invite_welcome_message_action" = "Message %1$@";
 "screen_invite_welcome_later" = "Later";
 "screen_ai_consent_prompt_title" = "Allow third-party AI?";
@@ -1659,6 +1662,16 @@
 "screen_native_call_assistants_record_confirm_title" = "Record the call?";
 "screen_native_call_assistants_record_confirm_message" = "Everyone sees REC in the header. The recording appears in the chat after the call.";
 "screen_native_call_assistants_record_confirm_action" = "Record";
+"screen_native_call_assistants_notes_confirm_title" = "Take notes of the call?";
+"screen_native_call_assistants_notes_confirm_message" = "Your assistant listens to the call and posts a summary in the chat afterwards. Others see that it's taking notes.";
+"screen_native_call_assistants_notes_confirm_action" = "Take notes";
+"screen_native_call_assistants_talk_confirm_title" = "Talk with your assistant?";
+"screen_native_call_assistants_talk_confirm_message" = "It hears only you and answers aloud — everyone in the call hears it.";
+"screen_native_call_assistants_talk_confirm_action" = "Start talking";
+"screen_native_call_assistants_translate_question_title" = "Translate into";
+"screen_native_call_assistants_listen_question_title" = "Listen in";
+"screen_native_call_assistants_talk_info_title" = "Your assistant answers aloud";
+"screen_native_call_assistants_talk_info_message" = "It hears only you, and everyone in the call hears it. Translation is off while it talks.";
 "screen_native_call_assistants_none_of_your_own" = "You don't have an assistant";
 "screen_native_call_assistants_which" = "Which assistant";
 "screen_native_call_assistants_reason_paused" = "Your assistant is paused";
@@ -1754,7 +1767,6 @@
 // Localazy: change %1$@ -> %1$s
 "screen_native_call_assistants_translating" = "Translating into %1$@";
 "screen_native_call_assistants_stop_translation" = "Stop translation";
-"screen_native_call_assistants_talk_caption" = "Answers you aloud, and everyone hears it. Translation is off while it talks.";
 "screen_native_call_assistants_pick_footer" = "Remembered for this chat";
 "screen_native_call_assistants_neighbour_language" = "Language of the person next to you";
 "screen_native_call_assistants_pocket_detail" = "After each phrase · both ways";
@@ -1776,10 +1788,9 @@
 "screen_native_call_assistants_status_both_ways" = "Translating both ways";
 "screen_native_call_assistants_translate_into" = "Translate into";
 "screen_native_call_assistants_translate_into_detail" = "You hear the call in it";
+"screen_native_call_assistants_translate_into_language" = "Translate into %1$@";
 "screen_native_call_assistants_in_call" = "In the call";
 "screen_native_call_assistants_in_call_more" = "In the call: %1$d more";
-"screen_native_call_assistants_new_translation" = "New translation";
-"screen_native_call_assistants_new_translation_detail" = "Your assistant will translate the call";
 "screen_native_call_assistants_new_translation_others" = "Your assistant translates %1$@. The others are already translated, free.";
 "screen_native_call_assistants_start_translation" = "Start translation";
 "screen_native_call_assistants_start_translation_detail" = "Uses your limit. Anyone who picks this language listens free.";
@@ -1825,3 +1836,68 @@
 "screen_media_viewer_position" = "%1$d of %2$d";
 "a11y_media_viewer_more" = "More";
 "a11y_album_open_item" = "Open item %1$d";
+
+// AGENT-PLATFORM (1.0.3 A2): the assistant's first invite in Chats, its chat before consent and its welcome.
+"screen_roomlist_assistant_invite_name" = "Your assistant";
+"screen_roomlist_assistant_invite_subtitle" = "Hi! Tap to start 👋";
+"screen_roomlist_assistant_invite_start" = "Start";
+"a11y_assistant_invite_start" = "Start a conversation with your assistant";
+"a11y_assistant_invite_start_hint" = "Accepts your assistant’s invitation and opens your chat with it.";
+"screen_assistant_invite_title" = "Hi! I’m your assistant";
+"screen_assistant_invite_reminders" = "I’ll remind you of things";
+"screen_assistant_invite_contacts" = "I’ll remember your contacts";
+"screen_assistant_invite_summaries" = "I’ll sum up any chat";
+"screen_assistant_invite_privacy" = "I only see this conversation. You can turn it off any time.";
+"screen_assistant_invite_start" = "Start conversation";
+"notice_welcome_body" = "I’m here and ready to help. Where shall we start?";
+"notice_welcome_starter_summary" = "Sum up a chat";
+"notice_welcome_starter_summary_message" = "Sum up a chat for me";
+"notice_welcome_starter_contact" = "Remember a contact";
+"notice_welcome_starter_contact_message" = "Remember something about a contact for me";
+"notice_welcome_starter_reminder" = "Remind me…";
+"notice_welcome_starter_reminder_message" = "Set a reminder for me";
+"notice_welcome_allow_ai_reason" = "Allow AI so I can read what you write here.";
+"notice_welcome_allow_ai_action" = "Allow AI";
+
+// AGENT-PLATFORM (1.0.3 onboarding): the start screen's stories, the notifications prompt and the invited welcome.
+"screen_start_slide_privacy_title" = "Your conversations are yours";
+"screen_start_slide_privacy_subtitle" = "End-to-end encryption. No phone number, and your assistant only with your permission";
+"screen_start_slide_calls_title" = "Calls with translation";
+"screen_start_slide_calls_subtitle" = "Your assistant joins and translates live";
+"screen_start_slide_assistant_title" = "Your assistant, close at hand";
+"screen_start_slide_assistant_subtitle" = "Replies when you're busy, and asks you before every new step";
+"screen_start_slide_games_title" = "Play together right in the chat";
+"screen_start_slide_games_subtitle" = "Games and tools, with nothing to install";
+// Localazy: change %1$@ -> %1$s
+"screen_start_invited_by_hint" = "Create an account and %1$@ will know you're here";
+"a11y_start_slides_position" = "Slide %1$d of %2$d";
+"screen_notification_optin_spiral_title" = "Stay in touch";
+"screen_notification_optin_spiral_subtitle" = "Spiral lets you know when something really matters. You can change this any time in Settings.";
+"screen_notification_optin_messages_title" = "New messages";
+"screen_notification_optin_messages_subtitle" = "From the people and groups you talk to";
+"screen_notification_optin_calls_title" = "Incoming calls";
+"screen_notification_optin_calls_subtitle" = "Even when Spiral is closed";
+"screen_notification_optin_assistant_title" = "Questions from your assistant";
+"screen_notification_optin_assistant_subtitle" = "When it needs your consent";
+"screen_notification_optin_allow" = "Allow notifications";
+// Localazy: change %1$@ -> %1$s
+"screen_invite_welcome_together_title" = "You're on Spiral together with %1$@";
+// Localazy: change %1$@ -> %1$s
+"screen_invite_welcome_step_say_hello_title" = "Say hello to %1$@";
+// Localazy: change %1$@ -> %1$s
+"screen_invite_welcome_step_say_hello_subtitle" = "%1$@ is waiting";
+"screen_invite_welcome_step_assistant_title" = "Meet your assistant";
+"screen_invite_welcome_step_assistant_subtitle" = "Its invitation is waiting in Chats";
+"screen_invite_welcome_step_play_title" = "Play something together";
+"screen_invite_welcome_step_play_subtitle" = "Games and tools right in the chat";
+// Localazy: change %1$@ -> %1$s
+"a11y_invite_welcome_avatars" = "%1$@ and you";
+"screen_approval_detail_already_closed_title" = "This request is already closed";
+"screen_approval_detail_already_closed_message" = "It expired or was already answered.";
+"screen_room_interactive_post_description_not_sent" = "Your description wasn't sent. Send it again in the thread.";
+"screen_room_interactive_post_code_not_sent" = "The post didn't reach the agent. Try again from the post.";
+"screen_invites_assistant_decline_warning_spiral" = "If this is your own assistant, its chat can’t be restored after you decline.";
+/* AGENT-PLATFORM (1.0.3): VoiceOver's name for an active filter's token in Chats, which turns the filter off. Localazy: change %1$@ -> %1$s */
+"a11y_roomlist_remove_filter" = "Remove filter: %1$@";
+/* AGENT-PLATFORM (1.0.3): VoiceOver's name for the Settings bar's share button, which shares the person's own profile link. */
+"a11y_settings_share_profile" = "Share my profile";

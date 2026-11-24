@@ -79,10 +79,13 @@ class UserSessionStore: UserSessionStoreProtocol {
     
     func userSession(for client: ClientProtocol, sessionDirectories: SessionDirectories, passphrase: Data) async -> Result<UserSessionProtocol, UserSessionStoreError> {
         do {
-            let session = try client.session()
             let userID = try client.userId()
             let userSettings = appHooks.userSessionHook.configure(appSettings.userSettings(for: userID), forHomeserver: client.homeserver())
             let clientProxy = try await setupProxyForClient(client, userSettings: userSettings)
+            // AGENT-PLATFORM (1.0.3): read after the setup, not before it. A refresh while the proxy is set up finds no
+            // stored token and isn't saved (`KeychainController.saveSessionInKeychain`), so a pair read earlier would be
+            // the rotated-out one, and the next refresh would sign the person out.
+            let session = try client.session()
             
             keychainController.setRestorationToken(RestorationToken(session: session,
                                                                     sessionDirectories: sessionDirectories,

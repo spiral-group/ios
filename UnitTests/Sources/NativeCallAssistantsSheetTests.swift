@@ -238,17 +238,18 @@ struct NativeCallAssistantsSheetTests {
         #expect(viewModel.context.isAgentCenterPresented)
     }
 
-    /// L4.2: "+ Add your translation" opens the sheet right at creating one; closing it forgets that.
+    /// "+ Add your translation" opens the sheet's root with nothing asked, where Translation's question rests — the same
+    /// path as the Assistant button (1.0.3, operator: «щоб був один сценарій»).
     @Test
-    func addingYourTranslationOpensTheSheetAtCreatingOne() {
+    func addingYourTranslationOpensTheSameRoot() {
         let viewModel = NativeCallAssistantsLabModel.make(.empty)
+        viewModel.context.assistantConfirmation = .start(.summary)
 
         viewModel.context.send(viewAction: .addOwnTranslation)
-        #expect(viewModel.context.isAgentCenterPresented)
-        #expect(viewModel.context.isCreatingTranslation)
 
-        viewModel.context.send(viewAction: .dismissAgentCenter)
-        #expect(!viewModel.context.isCreatingTranslation)
+        #expect(viewModel.context.isAgentCenterPresented)
+        #expect(viewModel.context.viewState.bindings.agentCenterPage == nil)
+        #expect(viewModel.context.assistantConfirmation == nil)
     }
 
     /// Brief 0085, scenario 9.3: with several own assistants and none picked for the chat, a tap asks which.
@@ -426,6 +427,37 @@ struct NativeCallAssistantsSheetTests {
         #expect(!button.isEnabled)
     }
 
+    // MARK: How translation starts (1.0.3, the operator's pick B)
+
+    /// The platform has your translation on while its lanes start: the button is Stop, as the Translation button would
+    /// stop it, and a pick is held for «Translate into …».
+    @Test
+    func aTranslationOnWhileItsLanesStartIsRunning() {
+        let viewModel = NativeCallAssistantsLabModel.make(.translatingYou)
+        var state = viewModel.state
+        state.agentClaims.documents = [NativeCallAssistantsLabModel.myAgent: .make()]
+        viewModel.state = state
+        #expect(viewModel.context.viewState.agents.ownAgents.first?.shown.isTranslating == false)
+
+        #expect(translationAction(viewModel) == .stop)
+        viewModel.context.send(viewAction: .pickTranslationLanguage("fr"))
+        #expect(viewModel.context.viewState.pickedTranslationLanguage == "fr")
+        #expect(translationAction(viewModel) == .translateInto(language: "fr"))
+    }
+
+    /// Your assistant is in the call but its session isn't read yet: the buttons are inert, so Start isn't offered.
+    @Test
+    func noStartOnAnAssistantWhoseSessionIsntRead() throws {
+        let viewModel = NativeCallAssistantsLabModel.make(.lateSessionList)
+        guard case .inCall(let agent) = NativeCallOwnAssistantStage(viewModel.context) else {
+            Issue.record("Expected your assistant in the call")
+            return
+        }
+        #expect(agent.control == nil)
+
+        #expect(translationAction(viewModel) == nil)
+    }
+
     private let mira = NativeCallRecordingCoverTracker.Recorder(agentMxid: "@assistant-mira:example.org", ownerMxid: "@mira:example.org")
 
     private func cover(_ recorder: NativeCallRecordingCoverTracker.Recorder, _ phase: NativeCallRecordingCover.Phase) -> NativeCallRecordingCover {
@@ -433,6 +465,10 @@ struct NativeCallAssistantsSheetTests {
     }
 
     // MARK: Helpers
+
+    private func translationAction(_ viewModel: NativeCallScreenViewModel) -> NativeCallTranslationAction? {
+        NativeCallTranslationAction(stage: NativeCallOwnAssistantStage(viewModel.context), viewState: viewModel.context.viewState)
+    }
 
     private func panel(isAvailable: Bool, isLoading: Bool, lastError: NativeAgentCenterError? = nil) -> NativeCallAgentPresentation.Panel {
         NativeCallAgentPresentation.Panel(isAvailable: isAvailable, isLoading: isLoading, lastError: lastError, candidates: [], catalog: [])

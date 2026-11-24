@@ -41,6 +41,16 @@
 "screen_native_call_assistants_record_confirm_title" = "Record the call?";
 "screen_native_call_assistants_record_confirm_message" = "Everyone sees REC in the header. The recording appears in the chat after the call.";
 "screen_native_call_assistants_record_confirm_action" = "Record";
+"screen_native_call_assistants_notes_confirm_title" = "Take notes of the call?";
+"screen_native_call_assistants_notes_confirm_message" = "Your assistant listens to the call and posts a summary in the chat afterwards. Others see that it's taking notes.";
+"screen_native_call_assistants_notes_confirm_action" = "Take notes";
+"screen_native_call_assistants_talk_confirm_title" = "Talk with your assistant?";
+"screen_native_call_assistants_talk_confirm_message" = "It hears only you and answers aloud — everyone in the call hears it.";
+"screen_native_call_assistants_talk_confirm_action" = "Start talking";
+"screen_native_call_assistants_translate_question_title" = "Translate into";
+"screen_native_call_assistants_listen_question_title" = "Listen in";
+"screen_native_call_assistants_talk_info_title" = "Your assistant answers aloud";
+"screen_native_call_assistants_talk_info_message" = "It hears only you, and everyone in the call hears it. Translation is off while it talks.";
 "screen_native_call_assistants_none_of_your_own" = "You don't have an assistant";
 "screen_native_call_assistants_which" = "Which assistant";
 "screen_native_call_assistants_reason_paused" = "Your assistant is paused";
@@ -133,7 +143,6 @@
 // Localazy: change %1$@ -> %1$s
 "screen_native_call_assistants_translating" = "Translating into %1$@";
 "screen_native_call_assistants_stop_translation" = "Stop translation";
-"screen_native_call_assistants_talk_caption" = "Answers you aloud, and everyone hears it. Translation is off while it talks.";
 "screen_native_call_assistants_pick_footer" = "Remembered for this chat";
 "screen_native_call_assistants_neighbour_language" = "Language of the person next to you";
 "screen_native_call_assistants_pocket_detail" = "After each phrase · both ways";
@@ -157,8 +166,6 @@
 "screen_native_call_assistants_translate_into_detail" = "You hear the call in it";
 "screen_native_call_assistants_in_call" = "In the call";
 "screen_native_call_assistants_in_call_more" = "In the call: %1$d more";
-"screen_native_call_assistants_new_translation" = "New translation";
-"screen_native_call_assistants_new_translation_detail" = "Your assistant will translate the call";
 "screen_native_call_assistants_new_translation_others" = "Your assistant translates %1$@. The others are already translated, free.";
 "screen_native_call_assistants_start_translation" = "Start translation";
 "screen_native_call_assistants_start_translation_detail" = "Uses your limit. Anyone who picks this language listens free.";
@@ -196,3 +203,11 @@
 "screen_native_call_translate_other_language" = "Other language…";
 "screen_language_picker_suggested_section" = "Suggested";
 "screen_language_picker_all_section" = "All languages";
+
+"screen_invite_people_you" = "You";
+"screen_invite_people_invited_count" = "Invited %1$d of %2$d";
+"screen_invite_people_invited_you" = "Invited you to Spiral";
+"screen_invite_people_seat_invite" = "Invite";
+"screen_invite_people_seat_taken" = "Taken";
+"screen_invite_people_chain_footer" = "One link for %1$d people, and it doesn't renew. Tap a person to open their profile.";
+"screen_invite_people_all_used" = "All invitations used";

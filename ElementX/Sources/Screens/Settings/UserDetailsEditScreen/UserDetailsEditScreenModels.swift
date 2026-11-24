@@ -59,10 +59,15 @@ struct UserDetailsEditScreenViewState: BindableState {
         bioLength > FeedBio.maxLength
     }
     
+    /// Only a changed bio is saved, so only a changed one that is too long would hold Save back and turn the footer
+    /// red. The field stops at the limit (1.0.3 B11), so that's a guard; a stored longer bio, untouched, is neither.
+    var isBioTooLongToSave: Bool {
+        bioDidChange && isBioTooLong
+    }
+    
     var canSave: Bool {
-        // AGENT-PLATFORM: feed (Brief 0082): the bio's change and its limit. Only a changed bio is saved, so only a
-        // changed one that is too long holds Save back, and the footer says to shorten it.
-        !bindings.name.isEmpty && (avatarDidChange || nameDidChange || bioDidChange) && !(bioDidChange && isBioTooLong)
+        // AGENT-PLATFORM: feed (Brief 0082): the bio's change and its limit.
+        !bindings.name.isEmpty && (avatarDidChange || nameDidChange || bioDidChange) && !isBioTooLongToSave
     }
     
     var showDeleteImageAction: Bool {
@@ -109,4 +114,6 @@ enum UserDetailsEditScreenViewAction {
     case removeImage
     // AGENT-PLATFORM: feed (Brief 0082)
     case retryLoadingBio
+    /// AGENT-PLATFORM (1.0.3 B11): the field's text changed from `previous`.
+    case bioChanged(previous: String)
 }

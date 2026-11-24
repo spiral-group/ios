@@ -349,7 +349,7 @@ struct AgentDetailScreen_Previews: PreviewProvider, TestablePreview, SpiralGated
             ? AgentSpaceAgentCard(agentID: "agent-2", matrixUserID: "@agent-acme-sales:spiral.md", displayName: "Sales · Acme Corp",
                                   avatarMXC: avatarMXC, kind: "sales", visibility: "public", lifecycleState: "active",
                                   roomCount: 1, activeToolCount: 0)
-            : AgentSpaceAgentCard(agentID: "agent-1", matrixUserID: "@assistant-owner:spiral.md", displayName: "Anna Kovalchuk · assistant",
+            : AgentSpaceAgentCard(agentID: "agent-1", matrixUserID: "@assistant-owner:spiral.md", displayName: "Anna Sampleton · assistant",
                                   avatarMXC: avatarMXC, kind: "personal_assistant", visibility: "public", lifecycleState: "active",
                                   roomCount: 3, activeToolCount: 3, isPaused: isPaused)
         

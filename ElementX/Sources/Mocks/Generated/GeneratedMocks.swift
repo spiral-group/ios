@@ -661,6 +661,62 @@ nonisolated class AgentPlatformServiceMock: AgentPlatformServiceProtocol, @unche
             return fetchMyInviteJoinedReturnValue
         }
     }
+    //MARK: - fetchInvitedBy
+
+    private let fetchInvitedByCallsCountLock = NSLock()
+    private nonisolated(unsafe) var fetchInvitedByUnderlyingCallsCount = 0
+    var fetchInvitedByCallsCount: Int {
+        get { fetchInvitedByCallsCountLock.withLock { fetchInvitedByUnderlyingCallsCount } }
+        set { fetchInvitedByCallsCountLock.withLock { fetchInvitedByUnderlyingCallsCount = newValue } }
+    }
+    var fetchInvitedByCalled: Bool {
+        return fetchInvitedByCallsCount > 0
+    }
+
+    private let fetchInvitedByReturnValueLock = NSLock()
+    private nonisolated(unsafe) var fetchInvitedByUnderlyingReturnValue: Result<InvitedBy?, AgentPlatformError>!
+    var fetchInvitedByReturnValue: Result<InvitedBy?, AgentPlatformError>! {
+        get { fetchInvitedByReturnValueLock.withLock { fetchInvitedByUnderlyingReturnValue } }
+        set { fetchInvitedByReturnValueLock.withLock { fetchInvitedByUnderlyingReturnValue = newValue } }
+    }
+    nonisolated(unsafe) var fetchInvitedByClosure: (() async -> Result<InvitedBy?, AgentPlatformError>)?
+
+    @concurrent func fetchInvitedBy() async -> Result<InvitedBy?, AgentPlatformError> {
+        fetchInvitedByCallsCountLock.withLock { fetchInvitedByUnderlyingCallsCount += 1 }
+        if let fetchInvitedByClosure = fetchInvitedByClosure {
+            return await fetchInvitedByClosure()
+        } else {
+            return fetchInvitedByReturnValue
+        }
+    }
+    //MARK: - markInviteWelcomed
+
+    private let markInviteWelcomedCallsCountLock = NSLock()
+    private nonisolated(unsafe) var markInviteWelcomedUnderlyingCallsCount = 0
+    var markInviteWelcomedCallsCount: Int {
+        get { markInviteWelcomedCallsCountLock.withLock { markInviteWelcomedUnderlyingCallsCount } }
+        set { markInviteWelcomedCallsCountLock.withLock { markInviteWelcomedUnderlyingCallsCount = newValue } }
+    }
+    var markInviteWelcomedCalled: Bool {
+        return markInviteWelcomedCallsCount > 0
+    }
+
+    private let markInviteWelcomedReturnValueLock = NSLock()
+    private nonisolated(unsafe) var markInviteWelcomedUnderlyingReturnValue: Result<Void, AgentPlatformError>!
+    var markInviteWelcomedReturnValue: Result<Void, AgentPlatformError>! {
+        get { markInviteWelcomedReturnValueLock.withLock { markInviteWelcomedUnderlyingReturnValue } }
+        set { markInviteWelcomedReturnValueLock.withLock { markInviteWelcomedUnderlyingReturnValue = newValue } }
+    }
+    nonisolated(unsafe) var markInviteWelcomedClosure: (() async -> Result<Void, AgentPlatformError>)?
+
+    @concurrent func markInviteWelcomed() async -> Result<Void, AgentPlatformError> {
+        markInviteWelcomedCallsCountLock.withLock { markInviteWelcomedUnderlyingCallsCount += 1 }
+        if let markInviteWelcomedClosure = markInviteWelcomedClosure {
+            return await markInviteWelcomedClosure()
+        } else {
+            return markInviteWelcomedReturnValue
+        }
+    }
     //MARK: - createPhraseReset
 
     private let createPhraseResetCallsCountLock = NSLock()
@@ -687,6 +743,62 @@ nonisolated class AgentPlatformServiceMock: AgentPlatformServiceProtocol, @unche
             return await createPhraseResetClosure()
         } else {
             return createPhraseResetReturnValue
+        }
+    }
+    //MARK: - fetchSignInMethods
+
+    private let fetchSignInMethodsCallsCountLock = NSLock()
+    private nonisolated(unsafe) var fetchSignInMethodsUnderlyingCallsCount = 0
+    var fetchSignInMethodsCallsCount: Int {
+        get { fetchSignInMethodsCallsCountLock.withLock { fetchSignInMethodsUnderlyingCallsCount } }
+        set { fetchSignInMethodsCallsCountLock.withLock { fetchSignInMethodsUnderlyingCallsCount = newValue } }
+    }
+    var fetchSignInMethodsCalled: Bool {
+        return fetchSignInMethodsCallsCount > 0
+    }
+
+    private let fetchSignInMethodsReturnValueLock = NSLock()
+    private nonisolated(unsafe) var fetchSignInMethodsUnderlyingReturnValue: Result<SignInMethods, AgentPlatformError>!
+    var fetchSignInMethodsReturnValue: Result<SignInMethods, AgentPlatformError>! {
+        get { fetchSignInMethodsReturnValueLock.withLock { fetchSignInMethodsUnderlyingReturnValue } }
+        set { fetchSignInMethodsReturnValueLock.withLock { fetchSignInMethodsUnderlyingReturnValue = newValue } }
+    }
+    nonisolated(unsafe) var fetchSignInMethodsClosure: (() async -> Result<SignInMethods, AgentPlatformError>)?
+
+    @concurrent func fetchSignInMethods() async -> Result<SignInMethods, AgentPlatformError> {
+        fetchSignInMethodsCallsCountLock.withLock { fetchSignInMethodsUnderlyingCallsCount += 1 }
+        if let fetchSignInMethodsClosure = fetchSignInMethodsClosure {
+            return await fetchSignInMethodsClosure()
+        } else {
+            return fetchSignInMethodsReturnValue
+        }
+    }
+    //MARK: - createAppleLink
+
+    private let createAppleLinkCallsCountLock = NSLock()
+    private nonisolated(unsafe) var createAppleLinkUnderlyingCallsCount = 0
+    var createAppleLinkCallsCount: Int {
+        get { createAppleLinkCallsCountLock.withLock { createAppleLinkUnderlyingCallsCount } }
+        set { createAppleLinkCallsCountLock.withLock { createAppleLinkUnderlyingCallsCount = newValue } }
+    }
+    var createAppleLinkCalled: Bool {
+        return createAppleLinkCallsCount > 0
+    }
+
+    private let createAppleLinkReturnValueLock = NSLock()
+    private nonisolated(unsafe) var createAppleLinkUnderlyingReturnValue: Result<URL, AgentPlatformError>!
+    var createAppleLinkReturnValue: Result<URL, AgentPlatformError>! {
+        get { createAppleLinkReturnValueLock.withLock { createAppleLinkUnderlyingReturnValue } }
+        set { createAppleLinkReturnValueLock.withLock { createAppleLinkUnderlyingReturnValue = newValue } }
+    }
+    nonisolated(unsafe) var createAppleLinkClosure: (() async -> Result<URL, AgentPlatformError>)?
+
+    @concurrent func createAppleLink() async -> Result<URL, AgentPlatformError> {
+        createAppleLinkCallsCountLock.withLock { createAppleLinkUnderlyingCallsCount += 1 }
+        if let createAppleLinkClosure = createAppleLinkClosure {
+            return await createAppleLinkClosure()
+        } else {
+            return createAppleLinkReturnValue
         }
     }
     //MARK: - deleteAccount
@@ -9879,11 +9991,23 @@ nonisolated class JoinedRoomProxyMock: JoinedRoomProxyProtocol, @unchecked Senda
     var updateMembersCalled: Bool {
         return updateMembersCallsCount > 0
     }
-    nonisolated(unsafe) var updateMembersClosure: (() async -> Void)?
 
-    @concurrent func updateMembers() async {
+    private let updateMembersReturnValueLock = NSLock()
+    private nonisolated(unsafe) var updateMembersUnderlyingReturnValue: Result<Void, RoomProxyError>!
+    var updateMembersReturnValue: Result<Void, RoomProxyError>! {
+        get { updateMembersReturnValueLock.withLock { updateMembersUnderlyingReturnValue } }
+        set { updateMembersReturnValueLock.withLock { updateMembersUnderlyingReturnValue = newValue } }
+    }
+    nonisolated(unsafe) var updateMembersClosure: (() async -> Result<Void, RoomProxyError>)?
+
+    @discardableResult
+    @concurrent func updateMembers() async -> Result<Void, RoomProxyError> {
         updateMembersCallsCountLock.withLock { updateMembersUnderlyingCallsCount += 1 }
-        await updateMembersClosure?()
+        if let updateMembersClosure = updateMembersClosure {
+            return await updateMembersClosure()
+        } else {
+            return updateMembersReturnValue
+        }
     }
     //MARK: - getMember
 
@@ -14839,6 +14963,23 @@ nonisolated class PresenceObserverServiceMock: PresenceObserverServiceProtocol, 
         setObservedScopeReceivedArguments = (userIDs: userIDs, scope: scope)
         setObservedScopeReceivedInvocationsLock.withLock { setObservedScopeUnderlyingReceivedInvocations.append((userIDs: userIDs, scope: scope)) }
         setObservedScopeClosure?(userIDs, scope)
+    }
+    //MARK: - stop
+
+    private let stopCallsCountLock = NSLock()
+    private nonisolated(unsafe) var stopUnderlyingCallsCount = 0
+    var stopCallsCount: Int {
+        get { stopCallsCountLock.withLock { stopUnderlyingCallsCount } }
+        set { stopCallsCountLock.withLock { stopUnderlyingCallsCount = newValue } }
+    }
+    var stopCalled: Bool {
+        return stopCallsCount > 0
+    }
+    nonisolated(unsafe) var stopClosure: (() -> Void)?
+
+    func stop() {
+        stopCallsCountLock.withLock { stopUnderlyingCallsCount += 1 }
+        stopClosure?()
     }
 }
 nonisolated class QRCodeLoginServiceMock: QRCodeLoginServiceProtocol, @unchecked Sendable {

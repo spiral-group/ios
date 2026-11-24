@@ -59,6 +59,11 @@ enum NativeCallScreenViewAction {
     case addOwnTranslation
     /// The language you hear and speak (L1): nil is the phone's. What your assistant produces follows it.
     case setMyLanguage(String?)
+    /// A pick in the sheet's «Translate into» list: your language at once, or held for «Translate into …» while your
+    /// translation runs (1.0.3, B).
+    case pickTranslationLanguage(String)
+    /// «Translate into …»: your running translation moves to the language picked while it ran.
+    case applyPickedTranslationLanguage
     /// Question 409: the 文A menu's «Я говорю: … ›» — the language list, as the capsule's «Змінити» opens it.
     case showSpokenLanguage
     /// The capsule's event button; elsewhere on the capsule opens the sheet.
@@ -72,6 +77,10 @@ enum NativeCallScreenViewAction {
     /// A tap on one of the Assistants sheet's four buttons: recording asks first, or explains whose recording covers
     /// the call (question 404); the rest toggle.
     case tapAssistantJob(NativeCallAssistantJob)
+    /// 1.0.3: a job's question answered yes — turns the job on, never off, whatever changed while it was asked.
+    case confirmAssistantJob(NativeCallAssistantJob)
+    /// A refusal's «Try again»: the write that was refused again — a start, a turn-off, or «Translate into …».
+    case retryAssistantJob(NativeCallAssistantJob)
     /// Scenario 9.3: which own assistant comes, remembered for this chat.
     case pickAssistant(agentID: String, job: NativeCallAssistantJob)
     /// Scenario 5: this chat's tool "Call translation".
@@ -211,6 +220,9 @@ struct NativeCallScreenViewState: BindableState {
     var seenTranslationLanguages: Set<String> = []
     /// A translation your assistant was asked for: heard as soon as its lanes run.
     var pendingListenLanguage: String?
+    /// 1.0.3 (operator's pick B, 2026-11-19): a language picked in «Translate into» while your translation runs. Only
+    /// «Translate into …» applies it; Stop, the Translation button, a start or closing the sheet drop it.
+    var pickedTranslationLanguage: String?
     /// The capsule's events, one at a time.
     var capsule = NativeCallCapsuleQueue()
     /// Question 404: someone else's assistant records the call, or did and stopped, while yours doesn't.
@@ -540,8 +552,6 @@ struct NativeCallScreenViewStateBindings {
     var isAgentCenterPresented = false
     /// The page the Assistants sheet opens on, over its root: "In the call" from someone else's agent on the pill.
     var agentCenterPage: NativeCallAssistantsRoute?
-    /// The sheet's root creates a translation (L4.2): "New translation", opened by the 文A menu's "+".
-    var isCreatingTranslation = false
     /// A question the sheet asks in place, never as a system alert (L5 1.5, 4.4).
     var assistantConfirmation: NativeCallAssistantConfirmation?
     /// The weekly Limit page pushed in the sheet.
@@ -564,10 +574,13 @@ struct NativeCallScreenViewStateBindings {
     var isVideoChromeHidden = false
 }
 
-/// A question the Assistants sheet asks in place (L5): recording concerns everyone, removing from the chat is
-/// beyond this call.
+/// A question the Assistants sheet asks in place (L5): turning a job on, and removing from the chat, which is beyond this
+/// call.
 enum NativeCallAssistantConfirmation: Equatable {
-    case recording
+    /// 1.0.3 (operator's pick C in the call lab, 2026-11-21): turning Notes, Talk or Recording on asks first, under the
+    /// buttons, the tapped one ringed. Translation's question is the sheet's resting state; `.start(.translation)` is its
+    /// button tapped, which brings that question over a refusal or a failed join too.
+    case start(NativeCallAssistantJob)
     /// Question 404, layout C: not a question — whose recording already covers the call, after a tap on the covered
     /// «Записує» or a start the platform refused as covered. «Зрозуміло» or the recording's end brings the buttons back.
     case recordingCovered

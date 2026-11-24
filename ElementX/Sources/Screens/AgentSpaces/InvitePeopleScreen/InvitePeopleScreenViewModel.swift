@@ -28,7 +28,8 @@ class InvitePeopleScreenViewModel: InvitePeopleScreenViewModelType, InvitePeople
     init(userSession: UserSessionProtocol, userIndicatorController: UserIndicatorControllerProtocol) {
         self.userSession = userSession
         self.userIndicatorController = userIndicatorController
-        super.init(initialViewState: InvitePeopleScreenViewState(), mediaProvider: userSession.mediaProvider)
+        super.init(initialViewState: InvitePeopleScreenViewState(ownProfile: UserProfile(userID: userSession.clientProxy.userID)),
+                   mediaProvider: userSession.mediaProvider)
         
         Task { await load() }
     }
@@ -55,11 +56,26 @@ class InvitePeopleScreenViewModel: InvitePeopleScreenViewModelType, InvitePeople
         }
         state.isLoading = true
         defer { state.isLoading = false }
+        // 1.0.3: who invited the caller, read alongside the link so the row comes with the page.
+        let invitedBy = Task { @MainActor in await service.fetchInvitedBy() }
+        let ownProfile = Task { @MainActor in await self.fetchProfile(userID: self.state.ownProfile.id) }
         
-        switch await service.fetchMyInvite() {
-        case .success(let invite):
+        let inviteRead = await service.fetchMyInvite()
+        if case .success(let invite) = inviteRead {
             state.invite = invite
-        case .failure(let error):
+        }
+        
+        state.ownProfile = await ownProfile.value
+        // The chain's top comes with the page even when the link's read failed.
+        if case .success(let found?) = await invitedBy.value {
+            // A retry keeps the name already shown while the profile is read again.
+            if state.invitedBy?.id != found.inviterUserID {
+                state.invitedBy = UserProfile(userID: found.inviterUserID)
+            }
+            state.invitedBy = await fetchProfile(userID: found.inviterUserID)
+        }
+        
+        if case .failure(let error) = inviteRead {
             MXLog.error("Failed loading the invite link: \(error)")
             state.bindings.alertInfo = AlertInfo(id: .loadFailed,
                                                  title: L10n.errorUnknown,

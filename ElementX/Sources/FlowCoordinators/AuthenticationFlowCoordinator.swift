@@ -368,13 +368,27 @@ class AuthenticationFlowCoordinator: FlowCoordinatorProtocol {
         oAuthPresenter = presenter
         
         Task {
-            switch await presenter.authenticate(using: oAuthData) {
-            case .success(let userSession):
-                stateMachine.tryEvent(.signedIn, userInfo: userSession)
-            case .failure:
-                break // Nothing to do, any alerts will be handled by the presenter.
+            // AGENT-PLATFORM (1.0.3, operator 2026-11-23): the start screen showed under «Loading…» while the callback was
+            // exchanged. The logo onboarding opens on covers it instead and stays until onboarding covers the tabs
+            // (`UserSessionFlowCoordinator`), so a new account sees one screen from the web sheet to its first step.
+            let result = await presenter.authenticate(using: oAuthData) { [weak self] in
+                self?.navigationRootCoordinator.setCoverCoordinator(PlaceholderScreenCoordinator(hideBrandChrome: false))
             }
+            finishOAuthAuthentication(with: result)
             oAuthPresenter = nil
+        }
+    }
+    
+    // AGENT-PLATFORM (1.0.3): any end but a sign-in takes the logo away again, back to the screen it covered.
+    func finishOAuthAuthentication(with result: Result<UserSessionProtocol, AuthenticationServiceError>) {
+        switch result {
+        case .success(let userSession):
+            if !stateMachine.tryEvent(.signedIn, userInfo: userSession) {
+                navigationRootCoordinator.setCoverCoordinator(nil, animated: true)
+            }
+        case .failure:
+            navigationRootCoordinator.setCoverCoordinator(nil, animated: true)
+            // Nothing else to do, any alerts will be handled by the presenter.
         }
     }
     

@@ -6,6 +6,7 @@
 // Please see LICENSE files in the repository root for full details.
 //
 
+import Combine // AGENT-PLATFORM (1.0.3 A2): the preview below.
 import Compound
 import SpiralTokens // AGENT-PLATFORM (Brief 0083)
 import SwiftUI
@@ -29,14 +30,26 @@ struct JoinRoomScreen: View {
     }
     
     var body: some View {
-        FullscreenDialog(topPadding: topPadding) {
-            if context.viewState.mode == .loading {
-                EmptyView()
+        Group {
+            // AGENT-PLATFORM (1.0.3 A2): the person's own assistant has its own screen before consent, with no Decline.
+            if context.viewState.showsAssistantInvite {
+                JoinRoomAssistantInviteView(context: context)
+            } else if context.viewState.isReadingAssistantInvite {
+                // A calm wait while it's told whose assistant asks: no Decline offered, nothing that moves when it's known.
+                ProgressView()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .accessibilityLabel(L10n.commonLoading)
             } else {
-                mainContent
+                FullscreenDialog(topPadding: topPadding) {
+                    if context.viewState.mode == .loading {
+                        EmptyView()
+                    } else {
+                        mainContent
+                    }
+                } bottomContent: {
+                    bottomContent
+                }
             }
-        } bottomContent: {
-            bottomContent
         }
         .alert(item: $context.alertInfo)
         .background()
@@ -265,9 +278,12 @@ struct JoinRoomScreen: View {
     
     @ViewBuilder
     var inviteButtons: some View {
-        Button(L10n.actionDecline) { context.send(viewAction: .declineInvite) }
-            .buttonStyle(.compound(.secondary))
-            .accessibilityIdentifier(A11yIdentifiers.joinRoomScreen.declineInvite) // AGENT-PLATFORM (decision 146)
+        // AGENT-PLATFORM (1.0.3 A2, ADR-0017): an assistant's invite whose owner isn't known yet may be the person's own.
+        if context.viewState.assistantInvite.allowsDecline {
+            Button(L10n.actionDecline) { context.send(viewAction: .declineInvite) }
+                .buttonStyle(.compound(.secondary))
+                .accessibilityIdentifier(A11yIdentifiers.joinRoomScreen.declineInvite) // AGENT-PLATFORM (decision 146)
+        }
         Button(L10n.actionAccept) { context.send(viewAction: .acceptInvite) }
             .buttonStyle(.compound(.primary))
             .accessibilityIdentifier(A11yIdentifiers.joinRoomScreen.acceptInvite) // AGENT-PLATFORM (decision 146)
@@ -275,7 +291,7 @@ struct JoinRoomScreen: View {
     
     @ViewBuilder
     var declineAndBlockButton: some View {
-        if let inviter = context.viewState.roomDetails?.inviter {
+        if let inviter = context.viewState.roomDetails?.inviter, context.viewState.assistantInvite.allowsDecline { // AGENT-PLATFORM (1.0.3 A2)
             Button(L10n.screenJoinRoomDeclineAndBlockButtonTitle, role: .destructive) {
                 context.send(viewAction: .declineInviteAndBlock(userID: inviter.id))
             }
@@ -291,7 +307,17 @@ struct JoinRoomScreen: View {
     
     @ToolbarContentBuilder
     private var toolbar: some ToolbarContent {
-        if context.viewState.mode == .knocked {
+        if context.viewState.showsAssistantInvite { // AGENT-PLATFORM (1.0.3 A2)
+            ToolbarItem(placement: .principal) {
+                // The room's own header: the chat it opens into has it too.
+                RoomHeaderView(roomName: UntranslatedL10n.screenRoomlistAssistantInviteName,
+                               roomAvatar: JoinRoomAssistantInviteView.avatar(of: context.viewState),
+                               isCapsule: true,
+                               mediaProvider: context.mediaProvider) {
+                    // Nothing to open before the chat starts.
+                }
+            }
+        } else if context.viewState.mode == .knocked {
             ToolbarItem(placement: .principal) {
                 if let avatar = context.viewState.avatar {
                     RoomHeaderView(roomName: context.viewState.title,
@@ -394,15 +420,18 @@ struct JoinRoomScreenPreviewWrapper: Identifiable {
     let viewModel: JoinRoomScreenViewModel
     let mode: JoinRoomScreenMode
     let isSpace: Bool
+    let isOwnAssistant: Bool
     let customPreviewName: String?
     
     init(isSpace: Bool = false,
          mode: JoinRoomScreenMode,
          canJoinRoom: Bool = true,
          hideInviteAvatars: Bool = false,
+         isOwnAssistant: Bool = false,
          customPreviewName: String? = nil) {
         self.mode = mode
         self.isSpace = isSpace
+        self.isOwnAssistant = isOwnAssistant
         self.customPreviewName = customPreviewName
         
         let clientProxy = ClientProxyMock(.init(hideInviteAvatars: hideInviteAvatars))
@@ -423,8 +452,9 @@ struct JoinRoomScreenPreviewWrapper: Identifiable {
             clientProxy.roomForIdentifierReturnValue = nil
         case .invited(let isDM):
             clientProxy.roomPreviewForIdentifierViaReturnValue = .success(isDM ? RoomPreviewProxyMock.inviteDM() : .invited())
+            let inviter = isOwnAssistant ? AgentProfileMock.member(AgentProfileMock.assistant) : .mockDan
             clientProxy.roomForIdentifierClosure = { _ in
-                .invited(InvitedRoomProxyMock(.init(avatarURL: .mockMXCAvatar, inviter: .mockDan)))
+                .invited(InvitedRoomProxyMock(.init(avatarURL: .mockMXCAvatar, inviter: inviter)))
             }
         case .knockable:
             clientProxy.roomPreviewForIdentifierViaReturnValue = .success(RoomPreviewProxyMock.knockable)
@@ -455,8 +485,12 @@ struct JoinRoomScreenPreviewWrapper: Identifiable {
             .generic(roomID: "1", via: [])
         }
         
+        let userSession = UserSessionMock(.init(clientProxy: clientProxy))
+        if isOwnAssistant {
+            AgentProfileMock.configure(userSession)
+        }
         viewModel = JoinRoomScreenViewModel(source: source,
-                                            userSession: UserSessionMock(.init(clientProxy: clientProxy)),
+                                            userSession: userSession,
                                             userIndicatorController: UserIndicatorControllerMock())
     }
     
@@ -485,6 +519,16 @@ struct JoinRoomScreenPreviewWrapper: Identifiable {
         }
     }
     
+    /// When the screen is ready. AGENT-PLATFORM (1.0.3 A2): the assistant's header comes in when its owner is known, and
+    /// its glass settles in over a moment after that.
+    private var expectation: AnyPublisher<Bool, Never> {
+        let isReady = viewModel.context.$viewState.map { [isOwnAssistant] state in
+            state.roomDetails != nil && (!isOwnAssistant || state.showsAssistantInvite)
+        }
+        guard isOwnAssistant else { return isReady.eraseToAnyPublisher() }
+        return isReady.removeDuplicates().delay(for: .seconds(1), scheduler: DispatchQueue.main).eraseToAnyPublisher()
+    }
+    
     @ViewBuilder
     var preview: some View {
         let previewDisplayName = customPreviewName ?? previewDisplayName
@@ -504,9 +548,7 @@ struct JoinRoomScreenPreviewWrapper: Identifiable {
             ElementNavigationStack {
                 JoinRoomScreen(context: viewModel.context)
             }
-            .snapshotPreferences(expect: viewModel.context.$viewState.map { state in
-                state.roomDetails != nil
-            })
+            .snapshotPreferences(expect: expectation)
             .previewDisplayName(previewDisplayName + previewDisplayNameSuffix)
         }
     }

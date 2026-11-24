@@ -123,3 +123,39 @@ struct RoomEventStringBuilderTests {
               uniqueID: .init("0"))
     }
 }
+
+// AGENT-PLATFORM: the chat list's last-message line.
+extension RoomEventStringBuilderTests {
+    /// Only an agent's notice reads as a Spiral notice, as in the timeline: a member sending the same
+    /// msgtype gets its plain body, so nobody can fake a «sign-in phrase changed» line in the chat list.
+    @Test
+    func aNoticePreviewsAsANoticeOnlyFromAnAgent() throws {
+        let notice = try #require(SpiralNotice(msgtype: SpiralNotice.msgtype, data: #"{"com.spiral.notice":{"kind":"phrase_changed","device_name":"iPhone"}}"#))
+        
+        let fromAgent = EventTimelineItemProxy(item: .mockSpiralNotice(sender: "@assistant-bob:spiral.md"), uniqueID: .init("0"))
+        #expect(stringBuilder.buildAttributedString(for: fromAgent)?.string.hasSuffix(": \(notice.plainText)") == true)
+        
+        let fromPerson = EventTimelineItemProxy(item: .mockSpiralNotice(sender: "@mallory:spiral.md"), uniqueID: .init("1"))
+        let line = try #require(stringBuilder.buildAttributedString(for: fromPerson)?.string)
+        #expect(line.hasSuffix(": fallback"))
+        #expect(!line.contains(notice.plainText))
+    }
+    
+    /// A template's post previews under the title its card shows, in the reader's language.
+    @Test
+    func aTemplatePostPreviewsUnderTheReadersTitle() {
+        let builder = RoomMessageEventStringBuilder(attributedStringBuilder: AttributedStringBuilder(mentionBuilder: PlainMentionBuilder()),
+                                                    style: .plain,
+                                                    templateTitle: { $0 == "tpl-tug-of-war" ? "Tug of war" : nil })
+        func line(appID: String) -> String {
+            let post = InteractivePostContent(body: "", appId: appID, runtime: "1", title: "Перетягування каната", aspect: "1:1",
+                                              stateChannel: "matrix", sha256: String(repeating: "a", count: 64),
+                                              url: "mxc://spiral.md/abc", fileJson: nil)
+            return String(builder.buildAttributedString(for: .interactivePost(content: post), senderID: "@bob:spiral.md",
+                                                        senderDisplayName: "Bob", isOutgoing: false).characters)
+        }
+        
+        #expect(line(appID: "tpl-tug-of-war").hasSuffix("Tug of war"))
+        #expect(line(appID: "a1b2c3").hasSuffix("Перетягування каната"), "an agent's own post keeps its stored title")
+    }
+}

@@ -91,6 +91,10 @@ struct NativeCallLanguageCatalogCache {
 }
 
 nonisolated enum NativeCallLanguageCode {
+    /// BCP 47's "undetermined": a person whose live memberships publish different languages (DEBT B6). Never a catalog
+    /// code and never published, so it is another spoken language than any — unlike a person with none published.
+    static let undetermined = "und"
+
     /// Whether two catalog codes are the same spoken language (ADR-0094 D3): `pt-BR` and `pt-PT` are, so a `pt-BR`
     /// speaker isn't translated into `pt-PT`.
     static func isSameSpokenLanguage(_ lhs: String, _ rhs: String) -> Bool {

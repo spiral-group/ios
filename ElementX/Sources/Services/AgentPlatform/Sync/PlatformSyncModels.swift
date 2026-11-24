@@ -232,5 +232,19 @@ nonisolated enum PlatformSyncError: Error, Equatable {
     case rateLimited(retryAfterSeconds: Int?)
     case temporarilyUnavailable(retryAfterSeconds: Int?)
     case server(status: Int)
+    /// No network: offline, the host not found or not reached, the connection lost or timed out.
     case transport
+    /// TLS refused a certificate, the server's or ours: the network is there.
+    case untrustedServer
+    /// The exchange failed otherwise (the handshake, an answer that did not decode): the network is there.
+    case badResponse
+
+    /// An answer waiting does not change: a `401` after the retry, a `403`, a proxy's `404`, another `4xx`, a certificate refused.
+    var isRefusal: Bool {
+        switch self {
+        case .unauthorized, .invalidPosition, .untrustedServer: true
+        case .server(let status): (400..<500).contains(status) && status != 408
+        case .unavailable, .rateLimited, .temporarilyUnavailable, .transport, .badResponse: false
+        }
+    }
 }

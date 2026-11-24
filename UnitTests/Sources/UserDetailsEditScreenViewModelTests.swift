@@ -95,6 +95,28 @@ struct UserDetailsEditScreenViewModelTests {
         try await deferred.fulfill()
     }
     
+    // AGENT-PLATFORM (1.0.3 B11): a pasted too-long bio is cut at the limit, so Back still asks to save.
+    @Test
+    func cancelWithACutBioAndANameChangeOffersToSave() async throws {
+        let clientProxy = ClientProxyMock(.init(canSetBio: true))
+        clientProxy.userBioReturnValue = .success(nil)
+        let viewModel = UserDetailsEditScreenViewModel(userSession: UserSessionMock(.init(clientProxy: clientProxy)),
+                                                       mediaUploadingPreprocessor: MediaUploadingPreprocessor(userSettings: .mock()),
+                                                       appMediator: appMediator,
+                                                       userIndicatorController: userIndicatorController)
+        let context = viewModel.context
+        try await deferFulfillment(context.observe(\.viewState.bio)) { $0 == .loaded(nil) }.fulfill()
+        
+        context.name = "name"
+        context.bio = String(repeating: "a", count: FeedBio.maxLength + 40)
+        context.send(viewAction: .bioChanged(previous: ""))
+        #expect(context.viewState.canSave)
+        
+        context.send(viewAction: .cancel)
+        #expect(context.alertInfo?.id == .unsavedChanges)
+        #expect(context.alertInfo?.primaryButton.title == L10n.actionSave)
+    }
+    
     @Test
     func cameraPickerOpensWhenTheCameraIsAvailable() async throws {
         let deferred = deferFulfillment(viewModel.actions) { $0 == .displayCameraPicker }

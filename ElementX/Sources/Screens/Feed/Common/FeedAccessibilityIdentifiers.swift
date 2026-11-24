@@ -56,6 +56,7 @@ extension A11yIdentifiers {
         let message = "feed_author-message"
         let more = "feed_author-more"
         let block = "feed_author-block"
+        let unblock = "feed_author-unblock"
         let report = "feed_author-report"
         let bio = "feed_author-bio"
     }

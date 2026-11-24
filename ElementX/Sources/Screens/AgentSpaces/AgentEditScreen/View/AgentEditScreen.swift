@@ -168,7 +168,7 @@ struct AgentEditScreen_Previews: PreviewProvider, TestablePreview, SpiralGatedPr
         .previewDisplayName("Failed")
     }
     
-    private static let card = AgentSpaceAgentCard(agentID: "agent-1", matrixUserID: "@assistant-owner:spiral.md", displayName: "Anna Kovalchuk · assistant",
+    private static let card = AgentSpaceAgentCard(agentID: "agent-1", matrixUserID: "@assistant-owner:spiral.md", displayName: "Anna Sampleton · assistant",
                                                   avatarMXC: nil, kind: "personal_assistant", visibility: "public", lifecycleState: "active",
                                                   roomCount: 2, activeToolCount: 1)
     

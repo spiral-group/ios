@@ -41,8 +41,9 @@ enum UITestsSignal: Codable, Equatable {
         case noMorePreviews
         /// Ask the app to leave out of the next contrast audit what Spiral's gate exempts.
         case prepareContrastAudit // AGENT-PLATFORM (Brief 0083)
-        /// Tell the test runner that the preview is ready for its contrast audit, and what it hid with the bars.
-        case contrastAuditReady(name: String, hiddenElements: [HiddenElement]) // AGENT-PLATFORM (Brief 0083)
+        /// Tell the test runner that the preview is ready for its contrast audit, what it hid with the bars, and the
+        /// screen frames of its scroll views that can't scroll (contrast triage L leaves their cut rows audited).
+        case contrastAuditReady(name: String, hiddenElements: [HiddenElement], fixedScrollViewFrames: [CGRect]) // AGENT-PLATFORM (Brief 0083)
         
         /// An element the app hid from the contrast audit with a bar, which the runner must have measured. AGENT-PLATFORM (Brief 0083)
         struct HiddenElement: Codable, Equatable {

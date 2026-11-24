@@ -24,8 +24,12 @@ nonisolated struct RoomMessageEventStringBuilder {
     
     let attributedStringBuilder: AttributedStringBuilderProtocol
     let style: Style
+    /// AGENT-PLATFORM: a catalogue template's title in the reader's language, as the post's card
+    /// shows it (`SpiralAppTemplateTitles`); nil keeps the stored title. The NSE keeps no catalogue.
+    var templateTitle: @Sendable (_ appID: String) -> String? = { _ in nil }
     
-    func buildAttributedString(for messageType: MessageType, senderDisplayName: String, isOutgoing: Bool) -> AttributedString {
+    // AGENT-PLATFORM: `senderID` decides whether a notice may read as one.
+    func buildAttributedString(for messageType: MessageType, senderID: String, senderDisplayName: String, isOutgoing: Bool) -> AttributedString {
         let message: AttributedString
         switch messageType {
         case .emote(content: let content):
@@ -73,12 +77,14 @@ nonisolated struct RoomMessageEventStringBuilder {
         // the type, so either would do — the title is the one a reader was
         // shown in the room.
         case .interactivePost(let content):
-            message = buildMessage(for: style, caption: content.title, type: UntranslatedL10n.commonInteractivePost)
+            message = buildMessage(for: style, caption: templateTitle(content.appId) ?? content.title, type: UntranslatedL10n.commonInteractivePost)
         case .interactiveDraft(let content):
             message = buildMessage(for: style, caption: content.title, type: UntranslatedL10n.commonInteractiveDraft)
-        // AGENT-PLATFORM (Brief 0073): a notice previews in the reader's language.
+        // AGENT-PLATFORM (Brief 0073): a notice previews in the reader's language —
+        // an agent's only, as in the timeline; anyone else's is its plain body.
         case .other(let msgtype, let body, let data):
-            message = AttributedString(SpiralNotice(msgtype: msgtype, data: data)?.plainText ?? body)
+            let notice = SpiralAgentID.isAgent(senderID) ? SpiralNotice(msgtype: msgtype, data: data) : nil
+            message = AttributedString(notice?.plainText ?? body)
         }
         
         if style == .senderPrefixed {

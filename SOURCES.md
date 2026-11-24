@@ -10,6 +10,20 @@ Public License v3.0 only. Spiral's own code is AGPL-3.0-or-later. The app
 as a whole is distributed under AGPL-3.0-only. `NOTICE` says which code is
 whose. The other components keep their own licences.
 
+## Release: 1.0.3
+
+The build number is the one App Store Connect shows for 1.0.3; Xcode sets it at upload, from this same tree.
+
+| Component | What it is | Licence | Source | Commit |
+|---|---|---|---|---|
+| ios | the app, a fork of Element X iOS (this repository) | AGPL-3.0-only (Element's code), AGPL-3.0-or-later (Spiral's) | `https://github.com/spiral-group/ios`, tag `spiral/1.0.3` | the commit that tag names |
+| matrix-rust-sdk | the Matrix client core, a fork of matrix-org/matrix-rust-sdk | Apache-2.0 | `https://github.com/spiral-group/matrix-rust-sdk`, branch `spiral/main` | `c79e5b81e4da5aee3453c12bff20e1a6c2c46c13` |
+| matrix-rust-components-swift | Swift bindings for the above, a fork of element-hq/matrix-rust-components-swift; its release `26.10.29-spiral.7` carries the framework built from the commit above | Apache-2.0 | `https://github.com/spiral-group/matrix-rust-components-swift`, tag `26.10.29-spiral.7` | `f0849fcbf6d207212aae277b6f78facb510b5134` |
+| client-sdk-swift | the LiveKit client, a fork of livekit/client-sdk-swift (unchanged since 1.0.1) | Apache-2.0 | `https://github.com/spiral-group/client-sdk-swift`, tag `2.16.0-spiral.1` | `d339ddaefbc0cd87ad9a41cece4121e3023e86cc` |
+| compound-design-tokens | design tokens and icons, a fork of element-hq/compound-design-tokens (unchanged since 1.0.2) | AGPL-3.0-only | `https://github.com/spiral-group/compound-design-tokens`, tag `v11.3.1-spiral.4` | `8c97443840a680cd60b9b162363443667dd41757` |
+| spiral-app-shell | the Interactive Posts runtime, Spiral's own (unchanged since 1.0.2) | AGPL-3.0-or-later | `https://github.com/spiral-group/spiral-app-shell`, tag `1.1.0` | `ed239fe28a7ab06066fcab160b452ab0e3e3cf0d` |
+| synapse | the Matrix homeserver the app talks to, element-hq/synapse v1.165.0 with Spiral's five patches and its post guard module; not built into the app, published because users reach it over the network (AGPL-3.0 §13) | AGPL-3.0-only | `https://github.com/spiral-group/synapse`, branch `spiral/v1.165.0`, tag `v1.165.0-spiral.1` (the image the server runs) | the commit that tag names |
+
 ## Release: 1.0.2
 
 The build number is the one App Store Connect shows for 1.0.2; Xcode sets it at upload, from this same tree.

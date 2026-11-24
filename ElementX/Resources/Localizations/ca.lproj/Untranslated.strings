@@ -65,6 +65,9 @@
 "screen_agent_edit_persona_greeting" = "Salutació per a tu";
 "screen_agent_edit_persona_visitor_greeting" = "Salutació per als convidats";
 "screen_agent_edit_failure" = "No s'han pogut desar els canvis";
+"error_agent_name_reserved" = "Aquest nom està reservat per als comptes propis de Spiral. Tria'n un altre.";
+"error_agent_name_invalid_characters" = "El nom conté caràcters que no es poden fer servir.";
+"error_agent_name_unchecked" = "No s'ha pogut comprovar el nom. Torna-ho a provar.";
 "screen_agent_edit_load_failure" = "No s'ha pogut carregar el formulari d'edició";
 "screen_agent_edit_avatar_failure" = "No s'ha pogut pujar la foto";
 "action_agent_activity" = "Activitat";
@@ -250,7 +253,6 @@
 "screen_language_picker_title" = "Idioma";
 "screen_language_picker_empty" = "Cap idioma no coincideix amb la teva cerca.";
 "screen_start_sign_in" = "Inicia sessió";
-"screen_start_welcome_subtitle" = "Missatgeria ràpida i privada, amb el teu agent personal.";
 
 // AGENT-PLATFORM (Brief 0072, ADR-0083, ADR-0084): presence, worded as Telegram does
 "common_presence_online" = "en línia";
@@ -491,6 +493,16 @@
 "screen_native_call_assistants_record_confirm_title" = "Vols gravar la trucada?";
 "screen_native_call_assistants_record_confirm_message" = "Tothom veu REC a dalt de la trucada. La gravació apareix al xat després de la trucada.";
 "screen_native_call_assistants_record_confirm_action" = "Grava";
+"screen_native_call_assistants_notes_confirm_title" = "Vols prendre notes de la trucada?";
+"screen_native_call_assistants_notes_confirm_message" = "El teu assistent escolta la trucada i després publica un resum al xat. Els altres veuen que pren notes.";
+"screen_native_call_assistants_notes_confirm_action" = "Pren notes";
+"screen_native_call_assistants_talk_confirm_title" = "Vols parlar amb el teu assistent?";
+"screen_native_call_assistants_talk_confirm_message" = "Només et sent a tu i respon en veu alta — tothom a la trucada el sent.";
+"screen_native_call_assistants_talk_confirm_action" = "Comença a parlar";
+"screen_native_call_assistants_translate_question_title" = "Tradueix a";
+"screen_native_call_assistants_listen_question_title" = "Escolta en";
+"screen_native_call_assistants_talk_info_title" = "El teu assistent respon en veu alta";
+"screen_native_call_assistants_talk_info_message" = "Només et sent a tu, i tothom a la trucada el sent. No tradueix mentre parla.";
 "screen_native_call_assistants_none_of_your_own" = "No tens cap assistent";
 "screen_native_call_assistants_which" = "Quin assistent";
 "screen_native_call_assistants_reason_paused" = "El teu assistent està en pausa";
@@ -571,7 +583,6 @@
 "screen_native_call_assistants_job_conversation" = "Parlar";
 "screen_native_call_assistants_translating" = "Tradueix → %1$@";
 "screen_native_call_assistants_stop_translation" = "Atura la traducció";
-"screen_native_call_assistants_talk_caption" = "Et respon en veu alta i tothom ho sent. No tradueix mentre parla.";
 "screen_native_call_assistants_pick_footer" = "Es recorda per a aquest xat";
 "screen_native_call_assistants_neighbour_language" = "Idioma de la persona del costat";
 "screen_native_call_assistants_pocket_detail" = "Després de cada frase · en els dos sentits";
@@ -591,10 +602,9 @@
 "screen_native_call_assistants_status_both_ways" = "Tradueix en els dos sentits";
 "screen_native_call_assistants_translate_into" = "Tradueix a";
 "screen_native_call_assistants_translate_into_detail" = "Hi sents la trucada";
+"screen_native_call_assistants_translate_into_language" = "Tradueix a: %1$@";
 "screen_native_call_assistants_in_call" = "A la trucada";
 "screen_native_call_assistants_in_call_more" = "A la trucada: %1$d més";
-"screen_native_call_assistants_new_translation" = "Traducció nova";
-"screen_native_call_assistants_new_translation_detail" = "El teu assistent traduirà la trucada";
 "screen_native_call_assistants_new_translation_others" = "El teu assistent tradueix %1$@. Els altres ja es tradueixen, gratis.";
 "screen_native_call_assistants_start_translation" = "Inicia la traducció";
 "screen_native_call_assistants_start_translation_detail" = "Fa servir el teu límit. Qui triï aquest idioma l'escolta gratis.";
@@ -1044,7 +1054,6 @@
 "notice_phrase_changed_title" = "S'ha canviat la frase d'accés";
 "a11y_message_read" = "Llegit";
 "screen_legal_information_source_code_spiral" = "Codi font";
-"screen_invite_people_seats_label" = "Invitacions restants";
 "screen_native_call_tile_not_joined" = "No t'hi vas unir";
 "screen_agent_settings_show_in_search_footer" = "Si la gent el pot trobar a la cerca. Qualsevol que tingui la seva adreça li pot escriure igualment.";
 "screen_agent_edit_tone_calm" = "Tranquil";
@@ -1056,7 +1065,6 @@
 "screen_room_interactive_draft_published" = "Publicada";
 "screen_agent_activity_reason_visitor_policy_reply" = "Vas permetre respondre de seguida";
 "screen_agent_in_room_no_tools" = "Encara no hi ha eines en aquest xat.";
-"notice_welcome_assistant_body" = "Soc %1$@, el teu assistent personal. Puc passar-te missatges quan no hi siguis, recordar els teus contactes i resumir sales. Per activar les meves eines en una sala, toca-hi + i tria Agents. Escriu-me amb naturalitat, soc aquí.";
 "screen_room_interactive_post_pick_agent_title" = "Qui l'ha de fer?";
 "screen_agent_settings_visitor_ask_first_description" = "Una persona nova espera fins que hi estiguis d'acord";
 "screen_ai_consent_prompt_failed" = "No s'ha pogut desar la teva elecció. Comprova la connexió i torna-ho a provar.";
@@ -1086,10 +1094,8 @@
 "screen_agent_activity_reason_block_needs_owner" = "Bloquejar necessita el teu vistiplau";
 "screen_create_company_title" = "Empresa nova";
 "a11y_native_call_disable_speaker" = "Desactiva l'altaveu";
-"screen_invite_paste_placeholder" = "spiral.md/join/…";
 "a11y_native_call_end" = "Penja";
 "screen_agent_activity_action_published_post" = "Ha publicat una publicació";
-"screen_invite_people_joined_footer" = "Persones que van crear el compte amb el teu enllaç. Toca per iniciar un xat.";
 "screen_arm_tool_turn_off_confirm_message" = "L'agent deixa de fer això en aquest xat per a tothom. Pots tornar-la a activar quan vulguis.";
 "spiral_app_card_line_by" = "De %1$@";
 "state_event_spiral_tool_language_changed_by_you" = "Has canviat Tradueix: %1$@ → %2$@";
@@ -1114,7 +1120,6 @@
 "screen_native_call_agent_block_recording" = "Gravant";
 "screen_native_call_control_video" = "Vídeo";
 "screen_agent_detail_pause" = "Pausa";
-"screen_invite_paste_expired" = "Aquesta invitació ja no és vàlida. Demana'n una de nova.";
 "screen_security_messages_section" = "Missatges";
 "screen_agent_activity_reason_relationship_unavailable" = "No s'ha pogut comprovar el contacte";
 "screen_ai_consent_prompt_allow" = "Permet";
@@ -1144,15 +1149,12 @@
 "state_event_spiral_tool_off_by_system" = "%1$@ s'ha desactivat per a %2$@";
 "a11y_native_call_swap_to_held_call" = "Canvia a la trucada amb %@";
 "screen_native_call_audio_route_iphone" = "iPhone";
-"screen_invite_people_seats_value" = "%1$d de %2$d";
 "screen_agent_activity_reason_first_contact_with_unknown_visitor" = "Primer missatge d'algú nou";
 "screen_deactivate_account_spiral_list_item_3" = "Suprimirà les dades del teu compte del nostre servidor d'identitat.";
 "a11y_native_call_bar" = "Trucada en curs amb %1$@. Toca per tornar-hi.";
-"screen_invite_paste_unavailable" = "No s'ha pogut comprovar la invitació. Torna-ho a provar.";
 "screen_agent_activity_action_read_call_summary" = "Ha llegit un resum de trucada";
 "screen_ai_consent_prompt_title" = "Vols permetre IA de tercers?";
 "screen_agent_edit_voice_language_footer" = "L'assistent sempre respon en l'idioma que parles. Això defineix com sent les trucades i l'idioma dels resums de trucades.";
-"screen_invite_welcome_title" = "Et donem la benvinguda a Spiral";
 "screen_agent_activity_reason_blocked_visitor" = "Persona bloquejada";
 "screen_deactivate_account_spiral_list_item_1_bold_part" = "Desactiva permanentment";
 "screen_native_call_agent_center_recording_live" = "Gravant…";
@@ -1220,7 +1222,6 @@
 "screen_deactivate_account_spiral_failed" = "No s'ha pogut suprimir el compte. Torna-ho a provar d'aquí a un minut.";
 "screen_agent_activity_action_changed_call_mode" = "Ha canviat com participa en una trucada";
 "a11y_native_call_unmute_microphone" = "Activa el micròfon";
-"screen_invite_paste_label" = "Enllaç o codi";
 "screen_media_viewer_position" = "%1$d de %2$d";
 "screen_native_call_status_reconnecting_detail" = "S'ha perdut la teva connexió";
 "screen_approval_detail_block_blocked_subtitle" = "D'ara endavant, el teu agent ignora els seus missatges.";
@@ -1256,6 +1257,13 @@
 "screen_agent_activity_reason_no_contact_relationship" = "No és un dels teus contactes";
 "screen_room_alias_link_not_found" = "Aquest enllaç no porta a cap xat.";
 "screen_invite_people_title" = "Convida a Spiral";
+"screen_invite_people_you" = "Tu";
+"screen_invite_people_invited_count" = "Has convidat %1$d de %2$d";
+"screen_invite_people_invited_you" = "T'ha convidat a Spiral";
+"screen_invite_people_seat_invite" = "Convida";
+"screen_invite_people_seat_taken" = "Ocupat";
+"screen_invite_people_chain_footer" = "Un enllaç per a %1$d persones, i no es renova. Toca una persona per obrir-ne el perfil.";
+"screen_invite_people_all_used" = "S'han fet servir totes les invitacions";
 "screen_approval_detail_escalation_cold_outreach" = "El teu agent vol escriure a algú per primera vegada.";
 "screen_start_invited_by" = "%1$@ t'ha convidat a Spiral";
 "screen_agent_spaces_section_retry" = "Toca per tornar-ho a provar.";
@@ -1263,7 +1271,6 @@
 "screen_settings_new_phrase_done" = "S'ha canviat la frase d'accés";
 "screen_agent_activity_reason_outside_conversation" = "Fora d'aquesta conversa";
 "a11y_native_call_switch_camera" = "Canvia de càmera";
-"screen_invite_people_joined" = "Unides amb la teva invitació: %1$d";
 "screen_agent_activity_action_searched_agents" = "Ha buscat agents";
 "screen_agent_activity_reason_strategy_no_op" = "Res a fer";
 "action_dismiss_visitor_message" = "Elimina";
@@ -1272,7 +1279,6 @@
 "screen_approval_detail_block_action_dont_block" = "No la bloquegis";
 "screen_agent_settings_people_title" = "Parlar amb la gent";
 "screen_native_call_agent_center_error_not_owner" = "Només el propietari d'aquesta sessió la pot canviar.";
-"notice_welcome_agent_body" = "%1$@ està a punt. Escriu-me i prou.";
 "screen_agent_detail_already_in_chat" = "L'agent ja és en aquest xat";
 "screen_native_call_agent_center_booth_members" = "%1$@ a %2$@";
 "screen_settings_devices_title" = "Dispositius i sessions";
@@ -1290,7 +1296,6 @@
 "screen_agent_activity_action_remembered" = "Ha recordat alguna cosa d'un contacte";
 "screen_room_interactive_post_link_needs_update" = "Aquesta publicació necessita una versió més nova de Spiral. Actualitza l'app per fer-la servir.";
 "screen_room_member_details_erase_assistant_memory" = "Esborra el que els meus assistents en saben";
-"screen_invite_paste_without" = "Continua sense invitació";
 "screen_agent_edit_tone_friendly" = "Amigable";
 "screen_room_interactive_post_update" = "Actualitza la publicació";
 "screen_agent_detail_archive_refused" = "El teu assistent personal es queda amb el teu compte i no es pot arxivar.";
@@ -1307,9 +1312,7 @@
 "screen_native_call_agent_center_talking" = "L'assistent està parlant";
 "screen_native_call_tile_call_back" = "Toca per tornar la trucada";
 "notice_reply_failed_body" = "Alguna cosa ha fallat per part meva. Torna-ho a enviar, si us plau.";
-"screen_invite_people_joined_title" = "Unides amb la teva invitació";
 "screen_native_call_status_connecting_detail" = "Configurant el xifratge";
-"screen_invite_paste_title" = "Tens una invitació?";
 "screen_edit_profile_bio_too_long" = "Una biografia pot tenir com a màxim %1$d caràcters. Escurça-la per desar-la.";
 "a11y_native_call_agent_block_role" = "%1$@, %2$@";
 "a11y_native_call_recording" = "Aquesta trucada s'està gravant";
@@ -1322,12 +1325,25 @@
 "screen_agent_spaces_assistant_pending" = "El teu assistent encara s'està configurant";
 "screen_room_member_details_erase_assistant_memory_alert_title" = "Vols esborrar el que els teus assistents saben de %1$@?";
 "screen_settings_new_phrase_failed" = "No s'ha pogut començar a canviar la frase. Torna-ho a provar.";
+/* AGENT-PLATFORM (1.0.3): sign-in methods — the first phrase for an account made with Apple, Sign in with Apple for a phrase account. */
+"screen_settings_add_phrase_title" = "Afegeix una frase d'accés";
+"screen_settings_add_phrase_message" = "Triaràs 12 paraules. Obren el teu compte en qualsevol dispositiu, a més d'Inicia la sessió amb Apple. Mantindràs la sessió iniciada en aquest dispositiu i els teus missatges no es veuran afectats.";
+"screen_settings_add_phrase_auth_reason" = "Confirma que ets tu per afegir una frase d'accés";
+"screen_settings_add_phrase_done" = "S'ha afegit la frase d'accés";
+"screen_settings_add_phrase_failed" = "No s'ha pogut començar a afegir la frase. Torna-ho a provar.";
+"screen_settings_sign_in_passcode_required" = "Primer configura un codi del dispositiu: protegeix les teves maneres d'accedir";
+"screen_settings_apple_title" = "Inicia la sessió amb Apple";
+"screen_settings_apple_connected" = "Connectat";
+"screen_settings_apple_add_title" = "Afegeix Inicia la sessió amb Apple";
+"screen_settings_apple_auth_reason" = "Confirma que ets tu per afegir Inicia la sessió amb Apple";
+"screen_settings_apple_linked" = "S'ha afegit Inicia la sessió amb Apple";
+"screen_settings_apple_taken" = "Aquest Apple ID ja s'utilitza en un altre compte de Spiral";
+"screen_settings_apple_failed" = "No s'ha pogut començar a afegir Inicia la sessió amb Apple. Torna-ho a provar.";
 "screen_deactivate_account_spiral_description" = "Suprimir el teu compte és %1$@. Això:";
 "screen_agent_activity_action_set_reminder" = "Ha creat un recordatori";
 "screen_agent_activity_action_cancelled_reminder" = "Ha cancel·lat un recordatori";
 "screen_agent_activity_reason_capability_always_allowed" = "Sempre permès";
 "screen_agent_activity_action_blocked_someone" = "Ha bloquejat algú";
-"screen_invite_paste_message" = "Enganxa l'enllaç que t'ha enviat un usuari de Spiral, o escriu el codi.";
 "screen_native_call_error_title" = "La trucada ha fallat";
 "notification_approval_action_not_found_title" = "Aquesta sol·licitud ja no existeix";
 "state_event_spiral_tool_changed_by_you" = "Has canviat %1$@";
@@ -1354,7 +1370,6 @@
 "screen_native_call_control_sound" = "So";
 "screen_native_call_status_reconnecting" = "Tornant a connectar…";
 "notice_phrase_changed_body" = "La frase antiga ja no serveix per iniciar sessió.";
-"screen_invite_people_seats_footer" = "Cada persona té un enllaç amb %1$d places. No es renova, així que comparteix-lo amb la gent que de debò vols aquí.";
 "screen_room_member_details_agent_unblock_action" = "Desbloqueja";
 "screen_agent_activity_reason_unknown_capability" = "No és una cosa que pugui fer";
 "screen_settings_new_phrase_passcode_required" = "Primer configura un codi del dispositiu: protegeix el canvi de frase";
@@ -1426,10 +1441,11 @@
 "screen_your_data_calls_footer" = "Exporta una trucada: la seva transcripció, el seu resum i el seu registre de consentiment.";
 "screen_arm_tool_error_agent_does_not_join_calls" = "Aquest agent no s'uneix a trucades, així que les eines de trucada no estan disponibles per a ell.";
 "screen_room_interactive_generating_hint" = "Normalment, menys d'un minut";
-"screen_invite_paste_exhausted" = "Tothom que permetia aquesta invitació ja s'hi ha unit. Demana'n una de nova.";
 "notice_phrase_changed_on_device" = "Canviada a «%1$@».";
+/* AGENT-PLATFORM (1.0.3): the owner-DM card when Sign in with Apple is added. It names no device (security review); a new phrase disconnects Apple. */
+"notice_apple_linked_title" = "S'ha afegit Inicia la sessió amb Apple";
+"notice_apple_linked_body" = "Si no has estat tu, canvia la teva frase d'accés: això desconnecta Apple.";
 "screen_ai_consent_prompt_openai" = "OpenAI: els missatges que llegeixen els assistents, la teva veu a les trucades amb ells i les gravacions que transcriuen.";
-"screen_invite_welcome_message" = "%1$@ t'ha convidat i ja sap que ets aquí. Saluda!";
 "screen_agent_activity_action_used_tool" = "Ha fet servir una eina en un missatge";
 "screen_approval_detail_escalation_first_contact" = "Algú ha escrit al teu agent per primera vegada, així que et pregunta abans de respondre.";
 "screen_agent_activity_action_drafted_post" = "Ha redactat una publicació";
@@ -1444,7 +1460,6 @@
 "screen_room_interactive_post_updated" = "S'ha actualitzat la publicació";
 "screen_native_call_camera_failed_message" = "La càmera no s'ha pogut iniciar, així que la trucada continua només amb àudio. Torna a provar el botó de la càmera d'aquí a un moment.";
 "screen_media_viewer_open" = "Obre";
-"screen_invite_paste_invalid" = "Aquesta invitació no existeix.";
 "screen_agent_room_tool_audience_except_named" = "per a tothom excepte %1$@";
 "notification_spiral_needs_update_body" = "Actualitza l'app per veure-ho.";
 "screen_agent_edit_tone_brief" = "Breu i directe";
@@ -1452,7 +1467,6 @@
 "screen_invite_people_seats_left" = "Queden %1$d de %2$d invitacions";
 "screen_agent_activity_reason_wrong_room_kind" = "No es permet en aquest tipus de xat";
 "screen_native_call_failure_audio_reset" = "El sistema ha restablert l'àudio de la trucada.";
-"screen_invite_people_body" = "El registre és per invitació. Comparteix el teu enllaç personal: qui creï un compte amb ell et veurà primer a tu.";
 "notification_approval_action_target_blocked_title" = "No enviat: has bloquejat aquesta persona";
 "screen_notifications_hub_visitor_other" = "Alguna cosa nova";
 "screen_agent_activity_empty_pending_title" = "No hi ha sol·licituds per decidir";
@@ -1476,3 +1490,61 @@
 "screen_notifications_hub_visitors_section" = "De la gent";
 "screen_agent_settings_visitor_reply_description" = "Respon a tothom excepte a les persones que has bloquejat";
 "screen_deactivate_account_spiral_auth_reason" = "Confirma que ets tu per suprimir el compte";
+
+// AGENT-PLATFORM (1.0.3 A2): the assistant's first invite in Chats, its chat before consent and its welcome.
+"screen_roomlist_assistant_invite_name" = "El teu assistent";
+"screen_roomlist_assistant_invite_subtitle" = "Hola! Toca per començar 👋";
+"screen_roomlist_assistant_invite_start" = "Comença";
+"a11y_assistant_invite_start" = "Comença una conversa amb el teu assistent";
+"a11y_assistant_invite_start_hint" = "Accepta la invitació del teu assistent i obre el teu xat amb ell.";
+"screen_assistant_invite_title" = "Hola! Soc el teu assistent";
+"screen_assistant_invite_reminders" = "Et recordaré les coses";
+"screen_assistant_invite_contacts" = "Recordaré els teus contactes";
+"screen_assistant_invite_summaries" = "Resumiré qualsevol xat";
+"screen_assistant_invite_privacy" = "Només veig aquesta conversa. Pots desactivar-me quan vulguis.";
+"screen_assistant_invite_start" = "Comença la conversa";
+"notice_welcome_body" = "Soc aquí i a punt per ajudar. Per on comencem?";
+"notice_welcome_starter_summary" = "Resumeix un xat";
+"notice_welcome_starter_summary_message" = "Resumeix-me un xat";
+"notice_welcome_starter_contact" = "Recorda un contacte";
+"notice_welcome_starter_contact_message" = "Recorda una cosa sobre un contacte meu";
+"notice_welcome_starter_reminder" = "Recorda’m…";
+"notice_welcome_starter_reminder_message" = "Posa’m un recordatori";
+"notice_welcome_allow_ai_reason" = "Permet la IA perquè pugui llegir el que escrius aquí.";
+"notice_welcome_allow_ai_action" = "Permet la IA";
+
+// AGENT-PLATFORM (1.0.3 onboarding): the start screen's stories, the notifications prompt and the invited welcome.
+"screen_start_slide_privacy_title" = "Les teves converses són teves";
+"screen_start_slide_privacy_subtitle" = "Xifratge d’extrem a extrem. Sense número de telèfon, i l’assistent només amb el teu permís";
+"screen_start_slide_calls_title" = "Trucades amb traducció";
+"screen_start_slide_calls_subtitle" = "El teu assistent s’hi uneix i tradueix en directe";
+"screen_start_slide_assistant_title" = "L’assistent, a prop";
+"screen_start_slide_assistant_subtitle" = "Respon quan estàs ocupat i et pregunta abans de cada pas nou";
+"screen_start_slide_games_title" = "Jugueu junts directament al xat";
+"screen_start_slide_games_subtitle" = "Jocs i eines, sense instal·lar res";
+"screen_start_invited_by_hint" = "Crea un compte i %1$@ sabrà que ets aquí";
+"a11y_start_slides_position" = "Diapositiva %1$d de %2$d";
+"screen_notification_optin_spiral_title" = "Mantén el contacte";
+"screen_notification_optin_spiral_subtitle" = "Spiral t’avisa quan una cosa és realment important. Pots canviar-ho quan vulguis a Configuració.";
+"screen_notification_optin_messages_title" = "Missatges nous";
+"screen_notification_optin_messages_subtitle" = "De les persones i grups amb qui parles";
+"screen_notification_optin_calls_title" = "Trucades entrants";
+"screen_notification_optin_calls_subtitle" = "Fins i tot amb Spiral tancat";
+"screen_notification_optin_assistant_title" = "Preguntes del teu assistent";
+"screen_notification_optin_assistant_subtitle" = "Quan necessita el teu consentiment";
+"screen_notification_optin_allow" = "Permet les notificacions";
+"screen_invite_welcome_together_title" = "Ets a Spiral juntament amb %1$@";
+"screen_invite_welcome_step_say_hello_title" = "Saludar %1$@";
+"screen_invite_welcome_step_say_hello_subtitle" = "%1$@ t’espera";
+"screen_invite_welcome_step_assistant_title" = "Conèixer el teu assistent";
+"screen_invite_welcome_step_assistant_subtitle" = "La seva invitació t’espera a Xats";
+"screen_invite_welcome_step_play_title" = "Jugar a alguna cosa junts";
+"screen_invite_welcome_step_play_subtitle" = "Jocs i eines directament al xat";
+"a11y_invite_welcome_avatars" = "%1$@ i tu";
+"screen_approval_detail_already_closed_title" = "Aquesta sol·licitud ja està tancada";
+"screen_approval_detail_already_closed_message" = "Ha caducat o ja s'ha respost.";
+"screen_room_interactive_post_description_not_sent" = "La teva descripció no s'ha enviat. Torna-la a enviar al fil.";
+"screen_room_interactive_post_code_not_sent" = "La publicació no ha arribat a l'agent. Torna-ho a provar des de la publicació.";
+"screen_invites_assistant_decline_warning_spiral" = "Si és el teu propi assistent, el seu xat no es podrà recuperar després de rebutjar-lo.";
+"a11y_roomlist_remove_filter" = "Elimina el filtre: %1$@";
+"a11y_settings_share_profile" = "Comparteix el meu perfil";

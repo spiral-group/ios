@@ -33,6 +33,23 @@ struct NavigationRootCoordinatorTests {
         assertCoordinatorsEqual(secondRootCoordinator, navigationRootCoordinator.rootCoordinator)
     }
     
+    /// AGENT-PLATFORM (1.0.3): the cover stays while the root changes beneath it.
+    @Test
+    func coverOutlivesRootChanges() {
+        let cover = SomeTestCoordinator()
+        navigationRootCoordinator.setRootCoordinator(SomeTestCoordinator())
+        navigationRootCoordinator.setCoverCoordinator(cover)
+        
+        let newRoot = SomeTestCoordinator()
+        navigationRootCoordinator.setRootCoordinator(newRoot)
+        assertCoordinatorsEqual(newRoot, navigationRootCoordinator.rootCoordinator)
+        assertCoordinatorsEqual(cover, navigationRootCoordinator.coverCoordinator)
+        
+        navigationRootCoordinator.setCoverCoordinator(nil)
+        #expect(navigationRootCoordinator.coverCoordinator == nil)
+        assertCoordinatorsEqual(newRoot, navigationRootCoordinator.rootCoordinator)
+    }
+    
     // MARK: - Dismissal Callbacks
     
     @Test

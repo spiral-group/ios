@@ -125,13 +125,17 @@ struct HomeScreenInviteCell: View {
     
     @ViewBuilder
     private var buttons: some View {
-        Button {
-            context.send(viewAction: .declineInvite(roomIdentifier: room.id))
-        } label: {
-            Text(L10n.actionDecline)
-                .frame(maxWidth: .infinity)
+        // AGENT-PLATFORM (1.0.3 A2, ADR-0017): an assistant's invite whose owner isn't known yet may be the person's
+        // own, whose chat a decline would end for good.
+        if room.assistantInvite.allowsDecline {
+            Button {
+                context.send(viewAction: .declineInvite(roomIdentifier: room.id))
+            } label: {
+                Text(L10n.actionDecline)
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.compound(.secondary, size: .medium))
         }
-        .buttonStyle(.compound(.secondary, size: .medium))
         
         Button {
             context.send(viewAction: .acceptInvite(roomIdentifier: room.id))

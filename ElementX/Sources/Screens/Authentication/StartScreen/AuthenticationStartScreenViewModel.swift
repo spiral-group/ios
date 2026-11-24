@@ -16,7 +16,6 @@ class AuthenticationStartScreenViewModel: AuthenticationStartScreenViewModelType
     private let userIndicatorController: UserIndicatorControllerProtocol
     // AGENT-PLATFORM (Brief 0073 / ADR-0008).
     private let appSettings: AppSettings
-    private let inviteLinkResolver: InviteLinkResolverProtocol
     
     private let canReportProblem: Bool
     
@@ -31,12 +30,10 @@ class AuthenticationStartScreenViewModel: AuthenticationStartScreenViewModelType
     init(authenticationService: AuthenticationServiceProtocol,
          isBugReportServiceEnabled: Bool,
          appSettings: AppSettings,
-         userIndicatorController: UserIndicatorControllerProtocol,
-         inviteLinkResolver: InviteLinkResolverProtocol = InviteLinkResolver()) {
+         userIndicatorController: UserIndicatorControllerProtocol) {
         self.authenticationService = authenticationService
         self.userIndicatorController = userIndicatorController
         self.appSettings = appSettings
-        self.inviteLinkResolver = inviteLinkResolver
         canReportProblem = isBugReportServiceEnabled
         
         let isQRCodeScanningSupported = !ProcessInfo.processInfo.isiOSAppOnMac
@@ -49,22 +46,20 @@ class AuthenticationStartScreenViewModel: AuthenticationStartScreenViewModelType
             AuthenticationStartScreenViewState(serverNameOrBaseURL: appSettings.accountProviders.count == 1 ? appSettings.accountProviders[0].serverNameOrBaseURL : nil,
                                                showCreateAccountButton: appSettings.showCreateAccountButton,
                                                showQRCodeLoginButton: isQRCodeScanningSupported && appSettings.qrCodeLoginEnabled,
-                                               hideBrandChrome: appSettings.hideBrandChrome,
-                                               registrationRequiresInvite: appSettings.registrationRequiresInvite)
+                                               hideBrandChrome: appSettings.hideBrandChrome)
         } else { // AGENT-PLATFORM (Brief 0083 L1b): no provisioning link branch
             // The default configuration.
             AuthenticationStartScreenViewState(serverNameOrBaseURL: nil,
                                                showCreateAccountButton: appSettings.showCreateAccountButton,
                                                showQRCodeLoginButton: isQRCodeScanningSupported && appSettings.qrCodeLoginEnabled,
-                                               hideBrandChrome: appSettings.hideBrandChrome,
-                                               registrationRequiresInvite: appSettings.registrationRequiresInvite)
+                                               hideBrandChrome: appSettings.hideBrandChrome)
         }
         
         super.init(initialViewState: initialViewState)
         
         // AGENT-PLATFORM (Brief 0073): the invitation arrives through the
-        // app coordinator (deep link) or the paste sheet; either way it
-        // lands in AppSettings and the banner follows.
+        // app coordinator (a deep link or the App Clip); it lands in
+        // AppSettings and the banner follows.
         state.pendingInvite = appSettings.pendingInvite
         appSettings.pendingInvitePublisher
             .dropFirst()
@@ -98,56 +93,10 @@ class AuthenticationStartScreenViewModel: AuthenticationStartScreenViewModelType
             // matrix-authentication-service#3429, so login/register share
             // one authorization URL on this stack).
             //
-            // AGENT-PLATFORM (Brief 0073): without an invitation in hand, ask
-            // for one first — the screen also lets the person go on without.
-            if state.pendingInvite == nil {
-                state.pastedInviteError = nil
-                state.bindings.pastedInviteText = ""
-                state.bindings.showInvitePasteSheet = true
-            } else {
-                Task { await register() }
-            }
-            
-        case .usePastedInvite:
-            Task { await usePastedInvite() }
-        case .registerWithoutInvite:
-            // Invite-only: the button is not shown; refuse the action too.
-            guard !state.registrationRequiresInvite else { return }
-            state.bindings.showInvitePasteSheet = false
+            // AGENT-PLATFORM (1.0.3, operator 2026-11-21): no invitation screen here. An invitation that came with a link
+            // or the App Clip rides along; without one, the web registration's first step asks for it, with the inviter's
+            // name and the used-up and expired cases.
             Task { await register() }
-        }
-    }
-    
-    // MARK: - Invitations (Brief 0073 / ADR-0008)
-    
-    // AGENT-PLATFORM: checks the pasted link against the public landing
-    // endpoint before accepting it, so a dead link is refused here and not
-    // three screens later on the identity page.
-    private func usePastedInvite() async {
-        guard let link = SpiralInviteLink.parse(pastedText: state.bindings.pastedInviteText) else {
-            state.pastedInviteError = UntranslatedL10n.screenInvitePasteInvalid
-            return
-        }
-        
-        state.isCheckingPastedInvite = true
-        defer { state.isCheckingPastedInvite = false }
-        
-        switch await inviteLinkResolver.resolve(link) {
-        case .success(.valid(let inviter)):
-            appSettings.pendingInvite = PendingInvite(token: link.token,
-                                                      inviterDisplayName: inviter?.displayName,
-                                                      inviterUserID: inviter?.mxid)
-            state.pastedInviteError = nil
-            state.bindings.showInvitePasteSheet = false
-            await register()
-        case .success(.expired):
-            state.pastedInviteError = UntranslatedL10n.screenInvitePasteExpired
-        case .success(.exhausted):
-            state.pastedInviteError = UntranslatedL10n.screenInvitePasteExhausted
-        case .success(.invalid):
-            state.pastedInviteError = UntranslatedL10n.screenInvitePasteInvalid
-        case .failure:
-            state.pastedInviteError = UntranslatedL10n.screenInvitePasteUnavailable
         }
     }
     

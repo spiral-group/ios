@@ -105,6 +105,8 @@ targets:
           UIInterfaceOrientationLandscapeRight
         ]
         appGroupIdentifier: $(APP_GROUP_IDENTIFIER)
+        # AGENT-PLATFORM (Brief 0086): the server ClipInviteHandOff.swift reads, as the App Clip does.
+        spiralServerName: $(SPIRAL_ASSOCIATED_DOMAIN)
         baseBundleIdentifier: $(BASE_BUNDLE_IDENTIFIER)
         keychainAccessGroupIdentifier: $(KEYCHAIN_ACCESS_GROUP_IDENTIFIER)
         # AGENT-PLATFORM (Brief 0083 L1b): no classicApp* keys, Element Classic's import is gone.
@@ -168,6 +170,9 @@ targets:
         # (Apple rejects the `?mode=` query in submissions) and must not
         # come back on a release branch — see docs/project/DECISIONS.md.
         - webcredentials:$(SPIRAL_ASSOCIATED_DOMAIN)
+        # AGENT-PLATFORM (Brief 0086): the app names its App Clip (App Store Connect asks for it at upload).
+        com.apple.developer.associated-appclip-app-identifiers:
+        - $(AppIdentifierPrefix)$(BASE_BUNDLE_IDENTIFIER).Clip
         com.apple.developer.usernotifications.communication: true
         com.apple.security.app-sandbox: true
         com.apple.security.application-groups:
@@ -358,6 +363,9 @@ targets:
       product: SpiralTokens
     # AGENT-PLATFORM (Brief 0083 phase 3): Spiral's shared components, after the tokens for the same reason.
     - package: SpiralComponents
+    # AGENT-PLATFORM (Brief 0086): the App Clip for invite links, in "Embed App Clips"; last for the same reason.
+    - target: SpiralClip
+      embed: true
 
     sources:
     - path: ../Sources

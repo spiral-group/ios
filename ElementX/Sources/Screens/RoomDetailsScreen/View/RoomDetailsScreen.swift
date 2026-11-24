@@ -468,7 +468,7 @@ struct RoomDetailsScreen_Previews: PreviewProvider, TestablePreview, SpiralGated
     static let dmRoomVerifiedViewModel = makeDMViewModel(verificationState: .verified)
     static let dmRoomVerificationViolationViewModel = makeDMViewModel(verificationState: .verificationViolation)
     // AGENT-PLATFORM (Brief 0083, decision 344): a monogram's field, the assistant's DM (the header's sample) and a call to join.
-    static let dmRoomMonogramViewModel = makeDMViewModel(verificationState: .notVerified, recipient: .init(with: .init(userID: "@andrii:spiral.md", displayName: "Andrii", membership: .join)), topic: nil)
+    static let dmRoomMonogramViewModel = makeDMViewModel(verificationState: .notVerified, recipient: .init(with: .init(userID: "@alice:spiral.md", displayName: "Alice", membership: .join)), topic: nil)
     static let assistantDMViewModel = makeDMViewModel(verificationState: .notVerified,
                                                       recipient: .init(with: .init(userID: "@assistant-appreview:spiral.md", displayName: "App Review · assistant", membership: .join)),
                                                       topic: nil)

@@ -27,6 +27,9 @@ struct MediaEventsTimelineGroup: Identifiable {
 struct MediaEventsTimelineScreenViewState: BindableState {
     var isBackPaginating = false
     var shouldShowEmptyState = false
+    /// AGENT-PLATFORM (1.0.3 B14): the last page failed to load. It stays until Retry, so it neither reads as loading nor
+    /// reads again by itself.
+    var hasFailedToLoad = false
     
     var screenMode: MediaEventsTimelineScreenMode
     var groups = [MediaEventsTimelineGroup]()
@@ -47,4 +50,5 @@ enum MediaEventsTimelineScreenViewAction {
     case oldestItemDidDisappear
     case tappedItem(item: RoomTimelineItemViewState)
     case longPressedItem(item: RoomTimelineItemViewState)
+    case retry // AGENT-PLATFORM (1.0.3 B14)
 }

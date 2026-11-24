@@ -775,6 +775,8 @@ nonisolated class FeedURLProtocol: URLProtocol {
         var contentType: String?
         /// A server that never answers: the request ends only when it is cancelled.
         var hangs = false
+        /// No answer: the transport fails with this.
+        var error: URLError?
     }
 
     struct Recorded {
@@ -810,6 +812,10 @@ nonisolated class FeedURLProtocol: URLProtocol {
                                                                          headers: request.allHTTPHeaderFields ?? [:])) }
         let stub = Self.pathStubs.withLock { $0[testID]?[url.path()] } ?? Self.stubs.withLock { $0[testID] } ?? Stub(status: 500, body: Data())
         guard !stub.hangs else { return }
+        if let error = stub.error {
+            client?.urlProtocol(self, didFailWithError: error)
+            return
+        }
 
         let contentType = stub.contentType ?? ((200..<300).contains(stub.status) ? "application/json" : "application/problem+json")
         guard let response = HTTPURLResponse(url: url, statusCode: stub.status, httpVersion: "HTTP/1.1",

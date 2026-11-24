@@ -102,6 +102,22 @@ public struct CompoundIcon: View {
         self.size = size
         self.font = font
     }
+
+    /// AGENT-PLATFORM (1.0.3): an SF Symbol Compound has no key for (Apple's logo), drawn the way
+    /// Spiral draws Compound's keys (decision 320): the same point size, weight and frame as its
+    /// neighbours. A symbol this OS lacks draws nothing in that frame.
+    ///
+    /// - Parameters:
+    ///   - systemName: The SF Symbol's name.
+    ///   - label: What VoiceOver reads for it.
+    ///   - size: The size of the icon's frame.
+    ///   - font: The font that should be used for scaling with Dynamic Type.
+    public init(systemName: String, label: String, size: Size = .medium, relativeTo font: Font = .compound.bodyLG) {
+        image = Image(systemName: systemName)
+        drawing = UIImage(systemName: systemName) != nil ? .symbol(name: systemName, label: label) : .asset
+        self.size = size
+        self.font = font
+    }
     
     public var body: some View {
         SpiralSymbols.image(for: drawing, asset: image) // AGENT-PLATFORM (Brief 0083, decision 320): was `image.resizable()`

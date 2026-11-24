@@ -35,6 +35,10 @@ protocol PresenceObserverServiceProtocol {
     func stopObserving(_ userID: String)
     /// A list shows these users right now (replaces the scope's previous set).
     func setObserved(_ userIDs: Set<String>, scope: String)
+    /// The session ended (sign-out, account deletion, clear cache): stop for
+    /// good. Screens of the ended session can outlive it and still call in,
+    /// and its token is dead, so a stopped service never polls again.
+    func stop()
 }
 
 final class PresenceObserverService: PresenceObserverServiceProtocol {
@@ -57,6 +61,7 @@ final class PresenceObserverService: PresenceObserverServiceProtocol {
     private var lastRequested: [String: Date] = [:]
     private var inFlight: Set<String> = []
     private var isForegroundActive: Bool
+    private var isStopped = false
     private var pollTask: Task<Void, Never>?
     private var cancellables = Set<AnyCancellable>()
     
@@ -99,6 +104,7 @@ final class PresenceObserverService: PresenceObserverServiceProtocol {
     // MARK: - Protocol
     
     func observe(_ userID: String) {
+        guard !isStopped else { return }
         refCounts[userID, default: 0] += 1
         reschedule()
         refreshSoon()
@@ -115,6 +121,7 @@ final class PresenceObserverService: PresenceObserverServiceProtocol {
     }
     
     func setObserved(_ userIDs: Set<String>, scope: String) {
+        guard !isStopped else { return }
         if userIDs.isEmpty {
             scopes[scope] = nil
         } else {
@@ -122,6 +129,17 @@ final class PresenceObserverService: PresenceObserverServiceProtocol {
         }
         reschedule()
         refreshSoon()
+    }
+    
+    func stop() {
+        guard !isStopped else { return }
+        isStopped = true
+        cancellables.removeAll()
+        pollTask?.cancel()
+        pollTask = nil
+        refCounts.removeAll()
+        scopes.removeAll()
+        inFlight.removeAll()
     }
     
     // MARK: - Private
@@ -156,6 +174,7 @@ final class PresenceObserverService: PresenceObserverServiceProtocol {
     }
     
     private func applicationStateChanged(isActive: Bool) {
+        guard !isStopped else { return }
         isForegroundActive = isActive
         reschedule()
     }
@@ -165,7 +184,7 @@ final class PresenceObserverService: PresenceObserverServiceProtocol {
     /// in whom to poll needs no restart — only the first tick is brought
     /// forward when the loop was idle.
     private func reschedule() {
-        let shouldRun = isForegroundActive && !pollable.isEmpty
+        let shouldRun = !isStopped && isForegroundActive && !pollable.isEmpty
         if !shouldRun {
             pollTask?.cancel()
             pollTask = nil
@@ -185,6 +204,7 @@ final class PresenceObserverService: PresenceObserverServiceProtocol {
     /// few at a time, and publish one dictionary at the end so a list
     /// re-renders once per round.
     private func refresh() async {
+        guard !isStopped else { return }
         let start = now()
         let userIDs = due(at: start).subtracting(inFlight)
         guard !userIDs.isEmpty else { return }
@@ -199,6 +219,8 @@ final class PresenceObserverService: PresenceObserverServiceProtocol {
         // requests themselves run off it inside the proxy, so they overlap.
         var results: [(String, Result<UserPresence, ClientProxyError>)] = []
         for chunk in userIDs.sorted().chunked(into: maxConcurrentRequests) {
+            // A round in flight when the session ended asks no further.
+            guard !isStopped else { return }
             let tasks = chunk.map { userID in
                 Task { await (userID, clientProxy.userPresence(for: userID)) }
             }

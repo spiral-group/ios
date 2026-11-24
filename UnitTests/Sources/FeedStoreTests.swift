@@ -311,6 +311,53 @@ struct FeedStoreTests {
         #expect(store.list(.latest)?.ids == [newer.id], "older than the pages read: it comes with its page")
     }
 
+    /// B18 (L1): someone else's post released is not put back by the app (its author may block the person,
+    /// or the person them): Latest and the author's list are read again, filtered by the server.
+    @Test
+    func someoneElsesReleasedPostIsReadAgainNotPutBack() async {
+        let reads = Counter()
+        store.show(.latest, by: owner) {
+            reads.count += 1
+            return true
+        }
+        store.apply([.postState(postID: post.id, state: .other("gone"))])
+        #expect(store.list(.latest)?.ids == [mine.id])
+
+        store.apply([.postState(postID: post.id, state: .visible)])
+        await store.settle()
+
+        #expect(store.list(.latest)?.ids == [mine.id], "Only the server's read puts it back")
+        #expect(store.list(.author(userID: post.author.userID))?.ids == [])
+        #expect(reads.count == 1)
+        #expect(store.isStale(.author(userID: post.author.userID)), "Off screen: read when it shows")
+    }
+
+    /// B18 review: a release writes `post_state` then `post_published` (migration 0122). A post the person
+    /// saw before is no new post: no pill. One they never saw is, as before.
+    @Test
+    func aReleasedPostIsNoNewPostForThePill() {
+        store.apply([.postState(postID: post.id, state: .other("gone"))])
+        store.apply([.postState(postID: post.id, state: .visible), .postPublished(postID: post.id, authorID: post.author.userID)])
+        #expect(store.newPostsCount == 0)
+
+        let unseen = "01933f2a-0000-7000-8000-000000000950"
+        store.apply([.postState(postID: unseen, state: .visible), .postPublished(postID: unseen, authorID: post.author.userID)])
+        #expect(store.newPostsCount == 1, "Held from the start: new to everyone else")
+    }
+
+    /// B18 review: an open post screen reads someone else's released post again; a block answers 404, and it is gone.
+    @Test
+    func aReleasedPostOpenOnItsOwnIsReadAgain() async {
+        service.postIdReturnValue = .failure(.notFound)
+        store.show(postID: post.id, by: owner)
+        store.apply([.postState(postID: post.id, state: .other("gone"))])
+        store.apply([.postState(postID: post.id, state: .visible)])
+        await store.settle()
+
+        #expect(service.postIdCallsCount == 1)
+        #expect(store.post(post.id)?.state == .other("gone"))
+    }
+
     @Test
     func hiddenLeavesTheListsAndUnhiddenReadsThemAgain() async {
         let reads = Counter()
@@ -413,6 +460,16 @@ struct FeedStoreTests {
         store.connectionState = .waiting(attempt: 3, isOffline: true)
         await store.settle()
         #expect(service.activityCursorLimitCallsCount == 2)
+        #expect(service.noticesCursorLimitLanguageCallsCount == 1)
+    }
+
+    /// Review of B9: a refused stream (no line, a quiet retry) reads the badges as a wait does.
+    @Test
+    func aRefusedStreamReadsTheBadges() async {
+        store.connectionState = .connecting
+        store.connectionState = .refused
+        await store.settle()
+        #expect(service.activityCursorLimitCallsCount == 1)
         #expect(service.noticesCursorLimitLanguageCallsCount == 1)
     }
 

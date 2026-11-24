@@ -18,6 +18,7 @@ struct AuthenticationServiceTests {
     var userSessionManager: UserSessionManagerMock!
     var encryptionKeyProvider: MockEncryptionKeyProvider!
     var service: AuthenticationService!
+    var appSettings: AppSettings!
     
     @Test
     mutating func passwordLogin() async throws {
@@ -91,6 +92,40 @@ struct AuthenticationServiceTests {
     
     // AGENT-PLATFORM (Brief 0083 L1b): no classicAppAccountSecretsBundle* tests, Element Classic's import is gone.
     
+    // MARK: - The pending invitation after a sign-in (1.0.3 B8)
+    
+    private static let invite = PendingInvite(token: "Qz8Hf72Kd91", inviterDisplayName: "Ann", inviterUserID: "@ann:matrix.org")
+    private static let callbackURL: URL = "io.element:/callback?code=c&state=s"
+    
+    @Test
+    mutating func aRegistrationThatCarriedTheInvitationKeepsIt() async throws {
+        try await setup()
+        appSettings.pendingInvite = Self.invite
+        
+        try await service.configure(for: "matrix.org", flow: .register).get()
+        let data = try await service.urlForOAuthLogin(loginHint: nil).get()
+        #expect(data.inviteToken == Self.invite.token)
+        _ = try await service.loginWithOAuthCallback(Self.callbackURL).get()
+        
+        #expect(appSettings.pendingInvite == Self.invite)
+    }
+    
+    // 1.0.3: a sign-in no longer drops the pending invitation here — the app coordinator drops it once a session
+    // starts, and the welcome comes from the platform (`InviteWelcomeOfferTests`), so a stale one greets nobody.
+    
+    @Test
+    mutating func aFailedSignInKeepsThePendingInvitation() async throws {
+        try await setup()
+        appSettings.pendingInvite = Self.invite
+        client.loginWithOauthCallbackCallbackUrlThrowableError = NSError(domain: "AuthenticationServiceTests", code: 1)
+        
+        try await service.configure(for: "matrix.org", flow: .login).get()
+        _ = try await service.urlForOAuthLogin(loginHint: nil).get()
+        _ = await service.loginWithOAuthCallback(Self.callbackURL)
+        
+        #expect(appSettings.pendingInvite == Self.invite)
+    }
+    
     // MARK: - Helpers
     
     private mutating func setup(serverNameOrBaseURL: String = "matrix.org") async throws {
@@ -106,6 +141,7 @@ struct AuthenticationServiceTests {
         // matrix.org fixtures; restore the open upstream provider shape since
         // the fork defaults to a single closed provider (spiral.md).
         let appSettings = AppSettings.volatile()
+        self.appSettings = appSettings
         appSettings.override(accountProviders: [.managed(serverName: "matrix.org", baseURL: "https://matrix-client.matrix.org")],
                              allowOtherAccountProviders: true,
                              hideBrandChrome: false,

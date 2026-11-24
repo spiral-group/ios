@@ -8,6 +8,7 @@
 import Combine
 import Foundation
 import Macros
+import Synchronization // AGENT-PLATFORM (1.0.3)
 
 final nonisolated class AccountSettings: @unchecked Sendable {
     /// UserDefaults to be used on reads and writes.
@@ -23,6 +24,16 @@ final nonisolated class AccountSettings: @unchecked Sendable {
     @UserPreference(defaultValue: false)
     var hasRunIdentityConfirmationOnboarding: Bool
     
+    /// AGENT-PLATFORM (1.0.3): the platform's answer about the invite welcome is settled for this account — nothing
+    /// was owed, or it was shown and the platform recorded it. Until then each session start asks again.
+    @UserPreference(defaultValue: false)
+    var hasSettledInviteWelcome: Bool
+    
+    /// AGENT-PLATFORM (1.0.3): the welcome was shown on this device but the platform hasn't recorded it yet: the next
+    /// session start retries the record instead of showing it again.
+    @UserPreference(defaultValue: false)
+    var hasShownInviteWelcome: Bool
+    
     /// The queries the user searched for and the rooms they opened from the results, most recent first.
     @UserPreference(defaultValue: [SearchBreadcrumb]())
     var searchBreadcrumbs: [SearchBreadcrumb]
@@ -35,6 +46,15 @@ final nonisolated class AccountSettings: @unchecked Sendable {
     /// The rooms this account is sharing its live location in.
     @UserPreference(key: "liveLocationSharingTimeoutDatesByRoomID", defaultValue: [String: LiveLocationSession]())
     var liveLocationSharingSessionsByRoomID: [String: LiveLocationSession]
+    
+    /// AGENT-PLATFORM (1.0.3): the Element X release whose per-account migrations this account ran, see `UpstreamMigrationBaseline`.
+    @UserPreference(key: "spiralUpstreamMigrationsVersion")
+    var upstreamMigrationsVersion: String?
+    
+    /// AGENT-PLATFORM (1.0.3): the sign-in methods the platform last reported, so Security draws its
+    /// rows on the first frame instead of moving them when the answer arrives. Cleared with the account.
+    @UserPreference(key: "spiralSignInMethods")
+    var signInMethods: SignInMethods?
     
     // MARK: Visible Preferences
     
@@ -54,6 +74,13 @@ final nonisolated class AccountSettings: @unchecked Sendable {
     
     @UserPreference(defaultValue: true)
     var sharePresence: Bool
+    
+    /// AGENT-PLATFORM (1.0.3): set by `reset()` at sign-out, so a read that answers afterwards
+    /// (the Security screen's sign-in methods) doesn't write the account's values back.
+    private let wasReset = Atomic<Bool>(false)
+    var isReset: Bool {
+        wasReset.load(ordering: .acquiring)
+    }
     
     init(userID: String, store: UserDefaultsProtocol) {
         self.store = .init(userID: userID, store: store)
@@ -83,6 +110,7 @@ final nonisolated class AccountSettings: @unchecked Sendable {
     
     func reset() {
         MXLog.warning("Resetting AccountSettings for \(userID).")
+        wasReset.store(true, ordering: .releasing) // AGENT-PLATFORM (1.0.3)
         store.reset()
     }
 }

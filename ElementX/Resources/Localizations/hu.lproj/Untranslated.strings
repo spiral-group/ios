@@ -65,6 +65,9 @@
 "screen_agent_edit_persona_greeting" = "Üdvözlés Önnek";
 "screen_agent_edit_persona_visitor_greeting" = "Üdvözlés vendégeknek";
 "screen_agent_edit_failure" = "Nem sikerült menteni a módosításokat";
+"error_agent_name_reserved" = "Ez a név a Spiral saját fiókjai számára van fenntartva. Válassz másik nevet.";
+"error_agent_name_invalid_characters" = "A név olyan karaktereket tartalmaz, amelyek nem használhatók.";
+"error_agent_name_unchecked" = "Nem sikerült ellenőrizni a nevet. Próbáld újra.";
 "screen_agent_edit_load_failure" = "Nem sikerült betölteni a szerkesztési űrlapot";
 "screen_agent_edit_avatar_failure" = "Nem sikerült feltölteni a fényképet";
 "action_agent_activity" = "Tevékenység";
@@ -250,7 +253,6 @@
 "screen_language_picker_title" = "Nyelv";
 "screen_language_picker_empty" = "Egyetlen nyelv sem felel meg a keresésének.";
 "screen_start_sign_in" = "Bejelentkezés";
-"screen_start_welcome_subtitle" = "Gyors, privát üzenetküldés a személyes ügynökével.";
 
 // AGENT-PLATFORM (Brief 0072, ADR-0083, ADR-0084): presence, worded as Telegram does
 "common_presence_online" = "online";
@@ -491,6 +493,16 @@
 "screen_native_call_assistants_record_confirm_title" = "Rögzíted a hívást?";
 "screen_native_call_assistants_record_confirm_message" = "Mindenki látja a REC jelzést a hívás tetején. A felvétel a hívás után megjelenik a csevegésben.";
 "screen_native_call_assistants_record_confirm_action" = "Rögzítés";
+"screen_native_call_assistants_notes_confirm_title" = "Jegyzeteljen a hívásról?";
+"screen_native_call_assistants_notes_confirm_message" = "Az asszisztensed hallgatja a hívást, és utána összefoglalót tesz közzé a csevegésben. Mások látják, hogy jegyzetel.";
+"screen_native_call_assistants_notes_confirm_action" = "Jegyzetelés";
+"screen_native_call_assistants_talk_confirm_title" = "Beszélsz az asszisztenseddel?";
+"screen_native_call_assistants_talk_confirm_message" = "Csak téged hall, és hangosan válaszol — a hívásban mindenki hallja.";
+"screen_native_call_assistants_talk_confirm_action" = "Beszélgetés indítása";
+"screen_native_call_assistants_translate_question_title" = "Célnyelv";
+"screen_native_call_assistants_listen_question_title" = "Hallgatás nyelve";
+"screen_native_call_assistants_talk_info_title" = "Az asszisztensed hangosan válaszol";
+"screen_native_call_assistants_talk_info_message" = "Csak téged hall, és a hívásban mindenki hallja. Amíg beszél, nincs fordítás.";
 "screen_native_call_assistants_none_of_your_own" = "Nincs asszisztensed";
 "screen_native_call_assistants_which" = "Melyik asszisztens";
 "screen_native_call_assistants_reason_paused" = "Az asszisztensed szünetel";
@@ -571,7 +583,6 @@
 "screen_native_call_assistants_job_conversation" = "Beszélgetés";
 "screen_native_call_assistants_translating" = "Fordít → %1$@";
 "screen_native_call_assistants_stop_translation" = "Fordítás leállítása";
-"screen_native_call_assistants_talk_caption" = "Hangosan válaszol neked, és mindenki hallja. Amíg beszél, nincs fordítás.";
 "screen_native_call_assistants_pick_footer" = "Ehhez a csevegéshez megjegyezve";
 "screen_native_call_assistants_neighbour_language" = "A melletted lévő személy nyelve";
 "screen_native_call_assistants_pocket_detail" = "Minden mondat után · mindkét irányban";
@@ -591,10 +602,9 @@
 "screen_native_call_assistants_status_both_ways" = "Mindkét irányban fordít";
 "screen_native_call_assistants_translate_into" = "Célnyelv";
 "screen_native_call_assistants_translate_into_detail" = "Ezen hallod a hívást";
+"screen_native_call_assistants_translate_into_language" = "Célnyelv: %1$@";
 "screen_native_call_assistants_in_call" = "A hívásban";
 "screen_native_call_assistants_in_call_more" = "A hívásban: még %1$d";
-"screen_native_call_assistants_new_translation" = "Új fordítás";
-"screen_native_call_assistants_new_translation_detail" = "Az asszisztensed lefordítja a hívást";
 "screen_native_call_assistants_new_translation_others" = "Az asszisztensed fordítja: %1$@. A többieket már fordítják, ingyen.";
 "screen_native_call_assistants_start_translation" = "Fordítás indítása";
 "screen_native_call_assistants_start_translation_detail" = "A kereted fogy. Aki ezt a nyelvet választja, ingyen hallgatja.";
@@ -1044,7 +1054,6 @@
 "notice_phrase_changed_title" = "A bejelentkezési jelmondat megváltozott";
 "a11y_message_read" = "Elolvasva";
 "screen_legal_information_source_code_spiral" = "Forráskód";
-"screen_invite_people_seats_label" = "Hátralévő meghívók";
 "screen_native_call_tile_not_joined" = "Nem csatlakozott";
 "screen_agent_settings_show_in_search_footer" = "Megtalálhatják-e a keresésben. Aki ismeri a címét, továbbra is írhat neki.";
 "screen_agent_edit_tone_calm" = "Nyugodt";
@@ -1056,7 +1065,6 @@
 "screen_room_interactive_draft_published" = "Közzétéve";
 "screen_agent_activity_reason_visitor_policy_reply" = "Ön engedélyezte az azonnali választ";
 "screen_agent_in_room_no_tools" = "Ebben a csevegésben még nincs eszköz.";
-"notice_welcome_assistant_body" = "%1$@ vagyok, az Ön személyes asszisztense. Továbbítom az üzeneteket, amíg Ön távol van, megjegyzem a kapcsolatait, és összefoglalom a szobákat. Az eszközeim bekapcsolásához egy szobában koppintson ott a + gombra, és válassza az Ügynökök lehetőséget. Írjon nekem nyugodtan, ahogy szokott — itt vagyok.";
 "screen_room_interactive_post_pick_agent_title" = "Ki készítse el?";
 "screen_agent_settings_visitor_ask_first_description" = "Egy új személy vár, amíg Ön bele nem egyezik";
 "screen_ai_consent_prompt_failed" = "Nem sikerült menteni a választását. Ellenőrizze a kapcsolatot, és próbálja újra.";
@@ -1086,10 +1094,8 @@
 "screen_agent_activity_reason_block_needs_owner" = "A letiltáshoz az Ön jóváhagyása kell";
 "screen_create_company_title" = "Új cég";
 "a11y_native_call_disable_speaker" = "Kihangosító kikapcsolása";
-"screen_invite_paste_placeholder" = "spiral.md/join/…";
 "a11y_native_call_end" = "Hívás befejezése";
 "screen_agent_activity_action_published_post" = "Közzétett egy bejegyzést";
-"screen_invite_people_joined_footer" = "Akik az Ön hivatkozásán keresztül hozták létre a fiókjukat. Koppintson egy csevegés indításához.";
 "screen_arm_tool_turn_off_confirm_message" = "Az ügynök ebben a csevegésben mindenki számára abbahagyja ezt. Bármikor újra bekapcsolhatja.";
 "spiral_app_card_line_by" = "Írta: %1$@";
 "state_event_spiral_tool_language_changed_by_you" = "Ön módosította a fordítást: %1$@ → %2$@";
@@ -1114,7 +1120,6 @@
 "screen_native_call_agent_block_recording" = "Rögzít";
 "screen_native_call_control_video" = "Videó";
 "screen_agent_detail_pause" = "Szüneteltetés";
-"screen_invite_paste_expired" = "Ez a meghívó már nem érvényes. Kérjen újat.";
 "screen_security_messages_section" = "Üzenetek";
 "screen_agent_activity_reason_relationship_unavailable" = "Nem sikerült ellenőrizni a kapcsolatot";
 "screen_ai_consent_prompt_allow" = "Engedélyezés";
@@ -1144,15 +1149,12 @@
 "state_event_spiral_tool_off_by_system" = "%2$@: %1$@ kikapcsolva";
 "a11y_native_call_swap_to_held_call" = "Váltás a várakoztatott hívásra: %@";
 "screen_native_call_audio_route_iphone" = "iPhone";
-"screen_invite_people_seats_value" = "%1$d / %2$d";
 "screen_agent_activity_reason_first_contact_with_unknown_visitor" = "Első üzenet egy új személytől";
 "screen_deactivate_account_spiral_list_item_3" = "Törli a fiókadatait az azonosítási kiszolgálónkról.";
 "a11y_native_call_bar" = "Folyamatban lévő hívás: %1$@. Koppintson a visszatéréshez.";
-"screen_invite_paste_unavailable" = "Nem sikerült ellenőrizni a meghívót. Próbálja újra.";
 "screen_agent_activity_action_read_call_summary" = "Elolvasott egy hívásösszefoglalót";
 "screen_ai_consent_prompt_title" = "Engedélyezi a külső MI-t?";
 "screen_agent_edit_voice_language_footer" = "Az asszisztens mindig azon a nyelven válaszol, amelyen Ön beszél. Ez azt állítja be, hogyan hallja a hívásokat, és milyen nyelven készülnek a hívásösszefoglalók.";
-"screen_invite_welcome_title" = "Üdvözöljük a Spiralban";
 "screen_agent_activity_reason_blocked_visitor" = "Letiltott személy";
 "screen_deactivate_account_spiral_list_item_1_bold_part" = "Véglegesen letiltja";
 "screen_native_call_agent_center_recording_live" = "Rögzítés…";
@@ -1220,7 +1222,6 @@
 "screen_deactivate_account_spiral_failed" = "Nem sikerült törölni a fiókot. Próbálja újra egy perc múlva.";
 "screen_agent_activity_action_changed_call_mode" = "Módosította, hogyan vesz részt egy hívásban";
 "a11y_native_call_unmute_microphone" = "Mikrofon bekapcsolása";
-"screen_invite_paste_label" = "Hivatkozás vagy kód";
 "screen_media_viewer_position" = "%1$d / %2$d";
 "screen_native_call_status_reconnecting_detail" = "Megszakadt a kapcsolata";
 "screen_approval_detail_block_blocked_subtitle" = "Az ügynöke mostantól figyelmen kívül hagyja az üzeneteit.";
@@ -1256,6 +1257,13 @@
 "screen_agent_activity_reason_no_contact_relationship" = "Nem tartozik a kapcsolatai közé";
 "screen_room_alias_link_not_found" = "Ez a hivatkozás nem vezet egyetlen csevegéshez sem.";
 "screen_invite_people_title" = "Meghívás a Spiralra";
+"screen_invite_people_you" = "Te";
+"screen_invite_people_invited_count" = "%1$d/%2$d meghívva";
+"screen_invite_people_invited_you" = "Meghívott a Spiralba";
+"screen_invite_people_seat_invite" = "Meghívás";
+"screen_invite_people_seat_taken" = "Foglalt";
+"screen_invite_people_chain_footer" = "Egy hivatkozás %1$d embernek, és nem újul meg. Koppints valakire a profilja megnyitásához.";
+"screen_invite_people_all_used" = "Minden meghívó elfogyott";
 "screen_approval_detail_escalation_cold_outreach" = "Az ügynöke először írna valakinek.";
 "screen_start_invited_by" = "%1$@ meghívta Önt a Spiralra";
 "screen_agent_spaces_section_retry" = "Koppintson az újrapróbálkozáshoz.";
@@ -1263,7 +1271,6 @@
 "screen_settings_new_phrase_done" = "A bejelentkezési jelmondat megváltozott";
 "screen_agent_activity_reason_outside_conversation" = "Ezen a beszélgetésen kívül";
 "a11y_native_call_switch_camera" = "Kamera váltása";
-"screen_invite_people_joined" = "Az Ön meghívójával csatlakozott: %1$d";
 "screen_agent_activity_action_searched_agents" = "Ügynököket keresett";
 "screen_agent_activity_reason_strategy_no_op" = "Nincs teendő";
 "action_dismiss_visitor_message" = "Eltávolítás";
@@ -1272,7 +1279,6 @@
 "screen_approval_detail_block_action_dont_block" = "Ne tiltsa le";
 "screen_agent_settings_people_title" = "Beszélgetés másokkal";
 "screen_native_call_agent_center_error_not_owner" = "Csak ennek a munkamenetnek a tulajdonosa módosíthatja.";
-"notice_welcome_agent_body" = "%1$@ készen áll. Írjon nekem nyugodtan.";
 "screen_agent_detail_already_in_chat" = "Az ügynök már ebben a csevegésben van";
 "screen_native_call_agent_center_booth_members" = "%1$@ → %2$@";
 "screen_settings_devices_title" = "Eszközök és munkamenetek";
@@ -1290,7 +1296,6 @@
 "screen_agent_activity_action_remembered" = "Megjegyzett valamit egy kapcsolatról";
 "screen_room_interactive_post_link_needs_update" = "Ehhez a bejegyzéshez a Spiral újabb verziója kell. A használatához frissítse az alkalmazást.";
 "screen_room_member_details_erase_assistant_memory" = "Az asszisztenseim róla szóló emlékeinek törlése";
-"screen_invite_paste_without" = "Folytatás meghívó nélkül";
 "screen_agent_edit_tone_friendly" = "Barátságos";
 "screen_room_interactive_post_update" = "Bejegyzés frissítése";
 "screen_agent_detail_archive_refused" = "A személyes asszisztense a fiókjával együtt marad, és nem archiválható.";
@@ -1307,9 +1312,7 @@
 "screen_native_call_agent_center_talking" = "Az asszisztens beszél";
 "screen_native_call_tile_call_back" = "Koppintson a visszahíváshoz";
 "notice_reply_failed_body" = "Valami hiba történt nálam. Kérem, küldje el újra.";
-"screen_invite_people_joined_title" = "Az Ön meghívójával csatlakoztak";
 "screen_native_call_status_connecting_detail" = "Titkosítás beállítása";
-"screen_invite_paste_title" = "Van meghívója?";
 "screen_edit_profile_bio_too_long" = "A bemutatkozás legfeljebb %1$d karakter lehet. A mentéshez rövidítse le.";
 "a11y_native_call_agent_block_role" = "%1$@, %2$@";
 "a11y_native_call_recording" = "Ez a hívás rögzítés alatt áll";
@@ -1322,12 +1325,25 @@
 "screen_agent_spaces_assistant_pending" = "Az asszisztense még beállítás alatt áll";
 "screen_room_member_details_erase_assistant_memory_alert_title" = "Törli, amit az asszisztensei tudnak róla (%1$@)?";
 "screen_settings_new_phrase_failed" = "Nem sikerült elindítani a jelmondat módosítását. Próbálja újra.";
+/* AGENT-PLATFORM (1.0.3): sign-in methods — the first phrase for an account made with Apple, Sign in with Apple for a phrase account. */
+"screen_settings_add_phrase_title" = "Bejelentkezési jelmondat hozzáadása";
+"screen_settings_add_phrase_message" = "12 szót választ. Ezek bármely eszközön megnyitják a fiókját, az Apple-bejelentkezés mellett. Ezen az eszközön bejelentkezve marad, és az üzeneteit ez nem érinti.";
+"screen_settings_add_phrase_auth_reason" = "Bejelentkezési jelmondat hozzáadásához erősítse meg, hogy Ön az";
+"screen_settings_add_phrase_done" = "Bejelentkezési jelmondat hozzáadva";
+"screen_settings_add_phrase_failed" = "Nem sikerült elindítani a jelmondat hozzáadását. Próbálja újra.";
+"screen_settings_sign_in_passcode_required" = "Előbb állítson be eszközjelkódot — ez védi a bejelentkezési módjait";
+"screen_settings_apple_title" = "Bejelentkezés az Apple-lel";
+"screen_settings_apple_connected" = "Csatlakoztatva";
+"screen_settings_apple_add_title" = "Bejelentkezés az Apple-lel hozzáadása";
+"screen_settings_apple_auth_reason" = "Az Apple-bejelentkezés hozzáadásához erősítse meg, hogy Ön az";
+"screen_settings_apple_linked" = "Apple-bejelentkezés hozzáadva";
+"screen_settings_apple_taken" = "Ezt az Apple ID-t már egy másik Spiral-fiók használja";
+"screen_settings_apple_failed" = "Nem sikerült elindítani az Apple-bejelentkezés hozzáadását. Próbálja újra.";
 "screen_deactivate_account_spiral_description" = "A fiókja törlése %1$@. A törlés:";
 "screen_agent_activity_action_set_reminder" = "Beállított egy emlékeztetőt";
 "screen_agent_activity_action_cancelled_reminder" = "Törölt egy emlékeztetőt";
 "screen_agent_activity_reason_capability_always_allowed" = "Mindig engedélyezett";
 "screen_agent_activity_action_blocked_someone" = "Letiltott valakit";
-"screen_invite_paste_message" = "Illessze be a hivatkozást, amelyet egy Spiral-felhasználó küldött Önnek, vagy írja be a kódot.";
 "screen_native_call_error_title" = "A hívás sikertelen";
 "notification_approval_action_not_found_title" = "Ez a kérés már nem létezik";
 "state_event_spiral_tool_changed_by_you" = "Ön módosította: %1$@";
@@ -1354,7 +1370,6 @@
 "screen_native_call_control_sound" = "Hang";
 "screen_native_call_status_reconnecting" = "Újrakapcsolódás…";
 "notice_phrase_changed_body" = "A régi jelmondattal már nem lehet bejelentkezni.";
-"screen_invite_people_seats_footer" = "Mindenkinek egy hivatkozása van %1$d hellyel. Nem újul meg, ezért azokkal ossza meg, akiket tényleg itt szeretne látni.";
 "screen_room_member_details_agent_unblock_action" = "Letiltás feloldása";
 "screen_agent_activity_reason_unknown_capability" = "Nem olyasmi, amire képes";
 "screen_settings_new_phrase_passcode_required" = "Előbb állítson be eszközjelkódot — ez védi a jelmondat módosítását";
@@ -1426,10 +1441,11 @@
 "screen_your_data_calls_footer" = "Egy hívás exportálása: az átirata, az összefoglalója és a hozzájárulási naplója.";
 "screen_arm_tool_error_agent_does_not_join_calls" = "Ez az ügynök nem csatlakozik hívásokhoz, ezért a hívási eszközök nem érhetők el hozzá.";
 "screen_room_interactive_generating_hint" = "Általában egy percen belül";
-"screen_invite_paste_exhausted" = "Már mindenki csatlakozott, akinek ez a meghívó helyet adott. Kérjen újat.";
 "notice_phrase_changed_on_device" = "Módosítva ezen: „%1$@”.";
+/* AGENT-PLATFORM (1.0.3): the owner-DM card when Sign in with Apple is added. It names no device (security review); a new phrase disconnects Apple. */
+"notice_apple_linked_title" = "Apple-bejelentkezés hozzáadva";
+"notice_apple_linked_body" = "Ha nem Ön volt, módosítsa a bejelentkezési jelmondatát: ez leválasztja az Apple-t.";
 "screen_ai_consent_prompt_openai" = "OpenAI: az asszisztensek által olvasott üzenetek, az Ön hangja a velük folytatott hívásokban, és az általuk átírt felvételek.";
-"screen_invite_welcome_message" = "%1$@ meghívta Önt, és már tudja, hogy itt van. Köszönjön neki!";
 "screen_agent_activity_action_used_tool" = "Eszközt használt egy üzeneten";
 "screen_approval_detail_escalation_first_contact" = "Valaki először írt az ügynökének, ezért a válasz előtt megkérdezi Önt.";
 "screen_agent_activity_action_drafted_post" = "Megírta egy bejegyzés piszkozatát";
@@ -1444,7 +1460,6 @@
 "screen_room_interactive_post_updated" = "Bejegyzés frissítve";
 "screen_native_call_camera_failed_message" = "A kamera nem indult el, ezért a hívás hanggal folytatódik. Egy kis idő múlva próbálja újra a kamera gombot.";
 "screen_media_viewer_open" = "Megnyitás";
-"screen_invite_paste_invalid" = "Nincs ilyen meghívó.";
 "screen_agent_room_tool_audience_except_named" = "mindenkinek, kivéve: %1$@";
 "notification_spiral_needs_update_body" = "A megtekintéshez frissítse az alkalmazást.";
 "screen_agent_edit_tone_brief" = "Röviden, lényegre törően";
@@ -1452,7 +1467,6 @@
 "screen_invite_people_seats_left" = "%2$d meghívóból %1$d maradt";
 "screen_agent_activity_reason_wrong_room_kind" = "Ilyen típusú csevegésben nem engedélyezett";
 "screen_native_call_failure_audio_reset" = "A rendszer alaphelyzetbe állította a hívás hangját.";
-"screen_invite_people_body" = "A regisztráció meghívásos. Ossza meg a személyes hivatkozását — aki ezen keresztül hoz létre fiókot, először Önt fogja látni.";
 "notification_approval_action_target_blocked_title" = "Nincs elküldve – letiltotta ezt a személyt";
 "screen_notifications_hub_visitor_other" = "Valami új";
 "screen_agent_activity_empty_pending_title" = "Nincs eldöntendő kérés";
@@ -1476,3 +1490,61 @@
 "screen_notifications_hub_visitors_section" = "Emberektől";
 "screen_agent_settings_visitor_reply_description" = "Mindenkinek válaszol, kivéve azokat, akiket letiltott";
 "screen_deactivate_account_spiral_auth_reason" = "A fiókja törléséhez erősítse meg, hogy Ön az";
+
+// AGENT-PLATFORM (1.0.3 A2): the assistant's first invite in Chats, its chat before consent and its welcome.
+"screen_roomlist_assistant_invite_name" = "Az asszisztensed";
+"screen_roomlist_assistant_invite_subtitle" = "Szia! Koppints a kezdéshez 👋";
+"screen_roomlist_assistant_invite_start" = "Kezdés";
+"a11y_assistant_invite_start" = "Beszélgetés indítása az asszisztenseddel";
+"a11y_assistant_invite_start_hint" = "Elfogadja az asszisztensed meghívását, és megnyitja a csevegéseteket.";
+"screen_assistant_invite_title" = "Szia! Az asszisztensed vagyok";
+"screen_assistant_invite_reminders" = "Emlékeztetlek dolgokra";
+"screen_assistant_invite_contacts" = "Megjegyzem a kapcsolataidat";
+"screen_assistant_invite_summaries" = "Összefoglalok bármilyen csevegést";
+"screen_assistant_invite_privacy" = "Csak ezt a beszélgetést látom. Bármikor kikapcsolhatsz.";
+"screen_assistant_invite_start" = "Beszélgetés indítása";
+"notice_welcome_body" = "Itt vagyok, és szívesen segítek. Mivel kezdjük?";
+"notice_welcome_starter_summary" = "Csevegés összefoglalása";
+"notice_welcome_starter_summary_message" = "Foglalj össze nekem egy csevegést";
+"notice_welcome_starter_contact" = "Kapcsolat megjegyzése";
+"notice_welcome_starter_contact_message" = "Jegyezz meg valamit az egyik kapcsolatomról";
+"notice_welcome_starter_reminder" = "Emlékeztess…";
+"notice_welcome_starter_reminder_message" = "Állíts be nekem egy emlékeztetőt";
+"notice_welcome_allow_ai_reason" = "Engedélyezd az MI-t, hogy elolvashassam, amit ide írsz.";
+"notice_welcome_allow_ai_action" = "MI engedélyezése";
+
+// AGENT-PLATFORM (1.0.3 onboarding): the start screen's stories, the notifications prompt and the invited welcome.
+"screen_start_slide_privacy_title" = "A beszélgetéseid a tieid";
+"screen_start_slide_privacy_subtitle" = "Végpontok közötti titkosítás. Telefonszám nélkül, az asszisztens pedig csak az engedélyeddel";
+"screen_start_slide_calls_title" = "Hívások fordítással";
+"screen_start_slide_calls_subtitle" = "Az asszisztens bekapcsolódik és élőben fordít";
+"screen_start_slide_assistant_title" = "Az asszisztens kéznél van";
+"screen_start_slide_assistant_subtitle" = "Válaszol, amikor elfoglalt vagy, és minden új lépés előtt megkérdez";
+"screen_start_slide_games_title" = "Játsszatok együtt, közvetlenül a csevegésben";
+"screen_start_slide_games_subtitle" = "Játékok és eszközök, telepítés nélkül";
+"screen_start_invited_by_hint" = "Hozz létre egy fiókot, és %1$@ tudni fogja, hogy itt vagy";
+"a11y_start_slides_position" = "Dia: %1$d/%2$d";
+"screen_notification_optin_spiral_title" = "Maradj kapcsolatban";
+"screen_notification_optin_spiral_subtitle" = "A Spiral szól, ha valami tényleg fontos. Ezt bármikor módosíthatod a Beállításokban.";
+"screen_notification_optin_messages_title" = "Új üzenetek";
+"screen_notification_optin_messages_subtitle" = "Az emberektől és csoportoktól, akikkel beszélgetsz";
+"screen_notification_optin_calls_title" = "Bejövő hívások";
+"screen_notification_optin_calls_subtitle" = "Akkor is, ha a Spiral be van zárva";
+"screen_notification_optin_assistant_title" = "Az asszisztensed kérdései";
+"screen_notification_optin_assistant_subtitle" = "Ha szüksége van a beleegyezésedre";
+"screen_notification_optin_allow" = "Értesítések engedélyezése";
+"screen_invite_welcome_together_title" = "Te és %1$@ már együtt vagytok a Spiralon";
+"screen_invite_welcome_step_say_hello_title" = "Köszönj neki: %1$@";
+"screen_invite_welcome_step_say_hello_subtitle" = "%1$@ már vár";
+"screen_invite_welcome_step_assistant_title" = "Ismerd meg az asszisztensedet";
+"screen_invite_welcome_step_assistant_subtitle" = "A meghívója a Csevegések között vár";
+"screen_invite_welcome_step_play_title" = "Játsszatok valamit együtt";
+"screen_invite_welcome_step_play_subtitle" = "Játékok és eszközök közvetlenül a csevegésben";
+"a11y_invite_welcome_avatars" = "%1$@ és te";
+"screen_approval_detail_already_closed_title" = "Ez a kérés már lezárult";
+"screen_approval_detail_already_closed_message" = "Lejárt, vagy már válaszoltak rá.";
+"screen_room_interactive_post_description_not_sent" = "A leírásod nem lett elküldve. Küldd el újra az üzenetszálban.";
+"screen_room_interactive_post_code_not_sent" = "A bejegyzés nem jutott el az ügynökhöz. Próbáld újra a bejegyzésből.";
+"screen_invites_assistant_decline_warning_spiral" = "Ha ez a saját asszisztensed, a csevegése az elutasítás után nem állítható vissza.";
+"a11y_roomlist_remove_filter" = "Szűrő eltávolítása: %1$@";
+"a11y_settings_share_profile" = "Profilom megosztása";

@@ -173,16 +173,126 @@ struct UserDetailsEditScreenBioTests {
         #expect(!testSetup.clientProxy.setUserBioCalled)
     }
 
+    /// DEBT B11: the avatar half of "a too-long bio blocks saving a name/avatar change".
     @Test
-    func aChangedTooLongBioHoldsBackANameChange() async throws {
+    func anUnchangedTooLongBioDoesNotHoldBackAnAvatarChange() async throws {
+        var testSetup = self
+        let longBio = String(repeating: "a", count: FeedBio.maxLength + 1)
+        testSetup.clientProxy = ClientProxyMock(.init(avatarURL: .mockMXCAvatar, canSetBio: true))
+        testSetup.clientProxy.userBioReturnValue = .success(longBio)
+        testSetup.makeViewModel()
+        try await testSetup.waitForBio { $0 == .loaded(longBio) }
+        
+        testSetup.context.send(viewAction: .removeImage)
+        #expect(testSetup.context.viewState.canSave)
+        
+        let dismissed = deferFulfillment(testSetup.viewModel.actions) { $0 == .dismiss }
+        testSetup.context.send(viewAction: .save)
+        try await dismissed.fulfill()
+        #expect(testSetup.clientProxy.removeUserAvatarCalled)
+        #expect(!testSetup.clientProxy.setUserBioCalled)
+    }
+
+    // MARK: The limit at input (1.0.3 B11, operator 2026-11-18)
+
+    @Test
+    func aPastedTooLongBioIsCutAndANameChangeSaves() async throws {
         var testSetup = self
         testSetup.setUp(bio: .success("Gardener"))
         try await testSetup.waitForBio { $0 == .loaded("Gardener") }
-        
+
         testSetup.context.name = "New name"
-        testSetup.context.bio = String(repeating: "a", count: FeedBio.maxLength + 1)
-        // Saving would drop the bio the person typed, so Save waits and the footer says to shorten it.
-        #expect(!testSetup.context.viewState.canSave)
+        testSetup.edit(to: "Gardener " + String(repeating: "a", count: 200))
+
+        #expect(testSetup.context.bio == "Gardener " + String(repeating: "a", count: FeedBio.maxLength - 9))
+        #expect(!testSetup.context.viewState.isBioTooLong)
+        #expect(testSetup.context.viewState.canSave)
+    }
+
+    @Test
+    func typingAtTheLimitAddsNothingWhereverTheCaretIs() async throws {
+        var testSetup = self
+        let full = String(repeating: "a", count: FeedBio.maxLength)
+        testSetup.setUp(bio: .success(nil))
+        try await testSetup.waitForBio { $0 == .loaded(nil) }
+        testSetup.edit(to: full)
+
+        testSetup.edit(to: full + "b")
+        #expect(testSetup.context.bio == full)
+
+        testSetup.edit(to: "aaa" + "b" + full.dropFirst(3))
+        #expect(testSetup.context.bio == full)
+    }
+
+    @Test
+    func aPasteInTheMiddleKeepsWhatFollowsIt() async throws {
+        var testSetup = self
+        let start = String(repeating: "a", count: 100)
+        let end = String(repeating: "z", count: 50)
+        testSetup.setUp(bio: .success(start + end))
+        try await testSetup.waitForBio { $0 == .loaded(start + end) }
+
+        testSetup.edit(to: start + String(repeating: "m", count: 30) + end)
+
+        #expect(testSetup.context.bio == start + String(repeating: "m", count: 10) + end)
+    }
+
+    @Test
+    func anEmojiIsKeptWholeOrNotAtAll() async throws {
+        var testSetup = self
+        let coder = "\u{1F469}\u{200D}\u{1F4BB}" // 👩‍💻, three code points
+        let almostFull = String(repeating: "a", count: FeedBio.maxLength - 1)
+        testSetup.setUp(bio: .success(nil))
+        try await testSetup.waitForBio { $0 == .loaded(nil) }
+        testSetup.edit(to: almostFull)
+
+        testSetup.edit(to: almostFull + coder + coder)
+
+        #expect(testSetup.context.bio == almostFull + coder)
+        #expect(testSetup.context.viewState.bioLength == FeedBio.maxLength)
+    }
+
+    @Test
+    func rightToLeftTextIsCutOnACharacterWithItsMarks() async throws {
+        var testSetup = self
+        let marked = "\u{0628}\u{0650}" // بِ, a letter and its kasra: one character
+        let almostFull = String(repeating: "\u{05D0}", count: FeedBio.maxLength - 1) // Hebrew alef
+        testSetup.setUp(bio: .success(nil))
+        try await testSetup.waitForBio { $0 == .loaded(nil) }
+        testSetup.edit(to: almostFull)
+
+        // An isolate before it is dropped when normalised, so it doesn't count.
+        testSetup.edit(to: almostFull + "\u{2067}" + marked + marked)
+
+        #expect(testSetup.context.bio == almostFull + "\u{2067}" + marked)
+        #expect(testSetup.context.viewState.bioLength == FeedBio.maxLength)
+    }
+
+    @Test
+    func aStoredLongerBioStaysAsItIsAndIsNotRed() async throws {
+        var testSetup = self
+        let longBio = String(repeating: "a", count: FeedBio.maxLength + 5)
+        testSetup.setUp(bio: .success(longBio))
+        try await testSetup.waitForBio { $0 == .loaded(longBio) }
+
+        testSetup.context.send(viewAction: .bioChanged(previous: "")) // The load, as the field sees it.
+
+        #expect(testSetup.context.bio == longBio)
+        #expect(testSetup.context.viewState.isBioTooLong)
+        #expect(!testSetup.context.viewState.isBioTooLongToSave)
+    }
+
+    @Test
+    func editingAStoredLongerBioCutsItToTheLimit() async throws {
+        var testSetup = self
+        let longBio = String(repeating: "a", count: FeedBio.maxLength + 5)
+        testSetup.setUp(bio: .success(longBio))
+        try await testSetup.waitForBio { $0 == .loaded(longBio) }
+
+        testSetup.edit(to: String(longBio.dropLast()))
+
+        #expect(testSetup.context.bio == String(repeating: "a", count: FeedBio.maxLength))
+        #expect(testSetup.context.viewState.canSave)
     }
 
     @Test
@@ -235,6 +345,13 @@ struct UserDetailsEditScreenBioTests {
     }
 
     // MARK: - Helpers
+
+    /// What the field does: the text changes, then it reports the change.
+    private func edit(to text: String) {
+        let previous = context.bio
+        context.bio = text
+        context.send(viewAction: .bioChanged(previous: previous))
+    }
 
     private mutating func setUp(canSetBio: Bool = true, bio: Result<String?, ClientProxyError>) {
         clientProxy = ClientProxyMock(.init(canSetBio: canSetBio))

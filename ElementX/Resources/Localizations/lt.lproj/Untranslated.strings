@@ -65,6 +65,9 @@
 "screen_agent_edit_persona_greeting" = "Pasisveikinimas jums";
 "screen_agent_edit_persona_visitor_greeting" = "Pasisveikinimas svečiams";
 "screen_agent_edit_failure" = "Nepavyko išsaugoti pakeitimų";
+"error_agent_name_reserved" = "Šis vardas rezervuotas paties Spiral paskyroms. Pasirinkite kitą vardą.";
+"error_agent_name_invalid_characters" = "Varde yra simbolių, kurių negalima naudoti.";
+"error_agent_name_unchecked" = "Nepavyko patikrinti vardo. Bandykite dar kartą.";
 "screen_agent_edit_load_failure" = "Nepavyko įkelti redagavimo formos";
 "screen_agent_edit_avatar_failure" = "Nepavyko įkelti nuotraukos";
 "action_agent_activity" = "Veikla";
@@ -250,7 +253,6 @@
 "screen_language_picker_title" = "Kalba";
 "screen_language_picker_empty" = "Jokia kalba neatitinka jūsų paieškos.";
 "screen_start_sign_in" = "Prisijungti";
-"screen_start_welcome_subtitle" = "Greitas, privatus susirašinėjimas su jūsų asmeniniu agentu.";
 
 // AGENT-PLATFORM (Brief 0072, ADR-0083, ADR-0084): presence, worded as Telegram does
 "common_presence_online" = "tinkle";
@@ -491,6 +493,16 @@
 "screen_native_call_assistants_record_confirm_title" = "Įrašyti skambutį?";
 "screen_native_call_assistants_record_confirm_message" = "Visi mato REC skambučio viršuje. Įrašas pasirodys pokalbyje po skambučio.";
 "screen_native_call_assistants_record_confirm_action" = "Įrašyti";
+"screen_native_call_assistants_notes_confirm_title" = "Daryti skambučio užrašus?";
+"screen_native_call_assistants_notes_confirm_message" = "Asistentas klausysis skambučio ir po jo paskelbs santrauką pokalbyje. Kiti matys, kad jis daro užrašus.";
+"screen_native_call_assistants_notes_confirm_action" = "Daryti užrašus";
+"screen_native_call_assistants_talk_confirm_title" = "Kalbėtis su asistentu?";
+"screen_native_call_assistants_talk_confirm_message" = "Asistentas girdės tik jus ir atsakinės garsiai — jį girdi visi skambutyje.";
+"screen_native_call_assistants_talk_confirm_action" = "Pradėti pokalbį";
+"screen_native_call_assistants_translate_question_title" = "Versti į";
+"screen_native_call_assistants_listen_question_title" = "Klausytis";
+"screen_native_call_assistants_talk_info_title" = "Asistentas atsako garsiai";
+"screen_native_call_assistants_talk_info_message" = "Jis girdi tik jus, o jį girdi visi skambutyje. Kol kalbasi, vertimas išjungtas.";
 "screen_native_call_assistants_none_of_your_own" = "Neturite asistento";
 "screen_native_call_assistants_which" = "Kuris asistentas";
 "screen_native_call_assistants_reason_paused" = "Jūsų asistentas pristabdytas";
@@ -571,7 +583,6 @@
 "screen_native_call_assistants_job_conversation" = "Pokalbis";
 "screen_native_call_assistants_translating" = "Verčia → %1$@";
 "screen_native_call_assistants_stop_translation" = "Sustabdyti vertimą";
-"screen_native_call_assistants_talk_caption" = "Atsako jums garsiai, ir visi girdi. Kol kalbasi, vertimas išjungtas.";
 "screen_native_call_assistants_pick_footer" = "Įsiminta šiam pokalbiui";
 "screen_native_call_assistants_neighbour_language" = "Šalia esančio žmogaus kalba";
 "screen_native_call_assistants_pocket_detail" = "Po kiekvienos frazės · abiem kryptimis";
@@ -591,10 +602,9 @@
 "screen_native_call_assistants_status_both_ways" = "Verčia abiem kryptimis";
 "screen_native_call_assistants_translate_into" = "Versti į";
 "screen_native_call_assistants_translate_into_detail" = "Šia kalba girdite skambutį";
+"screen_native_call_assistants_translate_into_language" = "Versti į: %1$@";
 "screen_native_call_assistants_in_call" = "Skambutyje";
 "screen_native_call_assistants_in_call_more" = "Skambutyje: dar %1$d";
-"screen_native_call_assistants_new_translation" = "Naujas vertimas";
-"screen_native_call_assistants_new_translation_detail" = "Jūsų asistentas išvers skambutį";
 "screen_native_call_assistants_new_translation_others" = "Jūsų asistentas verčia: %1$@. Kiti jau verčiami, nemokamai.";
 "screen_native_call_assistants_start_translation" = "Pradėti vertimą";
 "screen_native_call_assistants_start_translation_detail" = "Naudoja jūsų limitą. Kas pasirinks šią kalbą, klausosi nemokamai.";
@@ -1044,7 +1054,6 @@
 "notice_phrase_changed_title" = "Prisijungimo frazė pakeista";
 "a11y_message_read" = "Perskaityta";
 "screen_legal_information_source_code_spiral" = "Šaltinio kodas";
-"screen_invite_people_seats_label" = "Liko kvietimų";
 "screen_native_call_tile_not_joined" = "Neprisijungėte";
 "screen_agent_settings_show_in_search_footer" = "Ar žmonės gali jį rasti paieškoje. Kiekvienas, žinantis jo adresą, vis tiek gali jam rašyti.";
 "screen_agent_edit_tone_calm" = "Ramus";
@@ -1056,7 +1065,6 @@
 "screen_room_interactive_draft_published" = "Paskelbta";
 "screen_agent_activity_reason_visitor_policy_reply" = "Leidote atsakyti iš karto";
 "screen_agent_in_room_no_tools" = "Šiame pokalbyje dar nėra įrankių.";
-"notice_welcome_assistant_body" = "Aš esu %1$@, jūsų asmeninis asistentas. Galiu perduoti žinutes, kai jūsų nėra, prisiminti jūsų kontaktus ir apibendrinti kambarius. Norėdami įjungti mano įrankius kambaryje, bakstelėkite ten + ir pasirinkite „Agentai“. Tiesiog rašykite man natūraliai — aš čia.";
 "screen_room_interactive_post_pick_agent_title" = "Kas turėtų jį sukurti?";
 "screen_agent_settings_visitor_ask_first_description" = "Naujas asmuo laukia, kol sutiksite";
 "screen_ai_consent_prompt_failed" = "Nepavyko išsaugoti jūsų pasirinkimo. Patikrinkite ryšį ir bandykite dar kartą.";
@@ -1086,10 +1094,8 @@
 "screen_agent_activity_reason_block_needs_owner" = "Blokavimui reikia jūsų sutikimo";
 "screen_create_company_title" = "Nauja įmonė";
 "a11y_native_call_disable_speaker" = "Išjungti garsiakalbį";
-"screen_invite_paste_placeholder" = "spiral.md/join/…";
 "a11y_native_call_end" = "Baigti skambutį";
 "screen_agent_activity_action_published_post" = "Paskelbė įrašą";
-"screen_invite_people_joined_footer" = "Žmonės, susikūrę paskyrą per jūsų nuorodą. Bakstelėkite, kad pradėtumėte pokalbį.";
 "screen_arm_tool_turn_off_confirm_message" = "Agentas nustos tai daryti šiame pokalbyje visiems. Bet kada galėsite tai vėl įjungti.";
 "spiral_app_card_line_by" = "Pateikė: %1$@";
 "state_event_spiral_tool_language_changed_by_you" = "Pakeitėte „Versti“: %1$@ → %2$@";
@@ -1114,7 +1120,6 @@
 "screen_native_call_agent_block_recording" = "Įrašo";
 "screen_native_call_control_video" = "Vaizdo įrašas";
 "screen_agent_detail_pause" = "Pristabdyti";
-"screen_invite_paste_expired" = "Šis kvietimas nebegalioja. Paprašykite naujo.";
 "screen_security_messages_section" = "Žinutės";
 "screen_agent_activity_reason_relationship_unavailable" = "Nepavyko patikrinti kontakto";
 "screen_ai_consent_prompt_allow" = "Leisti";
@@ -1144,15 +1149,12 @@
 "state_event_spiral_tool_off_by_system" = "%1$@ išjungtas: %2$@";
 "a11y_native_call_swap_to_held_call" = "Perjungti į skambutį: %@";
 "screen_native_call_audio_route_iphone" = "iPhone";
-"screen_invite_people_seats_value" = "%1$d iš %2$d";
 "screen_agent_activity_reason_first_contact_with_unknown_visitor" = "Pirmoji naujo asmens žinutė";
 "screen_deactivate_account_spiral_list_item_3" = "Ištrinti jūsų paskyros duomenis iš mūsų tapatybės serverio.";
 "a11y_native_call_bar" = "Vykstantis skambutis: %1$@. Bakstelėkite, kad grįžtumėte.";
-"screen_invite_paste_unavailable" = "Nepavyko patikrinti kvietimo. Bandykite dar kartą.";
 "screen_agent_activity_action_read_call_summary" = "Perskaitė skambučio santrauką";
 "screen_ai_consent_prompt_title" = "Leisti trečiųjų šalių DI?";
 "screen_agent_edit_voice_language_footer" = "Asistentas visada atsako ta kalba, kuria kalbate jūs. Šis nustatymas lemia, kaip jis girdi skambučius ir kokia kalba rašomos skambučių santraukos.";
-"screen_invite_welcome_title" = "Sveiki atvykę į Spiral";
 "screen_agent_activity_reason_blocked_visitor" = "Užblokuotas asmuo";
 "screen_deactivate_account_spiral_list_item_1_bold_part" = "Visam laikui išjungti";
 "screen_native_call_agent_center_recording_live" = "Įrašoma…";
@@ -1220,7 +1222,6 @@
 "screen_deactivate_account_spiral_failed" = "Nepavyko ištrinti paskyros. Bandykite dar kartą po minutės.";
 "screen_agent_activity_action_changed_call_mode" = "Pakeitė, kaip dalyvauja skambutyje";
 "a11y_native_call_unmute_microphone" = "Įjungti mikrofoną";
-"screen_invite_paste_label" = "Nuoroda arba kodas";
 "screen_media_viewer_position" = "%1$d iš %2$d";
 "screen_native_call_status_reconnecting_detail" = "Jūsų ryšys nutrūko";
 "screen_approval_detail_block_blocked_subtitle" = "Nuo šiol jūsų agentas ignoruoja jo žinutes.";
@@ -1256,6 +1257,13 @@
 "screen_agent_activity_reason_no_contact_relationship" = "Ne jūsų kontaktas";
 "screen_room_alias_link_not_found" = "Ši nuoroda neveda į jokį pokalbį.";
 "screen_invite_people_title" = "Pakviesti į Spiral";
+"screen_invite_people_you" = "Jūs";
+"screen_invite_people_invited_count" = "Pakviesta %1$d iš %2$d";
+"screen_invite_people_invited_you" = "Pakvietė jus į Spiral";
+"screen_invite_people_seat_invite" = "Pakviesti";
+"screen_invite_people_seat_taken" = "Užimta";
+"screen_invite_people_chain_footer" = "Viena nuoroda %1$d žmonių, ji neatsinaujina. Bakstelėkite žmogų, kad atvertumėte jo profilį.";
+"screen_invite_people_all_used" = "Visi kvietimai panaudoti";
 "screen_approval_detail_escalation_cold_outreach" = "Jūsų agentas nori pirmą kartą kažkam parašyti.";
 "screen_start_invited_by" = "%1$@ pakvietė jus į Spiral";
 "screen_agent_spaces_section_retry" = "Bakstelėkite, kad bandytumėte dar kartą.";
@@ -1263,7 +1271,6 @@
 "screen_settings_new_phrase_done" = "Prisijungimo frazė pakeista";
 "screen_agent_activity_reason_outside_conversation" = "Už šio pokalbio ribų";
 "a11y_native_call_switch_camera" = "Perjungti kamerą";
-"screen_invite_people_joined" = "Prisijungė pagal jūsų kvietimą: %1$d";
 "screen_agent_activity_action_searched_agents" = "Ieškojo agentų";
 "screen_agent_activity_reason_strategy_no_op" = "Nėra ką daryti";
 "action_dismiss_visitor_message" = "Šalinti";
@@ -1272,7 +1279,6 @@
 "screen_approval_detail_block_action_dont_block" = "Neblokuoti";
 "screen_agent_settings_people_title" = "Bendravimas su žmonėmis";
 "screen_native_call_agent_center_error_not_owner" = "Šią sesiją gali keisti tik jos savininkas.";
-"notice_welcome_agent_body" = "%1$@ pasiruošęs. Tiesiog parašykite man.";
 "screen_agent_detail_already_in_chat" = "Agentas jau yra šiame pokalbyje";
 "screen_native_call_agent_center_booth_members" = "%1$@ į %2$@";
 "screen_settings_devices_title" = "Įrenginiai ir sesijos";
@@ -1290,7 +1296,6 @@
 "screen_agent_activity_action_remembered" = "Įsiminė kai ką apie kontaktą";
 "screen_room_interactive_post_link_needs_update" = "Šiam įrašui reikia naujesnės Spiral versijos. Atnaujinkite programą, kad galėtumėte jį naudoti.";
 "screen_room_member_details_erase_assistant_memory" = "Ištrinti tai, ką mano asistentai apie jį žino";
-"screen_invite_paste_without" = "Tęsti be kvietimo";
 "screen_agent_edit_tone_friendly" = "Draugiškas";
 "screen_room_interactive_post_update" = "Atnaujinti įrašą";
 "screen_agent_detail_archive_refused" = "Jūsų asmeninis asistentas lieka su jūsų paskyra ir negali būti archyvuotas.";
@@ -1307,9 +1312,7 @@
 "screen_native_call_agent_center_talking" = "Asistentas kalba";
 "screen_native_call_tile_call_back" = "Bakstelėkite, kad perskambintumėte";
 "notice_reply_failed_body" = "Mano pusėje kažkas nutiko. Išsiųskite dar kartą.";
-"screen_invite_people_joined_title" = "Prisijungė pagal jūsų kvietimą";
 "screen_native_call_status_connecting_detail" = "Nustatomas šifravimas";
-"screen_invite_paste_title" = "Turite kvietimą?";
 "screen_edit_profile_bio_too_long" = "Aprašymas gali būti ne ilgesnis nei %1$d simb. Sutrumpinkite, kad galėtumėte išsaugoti.";
 "a11y_native_call_agent_block_role" = "%1$@, %2$@";
 "a11y_native_call_recording" = "Šis skambutis įrašomas";
@@ -1322,12 +1325,25 @@
 "screen_agent_spaces_assistant_pending" = "Jūsų asistentas dar nustatomas";
 "screen_room_member_details_erase_assistant_memory_alert_title" = "Ištrinti tai, ką jūsų asistentai žino apie %1$@?";
 "screen_settings_new_phrase_failed" = "Nepavyko pradėti frazės keitimo. Bandykite dar kartą.";
+/* AGENT-PLATFORM (1.0.3): sign-in methods — the first phrase for an account made with Apple, Sign in with Apple for a phrase account. */
+"screen_settings_add_phrase_title" = "Pridėti prisijungimo frazę";
+"screen_settings_add_phrase_message" = "Pasirinksite 12 žodžių. Jie atveria jūsų paskyrą bet kuriame įrenginyje, šalia prisijungimo per Apple. Šiame įrenginyje liksite prisijungę, o jūsų žinutės nebus paveiktos.";
+"screen_settings_add_phrase_auth_reason" = "Patvirtinkite, kad tai jūs, norėdami pridėti prisijungimo frazę";
+"screen_settings_add_phrase_done" = "Prisijungimo frazė pridėta";
+"screen_settings_add_phrase_failed" = "Nepavyko pradėti frazės pridėjimo. Bandykite dar kartą.";
+"screen_settings_sign_in_passcode_required" = "Pirmiausia nustatykite įrenginio kodą — jis apsaugo jūsų prisijungimo būdus";
+"screen_settings_apple_title" = "Prisijungimas per Apple";
+"screen_settings_apple_connected" = "Prijungta";
+"screen_settings_apple_add_title" = "Pridėti prisijungimą per Apple";
+"screen_settings_apple_auth_reason" = "Patvirtinkite, kad tai jūs, norėdami pridėti prisijungimą per Apple";
+"screen_settings_apple_linked" = "Prisijungimas per Apple pridėtas";
+"screen_settings_apple_taken" = "Šis Apple ID jau naudojamas kitoje Spiral paskyroje";
+"screen_settings_apple_failed" = "Nepavyko pradėti prisijungimo per Apple pridėjimo. Bandykite dar kartą.";
 "screen_deactivate_account_spiral_description" = "Paskyros ištrynimas yra %1$@. Bus:";
 "screen_agent_activity_action_set_reminder" = "Nustatė priminimą";
 "screen_agent_activity_action_cancelled_reminder" = "Atšaukė priminimą";
 "screen_agent_activity_reason_capability_always_allowed" = "Visada leidžiama";
 "screen_agent_activity_action_blocked_someone" = "Užblokavo asmenį";
-"screen_invite_paste_message" = "Įklijuokite nuorodą, kurią jums atsiuntė Spiral naudotojas, arba įveskite kodą.";
 "screen_native_call_error_title" = "Skambutis nepavyko";
 "notification_approval_action_not_found_title" = "Šio prašymo nebėra";
 "state_event_spiral_tool_changed_by_you" = "Pakeitėte: %1$@";
@@ -1354,7 +1370,6 @@
 "screen_native_call_control_sound" = "Garsas";
 "screen_native_call_status_reconnecting" = "Jungiamasi iš naujo…";
 "notice_phrase_changed_body" = "Su senąja fraze nebegalima prisijungti.";
-"screen_invite_people_seats_footer" = "Kiekvienas asmuo turi vieną nuorodą (vietų: %1$d). Ji neatsinaujina, todėl bendrinkite ją su žmonėmis, kurių tikrai norite čia.";
 "screen_room_member_details_agent_unblock_action" = "Atblokuoti";
 "screen_agent_activity_reason_unknown_capability" = "To jis negali atlikti";
 "screen_settings_new_phrase_passcode_required" = "Pirmiausia nustatykite įrenginio kodą — jis apsaugo frazės keitimą";
@@ -1426,10 +1441,11 @@
 "screen_your_data_calls_footer" = "Eksportuokite vieną skambutį: jo stenogramą, santrauką ir sutikimų žurnalą.";
 "screen_arm_tool_error_agent_does_not_join_calls" = "Šis agentas neprisijungia prie skambučių, todėl skambučių įrankiai jam nepasiekiami.";
 "screen_room_interactive_generating_hint" = "Paprastai užtrunka mažiau nei minutę";
-"screen_invite_paste_exhausted" = "Visi, kuriems šis kvietimas buvo skirtas, jau prisijungė. Paprašykite naujo.";
 "notice_phrase_changed_on_device" = "Pakeista įrenginyje „%1$@“.";
+/* AGENT-PLATFORM (1.0.3): the owner-DM card when Sign in with Apple is added. It names no device (security review); a new phrase disconnects Apple. */
+"notice_apple_linked_title" = "Prisijungimas per Apple pridėtas";
+"notice_apple_linked_body" = "Jei tai buvote ne jūs, pakeiskite prisijungimo frazę: tai atjungs Apple.";
 "screen_ai_consent_prompt_openai" = "OpenAI: žinutės, kurias skaito asistentai, jūsų balsas skambučiuose su jais ir įrašai, kuriuos jie paverčia tekstu.";
-"screen_invite_welcome_message" = "%1$@ jus pakvietė ir jau žino, kad esate čia. Pasisveikinkite!";
 "screen_agent_activity_action_used_tool" = "Panaudojo įrankį žinutei";
 "screen_approval_detail_escalation_first_contact" = "Kažkas pirmą kartą parašė jūsų agentui, todėl prieš atsakydamas jis klausia jūsų.";
 "screen_agent_activity_action_drafted_post" = "Parengė įrašo juodraštį";
@@ -1444,7 +1460,6 @@
 "screen_room_interactive_post_updated" = "Įrašas atnaujintas";
 "screen_native_call_camera_failed_message" = "Kamera nepasileido, todėl skambutis tęsiamas tik su garsu. Po akimirkos vėl pabandykite kameros mygtuką.";
 "screen_media_viewer_open" = "Atidaryti";
-"screen_invite_paste_invalid" = "Tokio kvietimo nėra.";
 "screen_agent_room_tool_audience_except_named" = "visiems, išskyrus %1$@";
 "notification_spiral_needs_update_body" = "Atnaujinkite programą, kad tai pamatytumėte.";
 "screen_agent_edit_tone_brief" = "Glaustas ir konkretus";
@@ -1452,7 +1467,6 @@
 "screen_invite_people_seats_left" = "Liko kvietimų: %1$d iš %2$d";
 "screen_agent_activity_reason_wrong_room_kind" = "Neleidžiama tokio tipo pokalbyje";
 "screen_native_call_failure_audio_reset" = "Sistema iš naujo nustatė skambučio garsą.";
-"screen_invite_people_body" = "Registracija tik su kvietimu. Bendrinkite savo asmeninę nuorodą — kiekvienas, susikūręs paskyrą per ją, pirmiausia pamatys jus.";
 "notification_approval_action_target_blocked_title" = "Neišsiųsta — šį asmenį užblokavote";
 "screen_notifications_hub_visitor_other" = "Kažkas naujo";
 "screen_agent_activity_empty_pending_title" = "Nėra prašymų, dėl kurių reikia nuspręsti";
@@ -1476,3 +1490,61 @@
 "screen_notifications_hub_visitors_section" = "Nuo žmonių";
 "screen_agent_settings_visitor_reply_description" = "Atsako visiems, išskyrus jūsų užblokuotus žmones";
 "screen_deactivate_account_spiral_auth_reason" = "Patvirtinkite, kad tai jūs, norėdami ištrinti paskyrą";
+
+// AGENT-PLATFORM (1.0.3 A2): the assistant's first invite in Chats, its chat before consent and its welcome.
+"screen_roomlist_assistant_invite_name" = "Jūsų asistentas";
+"screen_roomlist_assistant_invite_subtitle" = "Labas! Bakstelėkite, kad pradėtumėte 👋";
+"screen_roomlist_assistant_invite_start" = "Pradėti";
+"a11y_assistant_invite_start" = "Pradėti pokalbį su asistentu";
+"a11y_assistant_invite_start_hint" = "Priima asistento kvietimą ir atidaro jūsų pokalbį su juo.";
+"screen_assistant_invite_title" = "Labas! Aš jūsų asistentas";
+"screen_assistant_invite_reminders" = "Priminsiu jums dalykus";
+"screen_assistant_invite_contacts" = "Įsiminsiu jūsų kontaktus";
+"screen_assistant_invite_summaries" = "Apibendrinsiu bet kurį pokalbį";
+"screen_assistant_invite_privacy" = "Matau tik šį pokalbį. Išjungti mane galite bet kada.";
+"screen_assistant_invite_start" = "Pradėti pokalbį";
+"notice_welcome_body" = "Esu čia ir pasiruošęs padėti. Nuo ko pradėsime?";
+"notice_welcome_starter_summary" = "Apibendrink pokalbį";
+"notice_welcome_starter_summary_message" = "Apibendrink man pokalbį";
+"notice_welcome_starter_contact" = "Įsimink kontaktą";
+"notice_welcome_starter_contact_message" = "Įsimink kai ką apie mano kontaktą";
+"notice_welcome_starter_reminder" = "Primink man…";
+"notice_welcome_starter_reminder_message" = "Nustatyk man priminimą";
+"notice_welcome_allow_ai_reason" = "Leiskite DI, kad galėčiau skaityti, ką čia rašote.";
+"notice_welcome_allow_ai_action" = "Leisti DI";
+
+// AGENT-PLATFORM (1.0.3 onboarding): the start screen's stories, the notifications prompt and the invited welcome.
+"screen_start_slide_privacy_title" = "Jūsų pokalbiai – jūsų";
+"screen_start_slide_privacy_subtitle" = "Visapusis šifravimas. Be telefono numerio, o asistentas – tik su jūsų leidimu";
+"screen_start_slide_calls_title" = "Skambučiai su vertimu";
+"screen_start_slide_calls_subtitle" = "Asistentas prisijungia ir verčia gyvai";
+"screen_start_slide_assistant_title" = "Asistentas šalia";
+"screen_start_slide_assistant_subtitle" = "Atsako, kai esate užsiėmę, ir paklausia jūsų prieš kiekvieną naują žingsnį";
+"screen_start_slide_games_title" = "Žaiskite kartu tiesiog pokalbyje";
+"screen_start_slide_games_subtitle" = "Žaidimai ir įrankiai – nieko nereikia diegti";
+"screen_start_invited_by_hint" = "Susikurkite paskyrą – %1$@ sužinos, kad esate čia";
+"a11y_start_slides_position" = "Skaidrė %1$d iš %2$d";
+"screen_notification_optin_spiral_title" = "Būkite ryšyje";
+"screen_notification_optin_spiral_subtitle" = "Spiral praneš, kai kas nors tikrai svarbu. Tai bet kada galite pakeisti skiltyje „Nustatymai“.";
+"screen_notification_optin_messages_title" = "Naujos žinutės";
+"screen_notification_optin_messages_subtitle" = "Iš žmonių ir grupių, su kuriais bendraujate";
+"screen_notification_optin_calls_title" = "Gaunami skambučiai";
+"screen_notification_optin_calls_subtitle" = "Net kai programėlė Spiral uždaryta";
+"screen_notification_optin_assistant_title" = "Jūsų asistento klausimai";
+"screen_notification_optin_assistant_subtitle" = "Kai jam reikia jūsų sutikimo";
+"screen_notification_optin_allow" = "Leisti pranešimus";
+"screen_invite_welcome_together_title" = "Jūs ir %1$@ esate kartu programėlėje Spiral";
+"screen_invite_welcome_step_say_hello_title" = "Pasisveikinti su %1$@";
+"screen_invite_welcome_step_say_hello_subtitle" = "%1$@ laukia";
+"screen_invite_welcome_step_assistant_title" = "Susipažinti su asistentu";
+"screen_invite_welcome_step_assistant_subtitle" = "Jo kvietimas laukia skiltyje „Pokalbiai“";
+"screen_invite_welcome_step_play_title" = "Sužaisti ką nors kartu";
+"screen_invite_welcome_step_play_subtitle" = "Žaidimai ir įrankiai tiesiog pokalbyje";
+"a11y_invite_welcome_avatars" = "%1$@ ir jūs";
+"screen_approval_detail_already_closed_title" = "Ši užklausa jau uždaryta";
+"screen_approval_detail_already_closed_message" = "Ji nebegalioja arba į ją jau atsakyta.";
+"screen_room_interactive_post_description_not_sent" = "Jūsų aprašymas neišsiųstas. Išsiųskite jį dar kartą gijoje.";
+"screen_room_interactive_post_code_not_sent" = "Įrašas nepasiekė agento. Bandykite dar kartą iš įrašo.";
+"screen_invites_assistant_decline_warning_spiral" = "Jei tai jūsų paties asistentas, atsisakius jo pokalbio atkurti nebebus galima.";
+"a11y_roomlist_remove_filter" = "Pašalinti filtrą: %1$@";
+"a11y_settings_share_profile" = "Bendrinti mano profilį";

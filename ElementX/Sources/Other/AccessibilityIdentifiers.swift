@@ -23,7 +23,6 @@ enum A11yIdentifiers {
     static let homeTabs = HomeTabs()
     static let loginScreen = LoginScreen()
     static let authenticationStartScreen = AuthenticationStartScreen()
-    static let invitePasteSheet = InvitePasteSheet() // AGENT-PLATFORM (Brief 0073).
     static let invitePeopleScreen = InvitePeopleScreen() // AGENT-PLATFORM (Brief 0073).
     static let reportContent = ReportContent()
     static let joinRoomScreen = JoinRoomScreen()
@@ -181,17 +180,10 @@ enum A11yIdentifiers {
         let copy = "invite_people-copy"
         // AGENT-PLATFORM (decision 148): G5 of the dev-stack E2E suite.
         let seats = "invite_people-seats"
+        let invitedBy = "invite_people-invited_by" // AGENT-PLATFORM (1.0.3)
         func joinedUser(_ userID: String) -> String {
             "invite_people-joined:\(userID)"
         }
-    }
-    
-    // AGENT-PLATFORM (Brief 0073 / ADR-0008).
-    struct InvitePasteSheet {
-        let field = "invite_paste-field"
-        let use = "invite_paste-use"
-        let withoutInvite = "invite_paste-without"
-        let cancel = "invite_paste-cancel"
     }
     
     struct ReportContent {
@@ -330,6 +322,7 @@ enum A11yIdentifiers {
     
     struct SettingsScreen {
         let invitePeople = "settings-invite_people" // AGENT-PLATFORM (Brief 0073).
+        let shareProfile = "settings-share_profile" // AGENT-PLATFORM (1.0.3): the bar's share button.
         let security = "settings-security" // AGENT-PLATFORM (decision 187).
         let privacy = "settings-privacy" // AGENT-PLATFORM (decision 187).
         let yourData = "settings-your_data" // AGENT-PLATFORM (decision 146).
@@ -349,6 +342,7 @@ enum A11yIdentifiers {
     // AGENT-PLATFORM (decision 187).
     struct SecuritySettingsScreen {
         let newPhrase = "security_settings-new_phrase"
+        let apple = "security_settings-apple" // AGENT-PLATFORM (1.0.3)
         let devices = "security_settings-devices"
         let encryption = "security_settings-encryption"
         let screenLock = "security_settings-screen_lock"

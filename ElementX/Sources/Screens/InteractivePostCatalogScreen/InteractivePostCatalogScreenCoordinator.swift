@@ -37,8 +37,8 @@ enum InteractivePostCatalogScreenCoordinatorAction {
     case changeTemplate(SpiralAppTemplate)
     /// Close the catalogue for the Agents tab.
     case showAgents
-    /// Read the agents again and open the catalogue on this post.
-    case retryAgents(templateID: String)
+    /// Read the agents again and hand them to `agentsRead(_:dms:)`; the catalogue stays open.
+    case retryAgents
     /// Push `postCoordinator()` onto the catalogue's stack.
     case showPost
     /// Push `yoursCoordinator()` onto the catalogue's stack.
@@ -89,8 +89,8 @@ final class InteractivePostCatalogScreenCoordinator: CoordinatorProtocol {
                 actionsSubject.send(.changeTemplate(template))
             case .showAgents:
                 actionsSubject.send(.showAgents)
-            case .retryAgents(let templateID):
-                actionsSubject.send(.retryAgents(templateID: templateID))
+            case .retryAgents:
+                actionsSubject.send(.retryAgents)
             case .showPost:
                 actionsSubject.send(.showPost)
             case .showYours:
@@ -104,6 +104,11 @@ final class InteractivePostCatalogScreenCoordinator: CoordinatorProtocol {
 
     func stop() {
         viewModel.stop()
+    }
+
+    /// What reading the agents again gave, for the catalogue that asked.
+    func agentsRead(_ assistant: InteractivePostCatalogAssistant, dms: [JoinedRoomProxyProtocol]) {
+        viewModel.agentsRead(assistant, dms: dms)
     }
 
     /// The post page, for the stack the catalogue is on to push.

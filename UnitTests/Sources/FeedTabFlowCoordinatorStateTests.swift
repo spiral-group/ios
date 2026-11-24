@@ -89,6 +89,39 @@ struct FeedTabFlowCoordinatorSheetTests {
         withExtendedLifetime(flowCoordinator) { }
     }
 
+    /// A second tap on an author (on Latest or in a post), the composer or
+    /// one's own posts before the sheet covers the list is dropped; it used
+    /// to reach the state machine's `fatalError` (DEBT, I1 review).
+    @Test
+    func aSecondTapBeforeTheSheetCoversTheListIsIgnored() async throws {
+        let (flowCoordinator, latest) = try await startedFlow()
+
+        latest.context.send(viewAction: .card(postID: post.id, .openAuthor))
+        let author = try #require(splitCoordinator.sheetCoordinator as? NavigationStackCoordinator)
+        #expect(author.rootCoordinator is FeedAuthorScreenCoordinator)
+        latest.context.send(viewAction: .card(postID: post.id, .openAuthor))
+        latest.context.send(viewAction: .openOwnPosts)
+        #expect(splitCoordinator.sheetCoordinator === author)
+
+        splitCoordinator.setSheetCoordinator(nil)
+        latest.context.send(viewAction: .compose)
+        let composer = try #require(splitCoordinator.sheetCoordinator as? NavigationStackCoordinator)
+        #expect(composer.rootCoordinator is FeedComposerScreenCoordinator)
+        latest.context.send(viewAction: .compose)
+        latest.context.send(viewAction: .card(postID: post.id, .openAuthor))
+        #expect(splitCoordinator.sheetCoordinator === composer)
+
+        splitCoordinator.setSheetCoordinator(nil)
+        latest.context.send(viewAction: .card(postID: post.id, .openPost))
+        let stack = try #require(splitCoordinator.sidebarCoordinator as? NavigationStackCoordinator)
+        let opened = try #require((stack.stackCoordinators.last as? FeedPostScreenCoordinator)?.viewModel as? FeedPostScreenViewModel)
+        opened.context.send(viewAction: .card(.openAuthor))
+        let postsAuthor = try #require(splitCoordinator.sheetCoordinator as? NavigationStackCoordinator)
+        opened.context.send(viewAction: .card(.openAuthor))
+        #expect(splitCoordinator.sheetCoordinator === postsAuthor)
+        withExtendedLifetime(flowCoordinator) { }
+    }
+
     /// The first picker's send ends after a link closed it and a second
     /// picker opened: the second stays up, and the toast names both counts.
     @Test

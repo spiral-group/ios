@@ -198,5 +198,23 @@ struct CreateAgentScreenViewModelTests {
         let deferred = deferFulfillment(viewModel.context.observe(\.viewState.bindings.alertInfo)) { $0?.id == .createFailed }
         viewModel.context.send(viewAction: .create)
         try await deferred.fulfill()
+        #expect(viewModel.context.viewState.bindings.alertInfo?.message == nil)
+    }
+    
+    /// 1.0.3: the backend refused the name; the alert says why and the field keeps it to fix.
+    @Test(arguments: AgentEditScreenViewModelTests.nameRefusals)
+    func create_refusedName_saysWhyAndKeepsTheName(_ error: AgentPlatformError) async throws {
+        let service = AgentPlatformServiceMock()
+        service.createCompanyAgentCompanyIDRoleDisplayNameRoleBriefReturnValue = .failure(error)
+        
+        let viewModel = makeViewModel(service: service)
+        viewModel.context.displayName = "Spiral Support"
+        
+        let deferred = deferFulfillment(viewModel.context.observe(\.viewState.bindings.alertInfo)) { $0?.id == .createFailed }
+        viewModel.context.send(viewAction: .create)
+        try await deferred.fulfill()
+        
+        #expect(viewModel.context.viewState.bindings.alertInfo?.message == AgentEditScreenViewModelTests.expectedMessage(for: error))
+        #expect(viewModel.context.displayName == "Spiral Support")
     }
 }

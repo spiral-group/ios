@@ -51,9 +51,26 @@ struct SettingsScreen: View {
         }
         .navigationTitle(L10n.commonSettings)
         .toolbarVisibility(context.viewState.navigationBarVisibility, for: .navigationBar)
+        .toolbar { toolbar } // AGENT-PLATFORM (1.0.3): share my profile.
         // AGENT-PLATFORM (Brief 0083, decision 349): a tab's root, so there is nothing to close, and full width on iPad.
         .contentMargins(.horizontal, sideMargin, for: .scrollContent)
         .onGeometryChange(for: CGFloat.self, of: \.size.width) { width = $0 }
+    }
+    
+    // AGENT-PLATFORM (1.0.3, operator 2026-11-19): the owner's own spiral.md link, as a profile's Share shares it.
+    // The bar's only item: the tab's root has no Done button.
+    @ToolbarContentBuilder
+    private var toolbar: some ToolbarContent {
+        if let shareLink = context.viewState.shareLink {
+            ToolbarItem(placement: .primaryAction) {
+                ShareLink(item: shareLink) {
+                    CompoundIcon(\.shareIos)
+                        .accessibilityHidden(true)
+                }
+                .accessibilityLabel(UntranslatedL10n.a11ySettingsShareProfile) // AGENT-PLATFORM (1.0.3): not a bare «Share».
+                .accessibilityIdentifier(A11yIdentifiers.settingsScreen.shareProfile)
+            }
+        }
     }
     
     // AGENT-PLATFORM (Brief 0083, decision 349): iPad's cards stay a readable width; `nil` keeps the system's margins on iPhone.
@@ -329,7 +346,8 @@ struct SettingsScreen_Previews: PreviewProvider, TestablePreview, SpiralGatedPre
     }
     
     static func makeViewModel(recoveryState: SecureBackupRecoveryState = .enabled, avatarURL: URL? = nil) -> SettingsScreenViewModel {
-        let userSession = UserSessionMock(.init(clientProxy: ClientProxyMock(.init(userID: "@alice:example.com",
+        // AGENT-PLATFORM (1.0.3): an ID on Spiral's homeserver, so the bar shows the share button.
+        let userSession = UserSessionMock(.init(clientProxy: ClientProxyMock(.init(userID: "@alice:\(SpiralLink.serverName)",
                                                                                    deviceID: "AAAAAAAAAAA",
                                                                                    displayName: "Alice Liddell",
                                                                                    avatarURL: avatarURL,

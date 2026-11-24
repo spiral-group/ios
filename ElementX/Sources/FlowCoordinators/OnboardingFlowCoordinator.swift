@@ -66,6 +66,18 @@ class OnboardingFlowCoordinator: FlowCoordinatorProtocol {
     
     private var verificationStateCancellable: AnyCancellable?
     
+    // AGENT-PLATFORM (1.0.3, operator 2026-11-21): a new account opened the
+    // identity screen while its verification was still unknown, showed
+    // «Loading…» over the screen's placeholder and skipped it seconds later,
+    // once the account had verified itself. The flow now waits on a neutral
+    // screen and opens identity confirmation only for an unverified session.
+    private var isAwaitingVerificationState = false
+    // Each wait's timer fires only for its own wait, not a later one.
+    private var verificationWaitGeneration = 0
+    // A state still unknown after this long opens the screen anyway, with its
+    // own loader, rather than leave the user on a screen with no controls.
+    var verificationStateWaitTimeout: TimeInterval = 5
+    
     init(isNewLogin: Bool,
          appLockService: AppLockServiceProtocol,
          navigationStackCoordinator: NavigationStackCoordinator,
@@ -95,11 +107,18 @@ class OnboardingFlowCoordinator: FlowCoordinatorProtocol {
             .receive(on: DispatchQueue.main)
             .sink { [weak self] value in
                 guard let self,
-                      value == .verified,
                       stateMachine.state == .identityConfirmation else { return }
                 
-                userSettings.account.hasRunIdentityConfirmationOnboarding = true
-                stateMachine.tryEvent(.nextSkippingIdentityConfirmed)
+                switch value {
+                case .verified:
+                    isAwaitingVerificationState = false // AGENT-PLATFORM (1.0.3)
+                    userSettings.account.hasRunIdentityConfirmationOnboarding = true
+                    stateMachine.tryEvent(.nextSkippingIdentityConfirmed)
+                case .unverified where isAwaitingVerificationState: // AGENT-PLATFORM (1.0.3)
+                    presentIdentityConfirmationIfConfirmable()
+                case .unverified, .unknown:
+                    break
+                }
             }
     }
     
@@ -218,7 +237,7 @@ class OnboardingFlowCoordinator: FlowCoordinatorProtocol {
             
             switch (context.fromState, context.event, context.toState) {
             case (_, _, .identityConfirmation):
-                presentIdentityConfirmationScreen()
+                presentIdentityConfirmationOnceNeeded() // AGENT-PLATFORM (1.0.3)
             case (_, _, .identityConfirmed):
                 presentIdentityConfirmedScreen()
             case (_, _, .appLockSetup):
@@ -314,10 +333,71 @@ class OnboardingFlowCoordinator: FlowCoordinatorProtocol {
         }
     }
     
+    // AGENT-PLATFORM (1.0.3, operator 2026-11-21): see `isAwaitingVerificationState`.
+    private func presentIdentityConfirmationOnceNeeded() {
+        let verificationState = userSession.sessionSecurityStatePublisher.value.verificationState
+        switch verificationState {
+        case .verified:
+            // Verified before the flow got here (its emission came while the
+            // flow was still `.initial`): there is nothing to confirm.
+            navigationStackCoordinator.setRootCoordinator(PlaceholderScreenCoordinator(hideBrandChrome: false))
+            DispatchQueue.main.async { [weak self] in
+                guard let self, stateMachine.state == .identityConfirmation else { return }
+                userSettings.account.hasRunIdentityConfirmationOnboarding = true
+                stateMachine.tryEvent(.nextSkippingIdentityConfirmed)
+            }
+        case .unverified, .unknown: // AGENT-PLATFORM (1.0.3): `.unverified` waits too, see `presentIdentityConfirmationIfConfirmable`.
+            isAwaitingVerificationState = true
+            verificationWaitGeneration += 1
+            let generation = verificationWaitGeneration
+            navigationStackCoordinator.setRootCoordinator(PlaceholderScreenCoordinator(hideBrandChrome: false))
+            DispatchQueue.main.asyncAfter(deadline: .now() + verificationStateWaitTimeout) { [weak self] in
+                guard let self,
+                      generation == verificationWaitGeneration,
+                      isAwaitingVerificationState,
+                      stateMachine.state == .identityConfirmation else { return }
+                MXLog.info("Verification state still not settled, showing identity confirmation")
+                presentIdentityConfirmationScreen()
+            }
+            if verificationState == .unverified {
+                presentIdentityConfirmationIfConfirmable()
+            }
+        }
+    }
+    
+    // AGENT-PLATFORM (1.0.3, operator 2026-11-23): a new account reports `.unverified` until the SDK has set up its
+    // cross-signing identity (`autoEnableCrossSigning`) and signed this device with it, then `.verified` about a second
+    // later, which flashed identity confirmation between the logo and the next step. The screen opens only for an
+    // account whose identity this device doesn't trust yet; with no identity, or one this device has just made (and so
+    // trusts), the wait goes on until `.verified` or the timeout.
+    private func presentIdentityConfirmationIfConfirmable() {
+        let generation = verificationWaitGeneration
+        Task { [weak self] in
+            guard let self else { return }
+            let isConfirmable = switch await userSession.clientProxy.userIdentity(for: userSession.clientProxy.userID, fallBackToServer: true) {
+            case .success(let identity?): identity.verificationState != .verified
+            case .success(nil): false
+            case .failure: true // Unknown: confirm rather than wait.
+            }
+            guard generation == verificationWaitGeneration,
+                  isAwaitingVerificationState,
+                  stateMachine.state == .identityConfirmation,
+                  userSession.sessionSecurityStatePublisher.value.verificationState == .unverified else { return }
+            if isConfirmable {
+                presentIdentityConfirmationScreen()
+            } else {
+                MXLog.info("The cross-signing identity is still being set up, waiting before identity confirmation")
+            }
+        }
+    }
+    
     private func presentIdentityConfirmationScreen() {
+        // AGENT-PLATFORM (1.0.3): the screen replaces the wait, never stacks on it.
+        let replacesWait = isAwaitingVerificationState
+        isAwaitingVerificationState = false
+        // AGENT-PLATFORM (1.0.3): no indicator controller, the screen shows its own loader (Sign out stays reachable).
         let parameters = IdentityConfirmationScreenCoordinatorParameters(userSession: userSession,
-                                                                         userSettings: userSettings,
-                                                                         userIndicatorController: userIndicatorController)
+                                                                         userSettings: userSettings)
         
         let coordinator = IdentityConfirmationScreenCoordinator(parameters: parameters)
         coordinator.actionsPublisher.sink { [weak self] action in
@@ -339,7 +419,11 @@ class OnboardingFlowCoordinator: FlowCoordinatorProtocol {
         }
         .store(in: &cancellables)
         
-        presentCoordinator(coordinator)
+        if replacesWait { // AGENT-PLATFORM (1.0.3)
+            navigationStackCoordinator.setRootCoordinator(coordinator)
+        } else {
+            presentCoordinator(coordinator)
+        }
     }
     
     private func presentSessionVerificationScreen() {

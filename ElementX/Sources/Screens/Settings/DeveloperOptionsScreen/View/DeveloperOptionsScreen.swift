@@ -116,13 +116,8 @@ struct DeveloperOptionsScreen: View {
                 Text("This setting controls how end-to-end encryption (E2EE) keys are exchanged. Enabling it will prevent the inclusion of devices that have not been explicitly verified by their owners.")
             }
             
-            // AGENT-PLATFORM (ADR-0008): the twin of the platform's REGISTRATION_MODE.
-            Section("Spiral registration") {
-                Toggle(isOn: $context.registrationRequiresInvite) {
-                    Text("Registration requires an invitation")
-                    Text("Off adds «Continue without an invitation» — flip together with REGISTRATION_MODE on the server")
-                }
-                
+            // AGENT-PLATFORM (Brief 0073): the start screen's QR sign-in.
+            Section("Spiral sign-in") {
                 Toggle(isOn: $context.qrCodeLoginEnabled) {
                     Text("Sign in with QR code")
                     Text("Needs MSC4108 on the homeserver")

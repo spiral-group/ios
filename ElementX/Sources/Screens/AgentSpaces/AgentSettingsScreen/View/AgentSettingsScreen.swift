@@ -317,7 +317,7 @@ struct AgentSettingsScreen_Previews: PreviewProvider, TestablePreview, SpiralGat
             ? AgentSpaceAgentCard(agentID: "agent-2", matrixUserID: "@agent-acme-sales:spiral.md", displayName: "Sales · Acme Corp",
                                   avatarMXC: nil, kind: "sales", visibility: "public", lifecycleState: "active",
                                   roomCount: 1, activeToolCount: 0)
-            : AgentSpaceAgentCard(agentID: "agent-1", matrixUserID: "@assistant-owner:spiral.md", displayName: "Anna Kovalchuk · assistant",
+            : AgentSpaceAgentCard(agentID: "agent-1", matrixUserID: "@assistant-owner:spiral.md", displayName: "Anna Sampleton · assistant",
                                   avatarMXC: nil, kind: "personal_assistant", visibility: "private", lifecycleState: "active",
                                   roomCount: 2, activeToolCount: 1)
         let persona = PersonaView(agentID: card.agentID,

@@ -34,6 +34,9 @@ enum SettingsScreenViewModelAction {
 struct SettingsScreenViewState: BindableState {
     var deviceID: String?
     var userProfile: UserProfile
+    /// AGENT-PLATFORM (1.0.3, operator 2026-11-19): the account owner's spiral.md link, shared from the bar.
+    /// `nil` when no link can be built (an ID on another homeserver), and the bar shows no share button.
+    let shareLink: URL?
     var showUserStatusInput = false
     var showAccountDeactivation: Bool
     /// AGENT-PLATFORM (Brief 0078): the exports, for a Spiral account.

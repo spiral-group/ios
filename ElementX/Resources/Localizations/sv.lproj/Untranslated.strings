@@ -65,6 +65,9 @@
 "screen_agent_edit_persona_greeting" = "Hälsning till dig";
 "screen_agent_edit_persona_visitor_greeting" = "Hälsning till gäster";
 "screen_agent_edit_failure" = "Kunde inte spara ändringarna";
+"error_agent_name_reserved" = "Det här namnet är reserverat för Spirals egna konton. Välj ett annat namn.";
+"error_agent_name_invalid_characters" = "Namnet innehåller tecken som inte kan användas.";
+"error_agent_name_unchecked" = "Det gick inte att kontrollera namnet. Försök igen.";
 "screen_agent_edit_load_failure" = "Kunde inte läsa in redigeringsformuläret";
 "screen_agent_edit_avatar_failure" = "Kunde inte ladda upp bilden";
 "action_agent_activity" = "Aktivitet";
@@ -250,7 +253,6 @@
 "screen_language_picker_title" = "Språk";
 "screen_language_picker_empty" = "Inga språk matchar din sökning.";
 "screen_start_sign_in" = "Logga in";
-"screen_start_welcome_subtitle" = "Snabba, privata meddelanden med din personliga agent.";
 
 // AGENT-PLATFORM (Brief 0072, ADR-0083, ADR-0084): presence, worded as Telegram does
 "common_presence_online" = "online";
@@ -491,6 +493,16 @@
 "screen_native_call_assistants_record_confirm_title" = "Spela in samtalet?";
 "screen_native_call_assistants_record_confirm_message" = "Alla ser REC högst upp i samtalet. Inspelningen visas i chatten efter samtalet.";
 "screen_native_call_assistants_record_confirm_action" = "Spela in";
+"screen_native_call_assistants_notes_confirm_title" = "Anteckna samtalet?";
+"screen_native_call_assistants_notes_confirm_message" = "Din assistent lyssnar på samtalet och lägger en sammanfattning i chatten efteråt. Andra ser att den antecknar.";
+"screen_native_call_assistants_notes_confirm_action" = "Anteckna";
+"screen_native_call_assistants_talk_confirm_title" = "Prata med din assistent?";
+"screen_native_call_assistants_talk_confirm_message" = "Den hör bara dig och svarar högt — alla i samtalet hör den.";
+"screen_native_call_assistants_talk_confirm_action" = "Börja prata";
+"screen_native_call_assistants_translate_question_title" = "Översätt till";
+"screen_native_call_assistants_listen_question_title" = "Lyssna på";
+"screen_native_call_assistants_talk_info_title" = "Din assistent svarar högt";
+"screen_native_call_assistants_talk_info_message" = "Den hör bara dig, och alla i samtalet hör den. Ingen översättning medan den pratar.";
 "screen_native_call_assistants_none_of_your_own" = "Du har ingen assistent";
 "screen_native_call_assistants_which" = "Vilken assistent";
 "screen_native_call_assistants_reason_paused" = "Din assistent är pausad";
@@ -571,7 +583,6 @@
 "screen_native_call_assistants_job_conversation" = "Prata";
 "screen_native_call_assistants_translating" = "Översätter till %1$@";
 "screen_native_call_assistants_stop_translation" = "Stoppa översättning";
-"screen_native_call_assistants_talk_caption" = "Svarar dig högt och alla hör det. Ingen översättning medan den pratar.";
 "screen_native_call_assistants_pick_footer" = "Sparas för den här chatten";
 "screen_native_call_assistants_neighbour_language" = "Språket för personen bredvid dig";
 "screen_native_call_assistants_pocket_detail" = "Efter varje fras · åt båda hållen";
@@ -591,10 +602,9 @@
 "screen_native_call_assistants_status_both_ways" = "Översätter åt båda hållen";
 "screen_native_call_assistants_translate_into" = "Översätt till";
 "screen_native_call_assistants_translate_into_detail" = "Du hör samtalet på det";
+"screen_native_call_assistants_translate_into_language" = "Översätt till: %1$@";
 "screen_native_call_assistants_in_call" = "I samtalet";
 "screen_native_call_assistants_in_call_more" = "I samtalet: %1$d till";
-"screen_native_call_assistants_new_translation" = "Ny översättning";
-"screen_native_call_assistants_new_translation_detail" = "Din assistent översätter samtalet";
 "screen_native_call_assistants_new_translation_others" = "Din assistent översätter %1$@. De andra översätts redan, gratis.";
 "screen_native_call_assistants_start_translation" = "Starta översättning";
 "screen_native_call_assistants_start_translation_detail" = "Använder din gräns. Alla som väljer det här språket lyssnar gratis.";
@@ -1044,7 +1054,6 @@
 "notice_phrase_changed_title" = "Inloggningsfrasen har ändrats";
 "a11y_message_read" = "Läst";
 "screen_legal_information_source_code_spiral" = "Källkod";
-"screen_invite_people_seats_label" = "Inbjudningar kvar";
 "screen_native_call_tile_not_joined" = "Du gick inte med";
 "screen_agent_settings_show_in_search_footer" = "Om personer kan hitta den via sökning. Alla som har dess adress kan fortfarande skriva till den.";
 "screen_agent_edit_tone_calm" = "Lugn";
@@ -1056,7 +1065,6 @@
 "screen_room_interactive_draft_published" = "Publicerat";
 "screen_agent_activity_reason_visitor_policy_reply" = "Du tillät att svara direkt";
 "screen_agent_in_room_no_tools" = "Inga verktyg i den här chatten än.";
-"notice_welcome_assistant_body" = "Jag är %1$@, din personliga assistent. Jag kan vidarebefordra meddelanden medan du är borta, komma ihåg dina kontakter och sammanfatta rum. Tryck på + i ett rum och välj Agenter för att slå på mina verktyg där. Skriv bara naturligt till mig — jag finns här.";
 "screen_room_interactive_post_pick_agent_title" = "Vem ska bygga det?";
 "screen_agent_settings_visitor_ask_first_description" = "En ny person får vänta tills du godkänner";
 "screen_ai_consent_prompt_failed" = "Kunde inte spara ditt val. Kontrollera anslutningen och försök igen.";
@@ -1086,10 +1094,8 @@
 "screen_agent_activity_reason_block_needs_owner" = "Blockering kräver ditt OK";
 "screen_create_company_title" = "Nytt företag";
 "a11y_native_call_disable_speaker" = "Stäng av högtalaren";
-"screen_invite_paste_placeholder" = "spiral.md/join/…";
 "a11y_native_call_end" = "Avsluta samtalet";
 "screen_agent_activity_action_published_post" = "Publicerade ett inlägg";
-"screen_invite_people_joined_footer" = "Personer som har skapat sitt konto via din länk. Tryck för att starta en chatt.";
 "screen_arm_tool_turn_off_confirm_message" = "Agenten slutar göra det här i den här chatten för alla. Du kan slå på det igen när som helst.";
 "spiral_app_card_line_by" = "Från %1$@";
 "state_event_spiral_tool_language_changed_by_you" = "Du ändrade Översätt: %1$@ → %2$@";
@@ -1114,7 +1120,6 @@
 "screen_native_call_agent_block_recording" = "Spelar in";
 "screen_native_call_control_video" = "Video";
 "screen_agent_detail_pause" = "Pausa";
-"screen_invite_paste_expired" = "Den här inbjudan är inte längre giltig. Be om en ny.";
 "screen_security_messages_section" = "Meddelanden";
 "screen_agent_activity_reason_relationship_unavailable" = "Kunde inte kontrollera kontakten";
 "screen_ai_consent_prompt_allow" = "Tillåt";
@@ -1144,15 +1149,12 @@
 "state_event_spiral_tool_off_by_system" = "%1$@ stängdes av för %2$@";
 "a11y_native_call_swap_to_held_call" = "Växla till samtalet med %@";
 "screen_native_call_audio_route_iphone" = "iPhone";
-"screen_invite_people_seats_value" = "%1$d av %2$d";
 "screen_agent_activity_reason_first_contact_with_unknown_visitor" = "Första meddelandet från någon ny";
 "screen_deactivate_account_spiral_list_item_3" = "Radera dina kontouppgifter från vår identitetsserver.";
 "a11y_native_call_bar" = "Pågående samtal med %1$@. Tryck för att gå tillbaka.";
-"screen_invite_paste_unavailable" = "Kunde inte kontrollera inbjudan. Försök igen.";
 "screen_agent_activity_action_read_call_summary" = "Läste en samtalssammanfattning";
 "screen_ai_consent_prompt_title" = "Tillåta AI från tredje part?";
 "screen_agent_edit_voice_language_footer" = "Assistenten svarar alltid på det språk du talar. Det här styr hur den hör samtal och vilket språk samtalssammanfattningar skrivs på.";
-"screen_invite_welcome_title" = "Välkommen till Spiral";
 "screen_agent_activity_reason_blocked_visitor" = "Blockerad person";
 "screen_deactivate_account_spiral_list_item_1_bold_part" = "Permanent avaktivera";
 "screen_native_call_agent_center_recording_live" = "Spelar in…";
@@ -1220,7 +1222,6 @@
 "screen_deactivate_account_spiral_failed" = "Kunde inte radera kontot. Försök igen om en minut.";
 "screen_agent_activity_action_changed_call_mode" = "Ändrade hur den deltar i ett samtal";
 "a11y_native_call_unmute_microphone" = "Slå på mikrofonen";
-"screen_invite_paste_label" = "Länk eller kod";
 "screen_media_viewer_position" = "%1$d av %2$d";
 "screen_native_call_status_reconnecting_detail" = "Din anslutning bröts";
 "screen_approval_detail_block_blocked_subtitle" = "Din agent ignorerar personens meddelanden från och med nu.";
@@ -1256,6 +1257,13 @@
 "screen_agent_activity_reason_no_contact_relationship" = "Inte en av dina kontakter";
 "screen_room_alias_link_not_found" = "Den här länken leder inte till någon chatt.";
 "screen_invite_people_title" = "Bjud in till Spiral";
+"screen_invite_people_you" = "Du";
+"screen_invite_people_invited_count" = "Bjudit in %1$d av %2$d";
+"screen_invite_people_invited_you" = "Bjöd in dig till Spiral";
+"screen_invite_people_seat_invite" = "Bjud in";
+"screen_invite_people_seat_taken" = "Upptagen";
+"screen_invite_people_chain_footer" = "En länk för %1$d personer, och den förnyas inte. Tryck på en person för att öppna profilen.";
+"screen_invite_people_all_used" = "Alla inbjudningar är använda";
 "screen_approval_detail_escalation_cold_outreach" = "Din agent vill skriva till någon för första gången.";
 "screen_start_invited_by" = "%1$@ har bjudit in dig till Spiral";
 "screen_agent_spaces_section_retry" = "Tryck för att försöka igen.";
@@ -1263,7 +1271,6 @@
 "screen_settings_new_phrase_done" = "Inloggningsfrasen har ändrats";
 "screen_agent_activity_reason_outside_conversation" = "Utanför den här konversationen";
 "a11y_native_call_switch_camera" = "Byt kamera";
-"screen_invite_people_joined" = "Gick med via din inbjudan: %1$d";
 "screen_agent_activity_action_searched_agents" = "Letade efter agenter";
 "screen_agent_activity_reason_strategy_no_op" = "Inget att göra";
 "action_dismiss_visitor_message" = "Ta bort";
@@ -1272,7 +1279,6 @@
 "screen_approval_detail_block_action_dont_block" = "Blockera inte";
 "screen_agent_settings_people_title" = "Kontakt med andra";
 "screen_native_call_agent_center_error_not_owner" = "Bara ägaren av den här sessionen kan ändra den.";
-"notice_welcome_agent_body" = "%1$@ är redo. Skriv bara till mig.";
 "screen_agent_detail_already_in_chat" = "Agenten är redan med i den här chatten";
 "screen_native_call_agent_center_booth_members" = "%1$@ till %2$@";
 "screen_settings_devices_title" = "Enheter och sessioner";
@@ -1290,7 +1296,6 @@
 "screen_agent_activity_action_remembered" = "Kom ihåg något om en kontakt";
 "screen_room_interactive_post_link_needs_update" = "Det här inlägget kräver en nyare version av Spiral. Uppdatera appen för att använda det.";
 "screen_room_member_details_erase_assistant_memory" = "Radera det mina assistenter vet om personen";
-"screen_invite_paste_without" = "Fortsätt utan inbjudan";
 "screen_agent_edit_tone_friendly" = "Vänlig";
 "screen_room_interactive_post_update" = "Uppdatera inlägget";
 "screen_agent_detail_archive_refused" = "Din personliga assistent hör till ditt konto och kan inte arkiveras.";
@@ -1307,9 +1312,7 @@
 "screen_native_call_agent_center_talking" = "Assistenten pratar";
 "screen_native_call_tile_call_back" = "Tryck för att ringa tillbaka";
 "notice_reply_failed_body" = "Något gick fel på min sida. Skicka det igen.";
-"screen_invite_people_joined_title" = "Gick med via din inbjudan";
 "screen_native_call_status_connecting_detail" = "Konfigurerar kryptering";
-"screen_invite_paste_title" = "Har du en inbjudan?";
 "screen_edit_profile_bio_too_long" = "En bio får vara högst %1$d tecken. Korta ner den för att spara den.";
 "a11y_native_call_agent_block_role" = "%1$@, %2$@";
 "a11y_native_call_recording" = "Det här samtalet spelas in";
@@ -1322,12 +1325,25 @@
 "screen_agent_spaces_assistant_pending" = "Din assistent håller fortfarande på att konfigureras";
 "screen_room_member_details_erase_assistant_memory_alert_title" = "Radera det dina assistenter vet om %1$@?";
 "screen_settings_new_phrase_failed" = "Kunde inte börja ändra frasen. Försök igen.";
+/* AGENT-PLATFORM (1.0.3): sign-in methods — the first phrase for an account made with Apple, Sign in with Apple for a phrase account. */
+"screen_settings_add_phrase_title" = "Lägg till inloggningsfras";
+"screen_settings_add_phrase_message" = "Du väljer 12 ord. De öppnar ditt konto på vilken enhet som helst, utöver Logga in med Apple. Du förblir inloggad på den här enheten och dina meddelanden påverkas inte.";
+"screen_settings_add_phrase_auth_reason" = "Bekräfta att det är du för att lägga till en inloggningsfras";
+"screen_settings_add_phrase_done" = "Inloggningsfrasen har lagts till";
+"screen_settings_add_phrase_failed" = "Kunde inte börja lägga till frasen. Försök igen.";
+"screen_settings_sign_in_passcode_required" = "Ställ in en lösenkod för enheten först — den skyddar dina sätt att logga in";
+"screen_settings_apple_title" = "Logga in med Apple";
+"screen_settings_apple_connected" = "Ansluten";
+"screen_settings_apple_add_title" = "Lägg till Logga in med Apple";
+"screen_settings_apple_auth_reason" = "Bekräfta att det är du för att lägga till Logga in med Apple";
+"screen_settings_apple_linked" = "Logga in med Apple har lagts till";
+"screen_settings_apple_taken" = "Detta Apple-ID används redan av ett annat Spiral-konto";
+"screen_settings_apple_failed" = "Kunde inte börja lägga till Logga in med Apple. Försök igen.";
 "screen_deactivate_account_spiral_description" = "Att radera ditt konto är %1$@. Det kommer att:";
 "screen_agent_activity_action_set_reminder" = "Satte en påminnelse";
 "screen_agent_activity_action_cancelled_reminder" = "Avbröt en påminnelse";
 "screen_agent_activity_reason_capability_always_allowed" = "Alltid tillåtet";
 "screen_agent_activity_action_blocked_someone" = "Blockerade någon";
-"screen_invite_paste_message" = "Klistra in länken som en Spiral-användare skickade till dig, eller skriv koden.";
 "screen_native_call_error_title" = "Samtalet misslyckades";
 "notification_approval_action_not_found_title" = "Den här begäran finns inte längre";
 "state_event_spiral_tool_changed_by_you" = "Du ändrade %1$@";
@@ -1354,7 +1370,6 @@
 "screen_native_call_control_sound" = "Ljud";
 "screen_native_call_status_reconnecting" = "Återansluter…";
 "notice_phrase_changed_body" = "Den gamla frasen fungerar inte längre för inloggning.";
-"screen_invite_people_seats_footer" = "Varje person har en länk med %1$d platser. Den förnyas inte, så dela den med de personer du verkligen vill ha här.";
 "screen_room_member_details_agent_unblock_action" = "Avblockera";
 "screen_agent_activity_reason_unknown_capability" = "Inget den kan göra";
 "screen_settings_new_phrase_passcode_required" = "Ställ in en lösenkod för enheten först — den skyddar ändringen av frasen";
@@ -1426,10 +1441,11 @@
 "screen_your_data_calls_footer" = "Exportera ett samtal: dess utskrift, dess sammanfattning och dess samtyckeslogg.";
 "screen_arm_tool_error_agent_does_not_join_calls" = "Den här agenten går inte med i samtal, så samtalsverktyg är inte tillgängliga för den.";
 "screen_room_interactive_generating_hint" = "Oftast under en minut";
-"screen_invite_paste_exhausted" = "Alla som den här inbjudan gav plats åt har redan gått med. Be om en ny.";
 "notice_phrase_changed_on_device" = "Ändrad på ”%1$@”.";
+/* AGENT-PLATFORM (1.0.3): the owner-DM card when Sign in with Apple is added. It names no device (security review); a new phrase disconnects Apple. */
+"notice_apple_linked_title" = "Logga in med Apple har lagts till";
+"notice_apple_linked_body" = "Om det inte var du, ändra din inloggningsfras: det kopplar bort Apple.";
 "screen_ai_consent_prompt_openai" = "OpenAI: meddelanden som assistenter läser, din röst i samtal med dem och inspelningar som de transkriberar.";
-"screen_invite_welcome_message" = "%1$@ bjöd in dig och vet redan att du är här. Säg hej!";
 "screen_agent_activity_action_used_tool" = "Använde ett verktyg på ett meddelande";
 "screen_approval_detail_escalation_first_contact" = "Någon skrev till din agent för första gången, så den frågar dig innan den svarar.";
 "screen_agent_activity_action_drafted_post" = "Gjorde ett utkast till ett inlägg";
@@ -1444,7 +1460,6 @@
 "screen_room_interactive_post_updated" = "Inlägget har uppdaterats";
 "screen_native_call_camera_failed_message" = "Kameran kunde inte starta, så samtalet fortsätter med ljud. Prova kameraknappen igen om en stund.";
 "screen_media_viewer_open" = "Öppna";
-"screen_invite_paste_invalid" = "Det finns ingen sådan inbjudan.";
 "screen_agent_room_tool_audience_except_named" = "för alla utom %1$@";
 "notification_spiral_needs_update_body" = "Uppdatera appen för att se det här.";
 "screen_agent_edit_tone_brief" = "Kort och koncis";
@@ -1452,7 +1467,6 @@
 "screen_invite_people_seats_left" = "%1$d av %2$d inbjudningar kvar";
 "screen_agent_activity_reason_wrong_room_kind" = "Inte tillåtet i den här typen av chatt";
 "screen_native_call_failure_audio_reset" = "Systemet återställde samtalsljudet.";
-"screen_invite_people_body" = "Registrering sker via inbjudan. Dela din personliga länk — alla som skapar ett konto via den ser dig först.";
 "notification_approval_action_target_blocked_title" = "Inte skickat — du har blockerat den här personen";
 "screen_notifications_hub_visitor_other" = "Något nytt";
 "screen_agent_activity_empty_pending_title" = "Inga förfrågningar att ta ställning till";
@@ -1476,3 +1490,61 @@
 "screen_notifications_hub_visitors_section" = "Från personer";
 "screen_agent_settings_visitor_reply_description" = "Svarar alla utom de personer du har blockerat";
 "screen_deactivate_account_spiral_auth_reason" = "Bekräfta att det är du för att radera ditt konto";
+
+// AGENT-PLATFORM (1.0.3 A2): the assistant's first invite in Chats, its chat before consent and its welcome.
+"screen_roomlist_assistant_invite_name" = "Din assistent";
+"screen_roomlist_assistant_invite_subtitle" = "Hej! Tryck för att börja 👋";
+"screen_roomlist_assistant_invite_start" = "Börja";
+"a11y_assistant_invite_start" = "Börja en konversation med din assistent";
+"a11y_assistant_invite_start_hint" = "Godkänner assistentens inbjudan och öppnar din chatt med den.";
+"screen_assistant_invite_title" = "Hej! Jag är din assistent";
+"screen_assistant_invite_reminders" = "Jag påminner dig om saker";
+"screen_assistant_invite_contacts" = "Jag kommer ihåg dina kontakter";
+"screen_assistant_invite_summaries" = "Jag sammanfattar vilken chatt som helst";
+"screen_assistant_invite_privacy" = "Jag ser bara den här konversationen. Du kan stänga av mig när som helst.";
+"screen_assistant_invite_start" = "Börja konversation";
+"notice_welcome_body" = "Jag finns här och hjälper gärna till. Var ska vi börja?";
+"notice_welcome_starter_summary" = "Sammanfatta en chatt";
+"notice_welcome_starter_summary_message" = "Sammanfatta en chatt åt mig";
+"notice_welcome_starter_contact" = "Kom ihåg en kontakt";
+"notice_welcome_starter_contact_message" = "Kom ihåg något om en av mina kontakter";
+"notice_welcome_starter_reminder" = "Påminn mig …";
+"notice_welcome_starter_reminder_message" = "Sätt en påminnelse åt mig";
+"notice_welcome_allow_ai_reason" = "Tillåt AI så att jag kan läsa det du skriver här.";
+"notice_welcome_allow_ai_action" = "Tillåt AI";
+
+// AGENT-PLATFORM (1.0.3 onboarding): the start screen's stories, the notifications prompt and the invited welcome.
+"screen_start_slide_privacy_title" = "Dina samtal är dina";
+"screen_start_slide_privacy_subtitle" = "Totalsträckskryptering. Inget telefonnummer, och assistenten bara med ditt tillstånd";
+"screen_start_slide_calls_title" = "Samtal med översättning";
+"screen_start_slide_calls_subtitle" = "Assistenten ansluter och översätter live";
+"screen_start_slide_assistant_title" = "Assistenten nära till hands";
+"screen_start_slide_assistant_subtitle" = "Svarar när du är upptagen, och frågar dig före varje nytt steg";
+"screen_start_slide_games_title" = "Spela tillsammans direkt i chatten";
+"screen_start_slide_games_subtitle" = "Spel och verktyg – utan att installera något";
+"screen_start_invited_by_hint" = "Skapa ett konto så vet %1$@ att du är här";
+"a11y_start_slides_position" = "Sida %1$d av %2$d";
+"screen_notification_optin_spiral_title" = "Håll kontakten";
+"screen_notification_optin_spiral_subtitle" = "Spiral säger till när något verkligen är viktigt. Du kan ändra det när som helst i Inställningar.";
+"screen_notification_optin_messages_title" = "Nya meddelanden";
+"screen_notification_optin_messages_subtitle" = "Från personerna och grupperna du pratar med";
+"screen_notification_optin_calls_title" = "Inkommande samtal";
+"screen_notification_optin_calls_subtitle" = "Även när Spiral är stängd";
+"screen_notification_optin_assistant_title" = "Frågor från din assistent";
+"screen_notification_optin_assistant_subtitle" = "När den behöver ditt samtycke";
+"screen_notification_optin_allow" = "Tillåt notiser";
+"screen_invite_welcome_together_title" = "Du är på Spiral tillsammans med %1$@";
+"screen_invite_welcome_step_say_hello_title" = "Säg hej till %1$@";
+"screen_invite_welcome_step_say_hello_subtitle" = "%1$@ väntar";
+"screen_invite_welcome_step_assistant_title" = "Lär känna din assistent";
+"screen_invite_welcome_step_assistant_subtitle" = "Inbjudan väntar under Chattar";
+"screen_invite_welcome_step_play_title" = "Spela något tillsammans";
+"screen_invite_welcome_step_play_subtitle" = "Spel och verktyg direkt i chatten";
+"a11y_invite_welcome_avatars" = "%1$@ och du";
+"screen_approval_detail_already_closed_title" = "Den här förfrågan är redan stängd";
+"screen_approval_detail_already_closed_message" = "Den har gått ut eller redan besvarats.";
+"screen_room_interactive_post_description_not_sent" = "Din beskrivning skickades inte. Skicka den igen i tråden.";
+"screen_room_interactive_post_code_not_sent" = "Inlägget nådde inte agenten. Försök igen från inlägget.";
+"screen_invites_assistant_decline_warning_spiral" = "Om det här är din egen assistent kan dess chatt inte återställas när du har avböjt.";
+"a11y_roomlist_remove_filter" = "Ta bort filter: %1$@";
+"a11y_settings_share_profile" = "Dela min profil";

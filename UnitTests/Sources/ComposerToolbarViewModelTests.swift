@@ -11,6 +11,7 @@ import Foundation
 import MatrixRustSDK
 @testable import Spiral
 import Testing
+import UIKit
 import WysiwygComposer
 
 @MainActor
@@ -112,6 +113,59 @@ final class ComposerToolbarViewModelTests {
                                                                                                   range: .init(location: 0, length: 16))])
     }
     
+    // AGENT-PLATFORM (1.0.3): a picked mention is followed by a space in the plain composer too.
+    @Test
+    func plainComposerAddsASpaceAfterAPickedMention() {
+        viewModel.context.composerFormattingEnabled = false
+        viewModel.context.plainComposerText = NSAttributedString(string: "Hi @te")
+        viewModel.context.selectedRange = NSRange(location: 6, length: 0)
+        let suggestion = SuggestionItem(suggestionType: .user(.init(id: "@test:matrix.org", displayName: "Test", avatarURL: nil)),
+                                        range: NSRange(location: 3, length: 3),
+                                        rawSuggestionText: "te")
+
+        viewModel.context.send(viewAction: .selectedSuggestion(suggestion))
+
+        #expect(viewModel.context.plainComposerText.string == "Hi \u{FFFC} ")
+        #expect(viewModel.context.selectedRange == NSRange(location: 5, length: 0))
+        #expect(viewModel.context.plainComposerText.attribute(.MatrixUserID, at: 4, effectiveRange: nil) == nil)
+    }
+
+    @Test
+    func plainComposerPutsTheSpaceAfterThePillWhenTheCaretIsInsideTheToken() {
+        viewModel.context.composerFormattingEnabled = false
+        viewModel.context.plainComposerText = NSAttributedString(string: "hello @andrii")
+        viewModel.context.selectedRange = NSRange(location: 9, length: 0)
+        let suggestion = SuggestionItem(suggestionType: .user(.init(id: "@andrii:matrix.org", displayName: "Andrii", avatarURL: nil)),
+                                        range: NSRange(location: 6, length: 7),
+                                        rawSuggestionText: "andrii")
+
+        viewModel.context.send(viewAction: .selectedSuggestion(suggestion))
+
+        #expect(viewModel.context.plainComposerText.string == "hello \u{FFFC} ")
+        #expect(viewModel.context.selectedRange == NSRange(location: 8, length: 0))
+    }
+
+    @Test
+    func plainComposerKeepsTheSpaceAlreadyAfterAMention() {
+        let text = NSMutableAttributedString(string: "\u{FFFC} there")
+        #expect(ComposerToolbarViewModel.spaceAfterMention(in: text, pillAt: 0) == 2)
+        #expect(text.string == "\u{FFFC} there")
+    }
+
+    @Test
+    func plainComposerPutsASpaceBeforeANewLineAfterAMention() {
+        let text = NSMutableAttributedString(string: "\u{FFFC}\nnext line")
+        #expect(ComposerToolbarViewModel.spaceAfterMention(in: text, pillAt: 0) == 2)
+        #expect(text.string == "\u{FFFC} \nnext line")
+    }
+
+    @Test
+    func plainComposerAddsNothingWhenNoPillWasPutIn() {
+        let text = NSMutableAttributedString(string: "@andrii")
+        #expect(ComposerToolbarViewModel.spaceAfterMention(in: text, pillAt: 0) == nil)
+        #expect(text.string == "@andrii")
+    }
+
     @Test
     func selectedUserSuggestion() {
         let suggestion = SuggestionItem(suggestionType: .user(.init(id: "@test:matrix.org", displayName: "Test", avatarURL: nil)), range: .init(), rawSuggestionText: "")

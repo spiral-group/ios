@@ -277,6 +277,8 @@ class NativeCallScreenViewModel: NativeCallScreenViewModelType, NativeCallScreen
     func stop() {
         isStopping = true
         switchTask = nil
+        // An add still waiting to retry must not attach or invite the assistant into the call being left.
+        agentCenter.stop()
         setIdleTimerHeld(false)
         // Over for the app now; CallKit keeps it until the teardown below.
         if let callKitID {
@@ -340,7 +342,6 @@ class NativeCallScreenViewModel: NativeCallScreenViewModelType, NativeCallScreen
         case .translateMenuOpened:
             state.seenTranslationLanguages.formUnion(state.translation.options.map(\.language))
         case .produceTranslation:
-            state.bindings.isCreatingTranslation = false
             produceTranslation()
         case .addOwnTranslation:
             addOwnTranslation()
@@ -348,6 +349,10 @@ class NativeCallScreenViewModel: NativeCallScreenViewModelType, NativeCallScreen
             showSpokenLanguage()
         case .setMyLanguage(let language):
             setMyLanguage(language)
+        case .pickTranslationLanguage(let language):
+            pickTranslationLanguage(language)
+        case .applyPickedTranslationLanguage:
+            applyPickedTranslationLanguage()
         case .runCapsuleAction:
             runCapsuleAction()
         case .continueTranslation(let language):
@@ -357,10 +362,8 @@ class NativeCallScreenViewModel: NativeCallScreenViewModelType, NativeCallScreen
             state.neighbourLanguage = language
             state.bindings.isNeighbourLanguagePresented = false
             producePocketTranslation(isNeighbourPicked: true)
-        case .toggleAssistantJob(let job):
-            toggleAssistantJob(job)
-        case .tapAssistantJob(let job):
-            tapAssistantJob(job)
+        case .toggleAssistantJob, .tapAssistantJob, .confirmAssistantJob, .retryAssistantJob:
+            processJobAction(viewAction)
         case .pickAssistant(let agentID, let job):
             myLanguageStore.setAssistant(agentID, roomID: roomID)
             state.pickedAssistantID = agentID
@@ -395,10 +398,11 @@ class NativeCallScreenViewModel: NativeCallScreenViewModelType, NativeCallScreen
         case .dismissAgentCenter:
             // Every page the sheet can open on is cleared, so the next open starts on its own (a swipe-down too).
             state.bindings.isAgentCenterPresented = false
-            state.bindings.isCreatingTranslation = false
             state.bindings.isNeighbourLanguagePresented = false
             state.bindings.assistantPickerJob = nil
             state.bindings.assistantConfirmation = nil
+            // A language picked while translation ran was never applied: closing the sheet leaves it where it was.
+            state.pickedTranslationLanguage = nil
             agentCenter.clearError()
         case .reloadAgentCenter:
             agentCenter.clearError()
@@ -429,8 +433,15 @@ class NativeCallScreenViewModel: NativeCallScreenViewModelType, NativeCallScreen
             }
             runAgentAction(.session(sessionID, row)) { await self.agentCenter.setSwitch(sessionID: sessionID, control: control, enabled: enabled) }
         case .applyAgentTranslation(let sessionID, let params):
-            runAgentAction(.session(sessionID, .translation)) { await self.agentCenter.setTranslation(sessionID: sessionID, params: params) }
+            runAgentAction(.session(sessionID, .translation)) {
+                await self.agentCenter.setTranslation(sessionID: sessionID, params: params)
+            } then: { isWritten in
+                if isWritten {
+                    self.sendPocketPairIfMoved(from: params, sessionID: sessionID)
+                }
+            }
         case .disableAgentTranslation(let sessionID):
+            state.pickedTranslationLanguage = nil
             runAgentAction(.session(sessionID, .translation)) { await self.agentCenter.disableTranslation(sessionID: sessionID) }
         case .resumeAgent(let agentID):
             runAgentAction(.resume(agentID: agentID)) { await self.agentCenter.resume(agentID: agentID) }
@@ -487,6 +498,11 @@ class NativeCallScreenViewModel: NativeCallScreenViewModelType, NativeCallScreen
         if state.bindings.assistantConfirmation == .nothingToTranslate, !next.isNothingToTranslate(into: next.myLanguage) {
             // Someone speaks another language now, or «Translate into» changed: the buttons come back to start it.
             state.bindings.assistantConfirmation = nil
+        }
+
+        // A language held for «Translate into …» goes with the translation it would have moved.
+        if state.pickedTranslationLanguage != nil, state.agents.ownAgents.first?.isTranslationOn != true {
+            state.pickedTranslationLanguage = nil
         }
 
         let stops = stopHistory.stops.filter { !seenStopIDs.contains($0.id) }
@@ -597,14 +613,83 @@ class NativeCallScreenViewModel: NativeCallScreenViewModelType, NativeCallScreen
 
     /// A tap on the sheet's buttons. Recording concerns everyone, so a start asks first, in place (L5 1.5); while
     /// someone else's recording covers the call, the card says whose instead of the buttons (question 404, layout C).
+    /// 1.0.3 (operator's pick C in the call lab, 2026-11-21): a button only picks its job. Turning Notes, Talk or
+    /// Recording on asks under the buttons first, and a second tap on the ringed button takes the question back.
+    /// Translation's question is the resting state, so its button brings it back; «nothing to translate» comes from
+    /// that question's Start, not from the button. Turning a job off stays one tap. The private call's interpreter keeps
+    /// its own pair (L11).
     private func tapAssistantJob(_ job: NativeCallAssistantJob) {
-        let isRecording = state.agents.ownAgents.first?.shown.isRecording == true
-        guard job == .recording, !isRecording else {
+        if job == .translation, !state.isAssistantPage, isTranslationOffAndOpen {
+            // Its question, even over a refusal or a failed join — its Start is the retry.
+            state.bindings.assistantConfirmation = .start(.translation)
+            return
+        }
+        guard job != .translation, !isJobOn(job) else {
             state.bindings.assistantConfirmation = nil
             toggleAssistantJob(job)
             return
         }
-        state.bindings.assistantConfirmation = state.recordingCover?.phase == .recording ? .recordingCovered : .recording
+        if state.bindings.assistantConfirmation == .start(job) {
+            state.bindings.assistantConfirmation = nil
+        } else if job == .recording, state.recordingCover?.phase == .recording {
+            state.bindings.assistantConfirmation = .recordingCovered
+        } else {
+            state.bindings.assistantConfirmation = .start(job)
+        }
+    }
+
+    /// The four job buttons' actions, out of `process(viewAction:)` to keep it readable.
+    private func processJobAction(_ viewAction: NativeCallScreenViewAction) {
+        switch viewAction {
+        case .toggleAssistantJob(let job): toggleAssistantJob(job)
+        case .tapAssistantJob(let job): tapAssistantJob(job)
+        case .confirmAssistantJob(let job): confirmAssistantJob(job)
+        case .retryAssistantJob(let job): retryAssistantJob(job)
+        default: break
+        }
+    }
+
+    /// A job's question answered yes: turns it on — never off, when it turned on meanwhile
+    /// (another device, a room tool).
+    private func confirmAssistantJob(_ job: NativeCallAssistantJob) {
+        state.bindings.assistantConfirmation = nil
+        guard !isJobOn(job) else { return }
+        toggleAssistantJob(job)
+    }
+
+    /// A refusal's «Try again»: the refused write again. A failed language switch already moved your language, so the
+    /// running translation follows it; otherwise the last write of that job says which way it went, and a write that
+    /// went through after all (a lost answer) is left alone rather than reversed.
+    private func retryAssistantJob(_ job: NativeCallAssistantJob) {
+        state.bindings.assistantConfirmation = nil
+        if job == .translation, isJobOn(.translation),
+           let translating = state.translation.ownLanguage, translating != state.myLanguage {
+            followMyLanguage()
+            return
+        }
+        let wasEnabling = lastJobWrite?.job == job ? lastJobWrite?.isEnabling == true : !isJobOn(job)
+        guard wasEnabling != isJobOn(job) else { return }
+        toggleAssistantJob(job)
+    }
+
+    /// The last start or turn-off a job button sent, so «Try again» repeats that one.
+    private var lastJobWrite: (job: NativeCallAssistantJob, isEnabling: Bool)?
+
+    /// Translation is off and nothing blocks it: its question can stand under the buttons.
+    private var isTranslationOffAndOpen: Bool {
+        if state.agents.ownAgents.first?.shown.isTranslating == true || ownControl?.translation.isOn == true { return false }
+        return state.translation.block == nil
+    }
+
+    /// Whether your assistant already does `job`, so a tap turns it off.
+    private func isJobOn(_ job: NativeCallAssistantJob) -> Bool {
+        let shown = state.agents.ownAgents.first?.shown
+        switch job {
+        case .translation: return shown?.isTranslating == true || ownControl?.translation.isOn == true
+        case .summary: return shown?.isSummaryArmed == true
+        case .recording: return shown?.isRecording == true
+        case .conversation: return shown?.isConversationActive == true
+        }
     }
 
     /// The lanes in the language you hear stopped (D10): it stays chosen while a standby may take them over, and goes
@@ -730,6 +815,9 @@ class NativeCallScreenViewModel: NativeCallScreenViewModelType, NativeCallScreen
     /// the speakers nobody covers in it (model points 3, 4), and you hear it as soon as it runs. Blocked, the sheet
     /// opens on the reason and its way out.
     private func produceTranslation() {
+        // Its question was answered: a refusal or a failed join that follows shows, not the question again.
+        if state.bindings.assistantConfirmation == .start(.translation) { state.bindings.assistantConfirmation = nil }
+        state.pickedTranslationLanguage = nil
         if state.isAssistantPage {
             producePocketTranslation()
             return
@@ -782,13 +870,38 @@ class NativeCallScreenViewModel: NativeCallScreenViewModelType, NativeCallScreen
         produceTranslation()
     }
 
-    /// L4: "+ Add your translation". With your assistant already translating, the sheet opens on it (L4.4: change the
-    /// language, or stop); otherwise right at creating one (L4.2).
+    /// The 文A menu's «Add your own translation…» opens the sheet's root, where Translation's question is the resting
+    /// state — one path whichever way it opens (operator, 2026-11-21: «щоб був один сценарій»).
     private func addOwnTranslation() {
-        let isTranslating = state.agents.ownAgents.first?.shown.isTranslating == true || ownControl?.translation.isOn == true
-        state.bindings.isCreatingTranslation = !isTranslating
         state.bindings.agentCenterPage = nil
+        state.bindings.assistantConfirmation = nil
         presentAgentCenter()
+    }
+
+    /// 1.0.3 (operator's pick B, 2026-11-19): while your translation runs, a pick in «Translate into» only says where
+    /// «Translate into …» would move it, so nothing changes mid-call by browsing the list. Otherwise it is your language
+    /// at once, which «Start translation» then uses. The private call's «Я говорю» moves the interpreter at once (L11).
+    private func pickTranslationLanguage(_ language: String) {
+        guard !state.isAssistantPage, let own = state.agents.ownAgents.first, own.isTranslationOn else {
+            state.pickedTranslationLanguage = nil
+            setMyLanguage(language == state.phoneLanguage ? nil : language)
+            return
+        }
+        state.pickedTranslationLanguage = language == own.translationLanguage ? nil : language
+    }
+
+    /// «Translate into …»: the held language becomes yours, and your running translation follows it the usual way. It
+    /// waits for a translation write still out, and is the retry once a switch failed.
+    private func applyPickedTranslationLanguage() {
+        guard let language = state.pickedTranslationLanguage else { return }
+        if let control = ownControl, state.agentActionsInFlight.contains(.session(control.sessionID, .translation)) { return }
+        state.pickedTranslationLanguage = nil
+        let previous = state.myLanguage
+        setMyLanguage(language == state.phoneLanguage ? nil : language)
+        // A switch that failed already moved your language: only the translation is left to move.
+        if state.myLanguage == previous {
+            followMyLanguage()
+        }
     }
 
     /// Question 409: the capsule's «Змінити» and the 文A menu's «Я говорю»: the language list «Моя мова» is picked in.
@@ -947,11 +1060,32 @@ class NativeCallScreenViewModel: NativeCallScreenViewModelType, NativeCallScreen
         guard beginSwitch(to: .translation, sessionID: control.sessionID) else { return }
         let sessionID = control.sessionID
         switchTask = Task { [weak self, agentCenter] in
+            var isWritten = false
             if await agentCenter.setSwitch(sessionID: sessionID, control: .conversation, enabled: false),
                self?.isSwitchGoingOn == true {
-                _ = await agentCenter.setTranslation(sessionID: sessionID, params: params)
+                isWritten = await agentCenter.setTranslation(sessionID: sessionID, params: params)
             }
             self?.endSwitch(sessionID: sessionID)
+            if isWritten, self?.isSwitchGoingOn == true {
+                self?.sendPocketPairIfMoved(from: params, sessionID: sessionID)
+            }
+        }
+    }
+
+    /// S1, DEBT B21: the pair the sheet shows is the pair that runs. A «Я говорю» or neighbour pick made while a pair
+    /// was being written — during the talk→interpreter switch, when the interpreter isn't on yet and nothing is sent,
+    /// or a second quick pick the in-flight write drops — would leave the written one running; the latest pair is sent
+    /// once that write lands. Each send is the newest pair, so it settles on the last pick.
+    private func sendPocketPairIfMoved(from written: VoiceTranslationParams, sessionID: String) {
+        guard case .pocket = written, state.isAssistantPage, !hasCallEnded,
+              ownControl?.sessionID == sessionID,
+              let mine = state.myLanguageCode, let neighbour = state.neighbourLanguage, neighbour != mine else { return }
+        let latest = VoiceTranslationParams.pocket(mine, neighbour)
+        guard latest != written else { return }
+        MXLog.info("The pocket pair changed while it was written; sending the latest")
+        processAgentCenter(viewAction: .applyAgentTranslation(sessionID: sessionID, params: latest))
+        if state.listeningChoice != .original {
+            state.pendingListenLanguage = state.myLanguage
         }
     }
 
@@ -1011,6 +1145,7 @@ class NativeCallScreenViewModel: NativeCallScreenViewModelType, NativeCallScreen
     /// One of the four buttons: on or off for the assistant in the call (or on its way); with none, the tap brings
     /// one for that job (scenario 2.1).
     private func toggleAssistantJob(_ job: NativeCallAssistantJob) {
+        lastJobWrite = (job, !isJobOn(job))
         // L11: a switch between talking and translating is under way; it ends on its own.
         guard state.switchingAssistantJob == nil || job == .summary || job == .recording else { return }
         guard let control = ownControl else {
@@ -1065,7 +1200,10 @@ class NativeCallScreenViewModel: NativeCallScreenViewModelType, NativeCallScreen
     /// Failure visibility: the controller reports every failed write into
     /// the snapshot (`lastError`, rendered by the sheet), so the discarded
     /// Bool here loses nothing the user was owed.
-    private func runAgentAction(_ key: NativeCallAgentAction, _ action: @escaping () async -> Bool) {
+    /// `then` runs with the write's result once the control is free again, so it may write the same control.
+    private func runAgentAction(_ key: NativeCallAgentAction,
+                                _ action: @escaping () async -> Bool,
+                                then: ((Bool) -> Void)? = nil) {
         guard state.agentActionsInFlight.insert(key).inserted else {
             // The same control is already writing: its row shows progress and takes no second tap.
             MXLog.warning("Agent Center action arrived while the same one is in flight; dropping it")
@@ -1073,8 +1211,9 @@ class NativeCallScreenViewModel: NativeCallScreenViewModelType, NativeCallScreen
         }
 
         Task {
-            _ = await action()
+            let result = await action()
             state.agentActionsInFlight.remove(key)
+            then?(result)
         }
     }
 
@@ -1196,6 +1335,7 @@ extension NativeCallScreenViewModel: NativeCallSessionDelegate {
         case .ended(let reason):
             self.state.callState = .ended(status: Self.endedStatus(for: reason))
             switchTask = nil
+            agentCenter.stop()
             self.state.endedCallDuration = connectedAt.flatMap { Self.durationFormatter.string(from: Date().timeIntervalSince($0)) }
             refreshIdleTimer()
             haptics.ended()
@@ -1270,6 +1410,11 @@ extension NativeCallScreenViewModel: NativeCallSessionDelegate {
             // state reaches the control, never the last request.
             state.isCameraEnabled = local.isVideoEnabled
         }
+    }
+
+    /// A peer switched «Я говорю» mid-call (ADR-0094 A.1): their language reads anew, as with a roster change.
+    func nativeCallSessionDidChangeParticipantLanguages(_ session: NativeCallSession) {
+        Task { await agentCenter.refreshParticipantLanguages() }
     }
 
     func nativeCallSession(_ session: NativeCallSession, didChangeVideoTiles tiles: [NativeCallVideoTile]) {

@@ -69,6 +69,28 @@ extension View {
     }
 }
 
+extension View {
+    // AGENT-PLATFORM (1.0.3): the label of a `backportButtonStyleGlassProminent(tint:)` button in a colour of its own,
+    // only where that style is drawn (tests draw a plain button), and the disabled grey while it can't be pressed. A
+    // bar item takes it from the label's text, not from the button.
+    @ViewBuilder func backportProminentLabelColor(_ color: Color) -> some View {
+        if #available(iOS 26, *), ProcessInfo.isRunningUnitTests {
+            self
+        } else {
+            modifier(ProminentLabelColor(color: color))
+        }
+    }
+}
+
+private struct ProminentLabelColor: ViewModifier {
+    let color: Color
+    @Environment(\.isEnabled) private var isEnabled
+    
+    func body(content: Content) -> some View {
+        content.foregroundStyle(isEnabled ? color : .compound.textDisabled)
+    }
+}
+
 extension ToolbarContent {
     @ToolbarContentBuilder func backportSharedBackgroundVisibility(_ visibility: Visibility) -> some ToolbarContent {
         if #available(iOS 26.0, *) {

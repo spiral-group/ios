@@ -73,7 +73,7 @@ extension JoinedRoomProxyMock {
         
         makeLiveLocationServiceReturnValue = RoomLiveLocationServiceMock(.init())
         
-        updateMembersClosure = { }
+        updateMembersClosure = { .success(()) } // AGENT-PLATFORM (1.0.3 B14)
         setNameClosure = { _ in .success(()) }
         setTopicClosure = { _ in .success(()) }
         getMemberUserIDClosure = { [weak self] userID in

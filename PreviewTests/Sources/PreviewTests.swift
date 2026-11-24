@@ -41,6 +41,8 @@ struct PreviewTests {
         
         lane = checkEnvironments(lanes: lanes)
         UIView.setAnimationsEnabled(false)
+        // AGENT-PLATFORM (1.0.3): a spinner renders still, or a render through the key window never settles.
+        _ = SnapshotStillSpinners.installed
     }
     
     /// Check environments to avoid problems with snapshots on different devices or OS.
@@ -369,9 +371,20 @@ private final class SceneAttachingView: UIView {
 private extension Diffing where Value == UIImage {
     static func prefireImage(preferences: SnapshotPreferences, scale: CGFloat?) -> Diffing {
         lazy var originalDiffing = Diffing.image(precision: preferences.precision, perceptualPrecision: preferences.perceptualPrecision, scale: scale)
+        // AGENT-PLATFORM (1.0.3): the new image is compared as its PNG decodes, as the reference is. swift-snapshot-testing's
+        // perceptual fallback compares the in-memory render with colour management off, and a render through the key
+        // window isn't in the reference's Display P3: one pixel of glass noise sent identityConfirmationScreen's rtl
+        // variants down that path, where every accent-blue pixel then read as Delta E > 2 (0.43 % of the pixels).
         return Diffing(toData: { originalDiffing.toData($0) },
                        fromData: { originalDiffing.fromData($0) },
-                       diff: { originalDiffing.diff($0, $1) })
+                       diff: { reference, new in originalDiffing.diff(reference, new.decodedAsPNG ?? new) })
+    }
+}
+
+private extension UIImage {
+    /// The image as its PNG decodes, in the colour space a reference file is read in.
+    var decodedAsPNG: UIImage? {
+        pngData().flatMap { UIImage(data: $0, scale: scale) }
     }
 }
 

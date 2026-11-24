@@ -55,7 +55,10 @@ class OAuthAuthenticationPresenter: NSObject {
     /// **Note:** The failure case cannot be relied upon as a signal that the authentication has ended.
     /// In particular if the authentication URL requires opening an external app, then the user may return
     /// to the app without completing (or cancelling) the authentication.
-    func authenticate(using oAuthData: OAuthAuthorizationDataProxy) async -> Result<UserSessionProtocol, AuthenticationServiceError> {
+    /// AGENT-PLATFORM (1.0.3): `exchangingCallback` runs once the web session has returned a callback, before it is exchanged.
+    /// A caller that passes it shows its own wait, so no «Loading…» is drawn over it.
+    func authenticate(using oAuthData: OAuthAuthorizationDataProxy,
+                      exchangingCallback: (() -> Void)? = nil) async -> Result<UserSessionProtocol, AuthenticationServiceError> {
         let authenticationURL = presenterHook.update(oAuthData.url, homeserver: oAuthData.homeserver)
         
         let response = await withCheckedContinuation { continuation in
@@ -102,8 +105,14 @@ class OAuthAuthenticationPresenter: NSObject {
             return .failure(.oAuthError(.unknown))
         }
         
-        // Exchanging the callback with the homeserver can be slow, so show the loading indicator while we wait (the modal has already been dismissed).
-        startLoading(delay: .milliseconds(50)) // Small delay to handle a cancellation callback without the indicator showing.
+        // AGENT-PLATFORM (1.0.3): a caller's own wait replaces the indicator, only for a callback that can sign in. An
+        // error response (the person cancelled on the web page) ends at once, so its wait would only flash.
+        if let exchangingCallback, !Self.isErrorResponse(url) {
+            exchangingCallback()
+        } else {
+            // Exchanging the callback with the homeserver can be slow, so show the loading indicator while we wait (the modal has already been dismissed).
+            startLoading(delay: .milliseconds(50)) // Small delay to handle a cancellation callback without the indicator showing.
+        }
         defer { stopLoading() }
         
         switch await authenticationService.loginWithOAuthCallback(url) {
@@ -133,6 +142,15 @@ class OAuthAuthenticationPresenter: NSObject {
     func cancel() {
         activeRequest?.session.cancel()
         activeRequest = nil // Programatically cancelling the session doesn't trigger a callback.
+    }
+    
+    /// AGENT-PLATFORM (1.0.3): an OAuth 2.0 error response (RFC 6749 § 4.1.2.1), in the query or, for the fragment
+    /// response mode, the fragment.
+    static func isErrorResponse(_ callbackURL: URL) -> Bool {
+        guard let components = URLComponents(url: callbackURL, resolvingAgainstBaseURL: false) else { return false }
+        var fragment = URLComponents()
+        fragment.percentEncodedQuery = components.percentEncodedFragment
+        return [components.queryItems, fragment.queryItems].contains { $0?.contains { $0.name == "error" } == true }
     }
     
     private var loadingIndicatorID: String {

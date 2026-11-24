@@ -175,19 +175,294 @@ struct SpiralAIConsentTests {
         #expect(!coordinator.shouldStart)
     }
     
-    private func makeOnboarding(consent: AIConsent, isNewLogin: Bool = false) -> (OnboardingFlowCoordinator, NavigationStackCoordinator) {
-        let service = AgentPlatformServiceMock()
-        service.fetchAIConsentReturnValue = .success(consent)
-        return makeOnboarding(store: AgentsStore(service: service, retryDelays: []), isNewLogin: isNewLogin)
+    // MARK: - Identity confirmation waits for the verification state (1.0.3)
+    
+    /// Operator, 2026-11-21: a new account showed the identity screen with
+    /// «Loading…» for a moment and skipped it once it had verified itself.
+    @Test
+    func aNewAccountWaitsAndNeverSeesTheIdentityScreen() async {
+        let security = CurrentValueSubject<SessionSecurityState, Never>(.init(verificationState: .unknown, recoveryState: .unknown))
+        let (coordinator, stack) = makeOnboarding(consent: decided, isNewLogin: true, security: security)
+        await coordinator.refreshAIConsent()
+        var dismissals = 0
+        let cancellable = coordinator.actions.sink { if case .dismiss = $0 { dismissals += 1 } }
+        defer { cancellable.cancel() }
+        
+        coordinator.start()
+        #expect(stack.rootCoordinator is PlaceholderScreenCoordinator)
+        
+        security.send(.init(verificationState: .verified, recoveryState: .enabled))
+        #expect(await eventually { dismissals == 1 })
+        #expect(!(stack.rootCoordinator is IdentityConfirmationScreenCoordinator))
     }
     
-    private func makeOnboarding(store: AgentsStore, isNewLogin: Bool = false) -> (OnboardingFlowCoordinator, NavigationStackCoordinator) {
+    @Test
+    func anUnverifiedSessionGetsTheIdentityScreenInPlaceOfTheWait() async {
+        let security = CurrentValueSubject<SessionSecurityState, Never>(.init(verificationState: .unknown, recoveryState: .unknown))
+        let (coordinator, stack) = makeOnboarding(consent: decided, isNewLogin: true, security: security)
+        await coordinator.refreshAIConsent()
+        
+        coordinator.start()
+        #expect(stack.rootCoordinator is PlaceholderScreenCoordinator)
+        
+        security.send(.init(verificationState: .unverified, recoveryState: .unknown))
+        #expect(await eventually { stack.rootCoordinator is IdentityConfirmationScreenCoordinator })
+        #expect(stack.stackCoordinators.isEmpty)
+    }
+    
+    /// A state that never arrives still ends on the screen, with its loader and sign-out.
+    @Test
+    func aStateThatStaysUnknownOpensTheIdentityScreenAfterTheTimeout() async {
+        let security = CurrentValueSubject<SessionSecurityState, Never>(.init(verificationState: .unknown, recoveryState: .unknown))
+        let (coordinator, stack) = makeOnboarding(consent: decided, isNewLogin: true, security: security)
+        coordinator.verificationStateWaitTimeout = 0.05
+        await coordinator.refreshAIConsent()
+        
+        coordinator.start()
+        #expect(await eventually { stack.rootCoordinator is IdentityConfirmationScreenCoordinator })
+        #expect(stack.stackCoordinators.isEmpty)
+    }
+    
+    /// Fable review (1.0.3 identity flash): the screen the timeout opens has Sign out within reach, so a person signed
+    /// in offline isn't stuck behind a modal «Loading…» that blocks the window.
+    @Test
+    func theScreenTheTimeoutOpensDoesNotBlockSignOut() async {
+        let security = CurrentValueSubject<SessionSecurityState, Never>(.init(verificationState: .unknown, recoveryState: .unknown))
+        let indicators = UserIndicatorControllerMock()
+        var blockingIndicators = 0
+        indicators.submitIndicatorDelayClosure = { indicator, _ in
+            if !indicator.allowsInteraction { blockingIndicators += 1 }
+        }
+        let (coordinator, stack) = makeOnboarding(consent: decided, isNewLogin: true, security: security, indicators: indicators)
+        coordinator.verificationStateWaitTimeout = 0.05
+        await coordinator.refreshAIConsent()
+        
+        coordinator.start()
+        #expect(await eventually { stack.rootCoordinator is IdentityConfirmationScreenCoordinator })
+        try? await Task.sleep(for: .milliseconds(200)) // The screen reads the state in a task of its own.
+        #expect(blockingIndicators == 0)
+    }
+    
+    /// Fable review (1.0.3 identity flash): a state that arrives after the timeout still settles the screen.
+    @Test
+    func aSessionThatVerifiesAfterTheTimeoutLeavesTheIdentityScreen() async {
+        let security = CurrentValueSubject<SessionSecurityState, Never>(.init(verificationState: .unknown, recoveryState: .unknown))
+        let (coordinator, stack) = makeOnboarding(consent: decided, isNewLogin: true, security: security)
+        coordinator.verificationStateWaitTimeout = 0.05
+        await coordinator.refreshAIConsent()
+        var dismissals = 0
+        let cancellable = coordinator.actions.sink { if case .dismiss = $0 { dismissals += 1 } }
+        defer { cancellable.cancel() }
+        
+        coordinator.start()
+        #expect(await eventually { stack.rootCoordinator is IdentityConfirmationScreenCoordinator })
+        
+        security.send(.init(verificationState: .verified, recoveryState: .enabled))
+        #expect(await eventually { dismissals == 1 })
+    }
+    
+    @Test
+    func aSessionFoundUnverifiedAfterTheTimeoutKeepsTheOneIdentityScreen() async throws {
+        let security = CurrentValueSubject<SessionSecurityState, Never>(.init(verificationState: .unknown, recoveryState: .unknown))
+        let (coordinator, stack) = makeOnboarding(consent: decided, isNewLogin: true, security: security)
+        coordinator.verificationStateWaitTimeout = 0.05
+        await coordinator.refreshAIConsent()
+        
+        coordinator.start()
+        #expect(await eventually { stack.rootCoordinator is IdentityConfirmationScreenCoordinator })
+        let screen = try #require(stack.rootCoordinator)
+        
+        security.send(.init(verificationState: .unverified, recoveryState: .enabled))
+        try await Task.sleep(for: .milliseconds(200))
+        #expect(stack.rootCoordinator === screen, "The screen already shown is not replaced.")
+        #expect(stack.stackCoordinators.isEmpty, "Nor is a second one pushed on it.")
+    }
+    
+    /// A wait that ended (the session verified) and a new one started: the first wait's timer is not the second's.
+    @Test
+    func aRestartedWaitIsNotCutShortByTheEarlierWaitsTimer() async {
+        let security = CurrentValueSubject<SessionSecurityState, Never>(.init(verificationState: .unknown, recoveryState: .unknown))
         let userSettings = UserSettings.mock()
-        userSettings.account.hasRunIdentityConfirmationOnboarding = true
+        let (coordinator, stack) = makeOnboarding(consent: decided, isNewLogin: true, security: security, userSettings: userSettings)
+        coordinator.verificationStateWaitTimeout = 0.2
+        await coordinator.refreshAIConsent()
+        var dismissals = 0
+        let cancellable = coordinator.actions.sink { if case .dismiss = $0 { dismissals += 1 } }
+        defer { cancellable.cancel() }
+        
+        coordinator.start()
+        security.send(.init(verificationState: .verified, recoveryState: .enabled))
+        #expect(await eventually { dismissals == 1 })
+        
+        // The session is reset meanwhile: identity confirmation is owed again and its state is unknown again.
+        userSettings.account.hasRunIdentityConfirmationOnboarding = false
+        security.send(.init(verificationState: .unknown, recoveryState: .unknown))
+        coordinator.verificationStateWaitTimeout = 10
+        #expect(coordinator.shouldStart)
+        coordinator.start()
+        #expect(stack.rootCoordinator is PlaceholderScreenCoordinator)
+        
+        try? await Task.sleep(for: .milliseconds(400)) // Past the first wait's 0.2 s.
+        #expect(stack.rootCoordinator is PlaceholderScreenCoordinator)
+    }
+    
+    /// Review finding: a session already verified when the step begins skips it.
+    @Test
+    func aSessionAlreadyVerifiedSkipsTheIdentityStep() async {
+        let security = CurrentValueSubject<SessionSecurityState, Never>(.init(verificationState: .verified, recoveryState: .enabled))
+        let (coordinator, stack) = makeOnboarding(consent: decided, isNewLogin: true, security: security)
+        await coordinator.refreshAIConsent()
+        var dismissals = 0
+        let cancellable = coordinator.actions.sink { if case .dismiss = $0 { dismissals += 1 } }
+        defer { cancellable.cancel() }
+        
+        coordinator.start()
+        #expect(!(stack.rootCoordinator is IdentityConfirmationScreenCoordinator))
+        #expect(await eventually { dismissals == 1 })
+    }
+    
+    /// An account with an identity to confirm gets the screen as soon as that is known, in place of the wait.
+    @Test
+    func aKnownUnverifiedSessionGetsTheIdentityScreenOnceItsIdentityIsFound() async {
+        let security = CurrentValueSubject<SessionSecurityState, Never>(.init(verificationState: .unverified, recoveryState: .unknown))
+        let (coordinator, stack) = makeOnboarding(consent: decided, security: security)
+        await coordinator.refreshAIConsent()
+        
+        coordinator.start()
+        #expect(stack.rootCoordinator is PlaceholderScreenCoordinator)
+        #expect(await eventually { stack.rootCoordinator is IdentityConfirmationScreenCoordinator })
+        #expect(stack.stackCoordinators.isEmpty)
+    }
+    
+    /// Operator, 2026-11-23: a new account reports `.unverified` until the SDK has set up its cross-signing identity,
+    /// then `.verified`; the identity screen showed in between. Without an identity yet, the wait goes on.
+    @Test
+    func aNewAccountWithoutAnIdentityYetWaitsThroughUnverified() async throws {
+        let security = CurrentValueSubject<SessionSecurityState, Never>(.init(verificationState: .unknown, recoveryState: .unknown))
+        let (coordinator, stack) = makeOnboarding(consent: decided, isNewLogin: true, security: security, ownIdentity: .missing)
+        await coordinator.refreshAIConsent()
+        var dismissals = 0
+        let cancellable = coordinator.actions.sink { if case .dismiss = $0 { dismissals += 1 } }
+        defer { cancellable.cancel() }
+        
+        coordinator.start()
+        security.send(.init(verificationState: .unverified, recoveryState: .unknown))
+        try await Task.sleep(for: .milliseconds(200))
+        #expect(stack.rootCoordinator is PlaceholderScreenCoordinator, "Still the logo, no identity screen.")
+        
+        security.send(.init(verificationState: .verified, recoveryState: .disabled))
+        #expect(await eventually { dismissals == 1 })
+        #expect(!(stack.rootCoordinator is IdentityConfirmationScreenCoordinator))
+    }
+    
+    /// The same when the state is already `.unverified` as the step begins (it came while the flow was `.initial`).
+    @Test
+    func aNewAccountAlreadyUnverifiedWithoutAnIdentityWaitsToo() async throws {
+        let security = CurrentValueSubject<SessionSecurityState, Never>(.init(verificationState: .unverified, recoveryState: .unknown))
+        let (coordinator, stack) = makeOnboarding(consent: decided, isNewLogin: true, security: security, ownIdentity: .missing)
+        await coordinator.refreshAIConsent()
+        var dismissals = 0
+        let cancellable = coordinator.actions.sink { if case .dismiss = $0 { dismissals += 1 } }
+        defer { cancellable.cancel() }
+        
+        coordinator.start()
+        try await Task.sleep(for: .milliseconds(200))
+        #expect(stack.rootCoordinator is PlaceholderScreenCoordinator)
+        
+        security.send(.init(verificationState: .verified, recoveryState: .disabled))
+        #expect(await eventually { dismissals == 1 })
+    }
+    
+    /// The identity the SDK has just set up is uploaded a moment before the device is marked verified: still the logo.
+    @Test
+    func aNewAccountWhoseIdentityIsJustSetUpWaitsToo() async throws {
+        let security = CurrentValueSubject<SessionSecurityState, Never>(.init(verificationState: .unknown, recoveryState: .unknown))
+        let (coordinator, stack) = makeOnboarding(consent: decided, isNewLogin: true, security: security, ownIdentity: .trusted)
+        await coordinator.refreshAIConsent()
+        var dismissals = 0
+        let cancellable = coordinator.actions.sink { if case .dismiss = $0 { dismissals += 1 } }
+        defer { cancellable.cancel() }
+        
+        coordinator.start()
+        security.send(.init(verificationState: .unverified, recoveryState: .disabled))
+        try await Task.sleep(for: .milliseconds(200))
+        #expect(stack.rootCoordinator is PlaceholderScreenCoordinator)
+        
+        security.send(.init(verificationState: .verified, recoveryState: .disabled))
+        #expect(await eventually { dismissals == 1 })
+    }
+    
+    /// An identity that never comes still ends on the screen after the timeout, as an unknown state does.
+    @Test
+    func anUnverifiedSessionWithoutAnIdentityGetsTheScreenAfterTheTimeout() async {
+        let security = CurrentValueSubject<SessionSecurityState, Never>(.init(verificationState: .unverified, recoveryState: .unknown))
+        let (coordinator, stack) = makeOnboarding(consent: decided, isNewLogin: true, security: security, ownIdentity: .missing)
+        coordinator.verificationStateWaitTimeout = 0.05
+        await coordinator.refreshAIConsent()
+        
+        coordinator.start()
+        #expect(await eventually { stack.rootCoordinator is IdentityConfirmationScreenCoordinator })
+    }
+    
+    /// The account's cross-signing identity as this device sees it.
+    private enum OwnIdentity {
+        /// None yet: a new account before the SDK has set one up.
+        case missing
+        /// One this device trusts: a new account's, just set up here, before the device is marked verified.
+        case trusted
+        /// One this device doesn't trust yet: an existing account's, to confirm.
+        case untrusted
+    }
+    
+    private var decided: AIConsent {
+        .init(isGranted: true, currentVersion: current, decidedVersion: current)
+    }
+    
+    private func eventually(_ condition: () -> Bool) async -> Bool {
+        for _ in 0..<200 {
+            if condition() { return true }
+            try? await Task.sleep(for: .milliseconds(10))
+        }
+        return condition()
+    }
+    
+    private func makeOnboarding(consent: AIConsent,
+                                isNewLogin: Bool = false,
+                                security: CurrentValueSubject<SessionSecurityState, Never>? = nil,
+                                indicators: UserIndicatorControllerMock = UserIndicatorControllerMock(),
+                                userSettings: UserSettings = .mock(),
+                                ownIdentity: OwnIdentity = .untrusted) -> (OnboardingFlowCoordinator, NavigationStackCoordinator) {
+        let service = AgentPlatformServiceMock()
+        service.fetchAIConsentReturnValue = .success(consent)
+        return makeOnboarding(store: AgentsStore(service: service, retryDelays: []),
+                              isNewLogin: isNewLogin,
+                              security: security,
+                              indicators: indicators,
+                              userSettings: userSettings,
+                              ownIdentity: ownIdentity)
+    }
+    
+    private func makeOnboarding(store: AgentsStore,
+                                isNewLogin: Bool = false,
+                                security: CurrentValueSubject<SessionSecurityState, Never>? = nil,
+                                indicators: UserIndicatorControllerMock = UserIndicatorControllerMock(),
+                                userSettings: UserSettings = .mock(),
+                                ownIdentity: OwnIdentity = .untrusted) -> (OnboardingFlowCoordinator, NavigationStackCoordinator) {
+        // A session handed a security state is one that hasn't been through identity confirmation.
+        userSettings.account.hasRunIdentityConfirmationOnboarding = security == nil
         userSettings.app.hasRunNotificationPermissionsOnboarding = true
         
-        let userSession = UserSessionMock(.init(userSettings: userSettings))
+        let clientProxy = ClientProxyMock(.init())
+        switch ownIdentity {
+        case .untrusted: break // The mock's default: an identity this device doesn't trust yet.
+        case .missing: clientProxy.userIdentityForFallBackToServerReturnValue = .success(nil)
+        case .trusted: clientProxy.userIdentityForFallBackToServerReturnValue = .success(UserIdentityProxyMock(.init(verificationState: .verified)))
+        }
+        let userSession = UserSessionMock(.init(clientProxy: clientProxy, userSettings: userSettings))
         userSession.agentsStore = store
+        if let security {
+            userSession.sessionSecurityStatePublisher = security.asCurrentValuePublisher()
+        }
         
         let flowParameters = CommonFlowParameters(userSession: userSession,
                                                   availableSessionsPublisher: .init([.init(userSession: userSession)]),
@@ -198,7 +473,7 @@ struct SpiralAIConsentTests {
                                                   linkMetadataProvider: LinkMetadataProvider(),
                                                   appMediator: AppMediatorMock(.init()),
                                                   analytics: AnalyticsServiceMock(.init()),
-                                                  userIndicatorController: UserIndicatorControllerMock(),
+                                                  userIndicatorController: indicators,
                                                   stateMachineFactory: PublishedStateMachineFactory())
         let stack = NavigationStackCoordinator()
         let coordinator = OnboardingFlowCoordinator(isNewLogin: isNewLogin,

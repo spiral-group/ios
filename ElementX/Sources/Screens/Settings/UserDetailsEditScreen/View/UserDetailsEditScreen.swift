@@ -121,6 +121,10 @@ struct UserDetailsEditScreen: View {
                 ListRow(label: .plain(title: UntranslatedL10n.screenEditProfileBioPlaceholder),
                         kind: .textField(text: $context.bio, axis: .horizontal))
                     .focused($focus)
+                    // AGENT-PLATFORM (1.0.3 B11): after the edit lands, so a refused one is drawn away.
+                    .onChange(of: context.bio) { previous, _ in
+                        context.send(viewAction: .bioChanged(previous: previous))
+                    }
                     .accessibilityIdentifier(A11yIdentifiers.feedBioEditor.field)
             }
         } header: {
@@ -135,7 +139,7 @@ struct UserDetailsEditScreen: View {
     
     private var bioFooter: some View {
         HStack(alignment: .firstTextBaseline, spacing: 8) {
-            Text(context.viewState.isBioTooLong ? UntranslatedL10n.screenEditProfileBioTooLong(FeedBio.maxLength) : UntranslatedL10n.screenEditProfileBioFooter)
+            Text(context.viewState.isBioTooLongToSave ? UntranslatedL10n.screenEditProfileBioTooLong(FeedBio.maxLength) : UntranslatedL10n.screenEditProfileBioFooter)
             Spacer(minLength: 0)
             Text(UntranslatedL10n.screenEditProfileBioCount(context.viewState.bioLength, FeedBio.maxLength))
                 .monospacedDigit()
@@ -144,7 +148,7 @@ struct UserDetailsEditScreen: View {
                 .spiralLoadingSlot(context.viewState.bio == .loading, label: L10n.commonLoading) // AGENT-PLATFORM (Brief 0083, question 359)
         }
         // Before the footer style, which would otherwise colour it secondary.
-        .foregroundStyle(context.viewState.isBioTooLong ? .compound.textCriticalPrimary : .compound.textSecondary)
+        .foregroundStyle(context.viewState.isBioTooLongToSave ? .compound.textCriticalPrimary : .compound.textSecondary)
         .compoundListSectionFooter()
     }
     

@@ -11,6 +11,8 @@ import SwiftUI
 /// The bubble rounds its corners, and a 2 pt gap parts the tiles.
 struct GalleryGridView: View {
     let items: [GalleryItem]
+    /// A caption takes the time's chip under the mosaic, off the last tile.
+    let hasCaption: Bool
     let mediaProvider: MediaProviderProtocol?
     let contentScannerService: ContentScannerServiceProtocol?
     let onItemTap: (Int) -> Void
@@ -34,7 +36,8 @@ struct GalleryGridView: View {
                                    position: index + 1,
                                    mediaProvider: mediaProvider,
                                    contentScannerService: contentScannerService,
-                                   overflowCount: overflowCount > 0 && isLastVisible ? overflowCount : 0) {
+                                   overflowCount: overflowCount > 0 && isLastVisible ? overflowCount : 0,
+                                   sharesCornerWithTime: !hasCaption) {
             onItemTap(index)
         }
         // A scanning or unsafe tile fills its place in the mosaic too.

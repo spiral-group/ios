@@ -288,4 +288,20 @@ struct PillContextTests {
         #expect(!context.viewState.isUndefined)
         #expect(context.viewState.displayText == "💬 > #foundation-and-empire:matrix.org")
     }
+    
+    // AGENT-PLATFORM (1.0.3 B19): a tap on a pill or a matrix.to link in the plain composer opens nothing.
+    @Test
+    func aTappedPillInTheComposerOpensNothing() throws {
+        let text = NSMutableAttributedString(string: "Hi @bob")
+        let url = try #require(URL(string: "https://spiral.md/@bob:spiral.md"))
+        MentionBuilder().handleUserMention(for: text, in: NSRange(location: 3, length: 4), url: url, userID: "@bob:spiral.md", userDisplayName: "Bob")
+        let pill = NSRange(location: 3, length: 1)
+        
+        #expect(!MessageComposerTextField.opensTappedLink(url, in: text, range: pill))
+        #expect(!MessageComposerTextField.opensTappedLink(nil, in: text, range: pill), "A pill without a link")
+        #expect(!MessageComposerTextField.opensTappedLink(URL(string: "https://matrix.to/#/@bob:spiral.md"), in: text, range: NSRange(location: 0, length: 2)))
+        #expect(MessageComposerTextField.opensTappedLink(URL(string: "https://example.org"), in: text, range: NSRange(location: 0, length: 2)),
+                "Another link keeps its default")
+        #expect(!MessageComposerTextField.opensTappedLink(url, in: text, range: NSRange(location: 2, length: 40)), "A range past the end is clamped")
+    }
 }

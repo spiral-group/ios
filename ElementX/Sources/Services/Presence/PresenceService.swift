@@ -18,6 +18,8 @@ final class PresenceService {
     private var lastSentPresence: ClientProxyPresence?
     private var pendingPresence: ClientProxyPresence?
     private var sendTask: Task<Void, Never>?
+    /// AGENT-PLATFORM (1.0.3): set when the session ends; a stopped service sends nothing again.
+    private var isStopped = false
     
     private var cancellables = Set<AnyCancellable>()
     
@@ -28,7 +30,7 @@ final class PresenceService {
         self.clientProxy = clientProxy
         self.userSettings = userSettings
         self.notificationCenter = notificationCenter
-        isForegroundActive = initialApplicationState == .active
+        isForegroundActive = initialApplicationState != .background // AGENT-PLATFORM: inactive is on screen (e.g. Face ID at launch)
         
         observeApplicationState()
         observeSharePresence()
@@ -38,6 +40,19 @@ final class PresenceService {
     isolated deinit {
         sendTask?.cancel()
         cancellables.forEach { $0.cancel() }
+    }
+
+    /// AGENT-PLATFORM (1.0.3): ends the service with its session. The flow
+    /// that owns it can outlive the session (the soft-logout screen keeps it;
+    /// leaked screens may too), and every foreground would otherwise send a
+    /// presence PUT with the ended session's token.
+    func stop() {
+        isStopped = true
+        pendingPresence = nil
+        sendTask?.cancel()
+        sendTask = nil
+        cancellables.forEach { $0.cancel() }
+        cancellables.removeAll()
     }
     
     private var desiredPresence: ClientProxyPresence {
@@ -54,9 +69,11 @@ final class PresenceService {
     }
     
     private func observeApplicationState() {
-        notificationCenter.publisher(for: UIApplication.willResignActiveNotification)
+        // AGENT-PLATFORM: away on entering the background, not on resigning active — a Notification Centre pull
+        // resigned and re-activated, two presence PUTs Synapse rate-limits (docs/project/DECISIONS.md, 2026-11-18).
+        notificationCenter.publisher(for: UIApplication.didEnterBackgroundNotification)
             .sink { [weak self] _ in
-                self?.apply(applicationState: .inactive)
+                self?.apply(applicationState: .background)
             }
             .store(in: &cancellables)
         
@@ -82,6 +99,7 @@ final class PresenceService {
     }
     
     private func reportCurrentState() {
+        guard !isStopped else { return } // AGENT-PLATFORM (1.0.3)
         let presence = desiredPresence
         guard sendTask != nil || presence != lastSentPresence,
               pendingPresence != presence else {

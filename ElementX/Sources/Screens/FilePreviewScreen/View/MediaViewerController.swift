@@ -224,6 +224,7 @@ final class MediaViewerController: UIViewController, StatusBarHidingCover {
 
         // A drag down closes; sideways the pager takes it straight away, as this pan fails at once.
         dismissPan.addTarget(self, action: #selector(handleDismissPan(_:)))
+        dismissPan.maximumNumberOfTouches = 1 // A pinch that drifts down is a zoom, not a close.
         dismissPan.delegate = self
         view.addGestureRecognizer(dismissPan)
         collectionView.panGestureRecognizer.require(toFail: dismissPan)
@@ -700,10 +701,17 @@ extension MediaViewerController: UIGestureRecognizerDelegate {
     }
 
     func gestureRecognizer(_ recognizer: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
-        guard recognizer !== dismissPan else { return true }
+        guard recognizer !== dismissPan else { return dismissPanMayStart(on: touch.view) }
         // A tap on a page's own button, ▶ or Open, doesn't also toggle the bars.
         guard let touchedView = touch.view else { return true }
         return !collectionView.visibleCells.contains { ($0 as? MediaViewerPageCell)?.ownsControl(touchedView) == true }
+    }
+    
+    /// A drag to close starts on the page: not on the bars, the strip or the caption, which scroll and take taps.
+    func dismissPanMayStart(on touchedView: UIView?) -> Bool {
+        guard let touchedView else { return true }
+        let chrome = [topChrome?.view, bottomChrome.view].compactMap(\.self)
+        return !chrome.contains { touchedView.isDescendant(of: $0) }
     }
 
     func gestureRecognizer(_ recognizer: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer) -> Bool {

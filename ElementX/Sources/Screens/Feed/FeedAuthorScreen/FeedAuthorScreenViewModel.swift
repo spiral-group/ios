@@ -124,6 +124,9 @@ class FeedAuthorScreenViewModel: FeedAuthorScreenViewModelType, FeedAuthorScreen
         case .block:
             guard state.canBlock else { return }
             confirmBlock()
+        case .unblock:
+            guard state.canBlock, state.isBlocked else { return }
+            confirmUnblock()
         case .report:
             guard !state.isOwnProfile else { return }
             actionsSubject.send(.report(.author(userID: state.author.userID)))
@@ -326,6 +329,27 @@ class FeedAuthorScreenViewModel: FeedAuthorScreenViewModelType, FeedAuthorScreen
         case .failure(let error):
             MXLog.error("Failed to block a feed author: \(error)")
             state.bindings.alertInfo = .init(id: .blockFailed, title: UntranslatedL10n.screenFeedAuthorBlockFailed)
+        }
+    }
+
+    /// The way back from a block made here or anywhere else: the chat's own Unblock, with its words.
+    private func confirmUnblock() {
+        state.bindings.alertInfo = .init(id: .confirmUnblock,
+                                         title: L10n.screenDmDetailsUnblockUser,
+                                         message: L10n.screenDmDetailsUnblockAlertDescription,
+                                         primaryButton: .init(title: L10n.actionCancel, role: .cancel, action: nil),
+                                         secondaryButton: .init(title: L10n.screenDmDetailsUnblockAlertAction, role: nil) { [weak self] in
+                                             Task { await self?.unblock() }
+                                         })
+    }
+
+    private func unblock() async {
+        switch await clientProxy.unignoreUser(state.author.userID) {
+        case .success:
+            break // The ignore list's publisher clears «Blocked».
+        case .failure(let error):
+            MXLog.error("Failed to unblock a feed author: \(error)")
+            state.bindings.alertInfo = .init(id: .unblockFailed, title: L10n.commonError, message: L10n.errorUnknown)
         }
     }
 

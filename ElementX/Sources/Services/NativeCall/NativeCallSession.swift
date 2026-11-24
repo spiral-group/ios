@@ -105,6 +105,8 @@ enum NativeCallFailure: Equatable {
 protocol NativeCallSessionDelegate: AnyObject {
     func nativeCallSession(_ session: NativeCallSession, didChangeState state: NativeCallSessionState)
     func nativeCallSession(_ session: NativeCallSession, didChangeParticipants participants: [NativeCallParticipant])
+    /// A membership's language changed with the roster equal (ADR-0094 A.1): a peer switched «Я говорю» mid-call.
+    func nativeCallSessionDidChangeParticipantLanguages(_ session: NativeCallSession)
     /// The join rang the room; declines for this notification mean the callee
     /// refused the call.
     func nativeCallSession(_ session: NativeCallSession, didSendRingNotification eventID: String)
@@ -403,6 +405,10 @@ final class NativeCallSession: NSObject {
         }
     }
 
+    /// The memberships' languages as the roster was last told them. A peer's «Я говорю» changes only a membership's
+    /// language, which no participant carries, so an equal roster would keep the old language on this phone.
+    private var toldMembershipLanguages: [String: String] = [:]
+
     private(set) var videoTiles: [NativeCallVideoTile] = [] {
         didSet {
             guard videoTiles != oldValue else { return }
@@ -523,7 +529,9 @@ final class NativeCallSession: NSObject {
 
         let derived = NativeCallStateDerivation.derive(inputs)
         listening = derived.listening
+        let isRosterChanged = participants != derived.participants
         participants = derived.participants
+        tellMembershipLanguages(isRosterChanged: isRosterChanged)
         videoTiles = derived.videoTiles
         agentStateDocuments = derived.agentStateDocuments
         agentClaims = derived.agentClaims
@@ -923,7 +931,7 @@ final class NativeCallSession: NSObject {
         // the microphone is never requested on it (audit C1: the old code
         // published a hot mic into a room whose Matrix membership was
         // already left).
-        try await connectTransport(with: credentials) { [weak self] in self?.startWasAbandoned ?? true }
+        try await connectTransportRetryingAClosedRoom(with: credentials)
         isConnected = true
         if startWasAbandoned {
             await abortAbandonedStart()
@@ -959,6 +967,23 @@ final class NativeCallSession: NSObject {
         } catch {
             MXLog.error("Could not start the camera; continuing with audio: \(error)")
             delegate?.nativeCallSessionDidDowngradeToAudio(self)
+        }
+    }
+
+    /// Bug B3: with LiveKit's auto-create off, a call started as an empty room's
+    /// departure timeout fires gets a token (lk-jwt `reused`) for a room that closes
+    /// before the join. A fresh `/sfu/get` recreates it, so the connect gets ONE more
+    /// try; the membership and the ring went out before this and are not repeated.
+    private func connectTransportRetryingAClosedRoom(with credentials: MatrixRTCTransportCredentials) async throws {
+        let isAbandoned: @MainActor () -> Bool = { [weak self] in self?.startWasAbandoned ?? true }
+        do {
+            try await connectTransport(with: credentials, abandonedIf: isAbandoned)
+        } catch NativeCallTransportError.roomNotFound(let detail) {
+            if startWasAbandoned { throw CancellationError() }
+            MXLog.warning("The call's SFU room closed before the join (\(detail)); joining once more with a fresh token")
+            guard let freshCredentials = await transportCredentialsWithinTimeout() else { throw NativeCallTransportError.roomNotFound(detail) }
+            if startWasAbandoned { throw CancellationError() }
+            try await connectTransport(with: freshCredentials, abandonedIf: isAbandoned)
         }
     }
 
@@ -1885,7 +1910,35 @@ final class NativeCallSession: NSObject {
 extension NativeCallSession {
     /// Every participant's published language by MXID (ADR-0094 A.1), read from the memberships the session already has.
     var membershipLanguages: [String: String] {
-        Dictionary(inputs.memberships.compactMap { membership in membership.language.map { (membership.userID, $0) } }) { first, _ in first }
+        Self.membershipLanguages(inputs.memberships, ownIdentity: inputs.ownIdentity)
+    }
+
+    /// One language per person, as close to the backend's roster rule (`lane_reconciler::call_members_at`: the newest
+    /// membership per user, a membership without a language included) as the memberships allow. They carry no
+    /// timestamp and the SDK hands them sorted by identity, so with two live memberships the newest can't be told:
+    /// they count only when they agree. A person whose memberships disagree — a stale iPad or crashed session beside
+    /// the live one — reads as `undetermined`, which differs from every language: the button shows and a translation is
+    /// asked for, the backend deciding by the newest. One with no language at all stays unpublished (absent). This
+    /// device's own membership is known to be the live one and wins for its user. The real fix is the membership's
+    /// `created_ts` over the FFI (DEBT).
+    nonisolated static func membershipLanguages(_ memberships: [MatrixRTCParticipant], ownIdentity: String) -> [String: String] {
+        Dictionary(grouping: memberships, by: \.userID).compactMapValues { userMemberships in
+            if let own = userMemberships.first(where: { $0.identity == ownIdentity }) {
+                return own.language
+            }
+            let language = userMemberships.first?.language
+            return userMemberships.allSatisfy { $0.language == language } ? language : NativeCallLanguageCode.undetermined
+        }
+    }
+
+    /// A changed roster already makes the screen read the languages again; an equal one with a new language says so.
+    private func tellMembershipLanguages(isRosterChanged: Bool) {
+        let languages = membershipLanguages
+        guard languages != toldMembershipLanguages else { return }
+        toldMembershipLanguages = languages
+        if !isRosterChanged {
+            delegate?.nativeCallSessionDidChangeParticipantLanguages(self)
+        }
     }
 
     /// "My language" changed (ADR-0094 A.1, row 9): kept for the join, or republished with the membership once joined.

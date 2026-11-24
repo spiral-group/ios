@@ -10,6 +10,22 @@ import Combine
 import Compound
 import SwiftUI
 
+// AGENT-PLATFORM (1.0.3, operator 2026-11-21: «якщо ми переходимо на інший екран, клавіатура має ховатись»): a sheet,
+// a fullscreen cover or the call overlay presented over a focused field, or a tab switch, ends editing app-wide. Those
+// screens are drawn above a view that stays alive, so its field keeps first responder and the keyboard stays over the
+// new screen (seen going back to a call from a chat being typed in). A push needs nothing: the field leaves the window.
+@MainActor
+enum KeyboardDismissal {
+    /// Every window of every scene, not just the key one (a detached window on the Mac keeps its own responder).
+    static func endEditing() {
+        for scene in UIApplication.shared.connectedScenes {
+            for window in (scene as? UIWindowScene)?.windows ?? [] {
+                window.endEditing(true)
+            }
+        }
+    }
+}
+
 /// Class responsible for displaying 2 coordinators side by side and collapsing them
 /// into a single navigation stack on compact layouts
 @Observable class NavigationSplitCoordinator: CoordinatorProtocol, CustomStringConvertible {
@@ -225,6 +241,7 @@ import SwiftUI
             fatalError("Cannot use the same coordinator more than once")
         }
         
+        KeyboardDismissal.endEditing() // AGENT-PLATFORM (1.0.3): a field under it must not keep the keyboard
         var transaction = Transaction()
         transaction.disablesAnimations = !animated
         
@@ -248,6 +265,7 @@ import SwiftUI
             fatalError("Cannot use the same coordinator more than once")
         }
         
+        KeyboardDismissal.endEditing() // AGENT-PLATFORM (1.0.3): a field under it must not keep the keyboard
         var transaction = Transaction()
         transaction.disablesAnimations = !animated
         
@@ -638,6 +656,7 @@ struct NavigationSidebarDivider: View {
             fatalError("Cannot use the same coordinator more than once")
         }
         
+        KeyboardDismissal.endEditing() // AGENT-PLATFORM (1.0.3): a field under it must not keep the keyboard
         var transaction = Transaction()
         transaction.disablesAnimations = !animated
         
@@ -667,6 +686,7 @@ struct NavigationSidebarDivider: View {
             fatalError("Cannot use the same coordinator more than once")
         }
         
+        KeyboardDismissal.endEditing() // AGENT-PLATFORM (1.0.3): a field under it must not keep the keyboard
         var transaction = Transaction()
         transaction.disablesAnimations = !animated
         

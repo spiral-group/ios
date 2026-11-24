@@ -15,4 +15,8 @@ import Combine
 protocol SecuritySettingsScreenViewModelProtocol {
     var actionsPublisher: AnyPublisher<SecuritySettingsScreenViewModelAction, Never> { get }
     var context: SecuritySettingsScreenViewModelType.Context { get }
+    
+    func loadSignInMethods()
+    /// A New phrase or Add Apple flow ended, whatever its outcome.
+    func signInFlowFinished()
 }

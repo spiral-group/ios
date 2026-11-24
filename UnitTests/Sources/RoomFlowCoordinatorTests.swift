@@ -20,6 +20,7 @@ final class RoomFlowCoordinatorTests {
     var timelineControllerFactory: TimelineControllerFactoryMock!
     var roomFlowCoordinator: RoomFlowCoordinator!
     var navigationStackCoordinator: NavigationStackCoordinator!
+    var agentPlatformService: AgentPlatformServiceMock? // AGENT-PLATFORM (1.0.3, B15)
     var cancellables = Set<AnyCancellable>()
     
     private let userSettings: UserSettings
@@ -434,6 +435,30 @@ final class RoomFlowCoordinatorTests {
         try await deferredClosed.fulfill()
     }
     
+    /// Retry after a failed read of the agents reads them again with the catalogue open: closed for the read, the
+    /// room showed bare for up to a minute and a call answered meanwhile got the catalogue on top (1.0.3, B15).
+    @Test
+    func retryReadsTheAgentsAgainWithTheCatalogueOpen() async throws {
+        setupRoomFlowCoordinator(agentsRead: .failure)
+        let deferredSheet = deferFulfillment(navigationStackCoordinator.observe(\.sheetCoordinatorID)) { $0 != nil }
+        try await processExpectingNewRootCoordinator(route: .catalogTemplate(templateID: "poll", roomID: "1"))
+        try await deferredSheet.fulfill()
+        let sheet = try #require(navigationStackCoordinator.sheetCoordinator as? NavigationStackCoordinator)
+        let catalogue = try #require(sheet.rootCoordinator as? InteractivePostCatalogScreenCoordinator)
+        #expect(catalogue.assistant == .unknown)
+        
+        agentPlatformService?.listMyPersonalAgentsReturnValue = AgentsRead.agents(count: 1).result
+        let deferredNotClosed = deferFailure(navigationStackCoordinator.observe(\.sheetCoordinatorID), timeout: .seconds(1)) { $0 == nil }
+        let deferredRead = deferFulfillment(catalogue.viewModel.context.observe(\.viewState.assistant)) { $0 == .available }
+        catalogue.viewModel.context.send(viewAction: .retryAgents)
+        #expect(catalogue.viewModel.context.viewState.isReadingAgents)
+        try await deferredRead.fulfill()
+        try await deferredNotClosed.fulfill()
+        
+        #expect(navigationStackCoordinator.sheetCoordinator === sheet)
+        #expect(!catalogue.viewModel.context.viewState.isReadingAgents)
+    }
+    
     /// Already in the room: the catalogue opens over it.
     @Test
     func aCatalogueLinkForTheRoomOnScreenOpensTheCatalogue() async throws {
@@ -796,6 +821,7 @@ final class RoomFlowCoordinatorTests {
         let userSession = UserSessionMock(.init(clientProxy: clientProxy, userSettings: userSettings))
         if let read = agentsRead.result { // AGENT-PLATFORM (decisions 111, 129)
             let agentPlatformService = AgentPlatformServiceMock()
+            self.agentPlatformService = agentPlatformService
             agentPlatformService.listMyPersonalAgentsReturnValue = read
             agentPlatformService.fetchRoomToolsRoomIDReturnValue = .success(.init(roomID: roomID, agents: [])) // the room screen's tools banner
             userSession.agentPlatformService = agentPlatformService

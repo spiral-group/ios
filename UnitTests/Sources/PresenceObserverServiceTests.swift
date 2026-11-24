@@ -261,4 +261,44 @@ struct PresenceObserverServiceTests {
         _ = cancellable
         _ = service
     }
+    
+    /// AGENT-PLATFORM (1.0.3): a deleted or signed out account's service kept
+    /// polling the chat list's DMs on every foreground with the dead token,
+    /// because screens of the ended session outlived it. A stopped service
+    /// never asks again: not on the next foreground, not for a screen that
+    /// still calls in.
+    @Test
+    func aStoppedServiceNeverPollsAgain() async throws {
+        answers.set(Self.alice, .success(Self.online(Self.alice)))
+        answers.set(Self.bob, .success(Self.online(Self.bob)))
+        let service = makeService(initialApplicationState: .background)
+        service.setObserved([Self.alice], scope: "homeScreen")
+        
+        service.stop()
+        notificationCenter.post(name: UIApplication.didBecomeActiveNotification, object: nil)
+        service.observe(Self.bob)
+        service.setObserved([Self.alice, Self.bob], scope: "homeScreen")
+        notificationCenter.post(name: UIApplication.willResignActiveNotification, object: nil)
+        notificationCenter.post(name: UIApplication.didBecomeActiveNotification, object: nil)
+        try await Task.sleep(for: .milliseconds(400))
+        
+        #expect(answers.requested.isEmpty, "a stopped service polled")
+        _ = service
+    }
+    
+    @Test
+    func stoppingAPollingServiceEndsThePoll() async throws {
+        answers.set(Self.alice, .success(Self.online(Self.alice)))
+        let service = makeService()
+        service.setObserved([Self.alice], scope: "homeScreen")
+        _ = try await nextRequest(Self.alice)
+        
+        service.stop()
+        try await Task.sleep(for: .milliseconds(100))
+        let before = answers.requestCount(Self.alice)
+        try await Task.sleep(for: .milliseconds(400))
+        
+        #expect(answers.requestCount(Self.alice) == before, "the poll outlived the stop")
+        _ = service
+    }
 }

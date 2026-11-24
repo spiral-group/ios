@@ -73,6 +73,10 @@ struct ToolExampleCard: View {
             .padding(CompoundDesignTokens.space2X)
             .chatCardBubble(cornerRadius: SpiralRadius.bubble)
             .allowsHitTesting(false)
+            // Hit testing off leaves VoiceOver its Play action, which plays nothing: the sample is named instead.
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(Text(L10n.commonVoiceMessage))
+            .accessibilityValue(Text(Duration.seconds(Self.recording.duration).formatted(.units(allowed: [.minutes, .seconds], width: .wide))))
     }
     
     private func bubble(@ViewBuilder content: () -> some View) -> some View {

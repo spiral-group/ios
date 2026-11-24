@@ -126,6 +126,12 @@ struct FeedAuthorScreen: View {
                         Label(UntranslatedL10n.screenFeedAuthorBlock, icon: \.block)
                     }
                     .accessibilityIdentifier(A11yIdentifiers.feedAuthorScreen.block)
+                } else if context.viewState.canBlock {
+                    // One blocked elsewhere keeps the way back here too.
+                    Button { context.send(viewAction: .unblock) } label: {
+                        Label(L10n.screenDmDetailsUnblockAlertAction, icon: \.block)
+                    }
+                    .accessibilityIdentifier(A11yIdentifiers.feedAuthorScreen.unblock)
                 }
             } label: {
                 CompoundIcon(\.overflowHorizontal, size: .small, relativeTo: .compound.bodyMD)

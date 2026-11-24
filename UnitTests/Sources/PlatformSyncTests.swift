@@ -76,7 +76,9 @@ struct PlatformSyncTests {
     }
 
     /// Review I6 L1: a 429 or a 5xx is the server, not the connection: the wait says "Updating…", not "No connection".
-    @Test(arguments: [PlatformSyncError.rateLimited(retryAfterSeconds: nil), .server(status: 500), .temporarilyUnavailable(retryAfterSeconds: nil)])
+    /// DEBT L3: TLS that did not complete and an answer that did not decode are not the network either.
+    @Test(arguments: [PlatformSyncError.rateLimited(retryAfterSeconds: nil), .server(status: 500), .server(status: 408),
+                      .temporarilyUnavailable(retryAfterSeconds: nil), .badResponse])
     func theServersRefusalWaitsAsUpdating(error: PlatformSyncError) async throws {
         let sync = makeSync(streams: [], backoff: { _ in .seconds(3600) }, failures: [error])
         sync.start()
@@ -100,6 +102,69 @@ struct PlatformSyncTests {
         try await eventually { ended.connectionState == .waiting(attempt: 1, isOffline: false) }
         #expect(store.syncStatus == .updating)
         ended.stop()
+    }
+
+    /// DEBT L3: a stream that broke off on TLS or a frame that did not decode is not "No connection".
+    @Test
+    func aStreamBrokenOffTheNetworkWaitsAsUpdating() async throws {
+        service.openSinceClosure = { [opened] since in
+            opened.sinces.append(since)
+            return .success(PlatformSyncEventStream { $0.finish(throwing: URLError(.secureConnectionFailed)) })
+        }
+        let sync = PlatformSync(service: service, feedStore: store, backoff: { _ in .seconds(3600) }, minimumHealthyLife: .zero, isApplicationInBackground: { false })
+        sync.start()
+        try await eventually { sync.connectionState == .waiting(attempt: 1, isOffline: false) }
+
+        #expect(store.syncStatus == .updating)
+        sync.stop()
+    }
+
+    /// DEBT L3: a refusal waiting does not mend soon (a 401 after the retry, a 403, a proxy's 404, a certificate)
+    /// is not "Updating…" for good: no line, the bell is still read, and the return to the foreground tries at once.
+    @Test(arguments: [PlatformSyncError.unauthorized, .server(status: 403), .server(status: 404), .untrustedServer])
+    func aRefusalSaysNothingAndTheReturnTriesAtOnce(error: PlatformSyncError) async throws {
+        let sync = makeSync(streams: [], backoff: { _ in .seconds(3600) }, refusalBackoff: { _ in .seconds(3600) }, failures: [error])
+        sync.start()
+        try await eventually { sync.connectionState == .refused }
+
+        #expect(opened.sinces.count == 1)
+        #expect(store.syncStatus == nil)
+        await store.settle()
+        #expect(feedService.activityCursorLimitCallsCount == 1)
+        #expect(feedService.noticesCursorLimitLanguageCallsCount == 1)
+
+        sync.appDidBecomeActive()
+        try await eventually { opened.sinces.count == 2 }
+        sync.stop()
+    }
+
+    /// Review of B9: a refused stream heals by itself within the session, quietly, after the long wait
+    /// (a token the SDK refreshed late, a captive portal left for cellular), not after the short one.
+    @Test
+    func aRefusalIsTriedAgainQuietlyAfterTheLongWait() async throws {
+        let waits = Counter()
+        var answers: [Result<PlatformSyncEventStream, PlatformSyncError>] = [
+            .failure(.unauthorized),
+            .success(PlatformSyncEventStream { $0.yield(.ready(position: "p0", fresh: true)) })
+        ]
+        service.openSinceClosure = { [opened] since in
+            opened.sinces.append(since)
+            return answers.isEmpty ? .success(PlatformSyncEventStream { _ in }) : answers.removeFirst()
+        }
+        let sync = PlatformSync(service: service, feedStore: store, backoff: { _ in .seconds(3600) },
+                                refusalBackoff: { failures in
+                                    waits.count = failures
+                                    return .milliseconds(300)
+                                },
+                                minimumHealthyLife: .zero, isApplicationInBackground: { false })
+        sync.start()
+        try await eventually { sync.connectionState == .refused }
+        #expect(store.syncStatus == nil)
+
+        try await eventually { sync.connectionState == .live }
+        #expect(opened.sinces == [nil, nil])
+        #expect(waits.count == 1)
+        sync.stop()
     }
 
     @Test
@@ -258,6 +323,7 @@ struct PlatformSyncTests {
     /// then `failures`, then a stream that never ends.
     private func makeSync(streams: [[PlatformSyncEvent]],
                           backoff: @escaping (Int) -> Duration = { _ in .milliseconds(1) },
+                          refusalBackoff: @escaping (Int) -> Duration = { _ in .milliseconds(1) },
                           failures: [PlatformSyncError] = [],
                           brokenStreams: Int = 0,
                           hangsAfterStreams: Bool = false) -> PlatformSync {
@@ -286,7 +352,7 @@ struct PlatformSyncTests {
             }
             return .success(PlatformSyncEventStream { _ in })
         }
-        return PlatformSync(service: service, feedStore: store, backoff: backoff, minimumHealthyLife: .zero, isApplicationInBackground: { false })
+        return PlatformSync(service: service, feedStore: store, backoff: backoff, refusalBackoff: refusalBackoff, minimumHealthyLife: .zero, isApplicationInBackground: { false })
     }
 
     private func eventually(_ condition: () -> Bool) async throws {

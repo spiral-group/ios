@@ -14,6 +14,9 @@ typealias SecureBackupRecoveryKeyScreenViewModelType = StateStoreViewModelV2<Sec
 class SecureBackupRecoveryKeyScreenViewModel: SecureBackupRecoveryKeyScreenViewModelType, SecureBackupRecoveryKeyScreenViewModelProtocol {
     private let secureBackupController: SecureBackupControllerProtocol
     private let userIndicatorController: UserIndicatorControllerProtocol
+    /// AGENT-PLATFORM (1.0.3): how long Retry waits for the recovery state before it says it still can't tell.
+    private let retryTimeout: Duration
+    private var retryTask: Task<Void, Never>?
     
     private var actionsSubject: PassthroughSubject<SecureBackupRecoveryKeyScreenViewModelAction, Never> = .init()
     var actions: AnyPublisher<SecureBackupRecoveryKeyScreenViewModelAction, Never> {
@@ -22,13 +25,30 @@ class SecureBackupRecoveryKeyScreenViewModel: SecureBackupRecoveryKeyScreenViewM
     
     init(secureBackupController: SecureBackupControllerProtocol,
          userIndicatorController: UserIndicatorControllerProtocol,
-         isModallyPresented: Bool) {
+         isModallyPresented: Bool,
+         retryTimeout: Duration = .seconds(10)) {
         self.secureBackupController = secureBackupController
         self.userIndicatorController = userIndicatorController
+        self.retryTimeout = retryTimeout
         
         super.init(initialViewState: .init(isModallyPresented: isModallyPresented,
                                            mode: secureBackupController.recoveryState.value.viewMode,
                                            bindings: .init()))
+        
+        // AGENT-PLATFORM (1.0.3): «Couldn't check your recovery key» settles by itself once the state is known (it
+        // usually is after the next sync), rather than wait for a tap that only re-read the cached value.
+        secureBackupController.recoveryState
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] recoveryState in
+                self?.settleUnknownMode(with: recoveryState)
+            }
+            .store(in: &cancellables)
+    }
+    
+    // AGENT-PLATFORM (1.0.3): the screen can go away mid-wait (Back, a dismissal, a sign-out); its persistent loader
+    // must not outlive it.
+    isolated deinit {
+        endRetry()
     }
     
     // MARK: - Public
@@ -75,10 +95,11 @@ class SecureBackupRecoveryKeyScreenViewModel: SecureBackupRecoveryKeyScreenViewM
                 hideLoadingIndicator()
             }
         case .cancel:
+            endRetry() // AGENT-PLATFORM (1.0.3)
             actionsSubject.send(.cancel)
         case .retry:
             // AGENT-PLATFORM (1.0.2): the unknown state had no way out but Cancel.
-            state.mode = secureBackupController.recoveryState.value.viewMode
+            retry()
         case .done:
             // AGENT-PLATFORM (Brief 0083, decision 314): Spiral's copy.
             state.bindings.alertInfo = .init(id: .init(),
@@ -92,17 +113,57 @@ class SecureBackupRecoveryKeyScreenViewModel: SecureBackupRecoveryKeyScreenViewM
         }
     }
     
-    private static let loadingIndicatorIdentifier = "\(SecureBackupRecoveryKeyScreenViewModel.self)-Loading"
+    // MARK: - Unknown state (AGENT-PLATFORM, 1.0.3)
+    
+    /// Shows the state if it is known, otherwise waits for it with a loader, and says so if it still can't be told.
+    private func retry() {
+        let mode = secureBackupController.recoveryState.value.viewMode
+        guard mode == .unknown else {
+            state.mode = mode
+            return
+        }
+        guard retryTask == nil else { return }
+        
+        // Cancel stays within reach while it waits.
+        userIndicatorController.submitIndicator(UserIndicator(id: loadingIndicatorIdentifier,
+                                                              type: .modal(progress: .indeterminate, interactiveDismissDisabled: false, allowsInteraction: true),
+                                                              title: L10n.commonLoading,
+                                                              persistent: true))
+        retryTask = Task { [weak self, retryTimeout] in
+            try? await Task.sleep(for: retryTimeout)
+            guard !Task.isCancelled, let self else { return }
+            endRetry()
+            guard state.mode == .unknown else { return }
+            MXLog.error("The recovery state is still unknown after a retry.")
+            state.bindings.alertInfo = .init(id: .init(), title: L10n.commonError, message: L10n.errorNetworkOrServerIssue)
+        }
+    }
+    
+    private func settleUnknownMode(with recoveryState: SecureBackupRecoveryState) {
+        guard state.mode == .unknown, recoveryState.viewMode != .unknown else { return }
+        endRetry()
+        state.mode = recoveryState.viewMode
+    }
+    
+    private func endRetry() {
+        guard let retryTask else { return }
+        retryTask.cancel()
+        self.retryTask = nil
+        hideLoadingIndicator()
+    }
+    
+    // AGENT-PLATFORM (1.0.3): per screen, so an old screen's late deinit can't take down a newer one's loader.
+    private let loadingIndicatorIdentifier = "\(SecureBackupRecoveryKeyScreenViewModel.self)-Loading-\(UUID().uuidString)"
     
     private func showLoadingIndicator() {
-        userIndicatorController.submitIndicator(UserIndicator(id: Self.loadingIndicatorIdentifier,
+        userIndicatorController.submitIndicator(UserIndicator(id: loadingIndicatorIdentifier,
                                                               type: .modal,
                                                               title: L10n.commonLoading,
                                                               persistent: true))
     }
     
     private func hideLoadingIndicator() {
-        userIndicatorController.retractIndicatorWithId(Self.loadingIndicatorIdentifier)
+        userIndicatorController.retractIndicatorWithId(loadingIndicatorIdentifier)
     }
 }
 

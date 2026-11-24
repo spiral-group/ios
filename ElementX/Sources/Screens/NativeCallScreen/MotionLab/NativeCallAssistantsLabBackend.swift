@@ -158,8 +158,8 @@ final class NativeCallAssistantsLabBackend {
 
     // MARK: The call
 
-    static let me = "@andrii:example.org"
-    static let myAgent = "@assistant-andrii:example.org"
+    static let me = "@sam:example.org"
+    static let myAgent = "@assistant-sam:example.org"
     static let agentID = "lab-own-agent"
     static let john = "@john:example.org"
     static let johnAgent = "@assistant-john:example.org"
@@ -182,9 +182,9 @@ final class NativeCallAssistantsLabBackend {
                                                           .init(code: "zh-Hans", label: "Chinese (Simplified)")]
 
     /// Scenario 9.3: own assistants when there are several.
-    private static let ownAgents = [OwnAgent(id: agentID, mxid: myAgent, name: "Andrii Sample · assistant"),
-                                    OwnAgent(id: "lab-work-agent", mxid: "@assistant-andrii-2:example.org", name: "Work assistant"),
-                                    OwnAgent(id: "lab-interpreter", mxid: "@assistant-andrii-3:example.org", name: "Interpreter")]
+    private static let ownAgents = [OwnAgent(id: agentID, mxid: myAgent, name: "Sam Sample · assistant"),
+                                    OwnAgent(id: "lab-work-agent", mxid: "@assistant-sam-2:example.org", name: "Work assistant"),
+                                    OwnAgent(id: "lab-interpreter", mxid: "@assistant-sam-3:example.org", name: "Interpreter")]
 
     let cast: Cast
     let role: Role
@@ -287,7 +287,7 @@ final class NativeCallAssistantsLabBackend {
 
     var roomName: String {
         switch cast {
-        case .privateCall: "Andrii Sample · assistant"
+        case .privateCall: "Sam Sample · assistant"
         case .onePerson, .personWithAssistant: "John Smith"
         case .group: "Book club"
         }
@@ -307,7 +307,7 @@ final class NativeCallAssistantsLabBackend {
     }
 
     var profiles: [String: NativeCallMemberProfile] {
-        var profiles: [String: NativeCallMemberProfile] = [Self.me: .init(displayName: "Andrii Sample"),
+        var profiles: [String: NativeCallMemberProfile] = [Self.me: .init(displayName: "Sam Sample"),
                                                            Self.john: .init(displayName: "John Smith"),
                                                            Self.johnAgent: .init(displayName: "John Smith · assistant"),
                                                            Self.mira: .init(displayName: "Mira Testova"),
@@ -784,7 +784,7 @@ final class NativeCallAssistantsLabBackend {
         }
         return .success(AgentReadModel(agentID: agentID,
                                        matrixUserID: Self.myAgent,
-                                       displayName: "Andrii Sample · assistant",
+                                       displayName: "Sam Sample · assistant",
                                        avatarMXC: nil,
                                        kind: "personal_assistant",
                                        visibility: "private",

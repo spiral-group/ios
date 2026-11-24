@@ -9,11 +9,19 @@
 import Compound
 import SwiftUI
 
+/// AGENT-PLATFORM (1.0.3 onboarding, operator 2026-11-20): the third-party AI consent in the onboarding's look, a sibling
+/// of the notifications prompt — Spark with the shield under a halo on the canvas, the title, the disclosure with the
+/// privacy policy, who receives what, and Allow as an explicit tap. The words and the choice are unchanged.
 struct AIConsentPromptScreen: View {
     @Bindable var context: AIConsentPromptScreenViewModel.Context
     
     var body: some View {
-        FullscreenDialog(topPadding: UIConstants.startScreenBreakerScreenTopPadding, background: .gradient) {
+        // The buttons come after the disclosure: where it overflows (a small phone, large text, a long language) Allow
+        // is reached only by scrolling past who receives what (1.0.3).
+        FullscreenDialog(topPadding: CompoundDesignTokens.space4X,
+                         horizontalPadding: CompoundDesignTokens.space6X,
+                         bottomHorizontalPadding: CompoundDesignTokens.space6X,
+                         scrollsBottomContentWithContent: true) {
             mainContent
         } bottomContent: {
             buttons
@@ -27,59 +35,64 @@ struct AIConsentPromptScreen: View {
     }
     
     private var mainContent: some View {
-        VStack(spacing: 40) {
+        // Smaller art and a tighter rhythm than the notifications prompt: here every line is part of the consent.
+        VStack(spacing: CompoundDesignTokens.space4X) {
+            OnboardingSparkHalo(image: Asset.Images.sparkShield, scale: 0.55)
             header
             disclosureList
         }
     }
     
     private var header: some View {
-        VStack(spacing: 8) {
-            BigIcon(icon: \.shield)
-                .padding(.bottom, 8)
-            
+        VStack(spacing: CompoundDesignTokens.space2X) {
             Text(UntranslatedL10n.screenAiConsentPromptTitle)
-                .font(.compound.headingMDBold)
-                .multilineTextAlignment(.center)
-                .foregroundColor(.compound.textPrimary)
+                .font(.compound.headingXLBold)
+                .foregroundStyle(.compound.textPrimary)
+                .accessibilityAddTraits(.isHeader)
             
             Text(context.viewState.content)
                 .font(.compound.bodyMD)
-                .multilineTextAlignment(.center)
-                .foregroundColor(.compound.textSecondary)
+                .foregroundStyle(.compound.textSecondary)
         }
+        .multilineTextAlignment(.center)
     }
     
     /// Who receives what, and what declining means.
     private var disclosureList: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            listItem(title: UntranslatedL10n.screenAiConsentPromptOpenai, icon: \.chat, position: .top)
-            listItem(title: UntranslatedL10n.screenAiConsentPromptGoogle, icon: \.translate, position: .middle)
-            listItem(title: UntranslatedL10n.screenAiConsentPromptDecline, icon: \.lock, position: .bottom)
+        VStack(alignment: .leading, spacing: CompoundDesignTokens.space4X) {
+            disclosure(UntranslatedL10n.screenAiConsentPromptOpenai, icon: \.chat)
+            disclosure(UntranslatedL10n.screenAiConsentPromptGoogle, icon: \.translate)
+            disclosure(UntranslatedL10n.screenAiConsentPromptDecline, icon: \.lock)
         }
-        .fixedSize(horizontal: false, vertical: true)
-        .frame(maxWidth: .infinity)
-        .environment(\.backgroundStyle, AnyShapeStyle(.compound.bgSubtleSecondary))
+        .padding(.horizontal, CompoundDesignTokens.space2X)
     }
     
-    private func listItem(title: String, icon: KeyPath<CompoundIcons, Image>, position: ListPosition) -> some View {
-        VisualListItem(title: title, position: position) {
-            CompoundIcon(icon, size: .small, relativeTo: .body)
-                .foregroundColor(.compound.iconSecondary)
+    private func disclosure(_ text: String, icon: KeyPath<CompoundIcons, Image>) -> some View {
+        HStack(spacing: CompoundDesignTokens.space4X) {
+            OnboardingIconTile(symbol: .compound(icon))
+            
+            Text(text)
+                .font(.compound.bodyMD)
+                .foregroundStyle(.compound.textPrimary)
+                .fixedSize(horizontal: false, vertical: true)
+            
+            Spacer(minLength: 0)
         }
+        .accessibilityElement(children: .combine)
     }
     
     private var buttons: some View {
-        VStack(spacing: 16) {
-            Button(UntranslatedL10n.screenAiConsentPromptAllow) { context.send(viewAction: .allow) }
-                .buttonStyle(.compound(.primary))
-                .accessibilityIdentifier(A11yIdentifiers.aiConsentPromptScreen.allow)
+        VStack(spacing: CompoundDesignTokens.space2X) {
+            Button { context.send(viewAction: .allow) } label: {
+                Text(UntranslatedL10n.screenAiConsentPromptAllow)
+            }
+            .buttonStyle(.compound(.primary))
+            .accessibilityIdentifier(A11yIdentifiers.aiConsentPromptScreen.allow)
             
             Button { context.send(viewAction: .notNow) } label: {
                 Text(L10n.actionNotNow)
-                    .font(.compound.bodyLGSemibold)
-                    .padding(14)
             }
+            .buttonStyle(.compound(.tertiary))
             .accessibilityIdentifier(A11yIdentifiers.aiConsentPromptScreen.notNow)
         }
         .disabled(context.viewState.isSaving)
@@ -88,7 +101,8 @@ struct AIConsentPromptScreen: View {
 
 // MARK: - Previews
 
-struct AIConsentPromptScreen_Previews: PreviewProvider, TestablePreview {
+// AGENT-PLATFORM (1.0.3 onboarding): opted in to Spiral's gates.
+struct AIConsentPromptScreen_Previews: PreviewProvider, TestablePreview, SpiralGatedPreview {
     static let viewModel = AIConsentPromptScreenViewModel(store: AgentsStore(service: AgentPlatformServiceMock()),
                                                           privacyURL: AppSettings.volatile().privacyURL)
     

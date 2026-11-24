@@ -239,8 +239,10 @@ class FeedTabFlowCoordinator: FlowCoordinatorProtocol {
         sidebarNavigationStackCoordinator.setRootCoordinator(coordinator)
     }
 
+    /// A second ask for the post on top (a double tap, or the post opened again from its author's sheet) is dropped.
     private func pushPost(postID: String, post: FeedPost?, focusedCommentID: String? = nil) {
-        guard case let (feedService, engagement)? = feed() else { return }
+        guard case let (feedService, engagement)? = feed(),
+              (sidebarNavigationStackCoordinator.stackCoordinators.last as? FeedPostScreenCoordinator)?.postID != postID else { return }
 
         let coordinator = FeedPostScreenCoordinator(parameters: .init(postID: postID,
                                                                       post: post,
@@ -354,6 +356,8 @@ class FeedTabFlowCoordinator: FlowCoordinatorProtocol {
                 guard let self, let stackCoordinator, isSheetUp(stackCoordinator) else { return }
                 switch action {
                 case .openAuthor(let author):
+                    // A double tap pushes one person, not two.
+                    guard !(stackCoordinator.stackCoordinators.last is FeedAuthorScreenCoordinator) else { return }
                     if let authorScreen = makeAuthorScreen(author, in: stackCoordinator) {
                         stackCoordinator.push(authorScreen)
                     }

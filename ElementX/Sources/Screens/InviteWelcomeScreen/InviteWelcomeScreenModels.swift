@@ -17,6 +17,8 @@ enum InviteWelcomeScreenViewModelAction: Equatable {
 struct InviteWelcomeScreenViewState: BindableState {
     let inviterUserID: String
     var inviterProfile: UserProfile?
+    /// The new account's own profile, for the pair of avatars (1.0.3 onboarding).
+    var ownProfile: UserProfile
     var isOpeningChat = false
     var bindings = InviteWelcomeScreenViewStateBindings()
     

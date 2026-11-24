@@ -199,7 +199,8 @@ nonisolated struct NotificationContentBuilder {
                                     messageType: MessageType,
                                     mediaProvider: MediaProviderProtocol) async {
         let displayName = notificationItem.senderDisplayName ?? notificationItem.roomDisplayName
-        notificationContent.body = String(messageEventStringBuilder.buildAttributedString(for: messageType, senderDisplayName: displayName, isOutgoing: false).characters)
+        // AGENT-PLATFORM: the sender decides whether a notice reads as one.
+        notificationContent.body = String(messageEventStringBuilder.buildAttributedString(for: messageType, senderID: notificationItem.senderID, senderDisplayName: displayName, isOutgoing: false).characters)
         
         let timelineMediaVisibility = await userSession.mediaPreviewVisibility
         guard timelineMediaVisibility == .on ||

@@ -140,6 +140,8 @@ class MediaEventsTimelineScreenViewModel: MediaEventsTimelineScreenViewModelType
             // The menu acts on the gallery as a whole, as its actions can't apply to a single item.
             let itemID = galleryItemIDs[item.id]?.timelineItemID ?? item.identifier
             activeTimelineViewModel.context.send(viewAction: .displayTimelineItemMenu(itemID: itemID))
+        case .retry: // AGENT-PLATFORM (1.0.3 B14)
+            activeTimelineViewModel.context.send(viewAction: .paginateBackwards)
         }
     }
     
@@ -235,12 +237,14 @@ class MediaEventsTimelineScreenViewModel: MediaEventsTimelineScreenViewModelType
         galleryItemIDs = newGalleryItemIDs
         
         state.isBackPaginating = timelineViewState.timelineState.paginationState.backward == .paginating
+        state.hasFailedToLoad = timelineViewState.timelineState.hasBackPaginationFailed // AGENT-PLATFORM (1.0.3 B14)
         state.shouldShowEmptyState = newGroups.isEmpty && timelineViewState.timelineState.paginationState.backward == .endReached
         backPaginateIfNecessary(backPaginationState: timelineViewState.timelineState.paginationState.backward)
     }
     
     private func backPaginateIfNecessary(backPaginationState: PaginationState) {
-        if backPaginationState == .idle, isOldestItemVisible {
+        // AGENT-PLATFORM (1.0.3 B14): a failed page waits for Retry; the SDK's idle used to read again at once, for ever.
+        if backPaginationState == .idle, isOldestItemVisible, !state.hasFailedToLoad {
             activeTimelineViewModel.context.send(viewAction: .paginateBackwards)
         }
     }

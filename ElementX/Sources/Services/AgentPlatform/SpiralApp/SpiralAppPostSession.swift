@@ -259,33 +259,16 @@ final class SpiralAppPostSession: SpiralAppSessionProtocol {
     }
 
     /// Whether a Matrix user is one of the platform's agents rather than a
-    /// person. Agents live in their own application-service namespaces —
-    /// `@assistant-<owner>:…` (personal) and `@agent-<slug>-<n>:…` (company)
-    /// — so the id says, and the display name («Assistant Alice Example 2»)
-    /// does not have to (§ 5.64). An agent does not roll dice or vote.
-    ///
-    /// Any server's namespace on purpose: agents live only on our own
-    /// homeserver (ADR-0082's exclusive application-service namespaces), so
-    /// the people counted here are never another server's agents. Where a
-    /// foreign `@assistant-…` must count as a person — a call's peer, a room
-    /// grant — `SpiralAgentRoomGrants.isLocalAgent` adds the server.
+    /// person (`SpiralAgentID`). An agent does not roll dice or vote.
     nonisolated static func isAgent(_ userID: String) -> Bool {
-        agentIDKind(userID) != nil
+        SpiralAgentID.isAgent(userID)
     }
     
-    nonisolated enum AgentIDKind {
-        case assistant
-        case agent
-    }
+    typealias AgentIDKind = SpiralAgentID.Kind
     
     /// Which of the two an agent's ID says it is; `nil` for anyone else.
     nonisolated static func agentIDKind(_ userID: String) -> AgentIDKind? {
-        guard userID.hasPrefix("@"), let colon = userID.firstIndex(of: ":") else { return nil }
-        let localpart = userID[userID.index(after: userID.startIndex)..<colon]
-        if localpart.hasPrefix("assistant-") {
-            return .assistant
-        }
-        return localpart.hasPrefix("agent-") ? .agent : nil
+        SpiralAgentID.kind(of: userID)
     }
 
     /// The pixel size of the avatar a post gets: the row's avatar is 28 pt,

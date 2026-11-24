@@ -65,6 +65,9 @@
 "screen_agent_edit_persona_greeting" = "Pozdrav za vas";
 "screen_agent_edit_persona_visitor_greeting" = "Pozdrav za goste";
 "screen_agent_edit_failure" = "Nije moguće spremiti promjene";
+"error_agent_name_reserved" = "Ovo je ime rezervirano za Spiralove vlastite račune. Odaberite drugo ime.";
+"error_agent_name_invalid_characters" = "Ime sadrži znakove koji se ne mogu koristiti.";
+"error_agent_name_unchecked" = "Nije moguće provjeriti ime. Pokušajte ponovno.";
 "screen_agent_edit_load_failure" = "Nije moguće učitati obrazac za uređivanje";
 "screen_agent_edit_avatar_failure" = "Nije moguće prenijeti fotografiju";
 "action_agent_activity" = "Aktivnost";
@@ -250,7 +253,6 @@
 "screen_language_picker_title" = "Jezik";
 "screen_language_picker_empty" = "Nijedan jezik ne odgovara vašem pretraživanju.";
 "screen_start_sign_in" = "Prijava";
-"screen_start_welcome_subtitle" = "Brzo, privatno slanje poruka s vašim osobnim agentom.";
 
 // AGENT-PLATFORM (Brief 0072, ADR-0083, ADR-0084): presence, worded as Telegram does
 "common_presence_online" = "na mreži";
@@ -491,6 +493,16 @@
 "screen_native_call_assistants_record_confirm_title" = "Snimiti poziv?";
 "screen_native_call_assistants_record_confirm_message" = "Svi vide REC na vrhu poziva. Snimka se pojavljuje u razgovoru nakon poziva.";
 "screen_native_call_assistants_record_confirm_action" = "Snimaj";
+"screen_native_call_assistants_notes_confirm_title" = "Voditi bilješke poziva?";
+"screen_native_call_assistants_notes_confirm_message" = "Asistent će slušati poziv i nakon njega objaviti sažetak u razgovoru. Ostali će vidjeti da vodi bilješke.";
+"screen_native_call_assistants_notes_confirm_action" = "Vodi bilješke";
+"screen_native_call_assistants_talk_confirm_title" = "Razgovarati s asistentom?";
+"screen_native_call_assistants_talk_confirm_message" = "Asistent će čuti samo vas i odgovarati naglas — čuju ga svi u pozivu.";
+"screen_native_call_assistants_talk_confirm_action" = "Započni razgovor";
+"screen_native_call_assistants_translate_question_title" = "Prevedi na";
+"screen_native_call_assistants_listen_question_title" = "Slušaj na jeziku";
+"screen_native_call_assistants_talk_info_title" = "Asistent odgovara naglas";
+"screen_native_call_assistants_talk_info_message" = "Čuje samo vas, a čuju ga svi u pozivu. Dok razgovara, prijevod je isključen.";
 "screen_native_call_assistants_none_of_your_own" = "Nemate asistenta";
 "screen_native_call_assistants_which" = "Koji asistent";
 "screen_native_call_assistants_reason_paused" = "Vaš asistent je pauziran";
@@ -571,7 +583,6 @@
 "screen_native_call_assistants_job_conversation" = "Razgovor";
 "screen_native_call_assistants_translating" = "Prevodi na %1$@";
 "screen_native_call_assistants_stop_translation" = "Zaustavi prijevod";
-"screen_native_call_assistants_talk_caption" = "Odgovara vam naglas i svi ga čuju. Dok razgovara, prijevod je isključen.";
 "screen_native_call_assistants_pick_footer" = "Zapamćeno za ovaj razgovor";
 "screen_native_call_assistants_neighbour_language" = "Jezik osobe pored vas";
 "screen_native_call_assistants_pocket_detail" = "Nakon svake fraze · u oba smjera";
@@ -591,10 +602,9 @@
 "screen_native_call_assistants_status_both_ways" = "Prevodi u oba smjera";
 "screen_native_call_assistants_translate_into" = "Prevedi na";
 "screen_native_call_assistants_translate_into_detail" = "Na njemu čujete poziv";
+"screen_native_call_assistants_translate_into_language" = "Prevedi na: %1$@";
 "screen_native_call_assistants_in_call" = "U pozivu";
 "screen_native_call_assistants_in_call_more" = "U pozivu: još %1$d";
-"screen_native_call_assistants_new_translation" = "Novi prijevod";
-"screen_native_call_assistants_new_translation_detail" = "Vaš asistent prevest će poziv";
 "screen_native_call_assistants_new_translation_others" = "Vaš asistent prevodi: %1$@. Ostali se već prevode, besplatno.";
 "screen_native_call_assistants_start_translation" = "Pokreni prijevod";
 "screen_native_call_assistants_start_translation_detail" = "Troši vaše ograničenje. Svatko tko odabere ovaj jezik sluša besplatno.";
@@ -1044,7 +1054,6 @@
 "notice_phrase_changed_title" = "Fraza za prijavu promijenjena";
 "a11y_message_read" = "Pročitano";
 "screen_legal_information_source_code_spiral" = "Izvorni kod";
-"screen_invite_people_seats_label" = "Preostale pozivnice";
 "screen_native_call_tile_not_joined" = "Niste se pridružili";
 "screen_agent_settings_show_in_search_footer" = "Mogu li ga ljudi pronaći pretraživanjem. Svatko tko ima njegovu adresu i dalje mu može pisati.";
 "screen_agent_edit_tone_calm" = "Smireno";
@@ -1056,7 +1065,6 @@
 "screen_room_interactive_draft_published" = "Objavljeno";
 "screen_agent_activity_reason_visitor_policy_reply" = "Dopustili ste odgovaranje odmah";
 "screen_agent_in_room_no_tools" = "U ovom razgovoru još nema alata.";
-"notice_welcome_assistant_body" = "Ja sam %1$@, vaš osobni asistent. Mogu prenositi poruke dok niste tu, pamtiti vaše kontakte i sažimati sobe. Da biste uključili moje alate u sobi, ondje dodirnite + i odaberite Agenti. Samo mi pišite kako vam je prirodno — tu sam.";
 "screen_room_interactive_post_pick_agent_title" = "Tko će je izraditi?";
 "screen_agent_settings_visitor_ask_first_description" = "Nova osoba čeka dok ne pristanete";
 "screen_ai_consent_prompt_failed" = "Nije moguće spremiti vaš izbor. Provjerite vezu i pokušajte ponovno.";
@@ -1086,10 +1094,8 @@
 "screen_agent_activity_reason_block_needs_owner" = "Blokiranje treba vaše odobrenje";
 "screen_create_company_title" = "Nova tvrtka";
 "a11y_native_call_disable_speaker" = "Isključi zvučnik";
-"screen_invite_paste_placeholder" = "spiral.md/join/…";
 "a11y_native_call_end" = "Završi poziv";
 "screen_agent_activity_action_published_post" = "Objavio objavu";
-"screen_invite_people_joined_footer" = "Osobe koje su stvorile račun putem vaše poveznice. Dodirnite za početak razgovora.";
 "screen_arm_tool_turn_off_confirm_message" = "Agent to prestaje raditi u ovom razgovoru za sve. Možete ga ponovno uključiti bilo kada.";
 "spiral_app_card_line_by" = "Od: %1$@";
 "state_event_spiral_tool_language_changed_by_you" = "Promijenili ste Prevedi: %1$@ → %2$@";
@@ -1114,7 +1120,6 @@
 "screen_native_call_agent_block_recording" = "Snima";
 "screen_native_call_control_video" = "Videozapis";
 "screen_agent_detail_pause" = "Pauziraj";
-"screen_invite_paste_expired" = "Ova pozivnica više ne vrijedi. Zatražite novu.";
 "screen_security_messages_section" = "Poruke";
 "screen_agent_activity_reason_relationship_unavailable" = "Nije moguće provjeriti kontakt";
 "screen_ai_consent_prompt_allow" = "Dopusti";
@@ -1144,15 +1149,12 @@
 "state_event_spiral_tool_off_by_system" = "%1$@ je isključen za %2$@";
 "a11y_native_call_swap_to_held_call" = "Prebaci na poziv s %@";
 "screen_native_call_audio_route_iphone" = "iPhone";
-"screen_invite_people_seats_value" = "%1$d od %2$d";
 "screen_agent_activity_reason_first_contact_with_unknown_visitor" = "Prva poruka od nekoga novog";
 "screen_deactivate_account_spiral_list_item_3" = "Izbrisati podatke vašeg računa s našeg poslužitelja identiteta.";
 "a11y_native_call_bar" = "Poziv u tijeku s %1$@. Dodirnite za povratak.";
-"screen_invite_paste_unavailable" = "Nije moguće provjeriti pozivnicu. Pokušajte ponovno.";
 "screen_agent_activity_action_read_call_summary" = "Pročitao sažetak poziva";
 "screen_ai_consent_prompt_title" = "Dopustiti AI trećih strana?";
 "screen_agent_edit_voice_language_footer" = "Asistent uvijek odgovara na jeziku kojim govorite. Ovo određuje kako sluša pozive i jezik sažetaka poziva.";
-"screen_invite_welcome_title" = "Dobro došli u Spiral";
 "screen_agent_activity_reason_blocked_visitor" = "Blokirana osoba";
 "screen_deactivate_account_spiral_list_item_1_bold_part" = "Trajno onemogućiti";
 "screen_native_call_agent_center_recording_live" = "Snimanje…";
@@ -1220,7 +1222,6 @@
 "screen_deactivate_account_spiral_failed" = "Nije moguće izbrisati račun. Pokušajte ponovno za minutu.";
 "screen_agent_activity_action_changed_call_mode" = "Promijenio način sudjelovanja u pozivu";
 "a11y_native_call_unmute_microphone" = "Uključi mikrofon";
-"screen_invite_paste_label" = "Poveznica ili kod";
 "screen_media_viewer_position" = "%1$d od %2$d";
 "screen_native_call_status_reconnecting_detail" = "Veza je prekinuta";
 "screen_approval_detail_block_blocked_subtitle" = "Vaš agent od sada ignorira poruke te osobe.";
@@ -1256,6 +1257,13 @@
 "screen_agent_activity_reason_no_contact_relationship" = "Nije među vašim kontaktima";
 "screen_room_alias_link_not_found" = "Ova poveznica ne vodi ni u jedan razgovor.";
 "screen_invite_people_title" = "Pozovi u Spiral";
+"screen_invite_people_you" = "Vi";
+"screen_invite_people_invited_count" = "Pozvano %1$d od %2$d";
+"screen_invite_people_invited_you" = "Vaša pozivnica u Spiral";
+"screen_invite_people_seat_invite" = "Pozovi";
+"screen_invite_people_seat_taken" = "Zauzeto";
+"screen_invite_people_chain_footer" = "Jedna poveznica za %1$d osoba i ne obnavlja se. Dodirnite osobu da otvorite njezin profil.";
+"screen_invite_people_all_used" = "Sve pozivnice su iskorištene";
 "screen_approval_detail_escalation_cold_outreach" = "Vaš agent želi nekome pisati prvi put.";
 "screen_start_invited_by" = "%1$@ vas je pozvao u Spiral";
 "screen_agent_spaces_section_retry" = "Dodirnite za ponovni pokušaj.";
@@ -1263,7 +1271,6 @@
 "screen_settings_new_phrase_done" = "Fraza za prijavu promijenjena";
 "screen_agent_activity_reason_outside_conversation" = "Izvan ovog razgovora";
 "a11y_native_call_switch_camera" = "Promijeni kameru";
-"screen_invite_people_joined" = "Pridružilo se putem vaše pozivnice: %1$d";
 "screen_agent_activity_action_searched_agents" = "Tražio agente";
 "screen_agent_activity_reason_strategy_no_op" = "Ništa za napraviti";
 "action_dismiss_visitor_message" = "Ukloni";
@@ -1272,7 +1279,6 @@
 "screen_approval_detail_block_action_dont_block" = "Ne blokiraj";
 "screen_agent_settings_people_title" = "Razgovor s ljudima";
 "screen_native_call_agent_center_error_not_owner" = "Samo vlasnik ove sesije može je promijeniti.";
-"notice_welcome_agent_body" = "%1$@ je spreman. Samo mi pišite.";
 "screen_agent_detail_already_in_chat" = "Agent je već u ovom razgovoru";
 "screen_native_call_agent_center_booth_members" = "%1$@ na %2$@";
 "screen_settings_devices_title" = "Uređaji i sesije";
@@ -1290,7 +1296,6 @@
 "screen_agent_activity_action_remembered" = "Zapamtio nešto o kontaktu";
 "screen_room_interactive_post_link_needs_update" = "Za ovu objavu potrebna je novija verzija aplikacije Spiral. Ažurirajte aplikaciju da biste je koristili.";
 "screen_room_member_details_erase_assistant_memory" = "Izbriši ono što moji asistenti znaju o ovoj osobi";
-"screen_invite_paste_without" = "Nastavi bez pozivnice";
 "screen_agent_edit_tone_friendly" = "Prijateljski";
 "screen_room_interactive_post_update" = "Ažuriraj objavu";
 "screen_agent_detail_archive_refused" = "Vaš osobni asistent ostaje uz vaš račun i ne može se arhivirati.";
@@ -1307,9 +1312,7 @@
 "screen_native_call_agent_center_talking" = "Asistent govori";
 "screen_native_call_tile_call_back" = "Dodirnite za povratni poziv";
 "notice_reply_failed_body" = "Nešto je pošlo po zlu kod mene. Pošaljite to ponovno.";
-"screen_invite_people_joined_title" = "Pridružili su se putem vaše pozivnice";
 "screen_native_call_status_connecting_detail" = "Postavljanje šifriranja";
-"screen_invite_paste_title" = "Imate pozivnicu?";
 "screen_edit_profile_bio_too_long" = "Opis može imati najviše %1$d znakova. Skratite ga da biste ga spremili.";
 "a11y_native_call_agent_block_role" = "%1$@, %2$@";
 "a11y_native_call_recording" = "Ovaj se poziv snima";
@@ -1322,12 +1325,25 @@
 "screen_agent_spaces_assistant_pending" = "Vaš se asistent još postavlja";
 "screen_room_member_details_erase_assistant_memory_alert_title" = "Izbrisati ono što vaši asistenti znaju o osobi %1$@?";
 "screen_settings_new_phrase_failed" = "Nije moguće započeti promjenu fraze. Pokušajte ponovno.";
+/* AGENT-PLATFORM (1.0.3): sign-in methods — the first phrase for an account made with Apple, Sign in with Apple for a phrase account. */
+"screen_settings_add_phrase_title" = "Dodaj frazu za prijavu";
+"screen_settings_add_phrase_message" = "Odabrat ćete 12 riječi. One otvaraju vaš račun na bilo kojem uređaju, uz prijavu putem Applea. Na ovom uređaju ostajete prijavljeni, a vaše poruke nisu zahvaćene.";
+"screen_settings_add_phrase_auth_reason" = "Potvrdite da ste to vi kako biste dodali frazu za prijavu";
+"screen_settings_add_phrase_done" = "Fraza za prijavu dodana";
+"screen_settings_add_phrase_failed" = "Nije moguće započeti dodavanje fraze. Pokušajte ponovno.";
+"screen_settings_sign_in_passcode_required" = "Najprije postavite šifru uređaja — ona štiti vaše načine prijave";
+"screen_settings_apple_title" = "Prijava putem Applea";
+"screen_settings_apple_connected" = "Povezano";
+"screen_settings_apple_add_title" = "Dodaj prijavu putem Applea";
+"screen_settings_apple_auth_reason" = "Potvrdite da ste to vi kako biste dodali prijavu putem Applea";
+"screen_settings_apple_linked" = "Prijava putem Applea dodana";
+"screen_settings_apple_taken" = "Ovaj Apple ID već koristi drugi Spiral račun";
+"screen_settings_apple_failed" = "Nije moguće započeti dodavanje prijave putem Applea. Pokušajte ponovno.";
 "screen_deactivate_account_spiral_description" = "Brisanje računa je %1$@. Ono će:";
 "screen_agent_activity_action_set_reminder" = "Postavio podsjetnik";
 "screen_agent_activity_action_cancelled_reminder" = "Otkazao podsjetnik";
 "screen_agent_activity_reason_capability_always_allowed" = "Uvijek dopušteno";
 "screen_agent_activity_action_blocked_someone" = "Blokirao nekoga";
-"screen_invite_paste_message" = "Zalijepite poveznicu koju vam je poslao korisnik aplikacije Spiral ili upišite kod.";
 "screen_native_call_error_title" = "Poziv nije uspio";
 "notification_approval_action_not_found_title" = "Ovaj zahtjev više ne postoji";
 "state_event_spiral_tool_changed_by_you" = "Promijenili ste %1$@";
@@ -1354,7 +1370,6 @@
 "screen_native_call_control_sound" = "Zvuk";
 "screen_native_call_status_reconnecting" = "Ponovno povezivanje…";
 "notice_phrase_changed_body" = "Stara fraza više ne služi za prijavu.";
-"screen_invite_people_seats_footer" = "Svaka osoba ima jednu poveznicu s %1$d mjesta. Ne obnavlja se, stoga je podijelite s ljudima koje stvarno želite ovdje.";
 "screen_room_member_details_agent_unblock_action" = "Odblokiraj";
 "screen_agent_activity_reason_unknown_capability" = "To ne može učiniti";
 "screen_settings_new_phrase_passcode_required" = "Najprije postavite šifru uređaja — ona štiti promjenu fraze";
@@ -1426,10 +1441,11 @@
 "screen_your_data_calls_footer" = "Izvezite jedan poziv: njegov transkript, sažetak i zapis privola.";
 "screen_arm_tool_error_agent_does_not_join_calls" = "Ovaj se agent ne pridružuje pozivima, pa alati za pozive za njega nisu dostupni.";
 "screen_room_interactive_generating_hint" = "Obično manje od minute";
-"screen_invite_paste_exhausted" = "Svi koje je ova pozivnica dopuštala već su se pridružili. Zatražite novu.";
 "notice_phrase_changed_on_device" = "Promijenjeno na uređaju „%1$@”.";
+/* AGENT-PLATFORM (1.0.3): the owner-DM card when Sign in with Apple is added. It names no device (security review); a new phrase disconnects Apple. */
+"notice_apple_linked_title" = "Prijava putem Applea dodana";
+"notice_apple_linked_body" = "Ako to niste bili vi, promijenite frazu za prijavu: to odspaja Apple.";
 "screen_ai_consent_prompt_openai" = "OpenAI: poruke koje asistenti čitaju, vaš glas u pozivima s njima i snimke koje transkribiraju.";
-"screen_invite_welcome_message" = "%1$@ vas je pozvao i već zna da ste ovdje. Pozdravite!";
 "screen_agent_activity_action_used_tool" = "Upotrijebio alat na poruci";
 "screen_approval_detail_escalation_first_contact" = "Netko je prvi put pisao vašem agentu, pa vas pita prije nego što odgovori.";
 "screen_agent_activity_action_drafted_post" = "Pripremio nacrt objave";
@@ -1444,7 +1460,6 @@
 "screen_room_interactive_post_updated" = "Objava ažurirana";
 "screen_native_call_camera_failed_message" = "Kamera se nije mogla pokrenuti, pa se poziv nastavlja sa zvukom. Za trenutak ponovno pokušajte gumb kamere.";
 "screen_media_viewer_open" = "Otvori";
-"screen_invite_paste_invalid" = "Takva pozivnica ne postoji.";
 "screen_agent_room_tool_audience_except_named" = "za sve osim %1$@";
 "notification_spiral_needs_update_body" = "Ažurirajte aplikaciju da biste ovo vidjeli.";
 "screen_agent_edit_tone_brief" = "Kratko i jasno";
@@ -1452,7 +1467,6 @@
 "screen_invite_people_seats_left" = "Preostalo pozivnica: %1$d od %2$d";
 "screen_agent_activity_reason_wrong_room_kind" = "Nije dopušteno u ovoj vrsti razgovora";
 "screen_native_call_failure_audio_reset" = "Sustav je ponovno pokrenuo zvuk poziva.";
-"screen_invite_people_body" = "Registracija je samo uz pozivnicu. Podijelite svoju osobnu poveznicu — svatko tko putem nje stvori račun prvo će vidjeti vas.";
 "notification_approval_action_target_blocked_title" = "Nije poslano — blokirali ste ovu osobu";
 "screen_notifications_hub_visitor_other" = "Nešto novo";
 "screen_agent_activity_empty_pending_title" = "Nema zahtjeva za odlučivanje";
@@ -1476,3 +1490,61 @@
 "screen_notifications_hub_visitors_section" = "Od ljudi";
 "screen_agent_settings_visitor_reply_description" = "Odgovara svima osim osoba koje ste blokirali";
 "screen_deactivate_account_spiral_auth_reason" = "Potvrdite da ste to vi kako biste izbrisali račun";
+
+// AGENT-PLATFORM (1.0.3 A2): the assistant's first invite in Chats, its chat before consent and its welcome.
+"screen_roomlist_assistant_invite_name" = "Vaš asistent";
+"screen_roomlist_assistant_invite_subtitle" = "Bok! Dodirnite za početak 👋";
+"screen_roomlist_assistant_invite_start" = "Započni";
+"a11y_assistant_invite_start" = "Započnite razgovor sa svojim asistentom";
+"a11y_assistant_invite_start_hint" = "Prihvaća pozivnicu asistenta i otvara vaš razgovor s njim.";
+"screen_assistant_invite_title" = "Bok! Ja sam vaš asistent";
+"screen_assistant_invite_reminders" = "Podsjetit ću vas na stvari";
+"screen_assistant_invite_contacts" = "Zapamtit ću vaše kontakte";
+"screen_assistant_invite_summaries" = "Sažet ću bilo koji razgovor";
+"screen_assistant_invite_privacy" = "Vidim samo ovaj razgovor. Možete me isključiti bilo kada.";
+"screen_assistant_invite_start" = "Započni razgovor";
+"notice_welcome_body" = "Tu sam i spreman pomoći. Odakle počinjemo?";
+"notice_welcome_starter_summary" = "Sažmi razgovor";
+"notice_welcome_starter_summary_message" = "Sažmi mi jedan razgovor";
+"notice_welcome_starter_contact" = "Zapamti kontakt";
+"notice_welcome_starter_contact_message" = "Zapamti nešto o mom kontaktu";
+"notice_welcome_starter_reminder" = "Podsjeti me…";
+"notice_welcome_starter_reminder_message" = "Postavi mi podsjetnik";
+"notice_welcome_allow_ai_reason" = "Dopustite AI kako bih mogao čitati što ovdje pišete.";
+"notice_welcome_allow_ai_action" = "Dopusti AI";
+
+// AGENT-PLATFORM (1.0.3 onboarding): the start screen's stories, the notifications prompt and the invited welcome.
+"screen_start_slide_privacy_title" = "Vaši razgovori su vaši";
+"screen_start_slide_privacy_subtitle" = "Sveobuhvatno šifriranje. Bez broja telefona, a asistent samo uz vaše dopuštenje";
+"screen_start_slide_calls_title" = "Pozivi s prijevodom";
+"screen_start_slide_calls_subtitle" = "Asistent se pridružuje i prevodi uživo";
+"screen_start_slide_assistant_title" = "Asistent uvijek pri ruci";
+"screen_start_slide_assistant_subtitle" = "Odgovara kad ste zauzeti i pita vas prije svakog novog koraka";
+"screen_start_slide_games_title" = "Igrajte zajedno izravno u chatu";
+"screen_start_slide_games_subtitle" = "Igre i alati, bez ikakve instalacije";
+"screen_start_invited_by_hint" = "Napravite račun i %1$@ će znati da ste tu";
+"a11y_start_slides_position" = "Slajd %1$d od %2$d";
+"screen_notification_optin_spiral_title" = "Ostanite u kontaktu";
+"screen_notification_optin_spiral_subtitle" = "Spiral će vam javiti kad je nešto stvarno važno. To možete promijeniti bilo kada u Postavkama.";
+"screen_notification_optin_messages_title" = "Nove poruke";
+"screen_notification_optin_messages_subtitle" = "Od ljudi i grupa s kojima razgovarate";
+"screen_notification_optin_calls_title" = "Dolazni pozivi";
+"screen_notification_optin_calls_subtitle" = "Čak i kad je Spiral zatvoren";
+"screen_notification_optin_assistant_title" = "Pitanja vašeg asistenta";
+"screen_notification_optin_assistant_subtitle" = "Kad mu treba vaš pristanak";
+"screen_notification_optin_allow" = "Dopusti obavijesti";
+"screen_invite_welcome_together_title" = "Vi i %1$@ sada ste zajedno u aplikaciji Spiral";
+"screen_invite_welcome_step_say_hello_title" = "Pozdraviti %1$@";
+"screen_invite_welcome_step_say_hello_subtitle" = "%1$@ čeka";
+"screen_invite_welcome_step_assistant_title" = "Upoznati svog asistenta";
+"screen_invite_welcome_step_assistant_subtitle" = "Njegova pozivnica čeka u Razgovorima";
+"screen_invite_welcome_step_play_title" = "Odigrati nešto zajedno";
+"screen_invite_welcome_step_play_subtitle" = "Igre i alati izravno u chatu";
+"a11y_invite_welcome_avatars" = "%1$@ i vi";
+"screen_approval_detail_already_closed_title" = "Ovaj je zahtjev već zatvoren";
+"screen_approval_detail_already_closed_message" = "Istekao je ili je na njega već odgovoreno.";
+"screen_room_interactive_post_description_not_sent" = "Vaš opis nije poslan. Pošaljite ga ponovno u niti.";
+"screen_room_interactive_post_code_not_sent" = "Objava nije stigla do agenta. Pokušajte ponovno iz objave.";
+"screen_invites_assistant_decline_warning_spiral" = "Ako je ovo vaš vlastiti asistent, njegov se razgovor nakon odbijanja ne može vratiti.";
+"a11y_roomlist_remove_filter" = "Ukloni filtar: %1$@";
+"a11y_settings_share_profile" = "Podijeli moj profil";

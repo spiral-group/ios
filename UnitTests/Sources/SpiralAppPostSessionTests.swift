@@ -304,7 +304,10 @@ struct SpiralAppPostSessionTests {
         let anya = RoomMemberProxyMock(with: .init(userID: "@anya:spiral.md", displayName: "Anya", membership: .join))
         let roster = CurrentValueSubject<[RoomMemberProxyProtocol], Never>([me])
         room.membersPublisher = roster.asCurrentValuePublisher()
-        room.updateMembersClosure = { roster.send([me, anya]) }
+        room.updateMembersClosure = {
+            roster.send([me, anya])
+            return .success(())
+        }
 
         let session = await Self.session(room)
         let members = await session.members()["members"] as? [[String: Any]]

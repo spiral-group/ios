@@ -50,6 +50,10 @@ struct MediaUploadPreviewScreen: View {
             .presentationColorScheme(colorSchemeOverride)
             .onAppear(perform: focusComposerIfHardwareKeyboardConnected)
             .alert(item: $context.alertInfo)
+            // AGENT-PLATFORM (1.0.3, operator 2026-11-21): the editor takes the caption's keyboard.
+            .onChange(of: context.isPresentingMediaEditor) { _, isShown in
+                if isShown { KeyboardDismissal.endEditing() }
+            }
             .sheet(isPresented: $context.isPresentingMediaEditor) {
                 ImageEditorView(imageURL: context.viewState.mediaURLs[currentIndex]) { croppedImage in
                     context.send(viewAction: .editedMedia(image: croppedImage, index: currentIndex))

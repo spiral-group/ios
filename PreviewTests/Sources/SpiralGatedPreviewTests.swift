@@ -112,6 +112,32 @@ enum SpiralGlassRendering {
     }
 }
 
+/// The system spinner, still, in every snapshot (1.0.3 snapshot gate).
+///
+/// A render through the key window goes through the render server, which runs a `UIActivityIndicatorView`'s animation,
+/// so a spinner never gave two equal renders: its states never settled, and their references caught whichever frame the
+/// recording run stopped on (DEBT § Final pass 1.0.2, "gated states that never settle"; `roomDetailsScreen` outran its
+/// time limit on it). Under the tests a spinner that is asked to spin stays visible and still instead: one frame, the
+/// same on every render, with the colour and size it was given (SwiftUI's `ProgressView` is one of these).
+/// `keyWindow.layer.speed = 0` didn't stop it.
+enum SnapshotStillSpinners {
+    static let installed: Void = {
+        guard let spin = class_getInstanceMethod(UIActivityIndicatorView.self, #selector(UIActivityIndicatorView.startAnimating)),
+              let still = class_getInstanceMethod(UIActivityIndicatorView.self, #selector(UIActivityIndicatorView.snapshotShowStill)) else {
+            fatalError("UIActivityIndicatorView.startAnimating isn't there: the snapshots' spinners would spin")
+        }
+        method_exchangeImplementations(spin, still)
+    }()
+}
+
+private extension UIActivityIndicatorView {
+    /// Takes `startAnimating`'s place under the tests (`SnapshotStillSpinners`).
+    @objc func snapshotShowStill() {
+        hidesWhenStopped = false
+        stopAnimating()
+    }
+}
+
 /// One way to render a snapshot.
 enum SnapshotVariant {
     /// Upstream's: the simulator's appearance, which is light, at the default text size.
@@ -186,9 +212,12 @@ enum SnapshotVariant {
 
     /// Sets the environment as well: a size-to-fit snapshot measures its view before the traits reach it. Every
     /// variant also takes what the app sets at its window's root, which a snapshot's own window doesn't inherit:
-    /// under tests, a still preloader (`Application`).
+    /// under tests, a still preloader (`Application`). Relative times count from the instant the fixtures date
+    /// themselves from (`PreviewClock`), not from the clock, which has moved on by the time a test renders.
     func content(_ content: AnyView) -> AnyView {
-        let content = AnyView(content.environment(\.spiralPreloaderShimmers, !ProcessInfo.isRunningTests))
+        let content = AnyView(content
+            .environment(\.spiralPreloaderShimmers, !ProcessInfo.isRunningTests)
+            .environment(\.relativeTimeAnchor, PreviewClock.now))
         return switch self {
         case .standard: content
         case .dark: AnyView(content.environment(\.colorScheme, .dark))

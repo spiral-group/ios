@@ -65,6 +65,9 @@
 "screen_agent_edit_persona_greeting" = "Size selamlama";
 "screen_agent_edit_persona_visitor_greeting" = "Misafirlere selamlama";
 "screen_agent_edit_failure" = "Değişiklikler kaydedilemedi";
+"error_agent_name_reserved" = "Bu ad Spiral'ın kendi hesaplarına ayrılmıştır. Başka bir ad seçin.";
+"error_agent_name_invalid_characters" = "Ad, kullanılamayan karakterler içeriyor.";
+"error_agent_name_unchecked" = "Ad kontrol edilemedi. Tekrar deneyin.";
 "screen_agent_edit_load_failure" = "Düzenleme formu yüklenemedi";
 "screen_agent_edit_avatar_failure" = "Fotoğraf yüklenemedi";
 "action_agent_activity" = "Etkinlik";
@@ -250,7 +253,6 @@
 "screen_language_picker_title" = "Dil";
 "screen_language_picker_empty" = "Aramanızla eşleşen dil yok.";
 "screen_start_sign_in" = "Oturum aç";
-"screen_start_welcome_subtitle" = "Kişisel ajanınızla hızlı, özel mesajlaşma.";
 
 // AGENT-PLATFORM (Brief 0072, ADR-0083, ADR-0084): presence, worded as Telegram does
 "common_presence_online" = "çevrimiçi";
@@ -491,6 +493,16 @@
 "screen_native_call_assistants_record_confirm_title" = "Görüşme kaydedilsin mi?";
 "screen_native_call_assistants_record_confirm_message" = "Herkes aramanın üstünde REC görür. Kayıt, aramadan sonra sohbette görünür.";
 "screen_native_call_assistants_record_confirm_action" = "Kaydet";
+"screen_native_call_assistants_notes_confirm_title" = "Görüşmenin notları alınsın mı?";
+"screen_native_call_assistants_notes_confirm_message" = "Asistanınız görüşmeyi dinler ve ardından sohbette bir özet paylaşır. Diğerleri not aldığını görür.";
+"screen_native_call_assistants_notes_confirm_action" = "Not al";
+"screen_native_call_assistants_talk_confirm_title" = "Asistanınızla konuşmak ister misiniz?";
+"screen_native_call_assistants_talk_confirm_message" = "Yalnızca sizi duyar ve sesli yanıt verir — görüşmedeki herkes onu duyar.";
+"screen_native_call_assistants_talk_confirm_action" = "Konuşmayı başlat";
+"screen_native_call_assistants_translate_question_title" = "Hedef dil";
+"screen_native_call_assistants_listen_question_title" = "Dinleme dili";
+"screen_native_call_assistants_talk_info_title" = "Asistanınız sesli yanıt veriyor";
+"screen_native_call_assistants_talk_info_message" = "Yalnızca sizi duyar ve görüşmedeki herkes onu duyar. Konuşurken çeviri yapılmaz.";
 "screen_native_call_assistants_none_of_your_own" = "Asistanınız yok";
 "screen_native_call_assistants_which" = "Hangi asistan";
 "screen_native_call_assistants_reason_paused" = "Asistanınız duraklatıldı";
@@ -571,7 +583,6 @@
 "screen_native_call_assistants_job_conversation" = "Konuşma";
 "screen_native_call_assistants_translating" = "%1$@ diline çeviriyor";
 "screen_native_call_assistants_stop_translation" = "Çeviriyi durdur";
-"screen_native_call_assistants_talk_caption" = "Size sesli yanıt verir ve herkes duyar. Konuşurken çeviri yapılmaz.";
 "screen_native_call_assistants_pick_footer" = "Bu sohbet için hatırlanır";
 "screen_native_call_assistants_neighbour_language" = "Yanınızdaki kişinin dili";
 "screen_native_call_assistants_pocket_detail" = "Her ifadeden sonra · iki yönde";
@@ -591,10 +602,9 @@
 "screen_native_call_assistants_status_both_ways" = "İki yönde çeviriyor";
 "screen_native_call_assistants_translate_into" = "Hedef dil";
 "screen_native_call_assistants_translate_into_detail" = "Aramayı bu dilde duyarsınız";
+"screen_native_call_assistants_translate_into_language" = "Hedef dil: %1$@";
 "screen_native_call_assistants_in_call" = "Aramada";
 "screen_native_call_assistants_in_call_more" = "Aramada: %1$d kişi daha";
-"screen_native_call_assistants_new_translation" = "Yeni çeviri";
-"screen_native_call_assistants_new_translation_detail" = "Asistanınız aramayı çevirecek";
 "screen_native_call_assistants_new_translation_others" = "Asistanınız şunları çeviriyor: %1$@. Diğerleri zaten ücretsiz çevriliyor.";
 "screen_native_call_assistants_start_translation" = "Çeviriyi başlat";
 "screen_native_call_assistants_start_translation_detail" = "Limitinizi kullanır. Bu dili seçen herkes ücretsiz dinler.";
@@ -1044,7 +1054,6 @@
 "notice_phrase_changed_title" = "Giriş ifadesi değiştirildi";
 "a11y_message_read" = "Okundu";
 "screen_legal_information_source_code_spiral" = "Kaynak kodu";
-"screen_invite_people_seats_label" = "Kalan davetler";
 "screen_native_call_tile_not_joined" = "Katılmadınız";
 "screen_agent_settings_show_in_search_footer" = "Kişilerin onu aramada bulup bulamayacağı. Adresini bilen herkes yine de ona yazabilir.";
 "screen_agent_edit_tone_calm" = "Sakin";
@@ -1056,7 +1065,6 @@
 "screen_room_interactive_draft_published" = "Yayınlandı";
 "screen_agent_activity_reason_visitor_policy_reply" = "Hemen yanıt vermeye izin verdiniz";
 "screen_agent_in_room_no_tools" = "Bu sohbette henüz araç yok.";
-"notice_welcome_assistant_body" = "Ben %1$@, kişisel asistanınız. Siz yokken mesajları iletebilir, kişilerinizi hatırlayabilir ve odaları özetleyebilirim. Bir odada araçlarımı açmak için oradaki + düğmesine dokunun ve Ajanlar'ı seçin. Bana doğal bir şekilde yazmanız yeterli — buradayım.";
 "screen_room_interactive_post_pick_agent_title" = "Kim oluştursun?";
 "screen_agent_settings_visitor_ask_first_description" = "Yeni bir kişi siz kabul edene kadar bekler";
 "screen_ai_consent_prompt_failed" = "Seçiminiz kaydedilemedi. Bağlantınızı kontrol edip tekrar deneyin.";
@@ -1086,10 +1094,8 @@
 "screen_agent_activity_reason_block_needs_owner" = "Engellemek için onayınız gerekiyor";
 "screen_create_company_title" = "Yeni şirket";
 "a11y_native_call_disable_speaker" = "Hoparlörü kapat";
-"screen_invite_paste_placeholder" = "spiral.md/join/…";
 "a11y_native_call_end" = "Aramayı bitir";
 "screen_agent_activity_action_published_post" = "Bir gönderi yayınladı";
-"screen_invite_people_joined_footer" = "Hesabını sizin bağlantınızla oluşturan kişiler. Sohbet başlatmak için dokunun.";
 "screen_arm_tool_turn_off_confirm_message" = "Ajan bunu bu sohbette herkes için yapmayı bırakır. İstediğiniz zaman yeniden açabilirsiniz.";
 "spiral_app_card_line_by" = "%1$@ tarafından";
 "state_event_spiral_tool_language_changed_by_you" = "Çevir aracını değiştirdiniz: %1$@ → %2$@";
@@ -1114,7 +1120,6 @@
 "screen_native_call_agent_block_recording" = "Kaydediyor";
 "screen_native_call_control_video" = "Video";
 "screen_agent_detail_pause" = "Duraklat";
-"screen_invite_paste_expired" = "Bu davet artık geçerli değil. Yeni bir davet isteyin.";
 "screen_security_messages_section" = "Mesajlar";
 "screen_agent_activity_reason_relationship_unavailable" = "Kişi denetlenemedi";
 "screen_ai_consent_prompt_allow" = "İzin ver";
@@ -1144,15 +1149,12 @@
 "state_event_spiral_tool_off_by_system" = "%2$@ için %1$@ kapatıldı";
 "a11y_native_call_swap_to_held_call" = "%@ ile olan aramaya geç";
 "screen_native_call_audio_route_iphone" = "iPhone";
-"screen_invite_people_seats_value" = "%1$d / %2$d";
 "screen_agent_activity_reason_first_contact_with_unknown_visitor" = "Yeni birinden ilk mesaj";
 "screen_deactivate_account_spiral_list_item_3" = "Hesap bilgilerinizi kimlik sunucumuzdan silmek.";
 "a11y_native_call_bar" = "%1$@ ile süren arama. Geri dönmek için dokunun.";
-"screen_invite_paste_unavailable" = "Davet kontrol edilemedi. Tekrar deneyin.";
 "screen_agent_activity_action_read_call_summary" = "Bir arama özetini okudu";
 "screen_ai_consent_prompt_title" = "Üçüncü taraf yapay zekâya izin verilsin mi?";
 "screen_agent_edit_voice_language_footer" = "Asistan her zaman konuştuğunuz dilde yanıt verir. Bu ayar, aramaları hangi dilde duyacağını ve arama özetlerinin dilini belirler.";
-"screen_invite_welcome_title" = "Spiral'a hoş geldiniz";
 "screen_agent_activity_reason_blocked_visitor" = "Engellenen kişi";
 "screen_deactivate_account_spiral_list_item_1_bold_part" = "kalıcı olarak devre dışı bırakmak";
 "screen_native_call_agent_center_recording_live" = "Kaydediliyor…";
@@ -1220,7 +1222,6 @@
 "screen_deactivate_account_spiral_failed" = "Hesap silinemedi. Bir dakika sonra tekrar deneyin.";
 "screen_agent_activity_action_changed_call_mode" = "Aramaya nasıl katıldığını değiştirdi";
 "a11y_native_call_unmute_microphone" = "Mikrofonun sesini aç";
-"screen_invite_paste_label" = "Bağlantı veya kod";
 "screen_media_viewer_position" = "%1$d / %2$d";
 "screen_native_call_status_reconnecting_detail" = "Bağlantınız kesildi";
 "screen_approval_detail_block_blocked_subtitle" = "Ajanınız bundan sonra mesajlarını yok sayar.";
@@ -1256,6 +1257,13 @@
 "screen_agent_activity_reason_no_contact_relationship" = "Kişileriniz arasında değil";
 "screen_room_alias_link_not_found" = "Bu bağlantı hiçbir sohbete götürmüyor.";
 "screen_invite_people_title" = "Spiral'a davet et";
+"screen_invite_people_you" = "Sen";
+"screen_invite_people_invited_count" = "%2$d kişiden %1$d kişi davet edildi";
+"screen_invite_people_invited_you" = "Seni Spiral'a davet etti";
+"screen_invite_people_seat_invite" = "Davet et";
+"screen_invite_people_seat_taken" = "Dolu";
+"screen_invite_people_chain_footer" = "%1$d kişilik tek bir bağlantı ve yenilenmez. Profilini açmak için bir kişiye dokun.";
+"screen_invite_people_all_used" = "Tüm davetler kullanıldı";
 "screen_approval_detail_escalation_cold_outreach" = "Ajanınız birine ilk kez yazmak istiyor.";
 "screen_start_invited_by" = "%1$@ sizi Spiral'a davet etti";
 "screen_agent_spaces_section_retry" = "Tekrar denemek için dokunun.";
@@ -1263,7 +1271,6 @@
 "screen_settings_new_phrase_done" = "Giriş ifadesi değiştirildi";
 "screen_agent_activity_reason_outside_conversation" = "Bu konuşmanın dışında";
 "a11y_native_call_switch_camera" = "Kamerayı değiştir";
-"screen_invite_people_joined" = "Davetinizle katılanlar: %1$d";
 "screen_agent_activity_action_searched_agents" = "Ajan aradı";
 "screen_agent_activity_reason_strategy_no_op" = "Yapılacak bir şey yok";
 "action_dismiss_visitor_message" = "Kaldır";
@@ -1272,7 +1279,6 @@
 "screen_approval_detail_block_action_dont_block" = "Engelleme";
 "screen_agent_settings_people_title" = "İnsanlarla konuşma";
 "screen_native_call_agent_center_error_not_owner" = "Bu oturumu yalnızca sahibi değiştirebilir.";
-"notice_welcome_agent_body" = "%1$@ hazır. Bana yazmanız yeterli.";
 "screen_agent_detail_already_in_chat" = "Ajan zaten bu sohbette";
 "screen_native_call_agent_center_booth_members" = "%1$@ → %2$@";
 "screen_settings_devices_title" = "Cihazlar ve oturumlar";
@@ -1290,7 +1296,6 @@
 "screen_agent_activity_action_remembered" = "Bir kişi hakkında bir şey hatırladı";
 "screen_room_interactive_post_link_needs_update" = "Bu gönderi Spiral'ın daha yeni bir sürümünü gerektiriyor. Kullanmak için uygulamayı güncelleyin.";
 "screen_room_member_details_erase_assistant_memory" = "Asistanlarımın onun hakkında bildiklerini sil";
-"screen_invite_paste_without" = "Davet olmadan devam et";
 "screen_agent_edit_tone_friendly" = "Samimi";
 "screen_room_interactive_post_update" = "Gönderiyi güncelle";
 "screen_agent_detail_archive_refused" = "Kişisel asistanınız hesabınızla birlikte kalır ve arşivlenemez.";
@@ -1307,9 +1312,7 @@
 "screen_native_call_agent_center_talking" = "Asistan konuşuyor";
 "screen_native_call_tile_call_back" = "Geri aramak için dokunun";
 "notice_reply_failed_body" = "Benim tarafımda bir sorun oluştu. Lütfen tekrar gönderin.";
-"screen_invite_people_joined_title" = "Davetinizle katılanlar";
 "screen_native_call_status_connecting_detail" = "Şifreleme ayarlanıyor";
-"screen_invite_paste_title" = "Davetiniz var mı?";
 "screen_edit_profile_bio_too_long" = "Biyografi en fazla %1$d karakter olabilir. Kaydetmek için kısaltın.";
 "a11y_native_call_agent_block_role" = "%1$@, %2$@";
 "a11y_native_call_recording" = "Bu arama kaydediliyor";
@@ -1322,12 +1325,25 @@
 "screen_agent_spaces_assistant_pending" = "Asistanınız hâlâ kuruluyor";
 "screen_room_member_details_erase_assistant_memory_alert_title" = "Asistanlarınızın %1$@ hakkında bildikleri silinsin mi?";
 "screen_settings_new_phrase_failed" = "İfade değişikliği başlatılamadı. Tekrar deneyin.";
+/* AGENT-PLATFORM (1.0.3): sign-in methods — the first phrase for an account made with Apple, Sign in with Apple for a phrase account. */
+"screen_settings_add_phrase_title" = "Giriş ifadesi ekle";
+"screen_settings_add_phrase_message" = "12 kelime seçeceksiniz. Apple ile Giriş Yap'ın yanında, hesabınızı her cihazda açarlar. Bu cihazda oturumunuz açık kalır ve mesajlarınız etkilenmez.";
+"screen_settings_add_phrase_auth_reason" = "Giriş ifadesi eklemek için siz olduğunuzu onaylayın";
+"screen_settings_add_phrase_done" = "Giriş ifadesi eklendi";
+"screen_settings_add_phrase_failed" = "İfade eklenmeye başlanamadı. Tekrar deneyin.";
+"screen_settings_sign_in_passcode_required" = "Önce bir cihaz parolası belirleyin — giriş yöntemlerinizi o korur";
+"screen_settings_apple_title" = "Apple ile Giriş Yap";
+"screen_settings_apple_connected" = "Bağlı";
+"screen_settings_apple_add_title" = "Apple ile Giriş Yap'ı ekle";
+"screen_settings_apple_auth_reason" = "Apple ile Giriş Yap'ı eklemek için siz olduğunuzu onaylayın";
+"screen_settings_apple_linked" = "Apple ile Giriş Yap eklendi";
+"screen_settings_apple_taken" = "Bu Apple Kimliği zaten başka bir Spiral hesabında kullanılıyor";
+"screen_settings_apple_failed" = "Apple ile Giriş Yap eklenmeye başlanamadı. Tekrar deneyin.";
 "screen_deactivate_account_spiral_description" = "Hesabınızı silmek %1$@. Şunları yapar:";
 "screen_agent_activity_action_set_reminder" = "Bir hatırlatıcı kurdu";
 "screen_agent_activity_action_cancelled_reminder" = "Bir hatırlatıcıyı iptal etti";
 "screen_agent_activity_reason_capability_always_allowed" = "Her zaman izinli";
 "screen_agent_activity_action_blocked_someone" = "Birini engelledi";
-"screen_invite_paste_message" = "Bir Spiral kullanıcısının size gönderdiği bağlantıyı yapıştırın veya kodu yazın.";
 "screen_native_call_error_title" = "Arama başarısız oldu";
 "notification_approval_action_not_found_title" = "Bu istek artık yok";
 "state_event_spiral_tool_changed_by_you" = "%1$@ aracını değiştirdiniz";
@@ -1354,7 +1370,6 @@
 "screen_native_call_control_sound" = "Ses";
 "screen_native_call_status_reconnecting" = "Yeniden bağlanıyor…";
 "notice_phrase_changed_body" = "Eski ifadeyle artık giriş yapılamaz.";
-"screen_invite_people_seats_footer" = "Herkesin %1$d kişilik tek bir bağlantısı vardır. Yenilenmez, bu yüzden onu gerçekten burada görmek istediğiniz kişilerle paylaşın.";
 "screen_room_member_details_agent_unblock_action" = "Engellemeyi kaldır";
 "screen_agent_activity_reason_unknown_capability" = "Yapabileceği bir şey değil";
 "screen_settings_new_phrase_passcode_required" = "Önce bir cihaz parolası belirleyin — ifade değişikliğini o korur";
@@ -1426,10 +1441,11 @@
 "screen_your_data_calls_footer" = "Tek bir aramayı dışa aktarın: dökümü, özeti ve izin kaydı.";
 "screen_arm_tool_error_agent_does_not_join_calls" = "Bu ajan aramalara katılmaz, bu yüzden arama araçları onun için kullanılamaz.";
 "screen_room_interactive_generating_hint" = "Genellikle bir dakikadan kısa sürer";
-"screen_invite_paste_exhausted" = "Bu davetin izin verdiği herkes zaten katıldı. Yeni bir davet isteyin.";
 "notice_phrase_changed_on_device" = "“%1$@” cihazında değiştirildi.";
+/* AGENT-PLATFORM (1.0.3): the owner-DM card when Sign in with Apple is added. It names no device (security review); a new phrase disconnects Apple. */
+"notice_apple_linked_title" = "Apple ile Giriş Yap eklendi";
+"notice_apple_linked_body" = "Siz değilseniz giriş ifadenizi değiştirin: bu, Apple bağlantısını kaldırır.";
 "screen_ai_consent_prompt_openai" = "OpenAI: asistanların okuduğu mesajlar, onlarla aramalarda sesiniz ve yazıya döktükleri kayıtlar.";
-"screen_invite_welcome_message" = "%1$@ sizi davet etti ve burada olduğunuzu zaten biliyor. Merhaba deyin!";
 "screen_agent_activity_action_used_tool" = "Bir mesajda araç kullandı";
 "screen_approval_detail_escalation_first_contact" = "Biri ajanınıza ilk kez yazdı, bu yüzden yanıt vermeden önce size soruyor.";
 "screen_agent_activity_action_drafted_post" = "Bir gönderi taslağı hazırladı";
@@ -1444,7 +1460,6 @@
 "screen_room_interactive_post_updated" = "Gönderi güncellendi";
 "screen_native_call_camera_failed_message" = "Kamera başlatılamadı, bu yüzden arama sesli devam ediyor. Biraz sonra kamera düğmesini tekrar deneyin.";
 "screen_media_viewer_open" = "Aç";
-"screen_invite_paste_invalid" = "Böyle bir davet yok.";
 "screen_agent_room_tool_audience_except_named" = "%1$@ dışında herkes için";
 "notification_spiral_needs_update_body" = "Bunu görmek için uygulamayı güncelleyin.";
 "screen_agent_edit_tone_brief" = "Kısa ve öz";
@@ -1452,7 +1467,6 @@
 "screen_invite_people_seats_left" = "%2$d davetten %1$d kaldı";
 "screen_agent_activity_reason_wrong_room_kind" = "Bu tür sohbette izin verilmiyor";
 "screen_native_call_failure_audio_reset" = "Arama sesi sistem tarafından sıfırlandı.";
-"screen_invite_people_body" = "Kayıt davetle yapılır. Kişisel bağlantınızı paylaşın — onunla hesap oluşturan herkes ilk olarak sizi görür.";
 "notification_approval_action_target_blocked_title" = "Gönderilmedi — bu kişiyi engellediniz";
 "screen_notifications_hub_visitor_other" = "Yeni bir şey";
 "screen_agent_activity_empty_pending_title" = "Karar verilecek istek yok";
@@ -1476,3 +1490,61 @@
 "screen_notifications_hub_visitors_section" = "Kişilerden";
 "screen_agent_settings_visitor_reply_description" = "Engellediğiniz kişiler dışında herkese yanıt verir";
 "screen_deactivate_account_spiral_auth_reason" = "Hesabınızı silmek için siz olduğunuzu onaylayın";
+
+// AGENT-PLATFORM (1.0.3 A2): the assistant's first invite in Chats, its chat before consent and its welcome.
+"screen_roomlist_assistant_invite_name" = "Asistanınız";
+"screen_roomlist_assistant_invite_subtitle" = "Merhaba! Başlamak için dokunun 👋";
+"screen_roomlist_assistant_invite_start" = "Başla";
+"a11y_assistant_invite_start" = "Asistanınızla sohbet başlatın";
+"a11y_assistant_invite_start_hint" = "Asistanınızın davetini kabul eder ve onunla sohbetinizi açar.";
+"screen_assistant_invite_title" = "Merhaba! Ben asistanınızım";
+"screen_assistant_invite_reminders" = "Size bir şeyleri hatırlatırım";
+"screen_assistant_invite_contacts" = "Kişilerinizi hatırlarım";
+"screen_assistant_invite_summaries" = "Her sohbeti özetlerim";
+"screen_assistant_invite_privacy" = "Yalnızca bu konuşmayı görürüm. İstediğiniz zaman kapatabilirsiniz.";
+"screen_assistant_invite_start" = "Sohbeti başlat";
+"notice_welcome_body" = "Buradayım ve yardıma hazırım. Nereden başlayalım?";
+"notice_welcome_starter_summary" = "Bir sohbeti özetle";
+"notice_welcome_starter_summary_message" = "Benim için bir sohbeti özetle";
+"notice_welcome_starter_contact" = "Bir kişiyi hatırla";
+"notice_welcome_starter_contact_message" = "Kişilerimden biri hakkında bir şey hatırla";
+"notice_welcome_starter_reminder" = "Bana hatırlat…";
+"notice_welcome_starter_reminder_message" = "Bana bir hatırlatıcı kur";
+"notice_welcome_allow_ai_reason" = "Burada yazdıklarınızı okuyabilmem için yapay zekâya izin verin.";
+"notice_welcome_allow_ai_action" = "Yapay zekâya izin ver";
+
+// AGENT-PLATFORM (1.0.3 onboarding): the start screen's stories, the notifications prompt and the invited welcome.
+"screen_start_slide_privacy_title" = "Konuşmalarınız size ait";
+"screen_start_slide_privacy_subtitle" = "Uçtan uca şifreleme. Telefon numarası gerekmez, asistanınız da yalnızca izninizle çalışır";
+"screen_start_slide_calls_title" = "Çevirili aramalar";
+"screen_start_slide_calls_subtitle" = "Asistanınız aramaya katılır ve anında çevirir";
+"screen_start_slide_assistant_title" = "Asistanınız hep yanınızda";
+"screen_start_slide_assistant_subtitle" = "Meşgulken yanıt verir ve her yeni adımdan önce size sorar";
+"screen_start_slide_games_title" = "Birlikte oynayın, doğrudan sohbette";
+"screen_start_slide_games_subtitle" = "Oyunlar ve araçlar, hiçbir şey yüklemeden";
+"screen_start_invited_by_hint" = "Hesap oluşturun, %1$@ burada olduğunuzu öğrensin";
+"a11y_start_slides_position" = "Slayt %1$d / %2$d";
+"screen_notification_optin_spiral_title" = "İletişimde kalın";
+"screen_notification_optin_spiral_subtitle" = "Spiral, gerçekten önemli bir şey olduğunda size haber verir. Bunu istediğiniz zaman Ayarlar’dan değiştirebilirsiniz.";
+"screen_notification_optin_messages_title" = "Yeni mesajlar";
+"screen_notification_optin_messages_subtitle" = "Konuştuğunuz kişi ve gruplardan";
+"screen_notification_optin_calls_title" = "Gelen aramalar";
+"screen_notification_optin_calls_subtitle" = "Spiral kapalıyken bile";
+"screen_notification_optin_assistant_title" = "Asistanınızdan sorular";
+"screen_notification_optin_assistant_subtitle" = "Onayınıza ihtiyaç duyduğunda";
+"screen_notification_optin_allow" = "Bildirimlere izin ver";
+"screen_invite_welcome_together_title" = "%1$@ ile birlikte Spiral’dasınız";
+"screen_invite_welcome_step_say_hello_title" = "%1$@ ile selamlaşın";
+"screen_invite_welcome_step_say_hello_subtitle" = "%1$@ bekliyor";
+"screen_invite_welcome_step_assistant_title" = "Asistanınızla tanışın";
+"screen_invite_welcome_step_assistant_subtitle" = "Davetiyesi Sohbetler bölümünde bekliyor";
+"screen_invite_welcome_step_play_title" = "Birlikte bir şey oynayın";
+"screen_invite_welcome_step_play_subtitle" = "Oyunlar ve araçlar doğrudan sohbette";
+"a11y_invite_welcome_avatars" = "%1$@ ve siz";
+"screen_approval_detail_already_closed_title" = "Bu istek zaten kapatıldı";
+"screen_approval_detail_already_closed_message" = "Süresi doldu veya zaten yanıtlandı.";
+"screen_room_interactive_post_description_not_sent" = "Açıklamanız gönderilmedi. Konuda yeniden gönderin.";
+"screen_room_interactive_post_code_not_sent" = "Gönderi temsilciye ulaşmadı. Gönderiden yeniden deneyin.";
+"screen_invites_assistant_decline_warning_spiral" = "Bu sizin kendi asistanınızsa, reddettikten sonra sohbeti geri getirilemez.";
+"a11y_roomlist_remove_filter" = "Filtreyi kaldır: %1$@";
+"a11y_settings_share_profile" = "Profilimi paylaş";

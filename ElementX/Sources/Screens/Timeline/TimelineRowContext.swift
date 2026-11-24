@@ -29,6 +29,8 @@ struct TimelineRowContext: Equatable {
     var isLiveLocationStopped = false
     /// AGENT-PLATFORM (decision 371): kept out of the row, which a table reuses and scrolls away.
     var isCallSummaryExpanded = false
+    /// AGENT-PLATFORM (1.0.3 A3): what the assistant's welcome offers under its hello.
+    var spiralWelcomeExtras = SpiralWelcomeExtras.none
 }
 
 extension TimelineRowContext {
@@ -75,6 +77,7 @@ struct TimelineRowContextInputs: Equatable {
     let reactionsCollapsed: [TimelineItemIdentifier: Bool]
     let stoppedLiveLocationIDs: Set<TimelineItemIdentifier>
     let expandedCallSummaries: Set<TimelineItemIdentifier>
+    let spiralWelcomeExtras: SpiralWelcomeExtras // AGENT-PLATFORM (1.0.3 A3)
     
     init(_ viewState: TimelineViewState) {
         timelineKind = viewState.timelineKind
@@ -89,6 +92,7 @@ struct TimelineRowContextInputs: Equatable {
         reactionsCollapsed = viewState.bindings.reactionsCollapsed
         stoppedLiveLocationIDs = viewState.stoppedLiveLocationIDs
         expandedCallSummaries = viewState.bindings.expandedCallSummaries
+        spiralWelcomeExtras = viewState.spiralWelcomeExtras
     }
     
     func rowContext(for itemID: TimelineItemIdentifier) -> TimelineRowContext {
@@ -104,6 +108,7 @@ struct TimelineRowContextInputs: Equatable {
                            isRead: showReadReceipts && readOwnItemIDs.contains(itemID.uniqueID),
                            areReactionsCollapsed: reactionsCollapsed[itemID] ?? true,
                            isLiveLocationStopped: stoppedLiveLocationIDs.contains(itemID),
-                           isCallSummaryExpanded: expandedCallSummaries.contains(itemID))
+                           isCallSummaryExpanded: expandedCallSummaries.contains(itemID),
+                           spiralWelcomeExtras: spiralWelcomeExtras)
     }
 }

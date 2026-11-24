@@ -377,16 +377,6 @@ final class LocalizationTests {
         }
     }
 
-    // AGENT-PLATFORM (ADR-0088): room tools are turned on in the app, never by
-    // chat. The assistant's welcome used to promise it would "set up tools for
-    // groups" if written to; it now points at the menu item, so the copy must
-    // keep naming the item the composer's + menu actually shows.
-    @Test(arguments: ["en", "uk", "ru"])
-    func theWelcomeNamesTheMenuWhereToolsAre(language: String) {
-        Bundle.overrideLocalizations = [language]
-        #expect(UntranslatedL10n.noticeWelcomeAssistantBody("Aria").contains(UntranslatedL10n.screenRoomAttachmentAgentTools))
-    }
-
     // AGENT-PLATFORM (dev walk 2026-11-13): the assistant's banner on Dev-A read «Thread» and
     // «Draft - Голосування з іменами». Both words are the NSE's own, from these keys; the NSE
     // follows the phone's language, and Dev-A's is en-US (only the app gets `-AppleLanguages (uk)`).
@@ -399,7 +389,7 @@ final class LocalizationTests {
         let builder = RoomMessageEventStringBuilder(attributedStringBuilder: AttributedStringBuilder(mentionBuilder: PlainMentionBuilder()),
                                                     style: .plain)
         func banner() -> String {
-            String(builder.buildAttributedString(for: .interactiveDraft(content: draft), senderDisplayName: "Aria", isOutgoing: false).characters)
+            String(builder.buildAttributedString(for: .interactiveDraft(content: draft), senderID: "@assistant-aria:spiral.md", senderDisplayName: "Aria", isOutgoing: false).characters)
         }
 
         Bundle.overrideLocalizations = ["uk"]

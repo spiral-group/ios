@@ -104,6 +104,19 @@ class TimelineMediaPreviewViewModel: TimelineMediaPreviewViewModelType {
                 paginateIfNeeded()
             }
             .store(in: &cancellables)
+        
+        // AGENT-PLATFORM (1.0.3): Media and files says a failed page in place, under the viewer, and keeps its toast
+        // back for that; over it, a swipe to older media would show its loading page with no word. The viewer says it.
+        if timelineViewModel.context.viewState.timelineKind == .media(.mediaFilesScreen) {
+            timelineViewModel.context.$viewState.map(\.timelineState.hasBackPaginationFailed)
+                .removeDuplicates()
+                .dropFirst()
+                .filter { $0 }
+                .sink { [weak self] _ in
+                    self?.showPageFailedIndicator()
+                }
+                .store(in: &cancellables)
+        }
     }
     
     /// Initialises the preview scoped to a single gallery's attachments. The data source is
@@ -408,6 +421,13 @@ class TimelineMediaPreviewViewModel: TimelineMediaPreviewViewModelType {
         userIndicatorController.submitIndicator(UserIndicator(id: statusIndicatorID,
                                                               type: .toast,
                                                               title: L10n.errorUnknown,
+                                                              icon: \.close))
+    }
+    
+    private func showPageFailedIndicator() {
+        userIndicatorController.submitIndicator(UserIndicator(id: statusIndicatorID,
+                                                              type: .toast,
+                                                              title: L10n.errorFailedLoadingMessages,
                                                               icon: \.close))
     }
     

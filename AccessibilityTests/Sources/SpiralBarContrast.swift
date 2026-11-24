@@ -199,6 +199,12 @@ private struct BarElement: CustomStringConvertible {
 
     /// What WCAG asks: 3:1 for a graphic (1.4.11) and for large text, 4.5:1 for other text (1.4.3).
     func minimumRatio(for contrast: BarContrast) -> MinimumRatio {
+        if isGraphicOnlyByShape {
+            let ink = String(format: "ink %.1f by %.1f pt", contrast.inkWidth, contrast.tallestLine)
+            // A button's frame holds its padding as well as its lines, so its text needs 4.5:1 whatever its size.
+            return contrast.inkSpellsOut(label) ? MinimumRatio(ratio: 4.5, of: "text in a near-square control, \(ink)")
+                : MinimumRatio(ratio: 3, of: "a graphic in a near-square control, \(ink)")
+        }
         if isGraphic {
             return MinimumRatio(ratio: 3, of: "a graphic")
         }
@@ -245,7 +251,18 @@ private struct BarElement: CustomStringConvertible {
     /// An image, an icon, an avatar or a spinner: a control about as wide as it is tall shows one glyph, not a word,
     /// and so does one whose children are icons, such as a call menu (outside a tab bar).
     var isGraphic: Bool {
-        isSpinner || type == .image || (showsNoChildText && kind != .tabBar) || (type != .staticText && frame.width <= frame.height * 1.25)
+        isSpinner || type == .image || (showsNoChildText && kind != .tabBar) || isNearSquareControl
+    }
+
+    /// A control about as wide as it is tall, which usually shows a glyph: 'Join call' is a camera, an avatar a disc.
+    private var isNearSquareControl: Bool {
+        type != .staticText && frame.width <= frame.height * 1.25
+    }
+
+    /// A graphic only by its frame's shape (bar-reader rule 2): short text such as 'OK' fits a near-square capsule too,
+    /// so its reading decides (`BarContrast.inkSpellsOut(_:)`). A one-letter label stays a graphic: a monogram.
+    private var isGraphicOnlyByShape: Bool {
+        isNearSquareControl && !isSpinner && type != .image && !(showsNoChildText && kind != .tabBar) && label.count >= 2
     }
 
     private static func holdsText(_ elements: [XCUIElementSnapshot]) -> Bool {
@@ -352,6 +369,8 @@ private enum BarReading {
                                      background: backgroundColour,
                                      lineCount: lines.count,
                                      shortestLine: CGFloat(lines.min() ?? 0) / pixels.scale,
+                                     tallestLine: CGFloat(lines.max() ?? 0) / pixels.scale,
+                                     inkWidth: CGFloat(pixels.inkColumns(in: pixels.middle, isText: isInk).count) / pixels.scale,
                                      nearestBackground: nearestBackground))
     }
 
@@ -627,6 +646,10 @@ private struct BarContrast: CustomStringConvertible {
     let lineCount: Int
     /// The ink height of its shortest line, in points.
     let shortestLine: CGFloat
+    /// The ink height of its tallest line, in points.
+    var tallestLine: CGFloat = 0
+    /// How wide its ink spreads across the middle of the element, in points.
+    var inkWidth: CGFloat = 0
     /// The shade of its background's band and the bands beside it that lies nearest its text and covers a twentieth
     /// of the background clear of the text; on a gradient or glass, the end that is hardest on the text.
     var nearestBackground: UInt32?
@@ -644,6 +667,15 @@ private struct BarContrast: CustomStringConvertible {
 
     var description: String {
         String(format: "%.2f:1 fg #%06X bg #%06X", ratio, foreground, background)
+    }
+
+    /// Whether the ink is as wide as the label's words would be (bar-reader rule 2), which an SF Symbol of one or a few
+    /// parts isn't. Text at least 8 pt tall spreads over about 0.5–0.7 of its line's height per character; a word's ink
+    /// counts at 0.45, a little under. 'OK' in a 48×44 capsule (24 pt of ink, 12 pt tall) is text, while 'Join call'
+    /// (a camera, about 22 by 15 pt), a tombstoned room's "!" avatar under the room's name, a "More" ellipsis (4 pt
+    /// tall) and a "Back" chevron stay graphics.
+    func inkSpellsOut(_ label: String) -> Bool {
+        tallestLine >= 8 && inkWidth >= 0.45 * CGFloat(label.count) * tallestLine
     }
 
     static func luminance(of colour: UInt32) -> Double {
@@ -808,6 +840,15 @@ private struct Pixels {
         }
         let tallest = runs.max() ?? 0
         return runs.filter { Double($0) >= Double(tallest) * 0.4 }
+    }
+
+    /// The columns from the first that holds the text in a region to the last, the gaps between words included.
+    func inkColumns(in region: Region, isText: (Int) -> Bool) -> Range<Int> {
+        let inked = region.columns.filter { column in
+            region.rows.contains { row in !excluded[row * width + column] && isText(row * width + column) }
+        }
+        guard let first = inked.first, let last = inked.last else { return 0..<0 }
+        return first..<(last + 1)
     }
 
     /// The pixels joined to `seed` by their sides that match, each marked visited.

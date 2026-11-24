@@ -572,6 +572,13 @@ extension PreviewTests {
     }
 
     @Test
+    func homeScreenAssistantInviteCell() async throws {
+        for (index, preview) in HomeScreenAssistantInviteCell_Previews._allPreviews.enumerated() {
+            try await assertSnapshots(matching: preview, step: index)
+        }
+    }
+
+    @Test
     func homeScreenEmptyStateView() async throws {
         for (index, preview) in HomeScreenEmptyStateView_Previews._allPreviews.enumerated() {
             try await assertSnapshots(matching: preview, step: index)
@@ -698,13 +705,6 @@ extension PreviewTests {
     }
 
     @Test
-    func invitePasteSheet() async throws {
-        for (index, preview) in InvitePasteSheet_Previews._allPreviews.enumerated() {
-            try await assertSnapshots(matching: preview, step: index)
-        }
-    }
-
-    @Test
     func invitePeopleScreen() async throws {
         for (index, preview) in InvitePeopleScreen_Previews._allPreviews.enumerated() {
             try await assertSnapshots(matching: preview, step: index)
@@ -735,6 +735,13 @@ extension PreviewTests {
     @Test
     func inviteWelcomeScreen() async throws {
         for (index, preview) in InviteWelcomeScreen_Previews._allPreviews.enumerated() {
+            try await assertSnapshots(matching: preview, step: index)
+        }
+    }
+
+    @Test
+    func joinRoomAssistantInviteView() async throws {
+        for (index, preview) in JoinRoomAssistantInviteView_Previews._allPreviews.enumerated() {
             try await assertSnapshots(matching: preview, step: index)
         }
     }
@@ -1790,6 +1797,13 @@ extension PreviewTests {
     @Test
     func spiralTabAvatar() async throws {
         for (index, preview) in SpiralTabAvatar_Previews._allPreviews.enumerated() {
+            try await assertSnapshots(matching: preview, step: index)
+        }
+    }
+
+    @Test
+    func spiralWelcomeNoticeView() async throws {
+        for (index, preview) in SpiralWelcomeNoticeView_Previews._allPreviews.enumerated() {
             try await assertSnapshots(matching: preview, step: index)
         }
     }

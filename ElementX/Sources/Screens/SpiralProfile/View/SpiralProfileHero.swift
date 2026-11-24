@@ -139,7 +139,7 @@ struct SpiralProfileHero<Actions: View, Footer: View>: View {
 
     private var name: some View {
         HStack(alignment: .firstTextBaseline, spacing: CompoundDesignTokens.space1_5X) {
-            // A wrapped name never starts its second line with the separator ("Anna Kovalchuk · assistant"), as the role line.
+            // A wrapped name never starts its second line with the separator ("Anna Sampleton · assistant"), as the role line.
             Text(title.keepingSeparators)
                 .textSelection(.enabled)
                 .accessibilityAddTraits(.isHeader)

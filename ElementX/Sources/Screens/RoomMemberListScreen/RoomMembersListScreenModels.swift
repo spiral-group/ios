@@ -55,6 +55,9 @@ struct RoomMembersListScreenViewState: BindableState {
     // members' presence, by user ID.
     var presences: [String: UserPresence] = [:]
     
+    /// AGENT-PLATFORM (1.0.3 B14): the last members read failed. With nobody to show, the screen offers Retry instead of shimmering.
+    var hasFailedToLoad = false
+    
     var bindings: RoomMembersListScreenViewStateBindings
     
     init(joinedMembersCount: Int,
@@ -112,6 +115,7 @@ enum RoomMembersListScreenViewAction {
     // screen or left it — the rows on screen are whose presence is asked for.
     case memberAppeared(userID: String)
     case memberDisappeared(userID: String)
+    case retry // AGENT-PLATFORM (1.0.3 B14)
 }
 
 enum RoomMembersListScreenAlertType: Hashable { }

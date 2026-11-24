@@ -61,6 +61,17 @@ struct SpiralNoticeTests {
         #expect(SpiralNotice(msgtype: "com.spiral.notice", data: #"{"com.spiral.notice":{"kind":"phrase_changed","device_name":"  "}}"#)?.kind == .phraseChanged(deviceName: nil))
     }
     
+    // 1.0.3: Sign in with Apple added to the account. It names no device, even one the server sends.
+    @Test
+    func readsTheAppleLinkedNotice() throws {
+        let notice = try #require(SpiralNotice(msgtype: "com.spiral.notice", data: #"{"com.spiral.notice":{"kind":"apple_linked"}}"#))
+        #expect(notice.kind == .appleLinked)
+        #expect(notice.kind.wireName == "apple_linked")
+        #expect(notice.plainText == UntranslatedL10n.noticeAppleLinkedTitle)
+        #expect(SpiralNotice(msgtype: "com.spiral.notice", data: #"{"com.spiral.notice":{"kind":"apple_linked","device_name":"Spiral на iPhone 15"}}"#)?.kind == .appleLinked)
+        #expect(!UntranslatedL10n.noticeAppleLinkedBody.isEmpty)
+    }
+    
     // Brief 0079 — the notices the server used to write in English.
     @Test
     func readsTheReplyFailedNotice() throws {

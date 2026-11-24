@@ -27,7 +27,7 @@ nonisolated struct RoomEventStringBuilder {
         case .msgLike(let messageLikeContent):
             switch messageLikeContent.kind {
             case .message(let messageContent):
-                return messageEventStringBuilder.buildAttributedString(for: messageContent.msgType, senderDisplayName: displayName, isOutgoing: isOutgoing)
+                return messageEventStringBuilder.buildAttributedString(for: messageContent.msgType, senderID: sender.id, senderDisplayName: displayName, isOutgoing: isOutgoing)
             case .sticker:
                 if messageEventStringBuilder.style == .typeBolded {
                     var string = AttributedString(L10n.commonSticker)
@@ -103,7 +103,8 @@ nonisolated struct RoomEventStringBuilder {
     static func pinnedEventStringBuilder(userID: String) -> Self {
         RoomEventStringBuilder(stateEventStringBuilder: .init(userID: userID),
                                messageEventStringBuilder: .init(attributedStringBuilder: AttributedStringBuilder(cacheKey: "pinnedEvents", mentionBuilder: PlainMentionBuilder()),
-                                                                style: .typeBolded),
+                                                                style: .typeBolded,
+                                                                templateTitle: readerLanguageTemplateTitle), // AGENT-PLATFORM
                                shouldPrefixSenderName: false)
     }
     
@@ -111,7 +112,11 @@ nonisolated struct RoomEventStringBuilder {
     static func threadListEventStringBuilder(userID: String) -> Self {
         RoomEventStringBuilder(stateEventStringBuilder: .init(userID: userID),
                                messageEventStringBuilder: .init(attributedStringBuilder: AttributedStringBuilder(cacheKey: "threadList", mentionBuilder: PlainMentionBuilder()),
-                                                                style: .plain),
+                                                                style: .plain,
+                                                                templateTitle: readerLanguageTemplateTitle), // AGENT-PLATFORM
                                shouldPrefixSenderName: false)
     }
+    
+    /// AGENT-PLATFORM: the app's previews title a template's post as its card does.
+    static let readerLanguageTemplateTitle: @Sendable (String) -> String? = { SpiralAppTemplateTitles.standard.title(forAppID: $0) }
 }

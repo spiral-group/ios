@@ -27,9 +27,17 @@ internal enum Asset {
   internal enum Colors {
     internal static let accentColor = ColorAsset(name: "colors/accent-color")
     internal static let backgroundColor = ColorAsset(name: "colors/background-color")
+    internal static let onboardingBlueBottom = ColorAsset(name: "colors/onboarding-blue-bottom")
+    internal static let onboardingBlueInk = ColorAsset(name: "colors/onboarding-blue-ink")
+    internal static let onboardingBlueTop = ColorAsset(name: "colors/onboarding-blue-top")
+    internal static let onboardingPearlBottom = ColorAsset(name: "colors/onboarding-pearl-bottom")
+    internal static let onboardingPearlCard = ColorAsset(name: "colors/onboarding-pearl-card")
+    internal static let onboardingPearlRing = ColorAsset(name: "colors/onboarding-pearl-ring")
+    internal static let onboardingPearlTop = ColorAsset(name: "colors/onboarding-pearl-top")
   }
   internal enum Images {
     internal static let appLogo = ImageAsset(name: "images/app-logo")
+    internal static let assistantSpark = ImageAsset(name: "images/assistant-spark")
     internal static let backgroundBottom = ImageAsset(name: "images/background-bottom")
     internal static let callkitLogo = ImageAsset(name: "images/callkit-logo")
     internal static let chatBackground = ImageAsset(name: "images/chat-background")
@@ -37,7 +45,11 @@ internal enum Asset {
     internal static let locationMarkerShape = ImageAsset(name: "images/location-marker-shape")
     internal static let mapBlurred = ImageAsset(name: "images/mapBlurred")
     internal static let placeholderMap = ImageAsset(name: "images/placeholderMap")
-    internal static let notificationsPromptGraphic = ImageAsset(name: "images/notifications-prompt-graphic")
+    internal static let sparkJoy = ImageAsset(name: "images/spark-joy")
+    internal static let sparkListen = ImageAsset(name: "images/spark-listen")
+    internal static let sparkPoint = ImageAsset(name: "images/spark-point")
+    internal static let sparkShield = ImageAsset(name: "images/spark-shield")
+    internal static let sparkTranslate = ImageAsset(name: "images/spark-translate")
     internal static let pollWinner = ImageAsset(name: "images/poll-winner")
   }
   internal static let spiralChatsFill = SymbolAsset(name: "spiral.chats.fill")

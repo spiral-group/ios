@@ -31,13 +31,17 @@ class UserSessionFlowCoordinator: FlowCoordinatorProtocol {
     // periphery:ignore - retaining purpose
     private let presenceService: PresenceService
     
-    private var pendingInviteWelcome: String? // AGENT-PLATFORM (Brief 0073)
+    // AGENT-PLATFORM (Brief 0073): the inviter, and what to do once the welcome is really on screen (1.0.3: the
+    // platform records it then, not when it is queued — a queue lost with the app must leave it owed).
+    private var pendingInviteWelcome: (inviterUserID: String, onShown: () -> Void)?
     
     private var userSession: UserSessionProtocol {
         flowParameters.userSession
     }
     
     private let onboardingFlowCoordinator: OnboardingFlowCoordinator
+    /// AGENT-PLATFORM (1.0.3): how long the sign-in's logo may wait for onboarding's cover, from the session's start.
+    var signInCoverTimeout: TimeInterval = 3
     private let onboardingStackCoordinator: NavigationStackCoordinator
     private let chatsTabFlowCoordinator: ChatsTabFlowCoordinator
     private let chatsTabDetails: NavigationTabCoordinator<HomeTab>.TabDetails
@@ -56,7 +60,7 @@ class UserSessionFlowCoordinator: FlowCoordinatorProtocol {
     private let settingsFlowCoordinator: SettingsFlowCoordinator
     private let settingsStackCoordinator: NavigationStackCoordinator
     private let settingsTabDetails: NavigationTabCoordinator<HomeTab>.TabDetails
-    private var settingsTabAvatarTask: Task<Void, Never>?
+    private var settingsTabAvatar: SpiralTabAvatarLoader? // AGENT-PLATFORM
     
     enum State: StateType {
         /// The state machine hasn't started.
@@ -207,6 +211,11 @@ class UserSessionFlowCoordinator: FlowCoordinatorProtocol {
         // AGENT-PLATFORM: platform sync (decisions 154, 289): the session's sync
         // stream must not reconnect with the ended session's token.
         flowParameters.userSession.platformSync?.stop()
+        // AGENT-PLATFORM (1.0.3): nor may presence: an ended session's screens can
+        // outlive it, and its poll kept refreshing the dead token on every foreground.
+        flowParameters.userSession.presenceObserverService?.stop()
+        presenceService.stop() // AGENT-PLATFORM (1.0.3): the own presence PUTs too.
+        removeSignInCover() // AGENT-PLATFORM (1.0.3): no sign-in's logo outlives its session.
     }
     
     func handleAppRoute(_ appRoute: AppRoute, animated: Bool) {
@@ -232,11 +241,13 @@ class UserSessionFlowCoordinator: FlowCoordinatorProtocol {
         // deep links into the Agents tab. Listed before the chats
         // catch-all so the explicit cases win.
         case .approvalDetail, .verificationDetail, .publicProfile:
+            closeSettingsSheet(animated: animated) // AGENT-PLATFORM (DEBT B10)
             agentsTabFlowCoordinator.handleAppRoute(appRoute, animated: animated)
             if navigationTabCoordinator.selectedTab != .agents {
                 navigationTabCoordinator.selectedTab = .agents
             }
         case .feedPost, .feedNotices: // AGENT-PLATFORM: feed (Brief 0082)
+            closeSettingsSheet(animated: animated) // AGENT-PLATFORM (DEBT B10)
             feedTabFlowCoordinator.handleAppRoute(appRoute, animated: animated)
             if navigationTabCoordinator.selectedTab != .feed {
                 navigationTabCoordinator.selectedTab = .feed
@@ -259,6 +270,7 @@ class UserSessionFlowCoordinator: FlowCoordinatorProtocol {
              .event, .eventOnRoomAlias, .childEvent, .childEventOnRoomAlias,
              .share, .transferOwnership, .thread,
              .catalogTemplate: // AGENT-PLATFORM (decision 111): the chat picker is the chats tab's.
+            closeSettingsSheet(animated: animated) // AGENT-PLATFORM (DEBT B10)
             chatsTabFlowCoordinator.handleAppRoute(appRoute, animated: animated)
             if navigationTabCoordinator.selectedTab != .chats {
                 navigationTabCoordinator.selectedTab = .chats
@@ -266,6 +278,7 @@ class UserSessionFlowCoordinator: FlowCoordinatorProtocol {
         case .search:
             // AGENT-PLATFORM (Brief 0083, question 343): search is Chats' field when it's available (flag enabled), otherwise ignore.
             if let searchScreenCoordinator {
+                closeSettingsSheet(animated: false) // AGENT-PLATFORM (DEBT B10)
                 // AGENT-PLATFORM (Brief 0083): in compact width an open room covers Chats, and the field with it.
                 if flowParameters.windowManager.mainWindow.traitCollection.horizontalSizeClass == .compact {
                     clearRoute(animated: false)
@@ -280,13 +293,23 @@ class UserSessionFlowCoordinator: FlowCoordinatorProtocol {
         chatsTabFlowCoordinator.clearRoute(animated: animated)
     }
     
+    /// AGENT-PLATFORM (DEBT B10): Settings is a tab now, so a route to another tab closes the sheet over Settings
+    /// (Link new device, say) as upstream closed the Settings sheet itself. A sheet a call leaves up stays.
+    private func closeSettingsSheet(animated: Bool) {
+        guard let sheet = settingsStackCoordinator.sheetCoordinator,
+              !NavigationTabCoordinator<HomeTab>.modalRefusesToBeClosedByACall(sheet) else {
+            return
+        }
+        settingsStackCoordinator.setSheetCoordinator(nil, animated: animated)
+    }
+    
     // MARK: - Invite welcome (AGENT-PLATFORM, Brief 0073)
     
     /// After an invited registration: who invited you, and a way to write to
     /// them. Waits until onboarding has settled (G05: the consent read could
     /// start onboarding after the welcome showed, and its cover replaced it).
-    func presentInviteWelcome(inviterUserID: String) {
-        pendingInviteWelcome = inviterUserID
+    func presentInviteWelcome(inviterUserID: String, onShown: @escaping () -> Void = { }) {
+        pendingInviteWelcome = (inviterUserID, onShown)
         showPendingInviteWelcomeIfOnboardingSettled()
     }
     
@@ -294,10 +317,11 @@ class UserSessionFlowCoordinator: FlowCoordinatorProtocol {
     private func showPendingInviteWelcomeIfOnboardingSettled(replacingCover: Bool = false) {
         guard replacingCover || navigationTabCoordinator.fullScreenCoverCoordinator == nil,
               onboardingFlowCoordinator.isSettled,
-              let inviterUserID = pendingInviteWelcome.take() else {
+              let pending = pendingInviteWelcome.take() else {
             return
         }
-        showInviteWelcome(inviterUserID: inviterUserID)
+        showInviteWelcome(inviterUserID: pending.inviterUserID)
+        pending.onShown()
     }
     
     private func showInviteWelcome(inviterUserID: String) {
@@ -339,6 +363,13 @@ class UserSessionFlowCoordinator: FlowCoordinatorProtocol {
             // AGENT-PLATFORM: platform sync (decision 289): the session's one stream, for every tab.
             flowParameters.userSession.platformSync?.start()
             attemptStartingOnboarding()
+            // AGENT-PLATFORM (1.0.3): nothing to wait for; else a cover that never appears (one doesn't show over a
+            // sheet a route opened meanwhile) must not leave the logo over the app.
+            if navigationTabCoordinator.fullScreenCoverCoordinator !== onboardingStackCoordinator {
+                removeSignInCover()
+            } else {
+                removeSignInCover(after: signInCoverTimeout)
+            }
             // AGENT-PLATFORM (Brief 0078 phase 2): ask about third-party AI once the server says so.
             Task { [weak self] in
                 await self?.onboardingFlowCoordinator.refreshAIConsent()
@@ -475,7 +506,10 @@ class UserSessionFlowCoordinator: FlowCoordinatorProtocol {
                 
                 switch action {
                 case .requestPresentation(let animated):
-                    navigationTabCoordinator.setFullScreenCoverCoordinator(onboardingStackCoordinator, animated: animated)
+                    // AGENT-PLATFORM (1.0.3): the sign-in's logo stays over the tabs until onboarding covers them.
+                    let onCoverPresented: () -> Void = { [weak self] in self?.removeSignInCover(after: 0.3) }
+                    navigationTabCoordinator.setFullScreenCoverCoordinator(onboardingStackCoordinator, animated: animated,
+                                                                           presentationCallback: onCoverPresented)
                 case .dismiss:
                     // Another cover (the in-app incoming call) may have taken onboarding's
                     // place: it stays, and the welcome waits for it to go.
@@ -599,6 +633,22 @@ class UserSessionFlowCoordinator: FlowCoordinatorProtocol {
     
     // MARK: - Onboarding
     
+    // AGENT-PLATFORM (1.0.3, operator 2026-11-23): the logo the sign-in left over the root (`AuthenticationFlowCoordinator`
+    // sets it while the OAuth callback is exchanged) hid the tabs, which showed for a moment before onboarding's cover.
+    // The cover's `onAppear` can come a frame or two before it is drawn, so the logo under it goes a moment later.
+    // Each delayed removal takes only the cover it was scheduled for.
+    private func removeSignInCover(after delay: TimeInterval? = nil) {
+        guard let cover = navigationRootCoordinator.coverCoordinator else { return }
+        guard let delay else {
+            navigationRootCoordinator.setCoverCoordinator(nil)
+            return
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+            guard let self, navigationRootCoordinator.coverCoordinator === cover else { return }
+            navigationRootCoordinator.setCoverCoordinator(nil)
+        }
+    }
+    
     private func attemptStartingOnboarding() {
         MXLog.info("Attempting to start onboarding")
         
@@ -644,19 +694,18 @@ class UserSessionFlowCoordinator: FlowCoordinatorProtocol {
     
     // AGENT-PLATFORM (Brief 0083, question 343): the person's tab draws their avatar: the monogram at once, then the photo.
     private func setupSettingsTabAvatar() {
+        let mediaProvider = flowParameters.userSession.mediaProvider
+        let settingsTabAvatar = SpiralTabAvatarLoader { url in
+            guard let source = try? MediaSourceProxy(url: url, mimeType: "image/jpeg") else { return nil }
+            return try? await mediaProvider.loadImageRetryingOnReconnection(source, size: Avatars.Size.user(on: .chats).scaledSize).value
+        } onChange: { [weak self] avatar in
+            self?.settingsTabDetails.avatar = avatar
+        }
+        self.settingsTabAvatar = settingsTabAvatar
         flowParameters.userSession.clientProxy.userProfilePublisher
             .receive(on: DispatchQueue.main)
-            .sink { [weak self] profile in
-                guard let self else { return }
-                settingsTabDetails.avatar = .init(name: profile.displayName, contentID: profile.id, photo: nil)
-                settingsTabAvatarTask?.cancel()
-                
-                guard let url = profile.avatarURL, let source = try? MediaSourceProxy(url: url, mimeType: "image/jpeg") else { return }
-                let task = flowParameters.userSession.mediaProvider.loadImageRetryingOnReconnection(source, size: Avatars.Size.user(on: .chats).scaledSize)
-                settingsTabAvatarTask = Task { [weak self] in
-                    guard let photo = try? await task.value, !Task.isCancelled else { return }
-                    self?.settingsTabDetails.avatar?.photo = photo
-                }
+            .sink { profile in
+                settingsTabAvatar.update(name: profile.displayName, contentID: profile.id, photoURL: profile.avatarURL)
             }
             .store(in: &cancellables)
     }

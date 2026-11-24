@@ -270,6 +270,72 @@ struct AgentSettingsContractWireTests {
         #expect(NativeAgentCenterError(.agentPaused).localizedDescription == UntranslatedL10n.screenNativeCallAgentCenterErrorAgentPaused)
     }
 
+    // MARK: - A refused name (1.0.3)
+
+    /// What the backend answers a create or rename, and the error the screens tell apart.
+    nonisolated struct NameRefusal: Sendable, CustomTestStringConvertible {
+        let status: Int
+        let type: String
+        let detail: String
+        let sendsName: Bool
+        let expected: String
+
+        var testDescription: String {
+            "\(status) \(type)\(sendsName ? "" : " without a name")"
+        }
+    }
+
+    nonisolated static let nameRefusals: [NameRefusal] = [
+        .init(status: 422, type: "/errors/display-name-reserved",
+              detail: "this name is reserved for Spiral's own accounts; choose another", sendsName: true,
+              expected: AgentPlatformError.displayNameReserved.description),
+        .init(status: 422, type: "/errors/invalid-request-body",
+              detail: "display_name: expected a string", sendsName: true,
+              expected: AgentPlatformError.validation(detail: "display_name: expected a string").description),
+        .init(status: 400, type: "/errors/validation-failed",
+              detail: "the name contains control or text-direction characters", sendsName: true,
+              expected: AgentPlatformError.displayNameInvalidCharacters.description),
+        .init(status: 400, type: "/errors/validation-failed",
+              detail: "display_name must be 1..=64 characters (got 65)", sendsName: true,
+              expected: AgentPlatformError.validation(detail: "display_name must be 1..=64 characters (got 65)").description),
+        .init(status: 503, type: "/errors/service-unavailable",
+              detail: "could not check the name; try again", sendsName: true,
+              expected: AgentPlatformError.displayNameUnchecked.description),
+        .init(status: 503, type: "/errors/service-unavailable",
+              detail: "unavailable", sendsName: false,
+              expected: AgentPlatformError.serverError(status: 503).description)
+    ]
+
+    @Test(arguments: nameRefusals)
+    func aRenameRefusalIsTypedByStatusAndType(_ refusal: NameRefusal) async throws {
+        problem(status: refusal.status, type: refusal.type, detail: refusal.detail)
+
+        let patch = refusal.sendsName ? AgentEditPatch(displayName: "Spiral Support") : AgentEditPatch(paused: true)
+        let result = await service.editAgent(agentID: Self.agentID, patch: patch)
+
+        guard case .failure(let error) = result else {
+            Issue.record("Expected a failure, got \(result)")
+            return
+        }
+        #expect(error.description == refusal.expected)
+    }
+
+    @Test(arguments: nameRefusals.filter(\.sendsName))
+    func aCreateRefusalIsTypedByStatusAndType(_ refusal: NameRefusal) async throws {
+        problem(status: refusal.status, type: refusal.type, detail: refusal.detail)
+
+        let result = await service.createCompanyAgent(companyID: "0199d0a1-7c2e-7b44-9a51-3f1e2d4c5b03",
+                                                      role: "support",
+                                                      displayName: "Spiral Support",
+                                                      roleBrief: nil)
+
+        guard case .failure(let error) = result else {
+            Issue.record("Expected a failure, got \(result)")
+            return
+        }
+        #expect(error.description == refusal.expected)
+    }
+
     // MARK: - Fixtures
 
     static let agentID = "0199d0a1-7c2e-7b44-9a51-3f1e2d4c5b01"
@@ -291,10 +357,10 @@ struct AgentSettingsContractWireTests {
         SettingsContractURLProtocol.stubs.withLock { $0[testID] = .init(status: status, contentType: contentType, body: body) }
     }
 
-    func problem(status: Int, type: String) {
+    func problem(status: Int, type: String, detail: String = "refused") {
         stub(status: status,
              contentType: "application/problem+json",
-             body: Data(#"{"type":"\#(type)","title":"Conflict","status":\#(status),"detail":"refused"}"#.utf8))
+             body: Data(#"{"type":"\#(type)","title":"Refused","status":\#(status),"detail":"\#(detail)"}"#.utf8))
     }
 
     var lastRequest: URLRequest? {

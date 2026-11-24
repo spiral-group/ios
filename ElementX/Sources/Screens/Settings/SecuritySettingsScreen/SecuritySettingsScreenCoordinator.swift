@@ -20,7 +20,8 @@ struct SecuritySettingsScreenCoordinatorParameters {
 }
 
 enum SecuritySettingsScreenCoordinatorAction {
-    case newPhrase
+    case newPhrase(addsFirstPhrase: Bool)
+    case addApple
     case manageAccount(url: URL)
     case linkNewDevice
     case secureBackup
@@ -45,8 +46,10 @@ final class SecuritySettingsScreenCoordinator: CoordinatorProtocol {
                 guard let self else { return }
                 
                 switch action {
-                case .newPhrase:
-                    actionsSubject.send(.newPhrase)
+                case .newPhrase(let addsFirstPhrase):
+                    actionsSubject.send(.newPhrase(addsFirstPhrase: addsFirstPhrase))
+                case .addApple:
+                    actionsSubject.send(.addApple)
                 case .manageAccount(let url):
                     actionsSubject.send(.manageAccount(url: url))
                 case .linkNewDevice:
@@ -58,6 +61,12 @@ final class SecuritySettingsScreenCoordinator: CoordinatorProtocol {
                 }
             }
             .store(in: &cancellables)
+    }
+    
+    /// A New phrase or Add Apple flow ended, whatever its outcome: the rows read the
+    /// account again and the rows take taps again.
+    func signInFlowFinished() {
+        viewModel.signInFlowFinished()
     }
     
     func toPresentable() -> AnyView {

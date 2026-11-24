@@ -27,6 +27,9 @@ nonisolated struct SpiralNotice: Equatable {
         /// The account phrase was replaced from a signed-in device (Brief 0075);
         /// the device's name when the server could read it.
         case phraseChanged(deviceName: String?)
+        /// Sign in with Apple was added to the account (1.0.3). It names no device, even if one is
+        /// sent: a stolen token would name the owner's own phone and look reassuring.
+        case appleLinked
         /// The agent could not answer the last message (ADR-0086).
         case replyFailed
         /// The automatic content check held the agent's reply back (coverage walk
@@ -66,6 +69,7 @@ nonisolated struct SpiralNotice: Equatable {
             case .referralJoined: "referral_joined"
             case .welcome: "welcome"
             case .phraseChanged: "phrase_changed"
+            case .appleLinked: "apple_linked"
             case .replyFailed: "reply_failed"
             case .replyWithheld: "reply_withheld"
             case .aiBudgetReached: "ai_budget_reached"
@@ -108,6 +112,8 @@ nonisolated struct SpiralNotice: Equatable {
         case "phrase_changed":
             let deviceName = (facts["device_name"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
             self.kind = .phraseChanged(deviceName: deviceName?.isEmpty == false ? deviceName : nil)
+        case "apple_linked":
+            self.kind = .appleLinked
         case "reply_failed":
             self.kind = .replyFailed
         case "reply_withheld":
@@ -152,6 +158,18 @@ nonisolated struct SpiralNotice: Equatable {
         }
     }
     
+    /// AGENT-PLATFORM (1.0.3 A3): the first word of a person's name, for the welcome's «Hi, Anna!». A name without spaces is
+    /// used whole.
+    static func firstName(of displayName: String) -> String {
+        let name = displayName.trimmingCharacters(in: .whitespacesAndNewlines)
+        return name.split(whereSeparator: \.isWhitespace).first.map(String.init) ?? name
+    }
+    
+    /// AGENT-PLATFORM (1.0.3 A3): the person's own assistant's welcome, the one that offers starters.
+    var isPersonalWelcome: Bool {
+        if case .welcome(_, _, let behavior) = kind { behavior == "personal_assistant" } else { false }
+    }
+    
     private static func nonBlank(_ value: Any?) -> String? {
         guard let text = (value as? String)?.trimmingCharacters(in: .whitespacesAndNewlines), !text.isEmpty else { return nil }
         return text
@@ -170,9 +188,11 @@ nonisolated struct SpiralNotice: Equatable {
         case .referralJoined(let joinedUserID, let joinedDisplayName):
             UntranslatedL10n.noticeReferralJoined(joinedDisplayName ?? joinedUserID)
         case .welcome(let ownerDisplayName, _, _):
-            UntranslatedL10n.noticeWelcomeTitle(ownerDisplayName)
+            UntranslatedL10n.noticeWelcomeTitle(Self.firstName(of: ownerDisplayName))
         case .phraseChanged:
             UntranslatedL10n.noticePhraseChangedTitle
+        case .appleLinked:
+            UntranslatedL10n.noticeAppleLinkedTitle
         case .replyFailed:
             UntranslatedL10n.noticeReplyFailedTitle
         case .replyWithheld:

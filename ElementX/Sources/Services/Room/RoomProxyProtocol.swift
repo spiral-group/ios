@@ -147,7 +147,8 @@ protocol JoinedRoomProxyProtocol: RoomProxyProtocol {
     
     func leaveRoom() async -> Result<Void, RoomProxyError>
     
-    func updateMembers() async
+    /// AGENT-PLATFORM (1.0.3 B14): the server read's result, so a screen with nothing to show can say it failed.
+    @discardableResult func updateMembers() async -> Result<Void, RoomProxyError>
     
     func getMember(userID: String) async -> Result<RoomMemberProxyProtocol, RoomProxyError>
     

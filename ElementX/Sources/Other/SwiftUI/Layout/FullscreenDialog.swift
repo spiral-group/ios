@@ -33,6 +33,10 @@ struct FullscreenDialog<Content: View, BottomContent: View>: View {
     /// The type of background that should be shown behind the content. This
     /// will be hidden if the main content extends behind the bottom content.
     var background: FullscreenDialogBackground?
+    /// AGENT-PLATFORM (1.0.3): the buttons follow the content at every text size, as at accessibility sizes, so a
+    /// screen whose content is a disclosure can't be answered before it has been scrolled through. They sit at the
+    /// bottom while the content fits.
+    var scrollsBottomContentWithContent = false
     
     /// The main content shown at the top of the layout.
     @ViewBuilder var content: () -> Content
@@ -60,7 +64,7 @@ struct FullscreenDialog<Content: View, BottomContent: View>: View {
                     .ignoresSafeArea()
             }
             
-            if dynamicTypeSize < .accessibility1 {
+            if dynamicTypeSize < .accessibility1, !scrollsBottomContentWithContent { // AGENT-PLATFORM (1.0.3)
                 standardLayout
             } else {
                 accessibilityLayout
@@ -100,7 +104,7 @@ struct FullscreenDialog<Content: View, BottomContent: View>: View {
         .introspect(.scrollView, on: .supportedVersions, customize: updateBackgroundVisibility)
     }
     
-    /// A continuously scrolling layout used for accessibility font sizes.
+    /// A continuously scrolling layout used for accessibility font sizes (AGENT-PLATFORM: and `scrollsBottomContentWithContent`).
     private var accessibilityLayout: some View {
         GeometryReader { geometry in
             ScrollView {

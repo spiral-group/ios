@@ -151,9 +151,10 @@ struct NativeCallTranslationLabTests {
         NativeCallAssistantsLiveLab.myLanguageStore.clearChoice()
     }
 
-    /// Operator, 2026-11-15: «Переклад» in a 1:1 with someone who speaks the language «Translate into» names asks the
-    /// platform for nothing — it would only stand by — and the sheet says why in the buttons' place. «Got it» brings
-    /// the buttons back with translation off.
+    /// Operator, 2026-11-15: Start in a 1:1 with someone who speaks the language «Translate into» names asks the platform
+    /// for nothing — it would only stand by — and the sheet says why in the buttons' place. «Got it» brings the buttons
+    /// back with translation off. Since 1.0.3 the Translation button itself only brings its question back: the card
+    /// comes from Start (operator, 2026-11-21).
     @Test
     func translationIntoALanguageEveryoneSpeaksSendsNothingAndSaysWhy() async throws {
         let lab = makeLab(.onePerson)
@@ -164,6 +165,10 @@ struct NativeCallTranslationLabTests {
         context.send(viewAction: .showAgentCenter)
 
         context.send(viewAction: .tapAssistantJob(.translation))
+        #expect(context.assistantConfirmation == .start(.translation))
+        #expect(context.viewState.attachesSent.isEmpty)
+
+        context.send(viewAction: .produceTranslation)
 
         #expect(context.assistantConfirmation == .nothingToTranslate)
         #expect(context.isAgentCenterPresented)
@@ -188,7 +193,7 @@ struct NativeCallTranslationLabTests {
         await waitUntil { context.viewState.agentCenter.isAvailable }
         context.send(viewAction: .setMyLanguage("en"))
         context.send(viewAction: .showAgentCenter)
-        context.send(viewAction: .tapAssistantJob(.translation))
+        context.send(viewAction: .produceTranslation)
         #expect(context.assistantConfirmation == .nothingToTranslate)
 
         context.send(viewAction: .setMyLanguage("uk"))
@@ -198,9 +203,10 @@ struct NativeCallTranslationLabTests {
         NativeCallAssistantsLiveLab.myLanguageStore.clearChoice()
     }
 
-    /// Someone else in the group speaks another language: the tap brings your assistant, as before.
+    /// Someone else in the group speaks another language: the button only picks Translation (1.0.3, pick C), and its
+    /// question's Start brings your assistant.
     @Test
-    func translationIntoALanguageSomeoneLacksStillStarts() async {
+    func translationIntoALanguageSomeoneLacksStartsFromItsQuestion() async {
         let lab = makeLab(.group)
         let context = lab.viewModel.context
         await waitUntil { context.viewState.agentCenter.isAvailable }
@@ -209,8 +215,10 @@ struct NativeCallTranslationLabTests {
         context.send(viewAction: .showAgentCenter)
 
         context.send(viewAction: .tapAssistantJob(.translation))
+        #expect(context.assistantConfirmation == .start(.translation))
+        #expect(context.viewState.attachesSent.isEmpty)
 
-        #expect(context.assistantConfirmation == nil)
+        context.send(viewAction: .produceTranslation)
         await waitUntil { lab.backend.ownSession != nil }
         #expect(lab.backend.ownSession != nil)
         NativeCallAssistantsLiveLab.myLanguageStore.clearChoice()
@@ -444,6 +452,56 @@ struct NativeCallTranslationLabTests {
         #expect(lab.backend.writeLog.last == "translation pocket fr de")
         #expect(context.viewState.myLanguageCode == "fr")
         #expect(context.viewState.neighbourLanguage == "de")
+        #expect(context.viewState.agentCenter.lastError == nil)
+
+        NativeCallAssistantsLiveLab.myLanguageStore.clearChoice()
+        NativeCallAssistantsLiveLab.myLanguageStore.setNeighbourLanguage("fr")
+    }
+
+    /// DEBT B21: «Я говорю» picked while the talk→interpreter switch runs — the interpreter isn't on yet, so the pick
+    /// sends nothing then — still ends with the pair the sheet shows: it is sent once the switch's pair lands.
+    @Test
+    func myLanguagePickedDuringTheSwitchToTheInterpreterIsSentAfterIt() async {
+        let lab = makeLab(.privateCall, latency: .short)
+        let context = lab.viewModel.context
+        func own() -> NativeCallAgentPresentation.Agent? {
+            context.viewState.agents.ownAgents.first
+        }
+        await waitUntil { context.viewState.agentCenter.isAvailable && own()?.shown.isConversationActive == true }
+
+        context.send(viewAction: .setNeighbourLanguage("fr"))
+        #expect(context.viewState.switchingAssistantJob == .translation)
+        context.send(viewAction: .setMyLanguage("de"))
+
+        await waitUntil(seconds: 8) { own()?.shown.languages == ["de", "fr"] && own()?.control?.translation.isSyncing == false }
+        #expect(lab.backend.writeLog == ["conversation off", "translation pocket uk fr", "translation pocket de fr"])
+        #expect(context.viewState.myLanguageCode == "de")
+        #expect(context.viewState.neighbourLanguage == "fr")
+        #expect(context.viewState.agentCenter.lastError == nil)
+
+        NativeCallAssistantsLiveLab.myLanguageStore.clearChoice()
+        NativeCallAssistantsLiveLab.myLanguageStore.setNeighbourLanguage("fr")
+    }
+
+    /// DEBT B21: two quick «Я говорю» picks while the interpreter runs — the second arrives while the first is written,
+    /// and the in-flight write takes no second one — end on the last pick, not the first.
+    @Test
+    func aSecondQuickPickOfMyLanguageIsNotLost() async {
+        let lab = makeLab(.privateCall, latency: .short)
+        let context = lab.viewModel.context
+        func own() -> NativeCallAgentPresentation.Agent? {
+            context.viewState.agents.ownAgents.first
+        }
+        await waitUntil { context.viewState.agentCenter.isAvailable && own()?.shown.isConversationActive == true }
+        context.send(viewAction: .setNeighbourLanguage("fr"))
+        await waitUntil(seconds: 8) { own()?.shown.languages == ["uk", "fr"] && context.viewState.switchingAssistantJob == nil }
+
+        context.send(viewAction: .setMyLanguage("de"))
+        context.send(viewAction: .setMyLanguage("es"))
+
+        await waitUntil(seconds: 8) { own()?.shown.languages == ["es", "fr"] && own()?.control?.translation.isSyncing == false }
+        #expect(lab.backend.writeLog == ["conversation off", "translation pocket uk fr", "translation pocket de fr", "translation pocket es fr"])
+        #expect(context.viewState.myLanguageCode == "es")
         #expect(context.viewState.agentCenter.lastError == nil)
 
         NativeCallAssistantsLiveLab.myLanguageStore.clearChoice()
@@ -719,7 +777,7 @@ struct NativeCallTranslationLabTests {
 
         context.send(viewAction: .tapAssistantJob(.recording))
 
-        #expect(context.assistantConfirmation == .recording)
+        #expect(context.assistantConfirmation == .start(.recording))
         #expect(NativeCallAssistantsCopy.recordingConfirmationDetail(context.viewState.recordingCover, context: context)
             == UntranslatedL10n.screenNativeCallAssistantsRecordConfirmMessageAfterOther("Mira"))
 
@@ -996,6 +1054,183 @@ struct NativeCallTranslationLabTests {
         #expect(taps.count == 2)
     }
 
+    // MARK: How translation starts (1.0.3, the operator's pick B)
+
+    /// Off: a language picked in «Translate into» is yours at once, and «Start translation» starts it; then Stop.
+    @Test
+    func aLanguagePickedWhileOffIsStartedByStartThenStopShows() async {
+        let lab = makeLab(.onePerson)
+        let context = lab.viewModel.context
+        await waitUntil { context.viewState.translation.isButtonVisible }
+        context.send(viewAction: .showAgentCenter)
+        #expect(translationAction(context) == .start)
+
+        context.send(viewAction: .pickTranslationLanguage("de"))
+        #expect(context.viewState.myLanguage == "de")
+        #expect(context.viewState.pickedTranslationLanguage == nil)
+        #expect(translationAction(context) == .start)
+
+        context.send(viewAction: .produceTranslation)
+        await waitUntil(seconds: 8) { context.viewState.translation.ownLanguage == "de" }
+        await waitUntil { translationAction(context) == .stop }
+        #expect(translationAction(context) == .stop)
+        NativeCallAssistantsLiveLab.myLanguageStore.clearChoice()
+    }
+
+    /// Running: a pick only offers «Translate into …»; nothing moves until it is tapped, then the button is Stop again.
+    @Test
+    func aLanguagePickedWhileRunningMovesOnlyOnTranslateInto() async {
+        let lab = await makeLabTranslating()
+        let context = lab.viewModel.context
+
+        context.send(viewAction: .pickTranslationLanguage("de"))
+        #expect(translationAction(context) == .translateInto(language: "de"))
+        try? await Task.sleep(for: .milliseconds(300))
+        #expect(context.viewState.myLanguage == "uk")
+        #expect(context.viewState.translation.ownLanguage == "uk")
+        #expect(!lab.backend.writeLog.contains { $0.contains("de") })
+
+        context.send(viewAction: .applyPickedTranslationLanguage)
+        #expect(context.viewState.pickedTranslationLanguage == nil)
+        await waitUntil(seconds: 8) { context.viewState.translation.ownLanguage == "de" }
+        #expect(context.viewState.myLanguage == "de")
+        #expect(translationAction(context) == .stop)
+        NativeCallAssistantsLiveLab.myLanguageStore.clearChoice()
+    }
+
+    /// Picking the language it already translates into takes «Translate into …» away again.
+    @Test
+    func pickingTheRunningLanguageAgainLeavesStop() async {
+        let lab = await makeLabTranslating()
+        let context = lab.viewModel.context
+
+        context.send(viewAction: .pickTranslationLanguage("de"))
+        context.send(viewAction: .pickTranslationLanguage("uk"))
+
+        #expect(translationAction(context) == .stop)
+        #expect(context.viewState.pickedTranslationLanguage == nil)
+    }
+
+    /// A pick never applied is dropped with the sheet, and by the Translation button, which only turns it off.
+    @Test
+    func closingTheSheetOrTheTranslationButtonDropsThePick() async {
+        let lab = await makeLabTranslating()
+        let context = lab.viewModel.context
+
+        context.send(viewAction: .pickTranslationLanguage("de"))
+        context.send(viewAction: .dismissAgentCenter)
+        #expect(context.viewState.pickedTranslationLanguage == nil)
+        #expect(context.viewState.myLanguage == "uk")
+
+        context.send(viewAction: .showAgentCenter)
+        context.send(viewAction: .pickTranslationLanguage("de"))
+        context.send(viewAction: .tapAssistantJob(.translation))
+        #expect(context.viewState.pickedTranslationLanguage == nil)
+        await waitUntil(seconds: 8) { context.viewState.translation.ownLanguage == nil }
+        await waitUntil { translationAction(context) == .start }
+        #expect(translationAction(context) == .start)
+        #expect(context.viewState.myLanguage == "uk")
+    }
+
+    /// A switch that fails leaves your language moved and the translation where it was: picking the language again
+    /// offers «Translate into …», which retries it.
+    @Test
+    func aFailedSwitchIsRetriedByTranslateInto() async {
+        let lab = await makeLabTranslating()
+        let context = lab.viewModel.context
+        context.send(viewAction: .pickTranslationLanguage("de"))
+        lab.backend.nextFailure = .network
+        context.send(viewAction: .applyPickedTranslationLanguage)
+        await waitUntil { context.viewState.agentCenter.lastError != nil }
+        await waitUntil { context.viewState.agentActionsInFlight.isEmpty }
+        #expect(context.viewState.myLanguage == "de")
+        #expect(context.viewState.translation.ownLanguage == "uk")
+
+        context.send(viewAction: .pickTranslationLanguage("de"))
+        #expect(translationAction(context) == .translateInto(language: "de"))
+        context.send(viewAction: .applyPickedTranslationLanguage)
+        await waitUntil(seconds: 8) { context.viewState.translation.ownLanguage == "de" }
+
+        #expect(context.viewState.translation.ownLanguage == "de")
+        #expect(translationAction(context) == .stop)
+        NativeCallAssistantsLiveLab.myLanguageStore.clearChoice()
+    }
+
+    /// «Translate into …» tapped while a translation write is still out keeps the pick and sends nothing more.
+    @Test
+    func translateIntoWaitsForAWriteStillOut() async {
+        let lab = await makeLabTranslating()
+        let context = lab.viewModel.context
+        lab.backend.latencyOverride = .milliseconds(500)
+        lab.backend.latency = .short
+        context.send(viewAction: .pickTranslationLanguage("de"))
+        context.send(viewAction: .applyPickedTranslationLanguage)
+
+        context.send(viewAction: .pickTranslationLanguage("fr"))
+        context.send(viewAction: .applyPickedTranslationLanguage)
+
+        #expect(context.viewState.pickedTranslationLanguage == "fr")
+        #expect(context.viewState.myLanguage == "de")
+        await waitUntil(seconds: 8) { context.viewState.translation.ownLanguage == "de" }
+        #expect(translationAction(context) == .translateInto(language: "fr"))
+        NativeCallAssistantsLiveLab.myLanguageStore.clearChoice()
+    }
+
+    /// A pick held for «Translate into …» goes when the translation stops on its own, here on your limit.
+    @Test
+    func aHeldPickGoesWhenTheTranslationStopsOnItsOwn() async {
+        let lab = await makeLabTranslating()
+        let context = lab.viewModel.context
+        context.send(viewAction: .pickTranslationLanguage("de"))
+        #expect(context.viewState.pickedTranslationLanguage == "de")
+
+        lab.backend.exhaustOwnLimit()
+        await waitUntil(seconds: 5) { context.viewState.pickedTranslationLanguage == nil }
+
+        #expect(context.viewState.pickedTranslationLanguage == nil)
+        #expect(context.viewState.myLanguage == "uk")
+    }
+
+    /// A start that fails leaves nothing waiting: the button is Start again, and translation is off.
+    @Test
+    func aFailedStartIsStartAgain() async {
+        let lab = makeLab(.onePerson)
+        let context = lab.viewModel.context
+        await waitUntil { context.viewState.translation.isButtonVisible }
+        context.send(viewAction: .showAgentCenter)
+        // The assistant comes for notes first, so the start is a write on its session.
+        context.send(viewAction: .toggleAssistantJob(.summary))
+        await waitUntil(seconds: 8) { context.viewState.agents.ownAgents.first?.shown.isSummaryArmed == true }
+        await waitUntil { context.viewState.agentActionsInFlight.isEmpty }
+
+        lab.backend.nextFailure = .network
+        context.send(viewAction: .produceTranslation)
+        await waitUntil { context.viewState.agentCenter.lastError != nil }
+        await waitUntil { context.viewState.agentActionsInFlight.isEmpty }
+
+        #expect(context.viewState.agentCenter.lastError != nil)
+        #expect(context.viewState.agentActionsInFlight.isEmpty)
+        #expect(context.viewState.agents.ownAgents.first?.shown.isTranslating != true)
+        #expect(translationAction(context) == .start)
+    }
+
+    /// The private call's interpreter moves with «Я говорю» at once: nothing is held there (L11).
+    @Test
+    func thePrivateCallsPickIsNeverHeld() async {
+        let lab = makeLab(.privateCall)
+        let context = lab.viewModel.context
+        await waitUntil { context.viewState.agentCenter.isAvailable }
+        context.send(viewAction: .setNeighbourLanguage("en"))
+        await waitUntil(seconds: 8) { context.viewState.agents.ownAgents.first?.shown.isTranslating == true }
+
+        context.send(viewAction: .pickTranslationLanguage("de"))
+
+        #expect(context.viewState.pickedTranslationLanguage == nil)
+        #expect(context.viewState.myLanguage == "de")
+        #expect(translationAction(context) == nil)
+        NativeCallAssistantsLiveLab.myLanguageStore.clearChoice()
+    }
+
     @MainActor
     private final class TapCounter {
         private(set) var count = 0
@@ -1028,10 +1263,186 @@ struct NativeCallTranslationLabTests {
                                            haptics: haptics)
     }
 
+    /// A 1:1 call with your assistant translating into Ukrainian, the sheet open.
+    private func makeLabTranslating() async -> NativeCallAssistantsLiveLab {
+        let lab = makeLab(.onePerson)
+        let context = lab.viewModel.context
+        await waitUntil { context.viewState.translation.isButtonVisible }
+        context.send(viewAction: .showAgentCenter)
+        context.send(viewAction: .produceTranslation)
+        await waitUntil(seconds: 8) { context.viewState.translation.ownLanguage == "uk" }
+        await waitUntil { context.viewState.agents.ownAgents.first?.shown.isTranslating == true }
+        await waitUntil { context.viewState.agentActionsInFlight.isEmpty }
+        return lab
+    }
+
+    private func translationAction(_ context: NativeCallScreenViewModel.Context) -> NativeCallTranslationAction? {
+        NativeCallTranslationAction(stage: NativeCallOwnAssistantStage(context), viewState: context.viewState)
+    }
+
     private func waitUntil(seconds: Int = 3, _ condition: () -> Bool) async {
         for _ in 0..<(seconds * 100) where !condition() {
             try? await Task.sleep(for: .milliseconds(10))
         }
+    }
+}
+
+// MARK: - 1.0.3: each job asks before it starts
+
+extension NativeCallTranslationLabTests {
+    /// 1.0.3, the call lab's pick C: Notes and Talk ask before they start, under the buttons; a second tap on the ringed
+    /// button takes the question back; the platform hears nothing until the question's action.
+    @Test(arguments: [NativeCallAssistantJob.summary, .conversation])
+    func notesAndTalkAskBeforeTheyStart(job: NativeCallAssistantJob) async {
+        let lab = makeLab(.onePerson)
+        let context = lab.viewModel.context
+        await waitUntil { context.viewState.agentCenter.isAvailable }
+        context.send(viewAction: .showAgentCenter)
+
+        context.send(viewAction: .tapAssistantJob(job))
+        #expect(context.assistantConfirmation == .start(job))
+        #expect(context.viewState.attachesSent.isEmpty)
+
+        context.send(viewAction: .tapAssistantJob(job))
+        #expect(context.assistantConfirmation == nil)
+
+        context.send(viewAction: .tapAssistantJob(job))
+        // The question's action, as the sheet sends it.
+        context.send(viewAction: .confirmAssistantJob(job))
+        #expect(context.assistantConfirmation == nil)
+        await waitUntil { lab.backend.ownSession != nil }
+        #expect(lab.backend.ownSession != nil)
+    }
+
+    /// Another job's question gives way to Translation's when its button is tapped, and the platform hears nothing.
+    @Test
+    func theTranslationButtonBringsItsQuestionBack() async {
+        let lab = makeLab(.onePerson)
+        let context = lab.viewModel.context
+        await waitUntil { context.viewState.agentCenter.isAvailable }
+        context.send(viewAction: .showAgentCenter)
+        context.send(viewAction: .tapAssistantJob(.summary))
+        #expect(context.assistantConfirmation == .start(.summary))
+
+        context.send(viewAction: .tapAssistantJob(.translation))
+
+        #expect(context.assistantConfirmation == .start(.translation))
+        #expect(context.viewState.attachesSent.isEmpty)
+        #expect(lab.backend.ownSession == nil)
+    }
+
+    /// Follow-up review: Start answers Translation's question, so a refusal or a failed join after it shows its reason
+    /// rather than the question again.
+    @Test
+    func startClearsTranslationsQuestion() async {
+        let lab = makeLab(.group)
+        let context = lab.viewModel.context
+        await waitUntil { context.viewState.agentCenter.isAvailable }
+        context.send(viewAction: .setMyLanguage("uk"))
+        context.send(viewAction: .showAgentCenter)
+        context.send(viewAction: .tapAssistantJob(.translation))
+        #expect(context.assistantConfirmation == .start(.translation))
+
+        context.send(viewAction: .produceTranslation)
+
+        #expect(context.assistantConfirmation == nil)
+        NativeCallAssistantsLiveLab.myLanguageStore.clearChoice()
+    }
+
+    /// Follow-up review: «Try again» after a refused turn-off retries the turn-off, not nothing.
+    @Test
+    func tryAgainRetriesARefusedTurnOff() async {
+        let lab = makeLab(.onePerson)
+        let context = lab.viewModel.context
+        await waitUntil { context.viewState.agentCenter.isAvailable }
+        context.send(viewAction: .confirmAssistantJob(.summary))
+        await waitUntil(seconds: 8) { context.viewState.agents.ownAgents.first?.shown.isSummaryArmed == true }
+        await waitUntil { context.viewState.agentActionsInFlight.isEmpty }
+        lab.backend.nextFailure = .network
+        context.send(viewAction: .tapAssistantJob(.summary))
+        await waitUntil { context.viewState.agentCenter.lastError != nil }
+        await waitUntil { context.viewState.agentActionsInFlight.isEmpty }
+        #expect(context.viewState.agents.ownAgents.first?.shown.isSummaryArmed == true)
+
+        context.send(viewAction: .retryAssistantJob(.summary))
+
+        await waitUntil(seconds: 8) { context.viewState.agents.ownAgents.first?.shown.isSummaryArmed != true }
+        #expect(context.viewState.agents.ownAgents.first?.shown.isSummaryArmed != true)
+    }
+
+    /// Follow-up review: «Try again» after a refused «Translate into …» moves the translation, not stops it.
+    @Test
+    func tryAgainRetriesARefusedLanguageSwitch() async {
+        let lab = await makeLabTranslating()
+        let context = lab.viewModel.context
+        context.send(viewAction: .pickTranslationLanguage("de"))
+        lab.backend.nextFailure = .network
+        context.send(viewAction: .applyPickedTranslationLanguage)
+        await waitUntil { context.viewState.agentCenter.lastError != nil }
+        await waitUntil { context.viewState.agentActionsInFlight.isEmpty }
+        #expect(context.viewState.translation.ownLanguage == "uk")
+
+        context.send(viewAction: .retryAssistantJob(.translation))
+
+        await waitUntil(seconds: 8) { context.viewState.translation.ownLanguage == "de" }
+        #expect(context.viewState.translation.ownLanguage == "de")
+        NativeCallAssistantsLiveLab.myLanguageStore.clearChoice()
+    }
+
+    /// Review finding: a yes to a job that turned on meanwhile (another device, a room tool) never turns it off.
+    @Test
+    func aYesToAJobAlreadyOnLeavesItOn() async {
+        let lab = makeLab(.onePerson)
+        let context = lab.viewModel.context
+        await waitUntil { context.viewState.agentCenter.isAvailable }
+        context.send(viewAction: .showAgentCenter)
+        context.send(viewAction: .tapAssistantJob(.summary))
+        context.send(viewAction: .toggleAssistantJob(.summary))
+        await waitUntil(seconds: 8) { context.viewState.agents.ownAgents.first?.shown.isSummaryArmed == true }
+
+        context.send(viewAction: .confirmAssistantJob(.summary))
+
+        #expect(context.assistantConfirmation == nil)
+        try? await Task.sleep(for: .milliseconds(300))
+        #expect(context.viewState.agents.ownAgents.first?.shown.isSummaryArmed == true)
+    }
+
+    /// Review finding: a join that failed is no dead end — the tapped job's question comes again and its yes retries.
+    @Test
+    func aFailedJoinIsRetriedByTheQuestion() async {
+        let lab = makeLab(.onePerson)
+        let context = lab.viewModel.context
+        await waitUntil { context.viewState.agentCenter.isAvailable }
+        context.send(viewAction: .showAgentCenter)
+        lab.backend.nextFailure = .network
+        context.send(viewAction: .confirmAssistantJob(.summary))
+        try? await Task.sleep(for: .milliseconds(200))
+        await waitUntil { context.viewState.agentActionsInFlight.isEmpty }
+        #expect(lab.backend.ownSession == nil)
+
+        context.send(viewAction: .tapAssistantJob(.summary))
+        #expect(context.assistantConfirmation == .start(.summary))
+        context.send(viewAction: .confirmAssistantJob(.summary))
+
+        await waitUntil(seconds: 8) { lab.backend.ownSession != nil }
+        #expect(lab.backend.ownSession != nil)
+    }
+
+    /// A job already on turns off at once, without a question.
+    @Test
+    func aJobAlreadyOnTurnsOffWithoutAQuestion() async {
+        let lab = makeLab(.onePerson)
+        let context = lab.viewModel.context
+        await waitUntil { context.viewState.agentCenter.isAvailable }
+        context.send(viewAction: .toggleAssistantJob(.summary))
+        await waitUntil(seconds: 8) { context.viewState.agents.ownAgents.first?.shown.isSummaryArmed == true }
+        context.send(viewAction: .showAgentCenter)
+
+        context.send(viewAction: .tapAssistantJob(.summary))
+
+        #expect(context.assistantConfirmation == nil)
+        await waitUntil(seconds: 8) { context.viewState.agents.ownAgents.first?.shown.isSummaryArmed != true }
+        #expect(context.viewState.agents.ownAgents.first?.shown.isSummaryArmed != true)
     }
 }
 

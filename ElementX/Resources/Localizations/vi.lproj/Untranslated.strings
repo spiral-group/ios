@@ -65,6 +65,9 @@
 "screen_agent_edit_persona_greeting" = "Lời chào dành cho bạn";
 "screen_agent_edit_persona_visitor_greeting" = "Lời chào dành cho khách";
 "screen_agent_edit_failure" = "Không thể lưu các thay đổi";
+"error_agent_name_reserved" = "Tên này được dành riêng cho các tài khoản của chính Spiral. Hãy chọn tên khác.";
+"error_agent_name_invalid_characters" = "Tên chứa ký tự không thể sử dụng.";
+"error_agent_name_unchecked" = "Không thể kiểm tra tên. Hãy thử lại.";
 "screen_agent_edit_load_failure" = "Không thể tải biểu mẫu chỉnh sửa";
 "screen_agent_edit_avatar_failure" = "Không thể tải lên ảnh";
 "action_agent_activity" = "Hoạt động";
@@ -250,7 +253,6 @@
 "screen_language_picker_title" = "Ngôn ngữ";
 "screen_language_picker_empty" = "Không có ngôn ngữ nào khớp với tìm kiếm của bạn.";
 "screen_start_sign_in" = "Đăng nhập";
-"screen_start_welcome_subtitle" = "Nhắn tin nhanh, riêng tư với đặc vụ cá nhân của bạn.";
 
 // AGENT-PLATFORM (Brief 0072, ADR-0083, ADR-0084): presence, worded as Telegram does
 "common_presence_online" = "trực tuyến";
@@ -491,6 +493,16 @@
 "screen_native_call_assistants_record_confirm_title" = "Ghi âm cuộc gọi?";
 "screen_native_call_assistants_record_confirm_message" = "Mọi người thấy REC ở đầu cuộc gọi. Bản ghi xuất hiện trong cuộc trò chuyện sau cuộc gọi.";
 "screen_native_call_assistants_record_confirm_action" = "Ghi âm";
+"screen_native_call_assistants_notes_confirm_title" = "Ghi chú cuộc gọi?";
+"screen_native_call_assistants_notes_confirm_message" = "Trợ lý của bạn nghe cuộc gọi và đăng bản tóm tắt trong cuộc trò chuyện sau đó. Người khác thấy trợ lý đang ghi chú.";
+"screen_native_call_assistants_notes_confirm_action" = "Ghi chú";
+"screen_native_call_assistants_talk_confirm_title" = "Trò chuyện với trợ lý?";
+"screen_native_call_assistants_talk_confirm_message" = "Trợ lý chỉ nghe bạn và trả lời thành tiếng — mọi người trong cuộc gọi đều nghe thấy.";
+"screen_native_call_assistants_talk_confirm_action" = "Bắt đầu trò chuyện";
+"screen_native_call_assistants_translate_question_title" = "Dịch sang";
+"screen_native_call_assistants_listen_question_title" = "Nghe bằng";
+"screen_native_call_assistants_talk_info_title" = "Trợ lý của bạn trả lời thành tiếng";
+"screen_native_call_assistants_talk_info_message" = "Trợ lý chỉ nghe bạn, và mọi người trong cuộc gọi đều nghe thấy. Không dịch trong khi trò chuyện.";
 "screen_native_call_assistants_none_of_your_own" = "Bạn chưa có trợ lý";
 "screen_native_call_assistants_which" = "Chọn trợ lý";
 "screen_native_call_assistants_reason_paused" = "Trợ lý của bạn đã tạm dừng";
@@ -571,7 +583,6 @@
 "screen_native_call_assistants_job_conversation" = "Trò chuyện";
 "screen_native_call_assistants_translating" = "Đang dịch sang %1$@";
 "screen_native_call_assistants_stop_translation" = "Dừng dịch";
-"screen_native_call_assistants_talk_caption" = "Trả lời bạn thành tiếng và mọi người đều nghe thấy. Không dịch trong khi trò chuyện.";
 "screen_native_call_assistants_pick_footer" = "Đã lưu cho cuộc trò chuyện này";
 "screen_native_call_assistants_neighbour_language" = "Ngôn ngữ của người bên cạnh bạn";
 "screen_native_call_assistants_pocket_detail" = "Sau mỗi câu · hai chiều";
@@ -591,10 +602,9 @@
 "screen_native_call_assistants_status_both_ways" = "Đang dịch hai chiều";
 "screen_native_call_assistants_translate_into" = "Dịch sang";
 "screen_native_call_assistants_translate_into_detail" = "Bạn nghe cuộc gọi bằng ngôn ngữ này";
+"screen_native_call_assistants_translate_into_language" = "Dịch sang: %1$@";
 "screen_native_call_assistants_in_call" = "Trong cuộc gọi";
 "screen_native_call_assistants_in_call_more" = "Trong cuộc gọi: thêm %1$d";
-"screen_native_call_assistants_new_translation" = "Bản dịch mới";
-"screen_native_call_assistants_new_translation_detail" = "Trợ lý của bạn sẽ dịch cuộc gọi";
 "screen_native_call_assistants_new_translation_others" = "Trợ lý của bạn dịch lời %1$@. Những người khác đã được dịch, miễn phí.";
 "screen_native_call_assistants_start_translation" = "Bắt đầu dịch";
 "screen_native_call_assistants_start_translation_detail" = "Dùng giới hạn của bạn. Ai chọn ngôn ngữ này đều nghe miễn phí.";
@@ -1044,7 +1054,6 @@
 "notice_phrase_changed_title" = "Đã đổi cụm từ đăng nhập";
 "a11y_message_read" = "Đã đọc";
 "screen_legal_information_source_code_spiral" = "Mã nguồn";
-"screen_invite_people_seats_label" = "Lời mời còn lại";
 "screen_native_call_tile_not_joined" = "Bạn đã không tham gia";
 "screen_agent_settings_show_in_search_footer" = "Mọi người có thể tìm thấy nó trong tìm kiếm hay không. Ai có địa chỉ của nó vẫn có thể nhắn tin cho nó.";
 "screen_agent_edit_tone_calm" = "Điềm tĩnh";
@@ -1056,7 +1065,6 @@
 "screen_room_interactive_draft_published" = "Đã đăng";
 "screen_agent_activity_reason_visitor_policy_reply" = "Bạn đã cho phép trả lời ngay";
 "screen_agent_in_room_no_tools" = "Chưa có công cụ nào trong cuộc trò chuyện này.";
-"notice_welcome_assistant_body" = "Tôi là %1$@, trợ lý cá nhân của bạn. Tôi có thể chuyển tiếp tin nhắn khi bạn vắng mặt, ghi nhớ các liên hệ của bạn và tóm tắt các phòng. Để bật công cụ của tôi trong một phòng, hãy chạm + ở đó và chọn Đặc vụ. Cứ nhắn cho tôi một cách tự nhiên — tôi luôn ở đây.";
 "screen_room_interactive_post_pick_agent_title" = "Ai sẽ tạo nó?";
 "screen_agent_settings_visitor_ask_first_description" = "Người mới phải chờ đến khi bạn đồng ý";
 "screen_ai_consent_prompt_failed" = "Không thể lưu lựa chọn của bạn. Hãy kiểm tra kết nối và thử lại.";
@@ -1086,10 +1094,8 @@
 "screen_agent_activity_reason_block_needs_owner" = "Việc chặn cần bạn đồng ý";
 "screen_create_company_title" = "Công ty mới";
 "a11y_native_call_disable_speaker" = "Tắt loa ngoài";
-"screen_invite_paste_placeholder" = "spiral.md/join/…";
 "a11y_native_call_end" = "Kết thúc cuộc gọi";
 "screen_agent_activity_action_published_post" = "Đã đăng một bài viết";
-"screen_invite_people_joined_footer" = "Những người đã tạo tài khoản qua liên kết của bạn. Chạm để bắt đầu trò chuyện.";
 "screen_arm_tool_turn_off_confirm_message" = "Đặc vụ sẽ ngừng làm việc này trong cuộc trò chuyện này cho mọi người. Bạn có thể bật lại bất cứ lúc nào.";
 "spiral_app_card_line_by" = "Từ %1$@";
 "state_event_spiral_tool_language_changed_by_you" = "Bạn đã đổi Dịch: %1$@ → %2$@";
@@ -1114,7 +1120,6 @@
 "screen_native_call_agent_block_recording" = "Đang ghi";
 "screen_native_call_control_video" = "Video";
 "screen_agent_detail_pause" = "Tạm dừng";
-"screen_invite_paste_expired" = "Lời mời này không còn hiệu lực. Hãy xin một lời mời mới.";
 "screen_security_messages_section" = "Tin nhắn";
 "screen_agent_activity_reason_relationship_unavailable" = "Không thể kiểm tra liên hệ";
 "screen_ai_consent_prompt_allow" = "Cho phép";
@@ -1144,15 +1149,12 @@
 "state_event_spiral_tool_off_by_system" = "%1$@ đã bị tắt cho %2$@";
 "a11y_native_call_swap_to_held_call" = "Chuyển sang cuộc gọi với %@";
 "screen_native_call_audio_route_iphone" = "iPhone";
-"screen_invite_people_seats_value" = "%1$d trên %2$d";
 "screen_agent_activity_reason_first_contact_with_unknown_visitor" = "Tin nhắn đầu tiên từ người mới";
 "screen_deactivate_account_spiral_list_item_3" = "Xóa thông tin tài khoản của bạn khỏi máy chủ định danh của chúng tôi.";
 "a11y_native_call_bar" = "Đang gọi với %1$@. Chạm để quay lại.";
-"screen_invite_paste_unavailable" = "Không thể kiểm tra lời mời. Hãy thử lại.";
 "screen_agent_activity_action_read_call_summary" = "Đã đọc một bản tóm tắt cuộc gọi";
 "screen_ai_consent_prompt_title" = "Cho phép AI của bên thứ ba?";
 "screen_agent_edit_voice_language_footer" = "Trợ lý luôn trả lời bằng ngôn ngữ bạn nói. Mục này đặt cách nó nghe các cuộc gọi và ngôn ngữ của bản tóm tắt cuộc gọi.";
-"screen_invite_welcome_title" = "Chào mừng đến với Spiral";
 "screen_agent_activity_reason_blocked_visitor" = "Người bị chặn";
 "screen_deactivate_account_spiral_list_item_1_bold_part" = "Vô hiệu hóa vĩnh viễn";
 "screen_native_call_agent_center_recording_live" = "Đang ghi…";
@@ -1220,7 +1222,6 @@
 "screen_deactivate_account_spiral_failed" = "Không thể xóa tài khoản. Hãy thử lại sau một phút.";
 "screen_agent_activity_action_changed_call_mode" = "Đã thay đổi cách nó tham gia cuộc gọi";
 "a11y_native_call_unmute_microphone" = "Bật micrô";
-"screen_invite_paste_label" = "Liên kết hoặc mã";
 "screen_media_viewer_position" = "%1$d trên %2$d";
 "screen_native_call_status_reconnecting_detail" = "Kết nối của bạn bị ngắt";
 "screen_approval_detail_block_blocked_subtitle" = "Từ giờ đặc vụ của bạn sẽ phớt lờ tin nhắn của họ.";
@@ -1256,6 +1257,13 @@
 "screen_agent_activity_reason_no_contact_relationship" = "Không phải liên hệ của bạn";
 "screen_room_alias_link_not_found" = "Liên kết này không dẫn đến cuộc trò chuyện nào.";
 "screen_invite_people_title" = "Mời tham gia Spiral";
+"screen_invite_people_you" = "Bạn";
+"screen_invite_people_invited_count" = "Đã mời %1$d/%2$d";
+"screen_invite_people_invited_you" = "Đã mời bạn vào Spiral";
+"screen_invite_people_seat_invite" = "Mời";
+"screen_invite_people_seat_taken" = "Đã dùng";
+"screen_invite_people_chain_footer" = "Một liên kết cho %1$d người và không được làm mới. Chạm vào một người để mở hồ sơ của họ.";
+"screen_invite_people_all_used" = "Đã dùng hết lời mời";
 "screen_approval_detail_escalation_cold_outreach" = "Đặc vụ của bạn muốn nhắn tin cho một người lần đầu tiên.";
 "screen_start_invited_by" = "%1$@ đã mời bạn tham gia Spiral";
 "screen_agent_spaces_section_retry" = "Chạm để thử lại.";
@@ -1263,7 +1271,6 @@
 "screen_settings_new_phrase_done" = "Đã đổi cụm từ đăng nhập";
 "screen_agent_activity_reason_outside_conversation" = "Ngoài cuộc trò chuyện này";
 "a11y_native_call_switch_camera" = "Đổi camera";
-"screen_invite_people_joined" = "Đã tham gia qua lời mời của bạn: %1$d";
 "screen_agent_activity_action_searched_agents" = "Đã tìm đặc vụ";
 "screen_agent_activity_reason_strategy_no_op" = "Không có gì để làm";
 "action_dismiss_visitor_message" = "Xoá";
@@ -1272,7 +1279,6 @@
 "screen_approval_detail_block_action_dont_block" = "Không chặn";
 "screen_agent_settings_people_title" = "Trò chuyện với mọi người";
 "screen_native_call_agent_center_error_not_owner" = "Chỉ chủ sở hữu của phiên này mới có thể thay đổi nó.";
-"notice_welcome_agent_body" = "%1$@ đã sẵn sàng. Cứ nhắn cho tôi.";
 "screen_agent_detail_already_in_chat" = "Đặc vụ đã ở trong cuộc trò chuyện này";
 "screen_native_call_agent_center_booth_members" = "%1$@ sang %2$@";
 "screen_settings_devices_title" = "Thiết bị và phiên";
@@ -1290,7 +1296,6 @@
 "screen_agent_activity_action_remembered" = "Đã ghi nhớ điều gì đó về một liên hệ";
 "screen_room_interactive_post_link_needs_update" = "Bài đăng này cần phiên bản Spiral mới hơn. Hãy cập nhật ứng dụng để sử dụng.";
 "screen_room_member_details_erase_assistant_memory" = "Xóa những gì trợ lý của tôi biết về họ";
-"screen_invite_paste_without" = "Tiếp tục mà không có lời mời";
 "screen_agent_edit_tone_friendly" = "Thân thiện";
 "screen_room_interactive_post_update" = "Cập nhật bài đăng";
 "screen_agent_detail_archive_refused" = "Trợ lý cá nhân của bạn gắn liền với tài khoản và không thể lưu trữ.";
@@ -1307,9 +1312,7 @@
 "screen_native_call_agent_center_talking" = "Trợ lý đang nói";
 "screen_native_call_tile_call_back" = "Chạm để gọi lại";
 "notice_reply_failed_body" = "Đã có lỗi từ phía tôi. Hãy gửi lại.";
-"screen_invite_people_joined_title" = "Đã tham gia qua lời mời của bạn";
 "screen_native_call_status_connecting_detail" = "Đang thiết lập mã hóa";
-"screen_invite_paste_title" = "Bạn có lời mời?";
 "screen_edit_profile_bio_too_long" = "Tiểu sử tối đa %1$d ký tự. Hãy rút ngắn để lưu.";
 "a11y_native_call_agent_block_role" = "%1$@, %2$@";
 "a11y_native_call_recording" = "Cuộc gọi này đang được ghi âm";
@@ -1322,12 +1325,25 @@
 "screen_agent_spaces_assistant_pending" = "Trợ lý của bạn vẫn đang được thiết lập";
 "screen_room_member_details_erase_assistant_memory_alert_title" = "Xóa những gì các trợ lý của bạn biết về %1$@?";
 "screen_settings_new_phrase_failed" = "Không thể bắt đầu đổi cụm từ. Hãy thử lại.";
+/* AGENT-PLATFORM (1.0.3): sign-in methods — the first phrase for an account made with Apple, Sign in with Apple for a phrase account. */
+"screen_settings_add_phrase_title" = "Thêm cụm từ đăng nhập";
+"screen_settings_add_phrase_message" = "Bạn sẽ chọn 12 từ. Chúng mở tài khoản của bạn trên mọi thiết bị, bên cạnh Đăng nhập bằng Apple. Bạn vẫn đăng nhập trên thiết bị này và tin nhắn của bạn không bị ảnh hưởng.";
+"screen_settings_add_phrase_auth_reason" = "Xác nhận đó là bạn để thêm cụm từ đăng nhập";
+"screen_settings_add_phrase_done" = "Đã thêm cụm từ đăng nhập";
+"screen_settings_add_phrase_failed" = "Không thể bắt đầu thêm cụm từ. Hãy thử lại.";
+"screen_settings_sign_in_passcode_required" = "Hãy đặt mật mã thiết bị trước — nó bảo vệ các cách đăng nhập của bạn";
+"screen_settings_apple_title" = "Đăng nhập bằng Apple";
+"screen_settings_apple_connected" = "Đã kết nối";
+"screen_settings_apple_add_title" = "Thêm Đăng nhập bằng Apple";
+"screen_settings_apple_auth_reason" = "Xác nhận đó là bạn để thêm Đăng nhập bằng Apple";
+"screen_settings_apple_linked" = "Đã thêm Đăng nhập bằng Apple";
+"screen_settings_apple_taken" = "Apple ID này đã được dùng cho một tài khoản Spiral khác";
+"screen_settings_apple_failed" = "Không thể bắt đầu thêm Đăng nhập bằng Apple. Hãy thử lại.";
 "screen_deactivate_account_spiral_description" = "Việc xóa tài khoản của bạn là %1$@. Việc này sẽ:";
 "screen_agent_activity_action_set_reminder" = "Đã đặt một lời nhắc";
 "screen_agent_activity_action_cancelled_reminder" = "Đã hủy một lời nhắc";
 "screen_agent_activity_reason_capability_always_allowed" = "Luôn được cho phép";
 "screen_agent_activity_action_blocked_someone" = "Đã chặn một người";
-"screen_invite_paste_message" = "Dán liên kết mà một người dùng Spiral đã gửi cho bạn, hoặc nhập mã.";
 "screen_native_call_error_title" = "Cuộc gọi thất bại";
 "notification_approval_action_not_found_title" = "Yêu cầu này không còn tồn tại";
 "state_event_spiral_tool_changed_by_you" = "Bạn đã thay đổi %1$@";
@@ -1354,7 +1370,6 @@
 "screen_native_call_control_sound" = "Âm thanh";
 "screen_native_call_status_reconnecting" = "Đang kết nối lại…";
 "notice_phrase_changed_body" = "Cụm từ cũ không còn dùng để đăng nhập được nữa.";
-"screen_invite_people_seats_footer" = "Mỗi người có một liên kết với %1$d chỗ. Liên kết không được làm mới, vì vậy hãy chia sẻ cho những người bạn thực sự muốn có mặt ở đây.";
 "screen_room_member_details_agent_unblock_action" = "Bỏ chặn";
 "screen_agent_activity_reason_unknown_capability" = "Không phải việc nó có thể làm";
 "screen_settings_new_phrase_passcode_required" = "Hãy đặt mật mã thiết bị trước — nó bảo vệ việc đổi cụm từ";
@@ -1426,10 +1441,11 @@
 "screen_your_data_calls_footer" = "Xuất một cuộc gọi: bản ghi lời, bản tóm tắt và nhật ký đồng thuận của nó.";
 "screen_arm_tool_error_agent_does_not_join_calls" = "Đặc vụ này không tham gia cuộc gọi, nên không có công cụ cuộc gọi cho nó.";
 "screen_room_interactive_generating_hint" = "Thường dưới một phút";
-"screen_invite_paste_exhausted" = "Tất cả những người mà lời mời này cho phép đều đã tham gia. Hãy xin một lời mời mới.";
 "notice_phrase_changed_on_device" = "Đã đổi trên “%1$@”.";
+/* AGENT-PLATFORM (1.0.3): the owner-DM card when Sign in with Apple is added. It names no device (security review); a new phrase disconnects Apple. */
+"notice_apple_linked_title" = "Đã thêm Đăng nhập bằng Apple";
+"notice_apple_linked_body" = "Nếu không phải bạn, hãy đổi cụm từ đăng nhập: việc này sẽ ngắt kết nối Apple.";
 "screen_ai_consent_prompt_openai" = "OpenAI: tin nhắn mà các trợ lý đọc, giọng nói của bạn trong cuộc gọi với chúng và các bản ghi âm chúng chuyển thành văn bản.";
-"screen_invite_welcome_message" = "%1$@ đã mời bạn và đã biết bạn ở đây. Hãy chào nhé!";
 "screen_agent_activity_action_used_tool" = "Đã dùng một công cụ cho một tin nhắn";
 "screen_approval_detail_escalation_first_contact" = "Có người nhắn tin cho đặc vụ của bạn lần đầu tiên, nên nó hỏi bạn trước khi trả lời.";
 "screen_agent_activity_action_drafted_post" = "Đã soạn nháp một bài đăng";
@@ -1444,7 +1460,6 @@
 "screen_room_interactive_post_updated" = "Đã cập nhật bài đăng";
 "screen_native_call_camera_failed_message" = "Không thể khởi động camera, nên cuộc gọi tiếp tục bằng âm thanh. Hãy thử lại nút camera sau giây lát.";
 "screen_media_viewer_open" = "Mở";
-"screen_invite_paste_invalid" = "Không có lời mời như vậy.";
 "screen_agent_room_tool_audience_except_named" = "cho mọi người trừ %1$@";
 "notification_spiral_needs_update_body" = "Hãy cập nhật ứng dụng để xem nội dung này.";
 "screen_agent_edit_tone_brief" = "Ngắn gọn, đi thẳng vào vấn đề";
@@ -1452,7 +1467,6 @@
 "screen_invite_people_seats_left" = "Còn %1$d trên %2$d lời mời";
 "screen_agent_activity_reason_wrong_room_kind" = "Không được phép trong loại cuộc trò chuyện này";
 "screen_native_call_failure_audio_reset" = "Âm thanh cuộc gọi đã bị hệ thống đặt lại.";
-"screen_invite_people_body" = "Chỉ đăng ký được bằng lời mời. Hãy chia sẻ liên kết cá nhân của bạn — bất kỳ ai tạo tài khoản qua liên kết đó sẽ thấy bạn đầu tiên.";
 "notification_approval_action_target_blocked_title" = "Chưa gửi — bạn đã chặn người này";
 "screen_notifications_hub_visitor_other" = "Có gì đó mới";
 "screen_agent_activity_empty_pending_title" = "Không có yêu cầu nào cần quyết định";
@@ -1476,3 +1490,61 @@
 "screen_notifications_hub_visitors_section" = "Từ mọi người";
 "screen_agent_settings_visitor_reply_description" = "Trả lời mọi người trừ những người bạn đã chặn";
 "screen_deactivate_account_spiral_auth_reason" = "Xác nhận đó là bạn để xóa tài khoản";
+
+// AGENT-PLATFORM (1.0.3 A2): the assistant's first invite in Chats, its chat before consent and its welcome.
+"screen_roomlist_assistant_invite_name" = "Trợ lý của bạn";
+"screen_roomlist_assistant_invite_subtitle" = "Chào bạn! Chạm để bắt đầu 👋";
+"screen_roomlist_assistant_invite_start" = "Bắt đầu";
+"a11y_assistant_invite_start" = "Bắt đầu trò chuyện với trợ lý của bạn";
+"a11y_assistant_invite_start_hint" = "Chấp nhận lời mời của trợ lý và mở cuộc trò chuyện của bạn với trợ lý.";
+"screen_assistant_invite_title" = "Chào bạn! Tôi là trợ lý của bạn";
+"screen_assistant_invite_reminders" = "Tôi sẽ nhắc bạn mọi việc";
+"screen_assistant_invite_contacts" = "Tôi sẽ nhớ danh bạ của bạn";
+"screen_assistant_invite_summaries" = "Tôi sẽ tóm tắt bất kỳ cuộc trò chuyện nào";
+"screen_assistant_invite_privacy" = "Tôi chỉ thấy cuộc trò chuyện này. Bạn có thể tắt tôi bất cứ lúc nào.";
+"screen_assistant_invite_start" = "Bắt đầu trò chuyện";
+"notice_welcome_body" = "Tôi ở đây và sẵn sàng giúp. Mình bắt đầu từ đâu nhé?";
+"notice_welcome_starter_summary" = "Tóm tắt một cuộc trò chuyện";
+"notice_welcome_starter_summary_message" = "Tóm tắt giúp tôi một cuộc trò chuyện";
+"notice_welcome_starter_contact" = "Ghi nhớ một liên hệ";
+"notice_welcome_starter_contact_message" = "Ghi nhớ điều gì đó về một liên hệ của tôi";
+"notice_welcome_starter_reminder" = "Nhắc tôi…";
+"notice_welcome_starter_reminder_message" = "Đặt lời nhắc cho tôi";
+"notice_welcome_allow_ai_reason" = "Hãy cho phép AI để tôi có thể đọc những gì bạn viết ở đây.";
+"notice_welcome_allow_ai_action" = "Cho phép AI";
+
+// AGENT-PLATFORM (1.0.3 onboarding): the start screen's stories, the notifications prompt and the invited welcome.
+"screen_start_slide_privacy_title" = "Cuộc trò chuyện của bạn là của bạn";
+"screen_start_slide_privacy_subtitle" = "Mã hóa đầu cuối. Không cần số điện thoại, và trợ lý chỉ hoạt động khi bạn cho phép";
+"screen_start_slide_calls_title" = "Cuộc gọi có phiên dịch";
+"screen_start_slide_calls_subtitle" = "Trợ lý tham gia và dịch trực tiếp";
+"screen_start_slide_assistant_title" = "Trợ lý luôn bên bạn";
+"screen_start_slide_assistant_subtitle" = "Trả lời khi bạn bận và hỏi bạn trước mỗi bước mới";
+"screen_start_slide_games_title" = "Cùng chơi ngay trong cuộc trò chuyện";
+"screen_start_slide_games_subtitle" = "Trò chơi và công cụ, không cần cài đặt";
+"screen_start_invited_by_hint" = "Tạo tài khoản để %1$@ biết bạn đã ở đây";
+"a11y_start_slides_position" = "Trang chiếu %1$d/%2$d";
+"screen_notification_optin_spiral_title" = "Luôn giữ liên lạc";
+"screen_notification_optin_spiral_subtitle" = "Spiral sẽ báo cho bạn khi có điều thật sự quan trọng. Bạn có thể thay đổi bất cứ lúc nào trong Cài đặt.";
+"screen_notification_optin_messages_title" = "Tin nhắn mới";
+"screen_notification_optin_messages_subtitle" = "Từ những người và nhóm bạn trò chuyện cùng";
+"screen_notification_optin_calls_title" = "Cuộc gọi đến";
+"screen_notification_optin_calls_subtitle" = "Ngay cả khi Spiral đã đóng";
+"screen_notification_optin_assistant_title" = "Câu hỏi từ trợ lý của bạn";
+"screen_notification_optin_assistant_subtitle" = "Khi trợ lý cần bạn đồng ý";
+"screen_notification_optin_allow" = "Cho phép thông báo";
+"screen_invite_welcome_together_title" = "Bạn và %1$@ đã cùng có mặt trên Spiral";
+"screen_invite_welcome_step_say_hello_title" = "Chào %1$@";
+"screen_invite_welcome_step_say_hello_subtitle" = "%1$@ đang chờ";
+"screen_invite_welcome_step_assistant_title" = "Làm quen với trợ lý";
+"screen_invite_welcome_step_assistant_subtitle" = "Lời mời của trợ lý đang chờ trong Cuộc trò chuyện";
+"screen_invite_welcome_step_play_title" = "Cùng chơi gì đó";
+"screen_invite_welcome_step_play_subtitle" = "Trò chơi và công cụ ngay trong cuộc trò chuyện";
+"a11y_invite_welcome_avatars" = "%1$@ và bạn";
+"screen_approval_detail_already_closed_title" = "Yêu cầu này đã đóng";
+"screen_approval_detail_already_closed_message" = "Yêu cầu đã hết hạn hoặc đã được trả lời.";
+"screen_room_interactive_post_description_not_sent" = "Mô tả của bạn chưa được gửi. Hãy gửi lại trong chủ đề.";
+"screen_room_interactive_post_code_not_sent" = "Bài đăng chưa đến được tác nhân. Hãy thử lại từ bài đăng.";
+"screen_invites_assistant_decline_warning_spiral" = "Nếu đây là trợ lý của chính bạn, cuộc trò chuyện của nó sẽ không thể khôi phục sau khi bạn từ chối.";
+"a11y_roomlist_remove_filter" = "Bỏ bộ lọc: %1$@";
+"a11y_settings_share_profile" = "Chia sẻ hồ sơ của tôi";

@@ -12,6 +12,9 @@ import SwiftUI
 
 struct IdentityConfirmationScreen: View {
     @Bindable var context: IdentityConfirmationScreenViewModel.Context
+    /// AGENT-PLATFORM (1.0.3): a device without a bottom safe area (iPhone SE, Touch ID iPads) gets the start screen's
+    /// larger bottom margin, rather than the link 8 pt from the edge.
+    @State private var hasBottomSafeArea = true
     
     var shouldShowSkipButton: Bool {
         #if DEBUG
@@ -28,11 +31,12 @@ struct IdentityConfirmationScreen: View {
         FullscreenDialog(topPadding: UIConstants.titleTopPaddingToNavigationBar,
                          horizontalPadding: CompoundDesignTokens.space6X,
                          bottomHorizontalPadding: CompoundDesignTokens.space6X,
-                         bottomPadding: CompoundDesignTokens.space2X) {
+                         bottomPadding: hasBottomSafeArea ? CompoundDesignTokens.space2X : CompoundDesignTokens.space4X) {
             screenHeader
         } bottomContent: {
             actions
         }
+        .onGeometryChange(for: Bool.self) { $0.safeAreaInsets.bottom > 0 } action: { hasBottomSafeArea = $0 } // AGENT-PLATFORM (1.0.3)
         .toolbar { toolbar }
         .background()
         .backgroundStyle(.compound.bgCanvasDefault)
@@ -214,7 +218,6 @@ struct IdentityConfirmationScreen_Previews: PreviewProvider, TestablePreview, Sp
         userSession.sessionSecurityStatePublisher = CurrentValuePublisher<SessionSecurityState, Never>(.init(verificationState: .unverified, recoveryState: recoveryState))
         
         return IdentityConfirmationScreenViewModel(userSession: userSession,
-                                                   userSettings: .mock(),
-                                                   userIndicatorController: UserIndicatorControllerMock())
+                                                   userSettings: .mock())
     }
 }

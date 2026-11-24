@@ -37,7 +37,7 @@ struct AgentChatsScreen: View {
 // MARK: - Previews
 
 struct AgentChatsScreen_Previews: PreviewProvider, TestablePreview, SpiralGatedPreview {
-    static let viewModel = makeViewModel(rooms: [.init(roomID: "!dm:spiral.md", displayName: "Anna Kovalchuk", kind: "dm", activeTools: []),
+    static let viewModel = makeViewModel(rooms: [.init(roomID: "!dm:spiral.md", displayName: "Anna Sampleton", kind: "dm", activeTools: []),
                                                  .init(roomID: "!team:spiral.md", displayName: "Coffee team", kind: "group", activeTools: [])])
     static let emptyViewModel = makeViewModel(rooms: [])
     static let loadingViewModel = makeViewModel(rooms: [], isLoading: true)

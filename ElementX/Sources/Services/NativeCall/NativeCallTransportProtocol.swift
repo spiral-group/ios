@@ -11,6 +11,9 @@ import Foundation
 
 enum NativeCallTransportError: Error {
     case connectionFailed(String)
+    /// The SFU refused the join because the room the token names does not
+    /// exist (any more). A fresh token recreates it (bug B3).
+    case roomNotFound(String)
     case microphoneUnavailable(String)
     case cameraUnavailable(String)
 }

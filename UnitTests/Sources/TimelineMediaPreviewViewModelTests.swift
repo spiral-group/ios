@@ -23,6 +23,7 @@ struct TimelineMediaPreviewViewModelTests {
     var photoLibraryManager: PhotoLibraryManagerMock!
     var timelineController: TimelineControllerMock!
     var timelineViewModel: TimelineViewModel! // AGENT-PLATFORM: the rows behind the viewer
+    var userIndicatorController: UserIndicatorControllerMock! // AGENT-PLATFORM: what the viewer says
     
     @Test
     mutating func loadingItem() async throws {
@@ -166,6 +167,20 @@ struct TimelineMediaPreviewViewModelTests {
         #expect(context.viewState.currentItem == .loading(.paginatingBackwards))
         #expect(context.viewState.dataSource.position == nil)
         #expect(timelineController.paginateBackwardsRequestSizeCallsCount > 0)
+    }
+    
+    // AGENT-PLATFORM (1.0.3): the browser behind keeps its toast back, so a failed swipe to older media is told here.
+    @Test
+    mutating func aFailedPageIsTold() async throws {
+        try await loadingItem()
+        timelineController.paginateBackwardsRequestSizeClosure = { _ in .failure(.generic) }
+        
+        timelineController.update(paginationState: .init(backward: .idle, forward: .endReached))
+        context.send(viewAction: .pageChanged(.loading(.backwards)))
+        await waitUntil { userIndicatorController.submitIndicatorDelayReceivedInvocations.contains { $0.indicator.title == L10n.errorFailedLoadingMessages } }
+        
+        #expect(userIndicatorController.submitIndicatorDelayReceivedInvocations.contains { $0.indicator.title == L10n.errorFailedLoadingMessages })
+        #expect(context.viewState.currentItem == .loading(.paginatingBackwards))
     }
     
     @Test
@@ -527,6 +542,7 @@ struct TimelineMediaPreviewViewModelTests {
         guard let initialItem = initialItems[initialItemIndex] as? EventBasedMessageTimelineItemProtocol else {
             fatalError("The viewer opens on a message's media.")
         }
+        userIndicatorController = UserIndicatorControllerMock()
         timelineViewModel = TimelineViewModel.mock(timelineKind: timelineKind,
                                                    timelineController: timelineController,
                                                    contentScannerService: contentScannerService)
@@ -534,7 +550,7 @@ struct TimelineMediaPreviewViewModelTests {
                                                   timelineViewModel: timelineViewModel,
                                                   mediaProvider: mediaProvider,
                                                   photoLibraryManager: photoLibraryManager,
-                                                  userIndicatorController: UserIndicatorControllerMock(),
+                                                  userIndicatorController: userIndicatorController,
                                                   appMediator: AppMediatorMock(),
                                                   replyHandler: replyHandler)
     }

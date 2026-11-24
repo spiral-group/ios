@@ -67,19 +67,19 @@ import SwiftUI
         
         // AGENT-PLATFORM (Brief 0083, question 343): a tab bar takes an image, so the avatar comes as one in its own colours.
         @MainActor @ViewBuilder
-        func iconView(isSelected: Bool, colorScheme: ColorScheme, displayScale: CGFloat) -> some View {
-            if let image = avatarImage(for: .init(isSelected: isSelected, colorScheme: colorScheme, displayScale: displayScale)) {
+        func iconView(for appearance: SpiralTabAvatar.Appearance) -> some View {
+            if let image = avatarImage(for: appearance) {
                 Image(uiImage: image)
                     .renderingMode(.original)
             } else {
                 switch glyph {
                 case .compound(let icon, let selectedIcon):
-                    CompoundIcon(isSelected ? selectedIcon : icon)
+                    CompoundIcon(appearance.isSelected ? selectedIcon : icon)
                 case .symbol(let name):
                     // Decision 386: the bar redraws any symbol it is given as a one-colour template, which flattens
                     // its layers, so the symbol comes drawn: hierarchical, the lighter layer lighter, in the colour the
                     // bar gives that state.
-                    if let image = symbolImage(named: name, for: .init(isSelected: isSelected, colorScheme: colorScheme, displayScale: displayScale)) {
+                    if let image = symbolImage(named: name, for: appearance) {
                         Image(uiImage: image)
                             .renderingMode(.original)
                     }
@@ -94,10 +94,10 @@ import SwiftUI
                 return image
             }
             let renderer = ImageRenderer(content: Image(name)
-                .symbolRenderingMode(.hierarchical)
+                .symbolRenderingMode(appearance.isContrastIncreased ? .monochrome : .hierarchical)
                 .foregroundStyle(SpiralTabGlyph.color(isSelected: appearance.isSelected))
                 .font(.system(size: Self.symbolPointSize, weight: .medium))
-                .environment(\.colorScheme, appearance.colorScheme))
+                .tabImageEnvironment(appearance))
             renderer.scale = appearance.displayScale
             let image = renderer.uiImage?.withRenderingMode(.alwaysOriginal)
             symbolImages[appearance] = image
@@ -186,7 +186,10 @@ import SwiftUI
     }
     
     /// The currently selected tab's tag.
-    var selectedTab: Tag?
+    var selectedTab: Tag? {
+        // AGENT-PLATFORM (1.0.3): the tab left behind stays alive, so a field focused in it would keep the keyboard.
+        didSet { if selectedTab != oldValue { KeyboardDismissal.endEditing() } }
+    }
     
     // MARK: Sheets
     
@@ -227,6 +230,9 @@ import SwiftUI
             fatalError("Cannot use the same coordinator more than once")
         }
         
+        // AGENT-PLATFORM (1.0.3): a field under it must not keep the keyboard; a sheet doesn't show over another one,
+        // whose field is then still the one on screen.
+        if !hasModalAboveTheOverlay { KeyboardDismissal.endEditing() }
         var transaction = Transaction()
         transaction.disablesAnimations = !animated
         
@@ -248,8 +254,14 @@ import SwiftUI
                 logPresentationChange("Set fullscreen cover", fullScreenCoverModule)
                 fullScreenCoverModule.coordinator?.start()
             }
+            
+            // AGENT-PLATFORM (1.0.3): a cover replaced or removed before it appeared never will.
+            fullScreenCoverPresentationCallback.take()?()
         }
     }
+    
+    // AGENT-PLATFORM (1.0.3): called once the cover is on screen, or once it is gone without having appeared.
+    @ObservationIgnored fileprivate var fullScreenCoverPresentationCallback: (() -> Void)?
     
     /// The currently presented fullscreen cover coordinator
     /// Fullscreen covers will be presented through the NavigationSplitCoordinator if provided
@@ -263,7 +275,10 @@ import SwiftUI
     ///   - coordinator: the coordinator to display
     ///   - animated: whether to animate the transition or not. Default is true
     ///   - dismissalCallback: called when the fullscreen cover has been dismissed, programatically or otherwise
-    func setFullScreenCoverCoordinator(_ coordinator: (any CoordinatorProtocol)?, animated: Bool = true, dismissalCallback: (() -> Void)? = nil) {
+    ///   - presentationCallback: AGENT-PLATFORM (1.0.3): called once the cover is on screen, or once it is replaced
+    ///   or removed without having appeared
+    func setFullScreenCoverCoordinator(_ coordinator: (any CoordinatorProtocol)?, animated: Bool = true, dismissalCallback: (() -> Void)? = nil,
+                                       presentationCallback: (() -> Void)? = nil) {
         guard let coordinator else {
             fullScreenCoverModule = nil
             return
@@ -273,12 +288,16 @@ import SwiftUI
             fatalError("Cannot use the same coordinator more than once")
         }
         
+        // AGENT-PLATFORM (1.0.3): a field under it must not keep the keyboard; a cover doesn't show over a sheet, whose
+        // field is then still the one on screen.
+        if !hasModalAboveTheOverlay { KeyboardDismissal.endEditing() }
         var transaction = Transaction()
         transaction.disablesAnimations = !animated
         
         withTransaction(transaction) {
             fullScreenCoverModule = NavigationModule(coordinator, dismissalCallback: dismissalCallback)
         }
+        fullScreenCoverPresentationCallback = presentationCallback // AGENT-PLATFORM (1.0.3)
     }
     
     // MARK: - Overlay
@@ -325,6 +344,9 @@ import SwiftUI
             fatalError("Cannot use the same coordinator more than once")
         }
         
+        // AGENT-PLATFORM (1.0.3): a field under it must not keep the keyboard — unless a modal the call spares stays
+        // above it, whose field is still the one on screen.
+        if !hasModalAboveTheOverlay { KeyboardDismissal.endEditing() }
         var transaction = Transaction()
         transaction.disablesAnimations = !animated
         
@@ -339,6 +361,9 @@ import SwiftUI
     ///   - mode: The type of presentation to use.
     ///   - animated: whether the transition should be animated
     func setOverlayPresentationMode(_ mode: OverlayPresentationMode, animated: Bool = true) {
+        // AGENT-PLATFORM (1.0.3): the call coming full screen over a field, or going to its bar over the chat with a field
+        // in the call focused, takes the keyboard with it.
+        if mode != overlayPresentationMode, mode == .minimized || !hasModalAboveTheOverlay { KeyboardDismissal.endEditing() }
         var transaction = Transaction()
         transaction.disablesAnimations = !animated
         
@@ -353,6 +378,19 @@ import SwiftUI
     // sheets go with it.
     enum OverlayCoveringModal { case sheet, fullScreenCover }
     
+    /// AGENT-PLATFORM (1.0.3): a sheet or cover is up over the tab view (its own, or a tab's split's or stack's) — what the
+    /// call spares stays above the call screen, so its field keeps the keyboard.
+    var hasModalAboveTheOverlay: Bool {
+        if sheetModule != nil || fullScreenCoverModule != nil { return true }
+        return tabCoordinators.contains { coordinator in
+            switch coordinator {
+            case let split as NavigationSplitCoordinator: split.sheetCoordinator != nil || split.fullScreenCoverCoordinator != nil
+            case let stack as NavigationStackCoordinator: stack.sheetCoordinator != nil || stack.fullScreenCoverCoordinator != nil
+            default: false
+            }
+        }
+    }
+
     /// Dismisses the sheets and fullscreen covers presented over the tab view that `spare` doesn't keep, through
     /// the same teardown as a swipe.
     /// - Parameters:
@@ -460,6 +498,8 @@ protocol HoldsItsModalAboveACall: CoordinatorProtocol { }
 private struct NavigationTabCoordinatorView<Tag: Hashable>: View {
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(\.colorScheme) private var colorScheme // AGENT-PLATFORM (Brief 0083, question 343)
+    @Environment(\.colorSchemeContrast) private var colorSchemeContrast // AGENT-PLATFORM (1.0.3): Increase Contrast
+    @Environment(\.legibilityWeight) private var legibilityWeight // AGENT-PLATFORM (1.0.3): Bold Text
     @Environment(\.displayScale) private var displayScale // AGENT-PLATFORM (Brief 0083, question 343)
     
     @Bindable var navigationTabCoordinator: NavigationTabCoordinator<Tag>
@@ -513,6 +553,7 @@ private struct NavigationTabCoordinatorView<Tag: Hashable>: View {
             .fullScreenCover(item: $navigationTabCoordinator.fullScreenCoverModule) { module in
                 module.coordinator?.toPresentable()
                     .id(module.id)
+                    .onAppear { navigationTabCoordinator.fullScreenCoverPresentationCallback.take()?() } // AGENT-PLATFORM (1.0.3)
             }
             .accessibilityHidden(navigationTabCoordinator.overlayModule?.coordinator != nil && navigationTabCoordinator.overlayPresentationMode == .fullScreen)
             .overlay {
@@ -596,9 +637,11 @@ private struct NavigationTabCoordinatorView<Tag: Hashable>: View {
                         Text(module.details.title)
                     } icon: {
                         // AGENT-PLATFORM (Brief 0083, question 343)
-                        module.details.iconView(isSelected: module.details.tag == navigationTabCoordinator.selectedTab,
-                                                colorScheme: colorScheme,
-                                                displayScale: displayScale)
+                        module.details.iconView(for: .init(isSelected: module.details.tag == navigationTabCoordinator.selectedTab,
+                                                           colorScheme: colorScheme,
+                                                           colorSchemeContrast: colorSchemeContrast,
+                                                           legibilityWeight: legibilityWeight,
+                                                           displayScale: displayScale))
                     }
                 }
                 .badge(module.details.badgeCount)
@@ -666,6 +709,8 @@ private struct NavigationTabCoordinatorView<Tag: Hashable>: View {
 
 struct TabRailView<Tag: Hashable>: View {
     @Environment(\.colorScheme) private var colorScheme // AGENT-PLATFORM (Brief 0083, question 343)
+    @Environment(\.colorSchemeContrast) private var colorSchemeContrast // AGENT-PLATFORM (1.0.3): Increase Contrast
+    @Environment(\.legibilityWeight) private var legibilityWeight // AGENT-PLATFORM (1.0.3): Bold Text
     @Environment(\.displayScale) private var displayScale // AGENT-PLATFORM (Brief 0083, question 343)
     
     let navigationTabCoordinator: NavigationTabCoordinator<Tag>
@@ -688,7 +733,11 @@ struct TabRailView<Tag: Hashable>: View {
                             Text(module.details.title)
                         } icon: {
                             // AGENT-PLATFORM (Brief 0083, question 343)
-                            module.details.iconView(isSelected: isSelected, colorScheme: colorScheme, displayScale: displayScale)
+                            module.details.iconView(for: .init(isSelected: isSelected,
+                                                               colorScheme: colorScheme,
+                                                               colorSchemeContrast: colorSchemeContrast,
+                                                               legibilityWeight: legibilityWeight,
+                                                               displayScale: displayScale))
                         }
                     }
                     .buttonStyle(TabButtonStyle(isSelected: isSelected))

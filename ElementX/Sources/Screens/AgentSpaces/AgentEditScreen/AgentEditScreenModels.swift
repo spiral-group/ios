@@ -99,3 +99,15 @@ enum AgentEditScreenViewAction {
     case displayFilePicker
     case removeImage
 }
+
+extension AgentPlatformError {
+    /// Why the backend refused an agent's name on a create or rename; `nil` for any other failure.
+    var agentNameRefusal: String? {
+        switch self {
+        case .displayNameReserved: UntranslatedL10n.errorAgentNameReserved
+        case .displayNameInvalidCharacters: UntranslatedL10n.errorAgentNameInvalidCharacters
+        case .displayNameUnchecked: UntranslatedL10n.errorAgentNameUnchecked
+        default: nil
+        }
+    }
+}

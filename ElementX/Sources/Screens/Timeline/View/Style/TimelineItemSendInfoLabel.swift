@@ -376,8 +376,10 @@ extension TimelineItemSendInfo {
         }
         
         isGallery = timelineItem is GalleryRoomTimelineItem
+        // AGENT-PLATFORM (question 413): an album is one element, as a photo is, so it reads its send info as a photo does.
+        let isAlbum = (timelineItem as? GalleryRoomTimelineItem)?.usesListLayout == false
         // A poll's answers stay their own elements, so its send info does too, and so does a running post's.
-        isReadWithMessage = layoutType != .hidden && !(timelineItem is PollRoomTimelineItem) && !isGallery &&
+        isReadWithMessage = layoutType != .hidden && !(timelineItem is PollRoomTimelineItem) && (!isGallery || isAlbum) &&
             !(timelineItem is InteractivePostRoomTimelineItem) // AGENT-PLATFORM (Brief 0083)
         isAccessibilityHidden = isReadWithMessage || isGallery
     }

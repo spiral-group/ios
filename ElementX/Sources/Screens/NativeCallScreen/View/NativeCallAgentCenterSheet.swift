@@ -185,13 +185,14 @@ struct NativeCallAgentCenterSheet: View {
                                                                                   excluding: free.map(\.language),
                                                                                   preferred: SuggestedLanguages.phoneLanguages,
                                                                                   keyboards: SuggestedLanguages.keyboardLanguages),
-                                      selected: context.viewState.myLanguage,
+                                      // A language picked while your translation runs is ticked until «Translate into …».
+                                      selected: context.viewState.pickedTranslationLanguage ?? context.viewState.myLanguage,
                                       phoneLanguage: context.viewState.phoneLanguage,
                                       // The catalog is every list's only source (ADR-0094 A.8): placeholders until it is read.
                                       isLoading: NativeCallAssistantsLayout(panel: agents.panel).content == .placeholders || agents.panel.catalog.isEmpty,
                                       onBack: back,
                                       onClose: close) { language in
-            context.send(viewAction: .setMyLanguage(language == context.viewState.phoneLanguage ? nil : language))
+            context.send(viewAction: .pickTranslationLanguage(language))
             back()
         }
     }
